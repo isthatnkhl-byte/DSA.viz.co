@@ -1,4 +1,4 @@
-import { ProblemSummary } from "../types.ts";
+import { ProblemSummary } from "../types";
 
 export const SAMPLE_PROBLEMS: ProblemSummary[] = [
   {

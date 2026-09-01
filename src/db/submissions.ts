@@ -1,4 +1,4 @@
-import { adminDb } from '../lib/firebase-admin.ts';
+import { adminDb } from '../lib/firebase-admin';
 
 export async function getSubmissions(userId: string) {
   const snapshot = await adminDb.collection('users').doc(userId).collection('submissions')

@@ -1,7 +1,7 @@
 // @ts-nocheck
 import raw from "../data/problems.json" with { type: "json" };
 import statementsJson from "../data/statements.json" with { type: "json" };
-import { classifyProblem } from "./problemClassifier.ts";
+import { classifyProblem } from "./problemClassifier";
 
 const rawStatements = (statementsJson ?? {}) as Record<string, string>;
 

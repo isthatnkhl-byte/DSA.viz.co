@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { statementForSlug } from "./statements.server.ts";
-import { hasMeaningfulTraversal, validateAndNormalizeVizPayload } from "./ai-contracts.ts";
-import { getAiConfig } from "./ai-config.ts";
+import { statementForSlug } from "./statements.server";
+import { hasMeaningfulTraversal, validateAndNormalizeVizPayload } from "./ai-contracts";
+import { getAiConfig } from "./ai-config";
 import {
   pickShape,
   sampleInputFor,
@@ -12,11 +12,11 @@ import {
   getCanonicalMultiDatasets,
   type TestDataset,
   type VizStep,
-} from "./problems.ts";
-import { simulateProblem, simulateProblemWithDataset } from "./simulators.ts";
-import { REVIEW_SYSTEM_PROMPT, buildReviewUserPrompt } from "./prompts/review.prompt.ts";
-import { VISUALIZER_SYSTEM_PROMPT, buildVisualizerUserPrompt } from "./prompts/visualizer.prompt.ts";
-import { raceModels, REVIEW_MODELS, VIZ_MODELS } from "./openrouter.server.ts";
+} from "./problems";
+import { simulateProblem, simulateProblemWithDataset } from "./simulators";
+import { REVIEW_SYSTEM_PROMPT, buildReviewUserPrompt } from "./prompts/review.prompt";
+import { VISUALIZER_SYSTEM_PROMPT, buildVisualizerUserPrompt } from "./prompts/visualizer.prompt";
+import { raceModels, REVIEW_MODELS, VIZ_MODELS } from "./openrouter.server";
 
 const Input = z.object({
   slug: z.string(),

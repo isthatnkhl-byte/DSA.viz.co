@@ -1,4 +1,4 @@
-import { adminDb } from '../lib/firebase-admin.ts';
+import { adminDb } from '../lib/firebase-admin';
 
 export async function getOrCreateUser(uid: string, email: string) {
   const defaultUsername = email ? email.split('@')[0] : `user_${uid.slice(0, 6)}`;

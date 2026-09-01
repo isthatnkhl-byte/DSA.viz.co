@@ -1,4 +1,4 @@
-import { CppHeaderInfo } from "../types.ts";
+import { CppHeaderInfo } from "../types";
 
 export const CPP_PACKAGES: CppHeaderInfo[] = [
   {

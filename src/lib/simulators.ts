@@ -15,8 +15,8 @@ import {
   type TestDataset,
   type VizStep,
   type VizType,
-} from "./problems.ts";
-import { classifyProblem } from "./problemClassifier.ts";
+} from "./problems";
+import { classifyProblem } from "./problemClassifier";
 
 export type VizBundle = { code: string[]; array: (number | string)[]; steps: VizStep[] };
 

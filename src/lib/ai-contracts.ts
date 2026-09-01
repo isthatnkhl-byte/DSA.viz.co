@@ -1,4 +1,4 @@
-import type { VizStep, VizType, ShiftInfo } from "./problems.ts";
+import type { VizStep, VizType, ShiftInfo } from "./problems";
 
 export const VALID_VIZ_TYPES = [
   "array",

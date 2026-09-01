@@ -1,4 +1,4 @@
-import { adminDb } from '../lib/firebase-admin.ts';
+import { adminDb } from '../lib/firebase-admin';
 
 export async function getProfile(userId: string) {
   const doc = await adminDb.collection('users').doc(userId).get();

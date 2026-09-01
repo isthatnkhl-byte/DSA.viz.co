@@ -1,4 +1,4 @@
-import { VisualizerStep } from "../types.ts";
+import { VisualizerStep } from "../types";
 
 export interface DemoAlgorithm {
   id: string;

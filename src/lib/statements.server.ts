@@ -1,1 +1,1 @@
-export { statementForSlug } from "./statements.ts";
+export { statementForSlug } from "./statements";

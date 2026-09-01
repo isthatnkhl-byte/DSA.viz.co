@@ -1,12 +1,12 @@
 import crypto from 'crypto';
 import express, { Request, Response } from "express";
-import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
-import { getOrCreateUser } from './src/db/users.ts';
-import { getProfile, updateProfile } from './src/db/profiles.ts';
-import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submissions.ts';
-import { processReviewPseudocode, processDatasetVisualization } from './src/lib/review.functions.ts';
-import { processPlaygroundReview } from './src/lib/playground.functions.ts';
-import { runSecureCpp } from './src/lib/compiler/index.ts';
+import { requireAuth, AuthRequest } from './src/middleware/auth';
+import { getOrCreateUser } from './src/db/users';
+import { getProfile, updateProfile } from './src/db/profiles';
+import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submissions';
+import { processReviewPseudocode, processDatasetVisualization } from './src/lib/review.functions';
+import { processPlaygroundReview } from './src/lib/playground.functions';
+import { runSecureCpp } from './src/lib/compiler/index';
 
 import path from "path";
 import fs from "fs";

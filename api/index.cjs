@@ -1,28 +1,35 @@
-// Vercel Serverless Function Handler (CommonJS)
-// Loads and exports the bundled Express server
+// Vercel Serverless Function Handler
+// Imports and exports the bundled Express server directly
 
-module.exports = async (req, res) => {
-  try {
-    // Lazy load the server at runtime
-    const serverModule = require('../dist/server.cjs');
-    
-    // Handle both default export and named export
-    const app = serverModule.default || serverModule.app || serverModule;
-    
-    if (!app) {
-      throw new Error('No Express app found in server.cjs');
-    }
-    
-    // Pass the request to the Express app
-    return app(req, res);
-  } catch (error) {
-    console.error('ERROR in serverless handler:', error);
-    console.error('Stack:', error.stack);
-    
-    res.status(500).json({
-      error: 'Server initialization failed',
-      message: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+try {
+  // Load the bundled Express server at module load time
+  const serverModule = require('../dist/server.cjs');
+  
+  // The bundled server exports 'app' as a named export
+  // Check for: default export, named 'app' export, or the module itself
+  let app = serverModule.default || serverModule.app || serverModule;
+  
+  // If it's still not a function/middleware, something is wrong
+  if (typeof app !== 'function') {
+    console.error('[ERROR] App is not a function:', typeof app, Object.keys(serverModule || {}));
+    throw new Error(`Invalid app export: expected function, got ${typeof app}`);
   }
-};
+  
+  console.log('[INFO] Successfully loaded Express app from server.cjs');
+  
+  // Export the app directly for Vercel to use as middleware
+  module.exports = app;
+} catch (error) {
+  console.error('[FATAL] Failed to load server.cjs:', error.message);
+  console.error('Stack:', error.stack);
+  
+  // Create a minimal fallback handler that returns an error
+  const fallbackHandler = (req, res) => {
+    res.status(500).json({
+      error: 'Server failed to initialize',
+      message: error.message
+    });
+  };
+  
+  module.exports = fallbackHandler;
+}

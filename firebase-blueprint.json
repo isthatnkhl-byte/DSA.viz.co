@@ -1,0 +1,100 @@
+{
+  "collections": [
+    {
+      "name": "users",
+      "path": "users/{userId}",
+      "rules": [
+        {
+          "allow": "read",
+          "condition": "request.auth != null"
+        },
+        {
+          "allow": "write",
+          "condition": "request.auth != null && request.auth.uid == userId"
+        }
+      ],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "timestamp"
+          },
+          "updatedAt": {
+            "type": "timestamp"
+          },
+          "preferences": {
+            "type": "object"
+          }
+        },
+        "required": ["email"]
+      }
+    },
+    {
+      "name": "submissions",
+      "path": "users/{userId}/submissions/{submissionId}",
+      "rules": [
+        {
+          "allow": "read",
+          "condition": "request.auth != null && request.auth.uid == userId"
+        },
+        {
+          "allow": "write",
+          "condition": "request.auth != null && request.auth.uid == userId"
+        }
+      ],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "problemSlug": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "metrics": {
+            "type": "object"
+          },
+          "createdAt": {
+            "type": "timestamp"
+          }
+        },
+        "required": ["problemSlug", "createdAt"]
+      }
+    },
+    {
+      "name": "bookmarks",
+      "path": "users/{userId}/bookmarks/{bookmarkId}",
+      "rules": [
+        {
+          "allow": "read",
+          "condition": "request.auth != null && request.auth.uid == userId"
+        },
+        {
+          "allow": "write",
+          "condition": "request.auth != null && request.auth.uid == userId"
+        }
+      ],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "problemSlug": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "timestamp"
+          }
+        },
+        "required": ["problemSlug", "createdAt"]
+      }
+    }
+  ]
+}

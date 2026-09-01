@@ -1,0 +1,249 @@
+import React, { useMemo } from "react";
+import type { Val } from "./VisualizerTypes";
+import { coordKey, safeArray, safeMatrix, toText } from "./VisualizerTypes";
+import { Table, ArrowDownRight, ArrowDown, ArrowRight, Sparkles, CheckCircle } from "lucide-react";
+
+interface DpTableVisualizerProps {
+  matrix?: Val[][] | null | undefined;
+  cols?: number | null | undefined;
+  current: Val | null | undefined;
+  visited: Val[];
+  rowLabels?: string[] | null | undefined;
+  colLabels?: string[] | null | undefined;
+  direction?: string | null | undefined;
+  wSum?: number | null | undefined;
+  mSum?: number | null | undefined;
+  pointer_labels?: Record<string, string> | null;
+}
+
+export function DpTableVisualizer({
+  matrix: rawMatrix,
+  cols: rawCols,
+  current,
+  visited: rawVisited,
+  rowLabels,
+  colLabels,
+  direction,
+  wSum,
+  mSum,
+  pointer_labels,
+}: DpTableVisualizerProps) {
+  const matrix = useMemo(() => safeMatrix(rawMatrix ?? []), [rawMatrix]);
+  const visited = useMemo(() => safeArray(rawVisited), [rawVisited]);
+  const cols = Number(rawCols ?? matrix[0]?.length ?? 1) || 1;
+  const rows = matrix.length;
+
+  const currentKey = coordKey(current);
+  const seenKeys = useMemo(() => {
+    return new Set(visited.map((item) => coordKey(item)));
+  }, [visited]);
+
+  // Parse active row and column from currentKey
+  const activeCoord = useMemo<{ r: number; c: number } | null>(() => {
+    if (!currentKey || !currentKey.includes(",")) return null;
+    const [rStr, cStr] = currentKey.split(",");
+    const r = parseInt(rStr ?? "", 10);
+    const c = parseInt(cStr ?? "", 10);
+    if (isNaN(r) || isNaN(c)) return null;
+    return { r, c };
+  }, [currentKey]);
+
+  // Derive DP dependency cells (e.g. top, left, diagonal-top-left)
+  const dependencyCells = useMemo(() => {
+    if (!activeCoord) return { top: null, left: null, diag: null };
+    const { r, c } = activeCoord;
+    return {
+      top: r > 0 ? `${r - 1},${c}` : null,
+      left: c > 0 ? `${r},${c - 1}` : null,
+      diag: r > 0 && c > 0 ? `${r - 1},${c - 1}` : null,
+    };
+  }, [activeCoord]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Top DP Status Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2.5 shadow-xs">
+        <div className="flex items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-primary border border-primary/30">
+            <Table className="size-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <span>2D Dynamic Programming State Table</span>
+              <span className="rounded bg-primary/20 px-1.5 py-0.5 font-mono text-[10px] text-primary border border-primary/30">
+                {rows} × {cols}
+              </span>
+            </div>
+            <div className="text-[11px] text-muted-foreground font-mono">
+              {activeCoord ? `Evaluating Cell dp[${activeCoord.r}][${activeCoord.c}]` : "DP Matrix Initialized"}
+            </div>
+          </div>
+        </div>
+
+        {/* Legend / Key Dependency Badges */}
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+          {dependencyCells.diag && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-purple-500/40 bg-purple-500/15 px-2 py-0.5 text-purple-300">
+              <ArrowDownRight className="size-3" /> dp[i-1][j-1]
+            </span>
+          )}
+          {dependencyCells.top && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-blue-300">
+              <ArrowDown className="size-3" /> dp[i-1][j]
+            </span>
+          )}
+          {dependencyCells.left && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-amber-300">
+              <ArrowRight className="size-3" /> dp[i][j-1]
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* DP Table Grid Canvas */}
+      <div className="overflow-x-auto rounded-2xl border border-border/80 bg-background/80 p-4 shadow-sm backdrop-blur-sm">
+        <table className="min-w-full border-collapse text-center">
+          <thead>
+            {/* Top Column Labels (e.g. string 2 characters) */}
+            {colLabels && colLabels.length > 0 && (
+              <tr>
+                <th className="p-1.5 text-[10px] font-mono text-muted-foreground"></th>
+                <th className="p-1.5 text-[10px] font-mono text-muted-foreground"></th>
+                {colLabels.map((char, cIdx) => (
+                  <th
+                    key={cIdx}
+                    className={`p-1.5 font-mono text-xs font-bold transition-all duration-200 ${
+                      activeCoord && activeCoord.c === cIdx + 1
+                        ? "text-primary scale-110 animate-pulse"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    '{char}'
+                  </th>
+                ))}
+              </tr>
+            )}
+            {/* Column Indices (0, 1, 2...) */}
+            <tr>
+              <th className="p-1.5 text-[10px] font-mono text-muted-foreground uppercase">Row</th>
+              <th className="p-1.5 text-[10px] font-mono text-muted-foreground uppercase">Char</th>
+              {Array.from({ length: cols }, (_, c) => (
+                <th
+                  key={c}
+                  className={`p-1.5 font-mono text-[11px] font-semibold transition-colors duration-200 ${
+                    activeCoord && activeCoord.c === c
+                      ? "text-primary font-bold"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  j={c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {matrix.map((row, r) => {
+              const rowChar = rowLabels?.[r - 1] ?? (r === 0 ? "ε" : `r${r}`);
+              const isRowActive = activeCoord?.r === r;
+
+              return (
+                <tr key={r} className="border-t border-border/40">
+                  {/* Row index indicator */}
+                  <td className="p-1.5 font-mono text-[11px] font-semibold text-muted-foreground">
+                    i={r}
+                  </td>
+                  {/* Row character label */}
+                  <td
+                    className={`p-1.5 font-mono text-xs font-bold transition-colors duration-200 ${
+                      isRowActive ? "text-primary scale-110" : "text-muted-foreground"
+                    }`}
+                  >
+                    {r === 0 ? "∅" : `'${rowChar}'`}
+                  </td>
+
+                  {/* Matrix Cells */}
+                  {Array.from({ length: cols }, (_, c) => {
+                    const val = row[c];
+                    const key = `${r},${c}`;
+                    const isActive = currentKey === key;
+                    const isVisited = seenKeys.has(key);
+                    const isDiagDep = dependencyCells.diag === key;
+                    const isTopDep = dependencyCells.top === key;
+                    const isLeftDep = dependencyCells.left === key;
+                    const isBaseCase = r === 0 || c === 0;
+
+                    let cellStyle = "border-border/60 bg-card/40 text-foreground";
+                    if (isActive) {
+                      cellStyle =
+                        "border-primary ring-2 ring-primary/60 bg-primary/25 text-primary-foreground font-black scale-105 shadow-md shadow-primary/30 z-10 animate-sync-glow";
+                    } else if (isDiagDep) {
+                      cellStyle =
+                        "border-purple-500/70 bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/50 font-bold";
+                    } else if (isTopDep) {
+                      cellStyle =
+                        "border-blue-500/70 bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/50 font-bold";
+                    } else if (isLeftDep) {
+                      cellStyle =
+                        "border-amber-500/70 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/50 font-bold";
+                    } else if (isVisited) {
+                      cellStyle =
+                        "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 font-semibold";
+                    } else if (isBaseCase) {
+                      cellStyle = "border-border/40 bg-muted/20 text-muted-foreground";
+                    }
+
+                    return (
+                      <td key={c} className="p-1">
+                        <div
+                          className={`relative flex min-h-11 min-w-11 items-center justify-center rounded-xl border p-1 text-center font-mono text-xs transition-all duration-300 ${cellStyle}`}
+                        >
+                          <span>{val !== undefined && val !== null ? toText(val) : "0"}</span>
+
+                          {/* Top-Right Dependency Indicator */}
+                          {isDiagDep && (
+                            <span className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-purple-500 text-[8px] font-black text-white">
+                              ↖
+                            </span>
+                          )}
+                          {isTopDep && (
+                            <span className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-blue-500 text-[8px] font-black text-white">
+                              ↑
+                            </span>
+                          )}
+                          {isLeftDep && (
+                            <span className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] font-black text-white">
+                              ←
+                            </span>
+                          )}
+                          {isActive && (
+                            <span className="absolute -bottom-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-black text-primary-foreground">
+                              ★
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Bottom Summary Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground font-mono px-1">
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-3.5 text-primary" />
+          <span>Optimal Substructure Memoization: Computed states persist across recursive calls.</span>
+        </div>
+        {mSum !== null && mSum !== undefined && (
+          <div className="flex items-center gap-1.5 font-bold text-foreground">
+            <CheckCircle className="size-3.5 text-emerald-400" />
+            <span>Optimal Value: {String(mSum)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

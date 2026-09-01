@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { THEME_OPTIONS, DEFAULT_THEME, type ThemeColor } from "./theme.ts";
+import { THEME_OPTIONS, DEFAULT_THEME, type ThemeColor } from "./theme";
 
 test("THEME_OPTIONS includes all requested colors", () => {
   const ids = THEME_OPTIONS.map((t) => t.id);

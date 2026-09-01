@@ -1,5 +1,5 @@
-import type { VizType, ProblemDatasetSpec } from "./problems.ts";
-import type { Pattern } from "./simulators.ts";
+import type { VizType, ProblemDatasetSpec } from "./problems";
+import type { Pattern } from "./simulators";
 
 export type ProblemCategory =
   | "graph"

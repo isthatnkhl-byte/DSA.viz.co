@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { simulateProblemWithDataset } from "./simulators.ts";
-import type { TestDataset } from "./problems.ts";
+import { simulateProblemWithDataset } from "./simulators";
+import type { TestDataset } from "./problems";
 
 // ============================================================================
 // 1. EMPTY ARRAYS & ZERO BOUNDARY EDGE CASES

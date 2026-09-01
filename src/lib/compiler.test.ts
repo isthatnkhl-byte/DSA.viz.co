@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateCppSource } from "./compiler/validator.ts";
+import { validateCppSource } from "./compiler/validator";
 
 test("validateCppSource - rejects empty code", () => {
   const res = validateCppSource("");

@@ -6,9 +6,9 @@ import {
   scoreLineKeywordOverlap,
   validateAndNormalizeVizPayload,
 } from "./ai-contracts.ts";
-import { getProblemDatasets, localFallbackViz, pickShape, type VizStep, type TestDataset } from "./problems.ts";
-import { simulateProblem, simulateProblemWithDataset } from "./simulators.ts";
-import { coordKey } from "../components/visualizer/VisualizerTypes.ts";
+import { getProblemDatasets, localFallbackViz, pickShape, type VizStep, type TestDataset } from "./problems";
+import { simulateProblem, simulateProblemWithDataset } from "./simulators";
+import { coordKey } from "../components/visualizer/VisualizerTypes";
 
 const fallback = {
   code: ["const x = 1;", "return x;"],

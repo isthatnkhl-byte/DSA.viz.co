@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { auth, googleAuthProvider } from "@/lib/firebase";
-import { signInWithPopup, onAuthStateChanged, signOut as firebaseSignOut, User as FirebaseUser } from "firebase/auth";
+import { 
+  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult, 
+  onAuthStateChanged, 
+  signOut as firebaseSignOut, 
+  User as FirebaseUser 
+} from "firebase/auth";
 import { getOrCreateUserProfile, updateUserProfile, UserProfileData } from "@/lib/firestore-service";
 
 export interface UserProfile {
@@ -106,6 +113,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let isActive = true;
+
+    // Check if user just returned from a redirect sign-in
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user && isActive) {
+          const t = await result.user.getIdToken();
+          setToken(t);
+          await fetchProfile(result.user, t);
+        }
+      })
+      .catch((err) => {
+        console.warn("[Auth] getRedirectResult check:", err);
+      });
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!isActive) return;
       setUser(firebaseUser);
@@ -123,6 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setLoading(false);
     });
+
     return () => {
       isActive = false;
       unsubscribe();
@@ -133,8 +155,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       await signInWithPopup(auth, googleAuthProvider);
-    } catch (err) {
-      console.error("[Auth] Google Sign-In Error:", err);
+    } catch (err: any) {
+      console.error("[Auth] Google Sign-In Popup Error:", err);
+      // If popup is blocked on mobile devices or third-party cookies disabled, fallback to redirect
+      if (
+        err?.code === "auth/popup-blocked" ||
+        err?.code === "auth/cancelled-popup-request" ||
+        err?.code === "auth/popup-closed-by-user"
+      ) {
+        try {
+          await signInWithRedirect(auth, googleAuthProvider);
+          return;
+        } catch (redirectErr) {
+          console.error("[Auth] Redirect fallback error:", redirectErr);
+          setLoading(false);
+          throw redirectErr;
+        }
+      }
       setLoading(false);
       throw err;
     }
@@ -170,7 +207,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-
 
 export function useAuth() {
   const context = useContext(AuthContext);

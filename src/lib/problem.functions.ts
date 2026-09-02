@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import statementsData from "../data/statements.json";
+import { statementForSlug } from "./statements";
 
 const statementsMap = ((statementsData as any)?.default || statementsData || {}) as Record<string, string>;
 
@@ -28,26 +29,20 @@ export const getStatement = createServerFn({ method: "POST" })
         s = slug.toLowerCase().trim().replace(/\/+$/, "");
       }
 
-      // Fast check in local statements bundle first
-      const direct = statementsMap[s] || statementsMap[s.replace(/_/g, "-").replace(/\s+/g, "-")] || "";
+      // 1. Fast check in local statements bundle first
+      const direct =
+        statementsMap[s] ||
+        statementsMap[s.replace(/_/g, "-").replace(/\s+/g, "-")] ||
+        "";
       if (direct) {
         return { statement: direct };
       }
 
-      // Query the backend server endpoint to avoid client CORS restrictions
-      try {
-        const res = await fetch(`/api/statement?slug=${encodeURIComponent(slug)}`);
-        if (res.ok) {
-          const json = await res.json();
-          return { statement: json.statement || "" };
-        }
-      } catch (err) {
-        console.warn("Could not fetch statement from server API:", err);
-      }
-
-      return { statement: "" };
+      // 2. Return synthesized canonical statement
+      const fallback = statementForSlug(slug);
+      return { statement: fallback };
     } catch (e) {
       console.error("getStatement handler error:", e);
-      return { statement: "" };
+      return { statement: statementForSlug(data?.slug || "") };
     }
   });

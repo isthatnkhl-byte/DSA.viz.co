@@ -32,6 +32,8 @@ import {
   saveUserSubmission,
   deleteUserSubmission,
 } from "@/lib/firestore-service";
+import { fetchLeetCodeStats } from "@/lib/leetcode-service";
+
 
 const getToken = async () => {
   if (auth.currentUser) {
@@ -341,8 +343,50 @@ export const updateLeetcodeUsername = createServerFn({ method: "POST" })
 export const syncLeetCodeData = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ username: z.string().min(1) }).parse(input))
   .handler(async ({ data }) => {
+    const cleanUsername = data.username.trim().replace(/^@+/, "");
+    if (!cleanUsername) return { ok: false, error: "Username is required" };
+
+    const user = auth.currentUser;
+
+    // 1. Direct Multi-source LeetCode Fetch
+    try {
+      const stats = await fetchLeetCodeStats(cleanUsername);
+      if (stats) {
+        // Save directly to Firestore if logged in
+        if (user) {
+          try {
+            await updateUserProfile(user.uid, {
+              leetcodeUsername: cleanUsername,
+              leetcodeStats: stats,
+            });
+          } catch (dbErr) {
+            console.warn("Direct Firestore save warning in syncLeetCodeData:", dbErr);
+          }
+        }
+
+        // Notify server in background if possible
+        getToken().then((token) => {
+          if (token) {
+            fetch("/api/sync-leetcode", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ username: cleanUsername }),
+            }).catch(() => {});
+          }
+        });
+
+        return { ok: true, stats };
+      }
+    } catch (directErr) {
+      console.warn("Direct LeetCode fetch attempt:", directErr);
+    }
+
+    // 2. Server API Fallback with safe text parsing
     const token = await getToken();
-    if (!token) return { ok: false, error: "Not authenticated" };
+    if (!token) return { ok: false, error: `Could not load LeetCode data for "${cleanUsername}".` };
 
     try {
       const res = await fetch("/api/sync-leetcode", {
@@ -351,21 +395,27 @@ export const syncLeetCodeData = createServerFn({ method: "POST" })
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ username: data.username }),
+        body: JSON.stringify({ username: cleanUsername }),
       });
 
-      const resData = await res.json();
+      const text = await res.text();
+      let resData: any = null;
+      try {
+        resData = JSON.parse(text);
+      } catch {
+        // Response was not JSON (e.g. serverless error text)
+        resData = { error: text || "Server synchronization failed" };
+      }
 
-      if (!res.ok) {
-        return { ok: false, error: resData?.error || "Failed to sync LeetCode profile" };
+      if (!res.ok || !resData?.stats) {
+        return { ok: false, error: resData?.error || `Could not find LeetCode account "${cleanUsername}".` };
       }
 
       // Save synced stats directly to Firestore
-      const user = auth.currentUser;
       if (user && resData.stats) {
         try {
           await updateUserProfile(user.uid, {
-            leetcodeUsername: data.username.trim(),
+            leetcodeUsername: cleanUsername,
             leetcodeStats: resData.stats,
           });
         } catch (dbErr) {
@@ -378,3 +428,4 @@ export const syncLeetCodeData = createServerFn({ method: "POST" })
       return { ok: false, error: err?.message || "Failed to fetch LeetCode profile" };
     }
   });
+

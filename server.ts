@@ -7,6 +7,10 @@ import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submis
 import { processReviewPseudocode, processDatasetVisualization } from './src/lib/review.functions';
 import { processPlaygroundReview } from './src/lib/playground.functions';
 import { runSecureCpp } from './src/lib/compiler/index';
+import { fetchLeetCodeStats } from './src/lib/leetcode-service';
+import { statementForSlug } from './src/lib/statements';
+import localStatementsJson from './src/data/statements.json';
+
 
 import path from "path";
 import fs from "fs";
@@ -91,16 +95,10 @@ function getGeminiClient(): GoogleGenAI {
   });
 }
 
-// Load local problem statements
-const statementsFilePath = path.join(process.cwd(), "src/data/statements.json");
-let memoryStatements: Record<string, string> = {};
-try {
-  if (fs.existsSync(statementsFilePath)) {
-    memoryStatements = JSON.parse(fs.readFileSync(statementsFilePath, "utf8"));
-  }
-} catch (e) {
-  console.error("Failed to load statements.json:", e);
-}
+// Initialize problem statements in memory from statically bundled JSON
+const memoryStatements: Record<string, string> = {
+  ...(((localStatementsJson as any)?.default || localStatementsJson || {}) as Record<string, string>),
+};
 
 // Health check
 app.get("/api/health", (_req: Request, res: Response) => {
@@ -126,45 +124,21 @@ app.get("/api/statement", async (req: Request, res: Response) => {
       s = slug.toLowerCase().trim().replace(/\/+$/, "");
     }
 
-    let statement =
-      memoryStatements[s] ||
-      memoryStatements[s.replace(/_/g, "-").replace(/\s+/g, "-")] ||
-      "";
+    const normalizedSlug = s.replace(/_/g, "-");
 
-    if (!statement && slug) {
-      try {
-        const leetRes = await fetch("https://leetcode.com/graphql", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
-          body: JSON.stringify({
-            query: `query questionData($titleSlug: String!) {
-              question(titleSlug: $titleSlug) {
-                content
-              }
-            }`,
-            variables: { titleSlug: slug },
-          }),
-        });
+    // 1. Direct in-memory lookup
+    let statement = memoryStatements[s] || memoryStatements[normalizedSlug] || "";
 
-        if (leetRes.ok) {
-          const json = (await leetRes.json()) as any;
-          if (json?.data?.question?.content) {
-            statement = json.data.question.content;
-            memoryStatements[s] = statement;
-          }
-        }
-      } catch (fetchErr) {
-        console.error("LeetCode fetch error for", slug, fetchErr);
-      }
+    // 2. Fallback: Synthesize statement from problem database
+    if (!statement) {
+      statement = statementForSlug(slug);
     }
 
     return res.json({ statement: statement || "" });
   } catch (error: any) {
     console.error("Error in /api/statement:", error);
-    return res.json({ statement: "" });
+    const fallback = statementForSlug(String(req.query.slug || ""));
+    return res.json({ statement: fallback || "" });
   }
 });
 
@@ -229,240 +203,19 @@ app.post("/api/sync-leetcode", requireAuth, async (req: any, res) => {
     if (!username || typeof username !== "string" || !username.trim()) {
       return res.status(400).json({ error: "Valid LeetCode username is required." });
     }
-    const cleanUsername = username.trim();
+    const cleanUsername = username.trim().replace(/^@+/, "");
 
-    let fetchedStats: any = null;
-
-    // 1. Primary: Official LeetCode GraphQL
-    try {
-      const query = `
-        query getUserProfile($username: String!) {
-          matchedUser(username: $username) {
-            username
-            githubUrl
-            profile {
-              realName
-              userAvatar
-              ranking
-              reputation
-            }
-            submitStats {
-              acSubmissionNum {
-                difficulty
-                count
-                submissions
-              }
-              totalSubmissionNum {
-                difficulty
-                count
-                submissions
-              }
-            }
-            submissionCalendar
-          }
-          allQuestionsCount {
-            difficulty
-            count
-          }
-          recentSubmissionList(username: $username, limit: 12) {
-            title
-            titleSlug
-            timestamp
-            statusDisplay
-            lang
-          }
-        }
-      `;
-
-      const gqlRes = await fetch("https://leetcode.com/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Referer: "https://leetcode.com",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
-        body: JSON.stringify({ query, variables: { username: cleanUsername } }),
-      });
-
-      if (gqlRes.ok) {
-        const gqlData = await gqlRes.json();
-        const matched = gqlData?.data?.matchedUser;
-
-        if (matched) {
-          const rawCal = matched.submissionCalendar;
-          const parsedCalendar: Record<string, number> = {};
-          if (typeof rawCal === "string") {
-            try {
-              Object.assign(parsedCalendar, JSON.parse(rawCal));
-            } catch {}
-          } else if (rawCal && typeof rawCal === "object") {
-            Object.assign(parsedCalendar, rawCal);
-          }
-
-          const ONE_DAY = 86400;
-          const timestamps = Object.keys(parsedCalendar).map(Number).sort((a, b) => b - a);
-          const nowTs = Math.floor(Date.now() / 1000);
-          const todayStart = Math.floor(nowTs / ONE_DAY) * ONE_DAY;
-
-          let computedStreak = 0;
-          if (timestamps.length > 0) {
-            if (timestamps[0] >= todayStart - ONE_DAY) {
-              let currentExpected = timestamps[0];
-              for (const t of timestamps) {
-                if (t === currentExpected) {
-                  computedStreak++;
-                  currentExpected -= ONE_DAY;
-                } else if (t < currentExpected) {
-                  break;
-                }
-              }
-            }
-          }
-
-          const ac = matched.submitStats?.acSubmissionNum || [];
-          const totalSolved = ac.find((x: any) => x.difficulty === "All")?.count || 0;
-          const easySolved = ac.find((x: any) => x.difficulty === "Easy")?.count || 0;
-          const mediumSolved = ac.find((x: any) => x.difficulty === "Medium")?.count || 0;
-          const hardSolved = ac.find((x: any) => x.difficulty === "Hard")?.count || 0;
-
-          const allQ = gqlData?.data?.allQuestionsCount || [];
-          const totalQuestions = allQ.find((x: any) => x.difficulty === "All")?.count || 3300;
-          const totalEasy = allQ.find((x: any) => x.difficulty === "Easy")?.count || 850;
-          const totalMedium = allQ.find((x: any) => x.difficulty === "Medium")?.count || 1750;
-          const totalHard = allQ.find((x: any) => x.difficulty === "Hard")?.count || 750;
-
-          const recentSubmissions = (gqlData?.data?.recentSubmissionList || []).map((s: any) => ({
-            title: s.title,
-            titleSlug: s.titleSlug,
-            statusDisplay: s.statusDisplay,
-            lang: s.lang,
-            timestamp: s.timestamp,
-          }));
-
-          fetchedStats = {
-            username: matched.username || cleanUsername,
-            name: matched.profile?.realName || matched.username || cleanUsername,
-            avatar: matched.profile?.userAvatar || "https://leetcode.com/static/images/LeetCode_logo.png",
-            ranking: matched.profile?.ranking || 0,
-            reputation: matched.profile?.reputation || 0,
-            totalSolved,
-            totalQuestions,
-            easySolved,
-            totalEasy,
-            mediumSolved,
-            totalMedium,
-            hardSolved,
-            totalHard,
-            acceptanceRate: 0,
-            submissionCalendar: parsedCalendar,
-            totalActiveDays: Object.keys(parsedCalendar).length,
-            streak: computedStreak,
-            recentSubmissions,
-            lastSyncedAt: new Date().toISOString(),
-          };
-        }
-      }
-    } catch (gqlErr) {
-      console.warn("LeetCode GraphQL query error:", gqlErr);
-    }
-
-    // 2. Fallback: REST APIs
-    if (!fetchedStats) {
-      const [userRes, profileRes, calRes, subRes] = await Promise.all([
-        fetch(`https://alfa-leetcode-api.onrender.com/${cleanUsername}`).catch(() => null),
-        fetch(`https://alfa-leetcode-api.onrender.com/${cleanUsername}/profile`).catch(() => null),
-        fetch(`https://alfa-leetcode-api.onrender.com/${cleanUsername}/calendar`).catch(() => null),
-        fetch(`https://alfa-leetcode-api.onrender.com/${cleanUsername}/submission?limit=12`).catch(() => null),
-      ]);
-
-      const userJson = userRes && userRes.ok ? await userRes.json().catch(() => null) : null;
-      const profileJson = profileRes && profileRes.ok ? await profileRes.json().catch(() => null) : null;
-      const calJson = calRes && calRes.ok ? await calRes.json().catch(() => null) : null;
-      const subJson = subRes && subRes.ok ? await subRes.json().catch(() => null) : null;
-
-      if (userJson?.errors || userJson?.error || userJson?.message === "user not found") {
-        return res.status(404).json({ error: `LeetCode account "${cleanUsername}" not found.` });
-      }
-
-      const rawCal = calJson?.submissionCalendar;
-      const parsedCalendar: Record<string, number> = {};
-      if (typeof rawCal === "string") {
-        try { Object.assign(parsedCalendar, JSON.parse(rawCal)); } catch {}
-      } else if (rawCal && typeof rawCal === "object") {
-        Object.assign(parsedCalendar, rawCal);
-      }
-
-      if (Object.keys(parsedCalendar).length === 0 && profileJson?.submissionCalendar) {
-        if (typeof profileJson.submissionCalendar === "string") {
-          try { Object.assign(parsedCalendar, JSON.parse(profileJson.submissionCalendar)); } catch {}
-        } else {
-          Object.assign(parsedCalendar, profileJson.submissionCalendar);
-        }
-      }
-
-      const ONE_DAY = 86400;
-      const timestamps = Object.keys(parsedCalendar).map(Number).sort((a, b) => b - a);
-      const nowTs = Math.floor(Date.now() / 1000);
-      const todayStart = Math.floor(nowTs / ONE_DAY) * ONE_DAY;
-
-      let streak = 0;
-      if (timestamps.length > 0 && (timestamps[0] === todayStart || timestamps[0] === todayStart - ONE_DAY)) {
-        let currentExpected = timestamps[0];
-        for (const t of timestamps) {
-          if (t === currentExpected) {
-            streak++;
-            currentExpected -= ONE_DAY;
-          } else if (t < currentExpected) {
-            break;
-          }
-        }
-      }
-
-      fetchedStats = {
-        username: cleanUsername,
-        name: userJson?.name || cleanUsername,
-        avatar: userJson?.avatar || "https://leetcode.com/static/images/LeetCode_logo.png",
-        ranking: userJson?.ranking || profileJson?.ranking || 0,
-        reputation: userJson?.reputation || profileJson?.reputation || 0,
-        totalSolved: Number(profileJson?.totalSolved) || 0,
-        totalQuestions: profileJson?.totalQuestions || 3300,
-        easySolved: Number(profileJson?.easySolved) || 0,
-        totalEasy: profileJson?.totalEasy || 850,
-        mediumSolved: Number(profileJson?.mediumSolved) || 0,
-        totalMedium: profileJson?.totalMedium || 1750,
-        hardSolved: Number(profileJson?.hardSolved) || 0,
-        totalHard: profileJson?.totalHard || 750,
-        acceptanceRate: profileJson?.acceptanceRate || 0,
-        submissionCalendar: parsedCalendar,
-        totalActiveDays: calJson?.totalActiveDays || Object.keys(parsedCalendar).length,
-        streak,
-        recentSubmissions: Array.isArray(subJson?.submission) && subJson.submission.length > 0
-          ? subJson.submission.slice(0, 10).map((s: any) => ({
-              title: s.title,
-              titleSlug: s.titleSlug,
-              statusDisplay: s.statusDisplay,
-              lang: s.lang,
-              timestamp: s.timestamp,
-            }))
-          : (profileJson?.recentSubmissions || []).slice(0, 10).map((s: any) => ({
-              title: s.title,
-              titleSlug: s.titleSlug,
-              statusDisplay: s.statusDisplay,
-              lang: s.lang,
-              timestamp: s.timestamp,
-            })),
-        lastSyncedAt: new Date().toISOString(),
-      };
-    }
+    const fetchedStats = await fetchLeetCodeStats(cleanUsername);
 
     if (!fetchedStats) {
-      return res.status(404).json({ error: `Could not load LeetCode data for "${cleanUsername}".` });
+      return res.status(404).json({ error: `Could not load LeetCode data for "${cleanUsername}". Please verify the username is public.` });
     }
 
     // Persist via DB if available
     try {
-      await updateProfile(req.user.uid, { leetcodeUsername: cleanUsername, leetcodeStats: fetchedStats });
+      if (req.user?.uid) {
+        await updateProfile(req.user.uid, { leetcodeUsername: cleanUsername, leetcodeStats: fetchedStats }).catch(() => null);
+      }
     } catch (e) {
       console.warn("Server-side DB update warning in /api/sync-leetcode:", e);
     }
@@ -473,6 +226,7 @@ app.post("/api/sync-leetcode", requireAuth, async (req: any, res) => {
     res.status(500).json({ error: error?.message || "Failed to sync" });
   }
 });
+
 
 app.get("/api/submissions", requireAuth, async (req: any, res) => {
   try {

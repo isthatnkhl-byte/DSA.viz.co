@@ -461,8 +461,9 @@ function ProfilePage() {
                       )}
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Connect your LeetCode handle to pull activity heatmaps, global rankings, and problem statistics saved to Supabase.
+                      Connect your LeetCode handle to pull activity heatmaps, global rankings, and problem statistics saved securely to your cloud profile.
                     </p>
+
                   </div>
                 </div>
 
@@ -727,8 +728,9 @@ function ProfilePage() {
                       Connect Your LeetCode Account
                     </h4>
                     <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                      Enter your public LeetCode handle to synchronize your problem-solving streak, 52-week activity heatmap, and recent submission telemetry saved directly on Supabase.
+                      Enter your public LeetCode handle to synchronize your problem-solving streak, 52-week activity heatmap, and recent submission telemetry saved directly to your cloud profile.
                     </p>
+
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-2 max-w-md mx-auto w-full pt-2">

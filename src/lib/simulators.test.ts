@@ -9,7 +9,7 @@ import {
   safeTreeArray,
   coordKey,
   toText,
-} from "../components/visualizer/VisualizerTypes.ts";
+} from "../components/visualizer/VisualizerTypes";
 
 test("simulateProblemWithDataset - max-area-of-island recursive DFS visit order and full scan", () => {
   const customMatrix = [

@@ -81,16 +81,37 @@ Click **"Deploy"**. Vercel will build the frontend into `dist/` and package `/ap
 
 ---
 
-## Part 3: Firebase Google Sign-In Authorization (Crucial Step!)
+## Part 3: Firebase Google Sign-In & Firestore Setup (Full Ownership)
 
-When your app deploys on Vercel, it receives a domain like `dsa-viz.vercel.app` (or custom domain). You must allow this domain in Firebase for Google Sign-In to work.
+> **Why did you see "Ask project owner for permission"?**
+> The Firebase project (`seventh-cabinet-mq6d2`) is automatically managed by Google AI Studio container infrastructure. External users are not GCP project owners of that internal cloud project.
+> 
+> To have **100% full ownership** and the ability to add `https://dsavizco.vercel.app/` or any future domains yourself at any time, simply create your own free Firebase project (takes 2 minutes).
 
-1. Go to the [Firebase Console](https://console.firebase.google.com/).
-2. Select the project: `seventh-cabinet-mq6d2` (or your own Firebase project if migrated).
-3. In the left navigation, click **Authentication** $\rightarrow$ **Settings** tab.
-4. Select **Authorized domains** in the sidebar.
-5. Click **"Add domain"** and enter your Vercel URL (e.g. `dsa-viz.vercel.app` and any custom domains).
-6. Click **Save**. Google Sign-In will now work seamlessly on your live URL!
+### Option A: Create Your Own Free Firebase Project (Recommended for 100% Control)
+
+1. Go to [Firebase Console](https://console.firebase.google.com/) and click **"Add project"** (e.g. `dsaviz-app`).
+2. **Enable Authentication**:
+   - In the left menu, click **Build** $\rightarrow$ **Authentication** $\rightarrow$ **Get Started**.
+   - Under **Sign-in method**, enable **Google** (set your project support email and click Save).
+   - Go to the **Settings** tab $\rightarrow$ **Authorized domains** $\rightarrow$ Click **"Add domain"** $\rightarrow$ Add `dsavizco.vercel.app` (and `localhost`).
+3. **Enable Firestore Database**:
+   - In the left menu, click **Build** $\rightarrow$ **Firestore Database** $\rightarrow$ **Create database**.
+   - Start in **Production mode** (or test mode), select your region, and click Enable.
+4. **Get Your Web App Config**:
+   - Click the ⚙️ (Gear Icon) next to Project Overview $\rightarrow$ **Project settings**.
+   - Under *Your apps*, click the **Web icon (`</>`)**, register app name `dsaviz-web`.
+   - Copy the `firebaseConfig` keys (`apiKey`, `authDomain`, `projectId`, etc.).
+5. **Add Environment Variables in Vercel & `.env`**:
+   Add these to your Vercel Project Settings $\rightarrow$ Environment Variables:
+   - `VITE_FIREBASE_API_KEY`: `AIzaSy...`
+   - `VITE_FIREBASE_AUTH_DOMAIN`: `dsaviz-app.firebaseapp.com`
+   - `VITE_FIREBASE_PROJECT_ID`: `dsaviz-app`
+   - `VITE_FIREBASE_STORAGE_BUCKET`: `dsaviz-app.firebasestorage.app`
+   - `VITE_FIREBASE_MESSAGING_SENDER_ID`: `...`
+   - `VITE_FIREBASE_APP_ID`: `1:...:web:...`
+
+Now you are the project owner forever and can add any custom domain or manage users at any time!
 
 ---
 

@@ -1,32 +1,39 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { initializeFirestore, getFirestore } from 'firebase/firestore';
-import defaultFirebaseConfig from '../../firebase-applet-config.json';
+import { initializeFirestore } from 'firebase/firestore';
+import fallbackConfig from '../../firebase-applet-config.json';
 
-// Firebase Independence: Check environment variables first, then fallback to default config
-const getFirebaseConfig = () => {
-  // Check if environment variables are set (for user's own Firebase project)
-  if (import.meta.env.VITE_FIREBASE_API_KEY) {
-    return {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID,
-      firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID,
-    };
-  }
-  // Fallback to default Firebase config (pre-configured project)
-  return defaultFirebaseConfig;
+const clean = (val?: string | null) => {
+  if (!val) return undefined;
+  return val.trim().replace(/^["']|["']$/g, '').trim();
 };
 
-const firebaseConfig = getFirebaseConfig();
+const rawApiKey = clean(import.meta.env.VITE_FIREBASE_API_KEY);
+const rawAuthDomain = clean(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN);
+const rawProjectId = clean(import.meta.env.VITE_FIREBASE_PROJECT_ID);
+const rawStorageBucket = clean(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET);
+const rawSenderId = clean(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID);
+const rawAppId = clean(import.meta.env.VITE_FIREBASE_APP_ID);
+
+const firebaseConfig = {
+  apiKey: rawApiKey || fallbackConfig.apiKey,
+  authDomain: rawAuthDomain || fallbackConfig.authDomain,
+  projectId: rawProjectId || fallbackConfig.projectId,
+  storageBucket: rawStorageBucket || fallbackConfig.storageBucket,
+  messagingSenderId: rawSenderId || fallbackConfig.messagingSenderId,
+  appId: rawAppId || fallbackConfig.appId,
+};
+
+const rawDbId = clean(import.meta.env.VITE_FIREBASE_DATABASE_ID);
+const databaseId = rawDbId || fallbackConfig.firestoreDatabaseId;
 
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
-export const db = firebaseConfig.firestoreDatabaseId
-  ? initializeFirestore(app, { experimentalForceLongPolling: true }, firebaseConfig.firestoreDatabaseId)
+export const db = databaseId && databaseId !== '(default)'
+  ? initializeFirestore(app, { experimentalForceLongPolling: true }, databaseId)
   : initializeFirestore(app, { experimentalForceLongPolling: true });
+
 export const googleAuthProvider = new GoogleAuthProvider();
+googleAuthProvider.setCustomParameters({ prompt: 'select_account' });
+
 

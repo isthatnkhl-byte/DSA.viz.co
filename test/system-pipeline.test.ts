@@ -31,22 +31,22 @@ import {
   type Problem,
   type TestDataset,
   type VizStep,
-} from "../src/lib/problems";
-import { statementForSlug } from "../src/lib/statements";
+} from "../src/lib/problems.ts";
+import { statementForSlug } from "../src/lib/statements.ts";
 import {
   simulateProblemWithDataset,
   patternFor,
   type Pattern,
   type VizBundle,
-} from "../src/lib/simulators";
+} from "../src/lib/simulators.ts";
 import {
   hasMeaningfulTraversal,
   validateAndNormalizeVizPayload,
-} from "../src/lib/ai-contracts";
-import { REVIEW_SYSTEM_PROMPT, buildReviewUserPrompt } from "../src/lib/prompts/review.prompt";
-import { VISUALIZER_SYSTEM_PROMPT, buildVisualizerUserPrompt } from "../src/lib/prompts/visualizer.prompt";
-import { getAiConfig } from "../src/lib/ai-config";
-import { raceModels, REVIEW_MODELS, VIZ_MODELS } from "../src/lib/openrouter.server";
+} from "../src/lib/ai-contracts.ts";
+import { REVIEW_SYSTEM_PROMPT, buildReviewUserPrompt } from "../src/lib/prompts/review.prompt.ts";
+import { VISUALIZER_SYSTEM_PROMPT, buildVisualizerUserPrompt } from "../src/lib/prompts/visualizer.prompt.ts";
+import { getAiConfig } from "../src/lib/ai-config.ts";
+import { raceModels, REVIEW_MODELS, VIZ_MODELS } from "../src/lib/openrouter.server.ts";
 
 export interface PipelineStepLog {
   phase: string;

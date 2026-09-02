@@ -5,7 +5,7 @@ import {
   getCanonicalMultiDatasets,
   isIslandOrGridProblem,
   sampleMatrixFor,
-} from "./problems.ts";
+} from "./problems";
 
 test("problemBySlug - finds canonical problems and handles normalization", () => {
   const p1 = problemBySlug("two-sum");
@@ -268,7 +268,7 @@ test("getCanonicalMultiDatasets - generates 1D and 2D Dynamic Programming state 
 });
 
 test("Authentic Company Tags - problems have verified authentic company sources", async () => {
-  const { problems, companies, companyLabel, companyCounts } = await import("./problems.ts");
+  const { problems, companies, companyLabel, companyCounts } = await import("./problems");
   assert.ok(problems.length > 1000, "Problems catalog loaded");
   assert.ok(companies.length > 40, "Over 40 authentic companies recognized");
 

@@ -1,0 +1,64 @@
+const fs = require('fs');
+const problems = require('../src/data/problems.json');
+const existing = require('../src/data/statements.json');
+
+const BATCH_SIZE = 50;
+const DELAY_MS = 500;
+
+async function fetchStatement(slug) {
+  try {
+    const leetRes = await fetch("https://leetcode.com/graphql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Referer": "https://leetcode.com",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+      body: JSON.stringify({
+        query: `query questionContent($titleSlug: String!) {
+          question(titleSlug: $titleSlug) {
+            content
+          }
+        }`,
+        variables: { titleSlug: slug },
+      })
+    });
+    
+    if (leetRes.ok) {
+      const json = await leetRes.json();
+      if (json?.data?.question?.content) {
+        return json.data.question.content;
+      }
+    }
+  } catch (e) {
+    // console.log("Failed", slug);
+  }
+  return null;
+}
+
+async function run() {
+  const missing = problems.filter(p => !existing[p.slug] && !existing[p.slug.replace(/-/g, '_')]);
+  console.log(`Found ${missing.length} missing statements. Starting fetch...`);
+  
+  let added = 0;
+  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+    const batch = missing.slice(i, i + BATCH_SIZE);
+    const promises = batch.map(async (p) => {
+      const content = await fetchStatement(p.slug);
+      if (content) {
+        existing[p.slug] = content;
+        added++;
+      }
+    });
+    
+    await Promise.all(promises);
+    console.log(`Processed ${i + batch.length}/${missing.length}. Added so far: ${added}`);
+    
+    fs.writeFileSync('./src/data/statements.json', JSON.stringify(existing, null, 2));
+    await new Promise(r => setTimeout(r, DELAY_MS));
+  }
+  
+  console.log(`Done! Added ${added} new statements.`);
+}
+
+run();

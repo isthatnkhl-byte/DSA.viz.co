@@ -5,7 +5,7 @@ import {
   inferLineFromDesc,
   scoreLineKeywordOverlap,
   validateAndNormalizeVizPayload,
-} from "./ai-contracts.ts";
+} from "./ai-contracts";
 import { getProblemDatasets, localFallbackViz, pickShape, type VizStep, type TestDataset } from "./problems";
 import { simulateProblem, simulateProblemWithDataset } from "./simulators";
 import { coordKey } from "../components/visualizer/VisualizerTypes";

@@ -560,7 +560,7 @@ test("Edge Case - Prefix Sum & Array Product with Zeroes and Negative Values", (
 // ============================================================================
 
 test("Multi-Dataset Lifecycle - All canonical problems run through Standard, Longer, and Edge datasets", async () => {
-  const { getCanonicalMultiDatasets } = await import("./problems.ts");
+  const { getCanonicalMultiDatasets } = await import("./problems");
 
   const sampleProblemSlugs = [
     "two-sum",

@@ -16,6 +16,7 @@ import {
   type VizStep,
 } from "@/lib/problems";
 import { getStatement } from "@/lib/problem.functions";
+import { statementForSlug } from "@/lib/statements";
 import {
   reviewPseudocode,
   generateDatasetVisualization,
@@ -98,14 +99,19 @@ function ProblemPage() {
   const problem = loaderData?.problem;
   const fetchStatement = useServerFn(getStatement);
   
-  const { data: remoteStatement, isLoading: isStatementLoading } = useQuery({
+  const {
+    data: remoteStatement,
+    isLoading: isStatementLoading,
+    refetch: refetchStatement,
+  } = useQuery({
     queryKey: ['problem-statement', problem?.slug],
     queryFn: () => fetchStatement({ data: { slug: problem?.slug || "" } }),
     enabled: !!problem?.slug,
-    staleTime: Infinity,
+    staleTime: 1000 * 60 * 60,
   });
 
-  const statement = remoteStatement?.statement ?? "";
+  const statement =
+    remoteStatement?.statement || (problem?.slug ? statementForSlug(problem.slug, problem) : "");
 
   const { user } = useAuth();
   
@@ -475,7 +481,11 @@ def solve(input_data):
             {/* Tab Content */}
             {activeTab === "statement" ? (
               <div className="max-h-[380px] overflow-y-auto pr-2">
-                <ProblemStatementTab statement={statement} />
+                <ProblemStatementTab
+                  statement={statement}
+                  isLoading={isStatementLoading && !statement}
+                  onRetry={() => refetchStatement()}
+                />
               </div>
             ) : (
               <div className="flex flex-col gap-3 max-h-[380px] overflow-y-auto pr-2 text-xs text-muted-foreground">

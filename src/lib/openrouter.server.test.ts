@@ -7,7 +7,7 @@ import {
   isGeminiKey,
   isOpenRouterKey,
   extractJson,
-} from "./openrouter.server.ts";
+} from "./openrouter.server";
 
 test("uses active Gemini model aliases instead of retired legacy names for review", () => {
   assert.ok(REVIEW_MODELS.length > 0);

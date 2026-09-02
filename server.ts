@@ -81,13 +81,19 @@ const aiLimiter = rateLimit({
 app.use("/api/", apiLimiter);
 
 
+const cleanEnv = (val?: string | null): string => {
+  if (!val) return "";
+  return val.trim().replace(/^["']|["']$/g, "").trim();
+};
+
 // Server-side Gemini AI Client
 function getGeminiClient(): GoogleGenAI {
-  const apiKey =
+  const apiKey = cleanEnv(
     process.env.GEMINI_API_KEY ||
     process.env.VITE_GEMINI_API_KEY ||
     process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY;
+    process.env.VITE_GOOGLE_API_KEY
+  );
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable is missing.");
   }
@@ -117,21 +123,23 @@ app.get("/api/health", (_req: Request, res: Response) => {
 
 // Debug endpoint to check environment variables
 app.get("/api/debug/env", (_req: Request, res: Response) => {
+  const gemini = !!cleanEnv(
+    process.env.GEMINI_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.VITE_GOOGLE_API_KEY
+  );
+  const openrouter = !!cleanEnv(
+    process.env.OPENROUTER_API_KEY ||
+    process.env.VITE_OPENROUTER_API_KEY ||
+    process.env.OPEN_ROUTER_API_KEY ||
+    process.env.VITE_OPEN_ROUTER_API_KEY ||
+    process.env.Openrouterapi ||
+    process.env.VITE_Openrouterapi
+  );
   res.json({
-    gemini: !!(
-      process.env.GEMINI_API_KEY ||
-      process.env.VITE_GEMINI_API_KEY ||
-      process.env.GOOGLE_API_KEY ||
-      process.env.VITE_GOOGLE_API_KEY
-    ),
-    openrouter: !!(
-      process.env.OPENROUTER_API_KEY ||
-      process.env.VITE_OPENROUTER_API_KEY ||
-      process.env.OPEN_ROUTER_API_KEY ||
-      process.env.VITE_OPEN_ROUTER_API_KEY ||
-      process.env.Openrouterapi ||
-      process.env.VITE_Openrouterapi
-    ),
+    gemini,
+    openrouter,
     github: !!(process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID),
     firebase: !!(process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID),
     nodeEnv: process.env.NODE_ENV,

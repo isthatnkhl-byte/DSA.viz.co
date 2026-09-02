@@ -59,40 +59,35 @@ export const VIZ_MODELS = Array.from(
   ]),
 );
 
-export function getOpenRouterKey() {
+const clean = (val?: string | null): string => {
+  if (!val) return "";
+  return val.trim().replace(/^["']|["']$/g, "").trim();
+};
+
+export function getOpenRouterKey(): string {
   const env: Record<string, string | undefined> =
     typeof process !== "undefined" && process?.env ? process.env : {};
-  const metaEnv: Record<string, string | undefined> =
-    typeof import.meta !== "undefined" && (import.meta as any).env ? (import.meta as any).env : {};
 
-  return (
+  return clean(
     env["OPENROUTER_API_KEY"] ||
     env["VITE_OPENROUTER_API_KEY"] ||
     env["OPEN_ROUTER_API_KEY"] ||
     env["VITE_OPEN_ROUTER_API_KEY"] ||
     env["Openrouterapi"] ||
     env["VITE_Openrouterapi"] ||
-    metaEnv["VITE_OPENROUTER_API_KEY"] ||
-    metaEnv["VITE_OPEN_ROUTER_API_KEY"] ||
-    metaEnv["OPENROUTER_API_KEY"] ||
     ""
   );
 }
 
-export function getGeminiKey() {
+export function getGeminiKey(): string {
   const env: Record<string, string | undefined> =
     typeof process !== "undefined" && process?.env ? process.env : {};
-  const metaEnv: Record<string, string | undefined> =
-    typeof import.meta !== "undefined" && (import.meta as any).env ? (import.meta as any).env : {};
 
-  return (
+  return clean(
     env["GEMINI_API_KEY"] ||
     env["VITE_GEMINI_API_KEY"] ||
     env["GOOGLE_API_KEY"] ||
     env["VITE_GOOGLE_API_KEY"] ||
-    metaEnv["VITE_GEMINI_API_KEY"] ||
-    metaEnv["VITE_GOOGLE_API_KEY"] ||
-    metaEnv["GEMINI_API_KEY"] ||
     ""
   );
 }

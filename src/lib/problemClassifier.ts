@@ -421,29 +421,12 @@ export function classifyProblem(
     };
   }
 
-  // 20. FREQUENCY COUNTING & ANAGRAMS
-  if (
-    /group-anagrams|valid-anagram|first-unique-character|ransom-note|majority-element|contains-duplicate|word-pattern|isomorphic-strings|sort-characters-by-frequency|top-k-frequent-words|find-common-characters|intersection-of-two-arrays|minimum-index-sum-of-two-lists|custom-sort-string/.test(
-      s,
-    ) ||
-    (hasTopic("hash table", "counting") && !hasTopic("two pointers", "sliding window"))
-  ) {
-    return {
-      category: "hashmap",
-      primaryVizType: "hashmap",
-      pattern: "frequency-count",
-      isMultiEntity: s.includes("group-anagrams"),
-      algorithmName: "Hash Table Frequency Map & Bucket Counting",
-    };
-  }
-
-  // 21. HASH MAP PAIR & COMPLEMENT SEARCH
+  // 20. HASH MAP PAIR & COMPLEMENT SEARCH
   if (
     !s.includes("two-sum-ii") &&
-    (/two-sum|3sum-with-multiplicity|4sum-ii|subarray-sum-equals-k|continuous-subarray-sum/.test(
+    /two-sum|3sum-with-multiplicity|4sum-ii|subarray-sum-equals-k|continuous-subarray-sum/.test(
       s,
-    ) ||
-      (hasTopic("hash table") && !hasTopic("two pointers", "sliding window", "binary search")))
+    )
   ) {
     return {
       category: "hashmap",
@@ -451,6 +434,23 @@ export function classifyProblem(
       pattern: "hashmap-pair",
       isMultiEntity: false,
       algorithmName: "Hash Map Complement Lookup (Two Sum O(n))",
+    };
+  }
+
+  // 21. FREQUENCY COUNTING & ANAGRAMS
+  if (
+    /group-anagrams|valid-anagram|first-unique-character|ransom-note|majority-element|contains-duplicate|word-pattern|isomorphic-strings|sort-characters-by-frequency|top-k-frequent-words|find-common-characters|intersection-of-two-arrays|minimum-index-sum-of-two-lists|custom-sort-string/.test(
+      s,
+    ) ||
+    (hasTopic("counting") && !hasTopic("two pointers", "sliding window")) ||
+    (hasTopic("hash table") && !hasTopic("two pointers", "sliding window"))
+  ) {
+    return {
+      category: "hashmap",
+      primaryVizType: "hashmap",
+      pattern: "frequency-count",
+      isMultiEntity: s.includes("group-anagrams"),
+      algorithmName: "Hash Table Frequency Map & Bucket Counting",
     };
   }
 

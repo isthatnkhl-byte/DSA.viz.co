@@ -6,7 +6,7 @@ This document outlines the end-to-end architectural topology, server-side data l
 
 ## 1. High-Level Architectural Topology
 
-DSA.viz is built on a fullstack isomorphic React 19 architecture powered by **TanStack Start** and **Nitro SSR**. It leverages type-safe Remote Procedure Call (RPC) Server Functions (`createServerFn`) to unify the client state machine with distributed server-side AI and sandboxed execution workers.
+DSA.viz is built on a fullstack isomorphic React 19 architecture backed by a high-performance **Node.js Express REST API**, **Firebase Admin Auth**, and **Google Cloud Firestore**. It leverages a strictly typed client-server API boundary (`src/lib/api-client.ts`) to isolate client-side UI rendering from server-side AI model-racing and sandboxed C++ compilers.
 
 ```mermaid
 flowchart TD
@@ -15,81 +15,89 @@ flowchart TD
         Monaco["Monaco Pseudocode & C++ Editor"]
         CanvasEngine["Multi-DS SVG & DOM Visualizer Canvas"]
         CompilerView["C++ Console & Standard Package Tree"]
-        ThemeContext["Zustand Dynamic Accent Engine"]
+        ApiClient["Typed API Client (src/lib/api-client.ts)"]
     end
 
-    subgraph EdgeServer["TanStack Start / Nitro SSR Layer"]
-        RPCGateway["Type-Safe Server Function Dispatcher"]
-        AuthMiddleware["Supabase JWT Auth Attacher / Guest Mode Session"]
-        TelemetryLogger["Execution Profiler & Error Boundary"]
+    subgraph EdgeServer["Node.js Express Server Tier (server.ts)"]
+        AuthMiddleware["requireAuth (Firebase Admin JWT verifyIdToken)"]
+        RateLimiters["Rate Limiters (aiLimiter, compilerLimiter, apiLimiter)"]
+        ReviewEndpoint["POST /api/review"]
+        VizEndpoint["POST /api/visualize-dataset"]
+        CompileEndpoint["POST /api/compiler/execute"]
+        OAuthEndpoint["OAuth Lifecycle (/api/github/url + /api/github/callback)"]
     end
 
     subgraph ServiceMesh["Algorithmic & AI Engine Layer"]
-        ReviewRPC["reviewPseudocode() ServerFn"]
-        VizRPC["generateDatasetViz() ServerFn"]
-        CompileRPC["executeCppCode() ServerFn"]
+        ModelRace["Multi-Model Racing Engine (openrouter.server.ts)"]
         Normalizer["Self-Healing AI Contract Normalizer (ai-contracts.ts)"]
-        GroundTruth["Deterministic Simulator Engine (45+ Algorithmic Patterns)"]
+        GroundTruth["Deterministic Ground-Truth Simulators (50+ Patterns)"]
     end
 
-    subgraph CloudInfrastructure["External APIs & Cloud Backends"]
-        GeminiFlash["Google Gemini 3.7 Flash"]
+    subgraph CloudInfrastructure["External APIs & Sandboxed Cloud Workers"]
+        GeminiFlash["Google Gemini 3.5 Flash"]
         GeminiLite["Google Gemini 3.1 Flash-Lite"]
         OpenRouterPool["OpenRouter Provider Pool (Fallback)"]
-        PistonSandbox["Piston Sandboxed C++ Runtime"]
-        WandboxAPI["Wandbox GCC/Clang Engine"]
-        SupabasePostgres[("Supabase PostgreSQL & Row Level Security")]
+        GodboltSandbox["Compiler Explorer (Godbolt GCC 14.1)"]
+        WandboxSandbox["Wandbox GCC/Clang Sandbox"]
+        FirestoreDB[("Google Cloud Firestore")]
+        FirebaseAuth["Firebase Authentication"]
     end
 
-    UI --> RPCGateway
-    Monaco --> RPCGateway
+    UI --> ApiClient
+    Monaco --> ApiClient
     CanvasEngine <--> UI
-    CompilerView <--> CompileRPC
+    CompilerView <--> ApiClient
 
-    RPCGateway --> AuthMiddleware
-    AuthMiddleware --> ReviewRPC
-    AuthMiddleware --> VizRPC
-    AuthMiddleware --> CompileRPC
+    ApiClient --> RateLimiters
+    RateLimiters --> AuthMiddleware
+    AuthMiddleware --> ReviewEndpoint
+    AuthMiddleware --> VizEndpoint
+    AuthMiddleware --> CompileEndpoint
 
-    ReviewRPC --> GeminiFlash
-    ReviewRPC -.->|Timeout / Quota Fallback| OpenRouterPool
+    ReviewEndpoint --> ModelRace
+    VizEndpoint --> ModelRace
 
-    VizRPC --> GeminiFlash
-    VizRPC --> Normalizer
-    Normalizer -->|Validation Check| GroundTruth
+    ModelRace --> GeminiFlash
+    ModelRace -.->|Timeout / Quota Fallback| OpenRouterPool
+    ModelRace --> Normalizer
+
+    Normalizer -->|Payload Validation| GroundTruth
     Normalizer --> CanvasEngine
 
-    CompileRPC --> PistonSandbox
-    CompileRPC -.->|Failover| WandboxAPI
+    CompileEndpoint --> GodboltSandbox
+    CompileEndpoint -.->|Failover| WandboxSandbox
 
-    RPCGateway <--> SupabasePostgres
+    AuthMiddleware <--> FirebaseAuth
+    EdgeServer <--> FirestoreDB
 ```
 
 ---
 
-## 2. Server Functions RPC Pipeline
+## 2. Express REST API Pipeline
 
-TanStack Start replaces traditional REST/GraphQL boilerplate with isomorphic server functions. Each server function enforces input schema validation, attaches user session tokens, and returns strictly typed response objects:
+The client communicates with the server through a strictly typed API client. Each endpoint enforces Zod schema validation, rate limiting, and cryptographic token verification:
 
-### Key Server Functions:
+### Key Endpoints:
 
-1. **`reviewPseudocode` (`src/lib/review.functions.ts`)**
-   - **Input:** `{ slug: string, code: string, language: string, datasetIndex: number }`
-   - **Execution:** Calls Gemini 3.7 Flash with interview rubric system instructions. Renders verdict, asymptotic complexities, optimization tips, and line-by-line feedback.
-   - **Performance:** Streamlined for $<1.8\text{s}$ response latency.
+1. **`POST /api/review`**
+   - **Input:** `{ slug: string, title: string, difficulty?: string, topics?: string[], pseudocode: string }`
+   - **Rate Limiting:** `aiLimiter` (40 requests / minute)
+   - **Execution:** Calls Gemini 3.5 Flash with algorithmic grading rubric. Returns verdict, asymptotic complexities, optimization nudge, praise, and code line mapping.
 
-2. **`generateDatasetViz` (`src/lib/review.functions.ts`)**
-   - **Input:** `{ slug: string, code: string, dataset: TestDataset }`
-   - **Execution:** Generates step-by-step state mutations (`VizStep[]`). Passes raw output through `ai-contracts.ts` normalizer. If LLM trace is malformed, seamlessly defaults to deterministic ground-truth simulator in `simulators.ts`.
+2. **`POST /api/visualize-dataset`**
+   - **Input:** `{ slug: string, dataset: TestDataset, pseudocode: string }`
+   - **Rate Limiting:** `aiLimiter` (40 requests / minute)
+   - **Execution:** Generates step-by-step state mutations (`VizStep[]`). Passes raw output through `ai-contracts.ts` normalizer. If LLM trace is malformed, seamlessly falls back to deterministic ground-truth simulator in `simulators.ts`.
    - **Guaranteed Output:** Never fails to produce a navigable visual animation.
 
-3. **`executeCppCode` (`src/lib/compiler.functions.ts`)**
-   - **Input:** `{ code: string, stdin?: string, flags?: string[], backend?: "piston" | "wandbox" }`
-   - **Execution:** Validates against dangerous syscalls, sends payload to sandboxed environment, streams stdout, stderr, compile exit code, and execution time (ms).
+3. **`POST /api/compiler/execute`**
+   - **Input:** `{ code: string, stdin?: string }`
+   - **Rate Limiting:** `compilerLimiter` (20 requests / minute) + In-flight concurrency guard (max 5 simultaneous runs)
+   - **Execution:** Validates bracket balance and syntax, dispatches to Compiler Explorer (Godbolt) with Wandbox failover, returns stdout, stderr, compile exit code, and execution status.
 
-4. **`fetchStatements` (`src/lib/statements.server.ts`)**
-   - **Input:** `{ slug: string }`
-   - **Execution:** Reads canonical problem description and examples from `data/statements.json`, rendering formatted Markdown on the server.
+4. **`GET /api/statement`**
+   - **Input:** `?slug=two-sum`
+   - **Execution:** Reads canonical problem description and examples from `src/data/statements.json` or dynamic fallback synthesizers.
 
 ---
 

@@ -34,7 +34,7 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
       <button
         type="button"
         onClick={toggleMode}
-        className="flex size-7.5 items-center justify-center rounded-lg border border-border/70 bg-background/80 text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0"
+        className="flex size-8 items-center justify-center rounded-xl border border-border/70 bg-card/60 text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0"
         title={mode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
         aria-label="Toggle dark and light appearance mode"
       >
@@ -49,7 +49,7 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/80 px-2 py-1 text-xs font-mono font-semibold transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0 ${
+        className={`flex h-8 items-center gap-1.5 rounded-xl border border-border/70 bg-card/60 px-2 text-xs font-mono font-semibold transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0 ${
           isOpen ? "ring-2 ring-primary/40 border-primary/50" : ""
         }`}
         title={`Accent Color: ${activeOption.label}`}
@@ -59,17 +59,17 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
           style={{ backgroundColor: activeOption.previewColor }}
         />
         {!compact && (
-          <span className="hidden lg:inline text-[11px] text-muted-foreground hover:text-foreground">
+          <span className="hidden xl:inline text-[11px] text-muted-foreground hover:text-foreground font-sans">
             {activeOption.name}
           </span>
         )}
-        <Palette className="size-3 text-muted-foreground" />
+        <Palette className="size-3 text-muted-foreground shrink-0" />
       </button>
 
       {/* Floating Theme & Appearance Selector Popover */}
       {isOpen && (
         <div
-          className={`absolute top-full mt-2 z-50 w-56 rounded-2xl border border-border/80 bg-popover/95 p-3 shadow-2xl backdrop-blur-md animate-fade ${
+          className={`absolute top-full mt-2 z-50 w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/80 bg-popover/95 p-3 shadow-2xl backdrop-blur-xl animate-fade ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >

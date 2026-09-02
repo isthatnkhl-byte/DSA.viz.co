@@ -3548,7 +3548,72 @@ function dp1d(
 ): VizBundle {
   const s = (slug ?? "").toLowerCase();
 
-  // 1. Coin Change
+  // 1a. Coin Change II (Combinations Count)
+  if (/coin-change-ii|coin-change-2/.test(s)) {
+    const code = [
+      "dp = [0] * (amount + 1)",
+      "dp[0] = 1",
+      "for c in coins:",
+      "    for a in range(c, amount + 1):",
+      "        dp[a] += dp[a - c]",
+      "return dp[amount]",
+    ];
+
+    const rawCoins = dataset?.array && dataset.array.length > 0 ? dataset.array : [1, 2, 5];
+    const coins = rawCoins.map(Number);
+    const amount = typeof dataset?.target === "number" ? dataset.target : 5;
+    const dp: number[] = new Array(amount + 1).fill(0);
+    dp[0] = 1;
+
+    const steps: VizStep[] = [
+      {
+        type: "array",
+        array: [...dp],
+        current: 1,
+        line: 1,
+        wSum: 1,
+        mSum: 1,
+        desc: `Initialize Coin Change II DP table of size ${amount + 1} with base case dp[0] = 1 (1 combination for amount 0).`,
+      },
+    ];
+
+    for (const c of coins) {
+      for (let a = c; a <= amount; a++) {
+        dp[a] = (dp[a] ?? 0) + (dp[a - c] ?? 0);
+        steps.push({
+          type: "array",
+          array: [...dp],
+          current: dp[a]!,
+          left: a - c,
+          right: a,
+          line: 4,
+          wSum: dp[a]!,
+          mSum: dp[a]!,
+          shiftInfo: {
+            from: `coin: ${c}`,
+            to: `dp[${a}]=${dp[a]}`,
+            action: "write",
+            reason: `Added combinations using coin ${c}: dp[${a}] += dp[${a - c}] (${dp[a - c]}).`,
+          },
+          desc: `Coin ${c}, Amount ${a}: dp[${a}] += dp[${a - c}] -> Total combinations = ${dp[a]}.`,
+        });
+      }
+    }
+
+    const combinations = dp[amount]!;
+    steps.push({
+      type: "array",
+      array: [...dp],
+      current: combinations,
+      mSum: combinations,
+      line: 5,
+      desc: `DP Complete! Total combinations to make amount ${amount} is ${combinations}.`,
+    });
+
+    return { code, array: coins, steps: cap(steps) };
+  }
+
+  // 1b. Coin Change (Minimum Coins)
   if (/coin-change/.test(s)) {
     const code = [
       "dp = [float('inf')] * (amount + 1)",
@@ -3817,7 +3882,178 @@ function dp1d(
     return { code, array: nums, steps: cap(steps) };
   }
 
-  // 5. Default: House Robber
+  // 5. Word Break
+  if (/word-break/.test(s)) {
+    const code = [
+      "dp = [False] * (len(s) + 1)",
+      "dp[0] = True",
+      "for i in range(1, len(s) + 1):",
+      "    for j in range(i):",
+      "        if dp[j] and s[j:i] in word_dict:",
+      "            dp[i] = True; break",
+      "return dp[len(s)]",
+    ];
+
+    const wordList = dataset?.secondaryArray && dataset.secondaryArray.length > 0
+      ? dataset.secondaryArray.map(String)
+      : ["leet", "code"];
+    const wordSet = new Set(wordList);
+    const targetStr = dataset?.target ? String(dataset.target) : "leetcode";
+    const n = targetStr.length;
+    const dp: boolean[] = new Array(n + 1).fill(false);
+    dp[0] = true;
+
+    const steps: VizStep[] = [
+      {
+        type: "array",
+        array: dp.map((b) => (b ? 1 : 0)),
+        current: 1,
+        line: 1,
+        wSum: 1,
+        mSum: 1,
+        datasetLabels: {
+          primary: `Prefix Segmentation (0 to ${n})`,
+          secondaryArray: `Word Dictionary: [${wordList.join(", ")}]`,
+        },
+        desc: `Initialize Word Break DP table of size ${n + 1}. Base case dp[0] = True (empty prefix is valid).`,
+      },
+    ];
+
+    for (let i = 1; i <= n; i++) {
+      for (let j = 0; j < i; j++) {
+        const sub = targetStr.slice(j, i);
+        if (dp[j] && wordSet.has(sub)) {
+          dp[i] = true;
+          steps.push({
+            type: "array",
+            array: dp.map((b) => (b ? 1 : 0)),
+            current: 1,
+            left: j,
+            right: i,
+            line: 5,
+            wSum: 1,
+            mSum: 1,
+            datasetLabels: {
+              primary: `Prefix Segmentation (0 to ${n})`,
+              secondaryArray: `Word Dictionary: [${wordList.join(", ")}]`,
+            },
+            shiftInfo: {
+              from: `word: '${sub}'`,
+              to: `dp[${i}]=True`,
+              action: "match",
+              reason: `Matched word '${sub}' from valid prefix j=${j}.`,
+            },
+            desc: `Prefix s[0:${i}] ("${targetStr.slice(0, i)}"): valid sub-word "${sub}" found (from valid prefix dp[${j}]). dp[${i}] = True.`,
+          });
+          break;
+        }
+      }
+      if (!dp[i]) {
+        steps.push({
+          type: "array",
+          array: dp.map((b) => (b ? 1 : 0)),
+          current: 0,
+          left: 0,
+          right: i,
+          line: 3,
+          wSum: 0,
+          mSum: 0,
+          datasetLabels: {
+            primary: `Prefix Segmentation (0 to ${n})`,
+            secondaryArray: `Word Dictionary: [${wordList.join(", ")}]`,
+          },
+          desc: `Prefix s[0:${i}] ("${targetStr.slice(0, i)}"): no valid dictionary partition found. dp[${i}] = False.`,
+        });
+      }
+    }
+
+    const isValid = dp[n]!;
+    steps.push({
+      type: "array",
+      array: dp.map((b) => (b ? 1 : 0)),
+      current: isValid ? 1 : 0,
+      mSum: isValid ? 1 : 0,
+      line: 6,
+      desc: `Word Break DP Complete! String "${targetStr}" can ${isValid ? "" : "NOT "}be segmented into dictionary words.`,
+    });
+
+    return { code, array: targetStr.split("") as unknown as number[], steps: cap(steps) };
+  }
+
+  // 6. Decode Ways
+  if (/decode-ways/.test(s)) {
+    const code = [
+      "if not s or s[0] == '0': return 0",
+      "dp = [0] * (len(s) + 1)",
+      "dp[0] = dp[1] = 1",
+      "for i in range(2, len(s) + 1):",
+      "    if s[i-1] != '0': dp[i] += dp[i-1]",
+      "    if 10 <= int(s[i-2:i]) <= 26: dp[i] += dp[i-2]",
+      "return dp[len(s)]",
+    ];
+
+    const digitsStr = dataset?.target ? String(dataset.target) : "226";
+    const n = digitsStr.length;
+    const dp: number[] = new Array(n + 1).fill(0);
+    dp[0] = 1;
+    dp[1] = digitsStr[0] !== "0" ? 1 : 0;
+
+    const steps: VizStep[] = [
+      {
+        type: "array",
+        array: [...dp],
+        current: dp[1]!,
+        line: 2,
+        wSum: dp[1]!,
+        mSum: dp[1]!,
+        desc: `Initialize Decode Ways DP table for digits "${digitsStr}". Base cases: dp[0]=1, dp[1]=${dp[1]}.`,
+      },
+    ];
+
+    for (let i = 2; i <= n; i++) {
+      const oneDigit = Number(digitsStr.slice(i - 1, i));
+      const twoDigits = Number(digitsStr.slice(i - 2, i));
+
+      if (oneDigit >= 1 && oneDigit <= 9) {
+        dp[i] = (dp[i] ?? 0) + (dp[i - 1] ?? 0);
+      }
+      if (twoDigits >= 10 && twoDigits <= 26) {
+        dp[i] = (dp[i] ?? 0) + (dp[i - 2] ?? 0);
+      }
+
+      steps.push({
+        type: "array",
+        array: [...dp],
+        current: dp[i]!,
+        left: i - 2,
+        right: i,
+        line: 4,
+        wSum: dp[i]!,
+        mSum: dp[i]!,
+        shiftInfo: {
+          from: `digits '${digitsStr.slice(i - 2, i)}'`,
+          to: `dp[${i}]=${dp[i]}`,
+          action: "write",
+          reason: `Decoded ways using single digit '${digitsStr[i - 1]}' and two digits '${digitsStr.slice(i - 2, i)}'.`,
+        },
+        desc: `Prefix "${digitsStr.slice(0, i)}": Single-digit ('${digitsStr[i - 1]}') + Two-digit ('${digitsStr.slice(i - 2, i)}') valid paths -> dp[${i}] = ${dp[i]}.`,
+      });
+    }
+
+    const totalWays = dp[n]!;
+    steps.push({
+      type: "array",
+      array: [...dp],
+      current: totalWays,
+      mSum: totalWays,
+      line: 6,
+      desc: `Decode Ways DP Complete! Total distinct decodings for "${digitsStr}" is ${totalWays}.`,
+    });
+
+    return { code, array: digitsStr.split("").map(Number), steps: cap(steps) };
+  }
+
+  // 7. Default: House Robber
   const code = [
     "dp = [0] * (n + 1)",
     "dp[1] = nums[0]",
@@ -3961,6 +4197,516 @@ function dp2dSim(
     });
 
     return { code, array: grid.flat(), steps: cap(steps) };
+  }
+
+  if (/maximal-square/.test(s)) {
+    const code = [
+      "m, n = len(matrix), len(matrix[0])",
+      "dp = [[0] * (n + 1) for _ in range(m + 1)]",
+      "max_side = 0",
+      "for r in range(1, m + 1):",
+      "    for c in range(1, n + 1):",
+      "        if matrix[r-1][c-1] == '1':",
+      "            dp[r][c] = 1 + min(dp[r-1][c], dp[r][c-1], dp[r-1][c-1])",
+      "            max_side = max(max_side, dp[r][c])",
+      "return max_side * max_side",
+    ];
+
+    const rawGrid = (dataset?.matrix && Array.isArray(dataset.matrix) && dataset.matrix.length > 0
+      ? dataset.matrix
+      : [
+          ["1", "0", "1", "0", "0"],
+          ["1", "0", "1", "1", "1"],
+          ["1", "1", "1", "1", "1"],
+          ["1", "0", "0", "1", "0"],
+        ]) as (string | number)[][];
+
+    const grid = rawGrid.map((row) => row.map(String));
+    const m = grid.length;
+    const n = grid[0]?.length ?? 1;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    let maxSide = 0;
+
+    const steps: VizStep[] = [
+      {
+        type: "dp",
+        matrix: dp.map((r) => [...r]),
+        left: 0,
+        right: 0,
+        current: 0,
+        wSum: 0,
+        mSum: 0,
+        line: 1,
+        desc: `Initialize (${m + 1} × ${n + 1}) DP table filled with 0s to track maximum square side lengths.`,
+      },
+    ];
+
+    for (let r = 1; r <= m; r++) {
+      for (let c = 1; c <= n; c++) {
+        const val = grid[r - 1]?.[c - 1];
+        if (val === "1" || String(val) === "1") {
+          const top = dp[r - 1]?.[c] ?? 0;
+          const leftVal = dp[r]?.[c - 1] ?? 0;
+          const diag = dp[r - 1]?.[c - 1] ?? 0;
+          dp[r]![c] = 1 + Math.min(top, leftVal, diag);
+          maxSide = Math.max(maxSide, dp[r]![c]!);
+
+          steps.push({
+            type: "dp",
+            matrix: dp.map((row) => [...row]),
+            left: r,
+            right: c,
+            current: dp[r]![c]!,
+            line: 6,
+            wSum: dp[r]![c]!,
+            mSum: maxSide * maxSide,
+            shiftInfo: {
+              from: `cell (${r - 1},${c - 1})='1'`,
+              to: `dp[${r}][${c}]=${dp[r]![c]}`,
+              action: "write",
+              reason: `Square of side ${dp[r]![c]} extended from min(top: ${top}, left: ${leftVal}, diag: ${diag}) + 1.`,
+            },
+            desc: `Cell (${r - 1}, ${c - 1}) is '1': dp[${r}][${c}] = 1 + min(${top}, ${leftVal}, ${diag}) = ${dp[r]![c]} (Max Area: ${maxSide * maxSide}).`,
+          });
+        } else {
+          dp[r]![c] = 0;
+          steps.push({
+            type: "dp",
+            matrix: dp.map((row) => [...row]),
+            left: r,
+            right: c,
+            current: 0,
+            line: 5,
+            wSum: 0,
+            mSum: maxSide * maxSide,
+            desc: `Cell (${r - 1}, ${c - 1}) is '0': dp[${r}][${c}] = 0 (cannot form square).`,
+          });
+        }
+      }
+    }
+
+    const maxArea = maxSide * maxSide;
+    steps.push({
+      type: "dp",
+      matrix: dp.map((row) => [...row]),
+      left: m,
+      right: n,
+      current: maxArea,
+      mSum: maxArea,
+      wSum: maxArea,
+      line: 8,
+      desc: `Maximal Square Computation Complete! Largest square area containing only 1s is ${maxArea} (side length ${maxSide}).`,
+    });
+
+    return { code, array: grid.flat(), steps: cap(steps) };
+  }
+
+  if (/edit-distance/.test(s)) {
+    const code = [
+      "m, n = len(word1), len(word2)",
+      "dp = [[0] * (n + 1) for _ in range(m + 1)]",
+      "for i in range(m + 1): dp[i][0] = i",
+      "for j in range(n + 1): dp[0][j] = j",
+      "for i in range(1, m + 1):",
+      "    for j in range(1, n + 1):",
+      "        if word1[i-1] == word2[j-1]: dp[i][j] = dp[i-1][j-1]",
+      "        else: dp[i][j] = 1 + min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])",
+      "return dp[m][n]",
+    ];
+
+    const word1 = (dataset?.secondaryArray && dataset.secondaryArray.length > 0
+      ? dataset.secondaryArray
+      : ["h", "o", "r", "s", "e"]) as (string | number)[];
+    const word2 = (dataset?.array && dataset.array.length > 0
+      ? dataset.array
+      : ["r", "o", "s"]) as (string | number)[];
+
+    const m = word1.length;
+    const n = word2.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+
+    for (let i = 0; i <= m; i++) dp[i]![0] = i;
+    for (let j = 0; j <= n; j++) dp[0]![j] = j;
+
+    const word1Str = word1.map(String).join("");
+    const word2Str = word2.map(String).join("");
+
+    const steps: VizStep[] = [
+      {
+        type: "dp",
+        array: word2 as unknown as number[],
+        secondaryArray: word1 as unknown as number[],
+        left: 0,
+        right: 0,
+        current: 0,
+        wSum: 0,
+        mSum: 0,
+        matrix: dp.map((r) => [...r]),
+        line: 1,
+        datasetLabels: {
+          primary: `Target Word (word2: '${word2Str}')`,
+          secondaryArray: `Source Word (word1: '${word1Str}')`,
+        },
+        desc: `Initialize (${m + 1} × ${n + 1}) Levenshtein distance table with base cases (empty string prefixes).`,
+      },
+    ];
+
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        const c1 = word1[i - 1]!;
+        const c2 = word2[j - 1]!;
+        const isMatch = c1 === c2;
+
+        if (isMatch) {
+          dp[i]![j] = dp[i - 1]![j - 1]!;
+          steps.push({
+            type: "dp",
+            array: word2 as unknown as number[],
+            secondaryArray: word1 as unknown as number[],
+            left: i,
+            right: j,
+            current: dp[i]![j],
+            matrix: dp.map((r) => [...r]),
+            line: 6,
+            wSum: dp[i]![j],
+            mSum: dp[i]![j],
+            datasetLabels: {
+              primary: `Target Word (word2: '${word2Str}')`,
+              secondaryArray: `Source Word (word1: '${word1Str}')`,
+            },
+            shiftInfo: {
+              from: `word1[${i - 1}]: '${c1}'`,
+              to: `word2[${j - 1}]: '${c2}'`,
+              action: "match",
+              reason: `Characters match ('${c1}' == '${c2}'). 0 additional edit operations needed.`,
+            },
+            desc: `✓ Match '${c1}' == '${c2}': dp[${i}][${j}] = dp[${i - 1}][${j - 1}] = ${dp[i]![j]}.`,
+          });
+        } else {
+          const insertOp = dp[i]![j - 1]!;
+          const deleteOp = dp[i - 1]![j]!;
+          const replaceOp = dp[i - 1]![j - 1]!;
+          dp[i]![j] = 1 + Math.min(insertOp, deleteOp, replaceOp);
+
+          steps.push({
+            type: "dp",
+            array: word2 as unknown as number[],
+            secondaryArray: word1 as unknown as number[],
+            left: i,
+            right: j,
+            current: dp[i]![j],
+            matrix: dp.map((r) => [...r]),
+            line: 7,
+            wSum: dp[i]![j],
+            mSum: dp[i]![j],
+            datasetLabels: {
+              primary: `Target Word (word2: '${word2Str}')`,
+              secondaryArray: `Source Word (word1: '${word1Str}')`,
+            },
+            shiftInfo: {
+              from: `word1[${i - 1}]: '${c1}'`,
+              to: `word2[${j - 1}]: '${c2}'`,
+              action: "write",
+              reason: `1 + min(insert: ${insertOp}, delete: ${deleteOp}, replace: ${replaceOp}) = ${dp[i]![j]}`,
+            },
+            desc: `✗ Mismatch '${c1}' != '${c2}': dp[${i}][${j}] = 1 + min(${insertOp}, ${deleteOp}, ${replaceOp}) = ${dp[i]![j]}.`,
+          });
+        }
+      }
+    }
+
+    const finalDistance = dp[m]![n]!;
+    steps.push({
+      type: "dp",
+      array: word2 as unknown as number[],
+      secondaryArray: word1 as unknown as number[],
+      left: m,
+      right: n,
+      current: finalDistance,
+      matrix: dp.map((r) => [...r]),
+      line: 8,
+      wSum: finalDistance,
+      mSum: finalDistance,
+      datasetLabels: {
+        primary: `Target Word (word2: '${word2Str}')`,
+        secondaryArray: `Source Word (word1: '${word1Str}')`,
+      },
+      desc: `Edit Distance Complete! Minimum operations to convert '${word1Str}' to '${word2Str}' is ${finalDistance}.`,
+    });
+
+    return { code, array: word1 as unknown as number[], steps: cap(steps) };
+  }
+
+  if (/dungeon-game/.test(s)) {
+    const code = [
+      "m, n = len(dungeon), len(dungeon[0])",
+      "dp = [[float('inf')] * (n + 1) for _ in range(m + 1)]",
+      "dp[m][n-1] = dp[m-1][n] = 1",
+      "for r in range(m - 1, -1, -1):",
+      "    for c in range(n - 1, -1, -1):",
+      "        min_health = min(dp[r+1][c], dp[r][c+1]) - dungeon[r][c]",
+      "        dp[r][c] = max(1, min_health)",
+      "return dp[0][0]",
+    ];
+
+    const rawGrid = (dataset?.matrix && Array.isArray(dataset.matrix) && dataset.matrix.length > 0
+      ? dataset.matrix
+      : [
+          [-2, -3, 3],
+          [-5, -10, 1],
+          [10, 30, -5],
+        ]) as number[][];
+
+    const grid = rawGrid.map((row) => row.map(Number));
+    const m = grid.length;
+    const n = grid[0]?.length ?? 1;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(Infinity));
+    dp[m]![n - 1] = 1;
+    dp[m - 1]![n] = 1;
+
+    const displayDp = Array.from({ length: m }, () => new Array(n).fill(0));
+
+    const steps: VizStep[] = [
+      {
+        type: "dp",
+        matrix: displayDp.map((r) => [...r]),
+        left: m - 1,
+        right: n - 1,
+        current: 1,
+        wSum: 1,
+        mSum: 1,
+        line: 2,
+        desc: `Initialize Dungeon Game reverse DP matrix ${m}x${n}. Princess cell requires base health of 1.`,
+      },
+    ];
+
+    for (let r = m - 1; r >= 0; r--) {
+      for (let c = n - 1; c >= 0; c--) {
+        const minNext = Math.min(dp[r + 1]![c]!, dp[r]![c + 1]!);
+        const needed = minNext - grid[r]![c]!;
+        dp[r]![c] = Math.max(1, needed);
+        displayDp[r]![c] = dp[r]![c]!;
+
+        steps.push({
+          type: "dp",
+          matrix: displayDp.map((row) => [...row]),
+          left: r,
+          right: c,
+          current: dp[r]![c]!,
+          line: 6,
+          wSum: dp[r]![c]!,
+          mSum: dp[r]![c]!,
+          shiftInfo: {
+            from: `cell (${r},${c}) val: ${grid[r]![c]}`,
+            to: `dp[${r}][${c}]=${dp[r]![c]}`,
+            action: "write",
+            reason: `Knight needs at least ${dp[r]![c]} HP before entering (${r}, ${c}).`,
+          },
+          desc: `Cell (${r}, ${c}) [val: ${grid[r]![c]}]: min(down: ${dp[r + 1]![c]}, right: ${dp[r]![c + 1]}) - (${grid[r]![c]}) -> min HP needed = ${dp[r]![c]}.`,
+        });
+      }
+    }
+
+    const minInitialHealth = dp[0]![0]!;
+    steps.push({
+      type: "dp",
+      matrix: displayDp.map((row) => [...row]),
+      left: 0,
+      right: 0,
+      current: minInitialHealth,
+      mSum: minInitialHealth,
+      wSum: minInitialHealth,
+      line: 7,
+      desc: `Dungeon Game DP Complete! Minimum initial health required for knight to rescue princess is ${minInitialHealth}.`,
+    });
+
+    return { code, array: grid.flat(), steps: cap(steps) };
+  }
+
+  if (/interleaving-string/.test(s)) {
+    const code = [
+      "m, n = len(s1), len(s2)",
+      "if m + n != len(s3): return False",
+      "dp = [[False] * (n + 1) for _ in range(m + 1)]",
+      "dp[0][0] = True",
+      "for i in range(m + 1):",
+      "    for j in range(n + 1):",
+      "        if i > 0: dp[i][j] = dp[i][j] or (dp[i-1][j] and s1[i-1] == s3[i+j-1])",
+      "        if j > 0: dp[i][j] = dp[i][j] or (dp[i][j-1] and s2[j-1] == s3[i+j-1])",
+      "return dp[m][n]",
+    ];
+
+    const s1 = dataset?.secondaryArray && dataset.secondaryArray.length > 0 ? dataset.secondaryArray.map(String) : ["a", "a", "b"];
+    const s2 = dataset?.array && dataset.array.length > 0 ? dataset.array.map(String) : ["a", "b", "c"];
+    const s3 = dataset?.target ? String(dataset.target).split("") : ["a", "a", "a", "b", "b", "c"];
+
+    const m = s1.length;
+    const n = s2.length;
+    const dp: boolean[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(false));
+    dp[0]![0] = true;
+
+    const displayDp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    displayDp[0]![0] = 1;
+
+    const steps: VizStep[] = [
+      {
+        type: "dp",
+        matrix: displayDp.map((r) => [...r]),
+        left: 0,
+        right: 0,
+        current: 1,
+        wSum: 1,
+        mSum: 1,
+        line: 3,
+        datasetLabels: {
+          primary: `s2: '${s2.join("")}'`,
+          secondaryArray: `s1: '${s1.join("")}'`,
+        },
+        desc: `Initialize (${m + 1} × ${n + 1}) 2D Interleaving DP table. Base case dp[0][0] = True (empty prefixes match).`,
+      },
+    ];
+
+    for (let i = 0; i <= m; i++) {
+      for (let j = 0; j <= n; j++) {
+        if (i === 0 && j === 0) continue;
+        const k = i + j - 1;
+        const char3 = s3[k];
+
+        let valid = false;
+        if (i > 0 && dp[i - 1]?.[j] && s1[i - 1] === char3) {
+          valid = true;
+        }
+        if (j > 0 && dp[i]?.[j - 1] && s2[j - 1] === char3) {
+          valid = true;
+        }
+        dp[i]![j] = valid;
+        displayDp[i]![j] = valid ? 1 : 0;
+
+        steps.push({
+          type: "dp",
+          matrix: displayDp.map((r) => [...r]),
+          left: i,
+          right: j,
+          current: valid ? 1 : 0,
+          line: valid ? 6 : 7,
+          wSum: valid ? 1 : 0,
+          mSum: valid ? 1 : 0,
+          datasetLabels: {
+            primary: `s2: '${s2.join("")}'`,
+            secondaryArray: `s1: '${s1.join("")}'`,
+          },
+          shiftInfo: {
+            from: `s3[${k}]='${char3}'`,
+            to: `dp[${i}][${j}]=${valid ? "True" : "False"}`,
+            action: valid ? "match" : "write",
+            reason: valid ? `Interleaving match for prefix length ${k + 1}.` : `No valid interleaving path to (${i}, ${j}).`,
+          },
+          desc: `Cell (${i}, ${j}): Check if s1[0:${i}] and s2[0:${j}] form s3[0:${i + j}] -> dp[${i}][${j}] = ${valid ? "True (1)" : "False (0)"}.`,
+        });
+      }
+    }
+
+    const isInterleave = dp[m]![n]!;
+    steps.push({
+      type: "dp",
+      matrix: displayDp.map((r) => [...r]),
+      left: m,
+      right: n,
+      current: isInterleave ? 1 : 0,
+      mSum: isInterleave ? 1 : 0,
+      line: 8,
+      desc: `Interleaving String DP Complete! String s3 is ${isInterleave ? "" : "NOT "}a valid interleaving of s1 and s2.`,
+    });
+
+    return { code, array: s1 as unknown as number[], steps: cap(steps) };
+  }
+
+  if (/distinct-subsequences/.test(s)) {
+    const code = [
+      "m, n = len(s), len(t)",
+      "dp = [[0] * (n + 1) for _ in range(m + 1)]",
+      "for i in range(m + 1): dp[i][0] = 1",
+      "for i in range(1, m + 1):",
+      "    for j in range(1, n + 1):",
+      "        dp[i][j] = dp[i-1][j]",
+      "        if s[i-1] == t[j-1]: dp[i][j] += dp[i-1][j-1]",
+      "return dp[m][n]",
+    ];
+
+    const sourceStr = dataset?.secondaryArray && dataset.secondaryArray.length > 0 ? dataset.secondaryArray.map(String) : ["r", "a", "b", "b", "b", "i", "t"];
+    const targetStr = dataset?.array && dataset.array.length > 0 ? dataset.array.map(String) : ["r", "a", "b", "b", "i", "t"];
+
+    const m = sourceStr.length;
+    const n = targetStr.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i]![0] = 1;
+
+    const steps: VizStep[] = [
+      {
+        type: "dp",
+        matrix: dp.map((r) => [...r]),
+        left: 0,
+        right: 0,
+        current: 1,
+        wSum: 1,
+        mSum: 1,
+        line: 2,
+        datasetLabels: {
+          primary: `Target t: '${targetStr.join("")}'`,
+          secondaryArray: `Source s: '${sourceStr.join("")}'`,
+        },
+        desc: `Initialize Distinct Subsequences DP table. Base case dp[i][0] = 1 (empty target has 1 subsequence).`,
+      },
+    ];
+
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i]![j] = dp[i - 1]![j]!;
+        const cS = sourceStr[i - 1]!;
+        const cT = targetStr[j - 1]!;
+        const isMatch = cS === cT;
+
+        if (isMatch) {
+          dp[i]![j] = (dp[i]![j] ?? 0) + (dp[i - 1]?.[j - 1] ?? 0);
+        }
+
+        steps.push({
+          type: "dp",
+          matrix: dp.map((r) => [...r]),
+          left: i,
+          right: j,
+          current: dp[i]![j]!,
+          line: isMatch ? 6 : 5,
+          wSum: dp[i]![j]!,
+          mSum: dp[i]![j]!,
+          datasetLabels: {
+            primary: `Target t: '${targetStr.join("")}'`,
+            secondaryArray: `Source s: '${sourceStr.join("")}'`,
+          },
+          shiftInfo: {
+            from: `s[${i - 1}]: '${cS}' vs t[${j - 1}]: '${cT}'`,
+            to: `dp[${i}][${j}]=${dp[i]![j]}`,
+            action: isMatch ? "match" : "write",
+            reason: isMatch ? `Match added combinations from dp[${i - 1}][${j - 1}] (${dp[i - 1]![j - 1]}).` : `Carried over ways without char '${cS}'.`,
+          },
+          desc: `Cell (${i}, ${j}): '${cS}' vs '${cT}' -> total distinct subsequences = ${dp[i]![j]}.`,
+        });
+      }
+    }
+
+    const totalSubsequences = dp[m]![n]!;
+    steps.push({
+      type: "dp",
+      matrix: dp.map((r) => [...r]),
+      left: m,
+      right: n,
+      current: totalSubsequences,
+      mSum: totalSubsequences,
+      line: 7,
+      desc: `Distinct Subsequences DP Complete! Total ways to form t from s is ${totalSubsequences}.`,
+    });
+
+    return { code, array: sourceStr as unknown as number[], steps: cap(steps) };
   }
 
   // Default: Unique Paths

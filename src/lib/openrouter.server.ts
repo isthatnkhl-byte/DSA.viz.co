@@ -70,11 +70,8 @@ export function getOpenRouterKey(): string {
 
   return clean(
     env["OPENROUTER_API_KEY"] ||
-    env["VITE_OPENROUTER_API_KEY"] ||
     env["OPEN_ROUTER_API_KEY"] ||
-    env["VITE_OPEN_ROUTER_API_KEY"] ||
     env["Openrouterapi"] ||
-    env["VITE_Openrouterapi"] ||
     ""
   );
 }
@@ -85,9 +82,7 @@ export function getGeminiKey(): string {
 
   return clean(
     env["GEMINI_API_KEY"] ||
-    env["VITE_GEMINI_API_KEY"] ||
     env["GOOGLE_API_KEY"] ||
-    env["VITE_GOOGLE_API_KEY"] ||
     ""
   );
 }

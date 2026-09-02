@@ -17,11 +17,8 @@ import {
 } from "@/lib/problems";
 import { getStatement } from "@/lib/problem.functions";
 import { statementForSlug } from "@/lib/statements";
-import {
-  reviewPseudocode,
-  generateDatasetVisualization,
-  type ReviewResult,
-} from "@/lib/review.functions";
+import type { ReviewResult } from "@/lib/review.functions";
+import { apiReviewPseudocode, apiGenerateDatasetViz } from "@/lib/api-client";
 import { saveSubmission, getProfileStats } from "@/lib/submissions.functions";
 import { toast } from "sonner";
 
@@ -163,7 +160,6 @@ function ProblemPage() {
     }
   };
 
-  const runReview = useServerFn(reviewPseudocode);
   const save = useServerFn(saveSubmission);
   const queryClient = useQueryClient();
 
@@ -179,8 +175,6 @@ function ProblemPage() {
   const [copied, setCopied] = useState(false);
   const reviewRef = useRef<HTMLDivElement>(null);
   const storageKey = `dsaviz:attempt:${problem?.slug ?? "unknown"}`;
-
-  const fetchDatasetViz = useServerFn(generateDatasetVisualization);
 
   const currentSlugRef = useRef<string | null>(null);
 
@@ -240,14 +234,12 @@ function ProblemPage() {
     setResult(null);
     setSaved(false);
     try {
-      const res = await runReview({
-        data: {
-          slug: problem.slug,
-          title: problem.title,
-          difficulty: problem.difficulty,
-          topics: problem.topics,
-          pseudocode: pseudocode.trim(),
-        },
+      const res = await apiReviewPseudocode({
+        slug: problem.slug,
+        title: problem.title,
+        difficulty: problem.difficulty,
+        topics: problem.topics,
+        pseudocode: pseudocode.trim(),
       });
 
       setResult(res);
@@ -263,19 +255,9 @@ function ProblemPage() {
               title: problem.title,
               difficulty: problem.difficulty,
               code: pseudocode.trim(),
-              pseudocode: pseudocode.trim(),
-              lang: "pseudocode",
-              classification: res.classification,
-              time_complexity: res.complexity.time,
-              space_complexity: res.complexity.space,
-              timeComplexity: res.complexity.time,
-              spaceComplexity: res.complexity.space,
+              status: res.classification,
               review: res.review,
-              praise: res.praise,
-              nudge: res.nudge,
-              code_lines: res.code_lines ?? [],
-              viz_steps: res.viz_steps ?? [],
-              test_case: res.test_array ?? [],
+              complexity: res.complexity,
             },
           });
           queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
@@ -301,7 +283,7 @@ function ProblemPage() {
     } finally {
       setLoading(false);
     }
-  }, [pseudocode, problem, user, runReview, save, persist]);
+  }, [pseudocode, problem, user, save, queryClient, persist]);
 
   const handleSelectDataset = useCallback(
     async (targetDataset: TestDataset) => {
@@ -315,15 +297,10 @@ function ProblemPage() {
 
       setDatasetLoading(true);
       try {
-        const trace = await fetchDatasetViz({
-          data: {
-            slug: problem.slug,
-            title: problem.title,
-            difficulty: problem.difficulty,
-            topics: problem.topics,
-            pseudocode: pseudocode.trim(),
-            dataset: targetDataset,
-          },
+        const trace = await apiGenerateDatasetViz({
+          slug: problem.slug,
+          pseudocode: pseudocode.trim(),
+          dataset: targetDataset,
         });
 
         const updatedTraces = {
@@ -351,7 +328,7 @@ function ProblemPage() {
         setDatasetLoading(false);
       }
     },
-    [problem, result, pseudocode, fetchDatasetViz, persist],
+    [problem, result, pseudocode, persist],
   );
 
   const onSubmitRef = useRef(onSubmit);

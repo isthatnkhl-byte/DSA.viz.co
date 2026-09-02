@@ -29,7 +29,7 @@ import {
   PLAYGROUND_CATEGORIES,
   type PlaygroundTemplate,
 } from "@/lib/playground-templates";
-import { reviewPlaygroundPseudocode } from "@/lib/playground.functions";
+import { apiPlaygroundReview } from "@/lib/api-client";
 import type { ReviewResult } from "@/lib/review.functions";
 import { VALID_VIZ_TYPES, type VizType } from "@/lib/problems";
 import { toast } from "sonner";
@@ -41,12 +41,9 @@ export const Route = createFileRoute("/playground")({
       {
         name: "description",
         content:
-          "Interactive DSA Sandbox: write arbitrary pseudocode on custom test inputs, get instant AI interviewer critique, complexity ratings, and step-by-step visual execution animations.",
+          "Test any algorithm on custom data structures. Get AI ratings and watch animated step-by-step execution.",
       },
-      {
-        property: "og:title",
-        content: "DSA Sandbox & Algorithm Playground — DSA.viz",
-      },
+      { property: "og:title", content: "DSA Sandbox & Custom Algorithm Playground" },
       {
         property: "og:description",
         content:
@@ -67,7 +64,6 @@ const badgeFor = (c: string) =>
         : "bg-purple-500/20 text-purple-300 border-purple-400/60 shadow-xs shadow-purple-500/25 font-extrabold";
 
 function PlaygroundPage() {
-  const runReview = useServerFn(reviewPlaygroundPseudocode);
 
   // Playground state
   const defaultTemplate = PLAYGROUND_TEMPLATES[0]!;
@@ -156,14 +152,12 @@ function PlaygroundPage() {
     setError(null);
 
     try {
-      const res = await runReview({
-        data: {
-          title: title.trim() || "Custom Algorithm",
-          type: vizType,
-          pseudocode: pseudocode.trim(),
-          testInput: parsedInputArray.length > 0 ? parsedInputArray : [1, 2, 3, 4, 5],
-          ...(parsedTarget !== undefined ? { target: parsedTarget } : {}),
-        },
+      const res = await apiPlaygroundReview({
+        title: title.trim() || "Custom Algorithm",
+        type: vizType,
+        pseudocode: pseudocode.trim(),
+        testInput: parsedInputArray.length > 0 ? parsedInputArray : [1, 2, 3, 4, 5],
+        ...(parsedTarget !== undefined ? { target: parsedTarget } : {}),
       });
       setResult(res);
       toast.success("Algorithm analysis complete");

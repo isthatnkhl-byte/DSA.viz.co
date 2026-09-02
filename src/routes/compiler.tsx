@@ -26,7 +26,7 @@ import {
   PLAIN_CPP_STARTER,
   PLAIN_CPP_IO_TEMPLATE,
 } from "@/lib/compiler-templates";
-import { executeCppCode } from "@/lib/compiler.functions";
+import { apiExecuteCpp } from "@/lib/api-client";
 import type { CppExecutionResult, CppTemplate } from "@/lib/compiler.types";
 import { toast } from "sonner";
 import { getProfileStats } from "@/lib/submissions.functions";
@@ -62,8 +62,6 @@ const STORAGE_KEY_PLAIN_CODE = "dsa_plain_cpp_code_v1";
 const STORAGE_KEY_PLAIN_STDIN = "dsa_plain_cpp_stdin_v1";
 
 function CppCompilerPage() {
-  const runCodeFn = useServerFn(executeCppCode);
-
   const { user } = useAuth();
   const fetchStats = useServerFn(getProfileStats);
   const { data: profileStats } = useQuery({
@@ -78,8 +76,8 @@ function CppCompilerPage() {
        toast.error("Please log in to push to GitHub.");
        return;
     }
-    const token = (profileStats.profile as any).githubToken;
-    if (!token) {
+    const isConnected = !!(profileStats.profile as any).githubConnected || !!(profileStats.profile as any).githubToken;
+    if (!isConnected) {
       toast.error("Please connect your GitHub account in your Profile first.");
       return;
     }
@@ -246,7 +244,7 @@ function CppCompilerPage() {
   };
 
   // Execute C++ code against the server function or direct API endpoint
-  const handleExecute = async (overrideStdin?: unknown) => {
+  const handleExecute = async (overrideStdin?: string) => {
     if (!activeCode.trim()) {
       toast.error("Please enter some C++ code to run");
       return;
@@ -260,29 +258,10 @@ function CppCompilerPage() {
 
     setLoading(true);
     try {
-      let res: CppExecutionResult;
-      try {
-        res = await runCodeFn({
-          data: {
-            code: activeCode.trim(),
-            stdin: typeof stdinToUse === "string" ? stdinToUse : "",
-          },
-        });
-      } catch (serverFnErr) {
-        // Fallback to Express backend endpoint
-        const fallbackRes = await fetch("/api/compiler/execute", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            code: activeCode.trim(),
-            stdin: typeof stdinToUse === "string" ? stdinToUse : "",
-          }),
-        });
-        if (!fallbackRes.ok) {
-          throw new Error("Compiler service unavailable");
-        }
-        res = (await fallbackRes.json()) as CppExecutionResult;
-      }
+      const res = await apiExecuteCpp({
+        code: activeCode.trim(),
+        stdin: typeof stdinToUse === "string" ? stdinToUse : "",
+      });
 
       setActiveResult(res);
 

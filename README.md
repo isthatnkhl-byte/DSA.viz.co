@@ -4,10 +4,11 @@
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![TanStack Start](https://img.shields.io/badge/TanStack%20Start-SSR%20%26%20RPC-FF4154?logo=react&logoColor=white)](https://tanstack.com/start)
+[![Express.js](https://img.shields.io/badge/Express-REST%20API-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![Firebase](https://img.shields.io/badge/Firebase-Admin%20%26%20Firestore-FFCA28?logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-v4.0-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Google Gemini API](https://img.shields.io/badge/Google%20Gemini-3.6%20Flash-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
-[![Node.js Tests](https://img.shields.io/badge/Tests-45%20Passing-success?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Google Gemini API](https://img.shields.io/badge/Google%20Gemini-3.5%20Flash-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
+[![Tests](https://img.shields.io/badge/Tests-104%20Passing-success?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **An enterprise-grade DSA interview preparation platform combining real-time AI code reviews, deterministic multi-dataset algorithm visualization, and a sandboxed C++ compilation engine.**
@@ -23,7 +24,7 @@
 **DSA.viz.co** is a modern pair-programming and interview coaching ecosystem designed to bridge the gap between abstract algorithmic reasoning and visual mental models. Users submit pseudocode in any mainstream programming language (C++, Java, Python, JavaScript, Go, Rust), receiving:
 
 1. **Instant FAANG-Grade AI Verdicts:** Comprehensive breakdown of algorithmic correctness, asymptotic time & space complexity, edge-case vulnerabilities, and actionable optimization strategies.
-2. **Deterministic Step-by-Step Visualizations:** Multi-dataset animations for 2D Grid DFS/BFS, Binary Trees, Linked Lists, Dynamic Hash Maps, Monotonic Stacks, Priority Queues, and Two-Pointer arrays.
+2. **Deterministic Step-by-Step Visualizations:** Multi-dataset animations for 2D Grid DFS/BFS, 2D/1D Dynamic Programming state tables, Binary Trees, Linked Lists, Dynamic Hash Maps, Monotonic Stacks, Priority Queues, Tries, and Two-Pointer arrays.
 3. **Integrated C++ Execution Sandbox:** Instant compilation and execution environment with a 16-header standard package explorer, compiler flags (`-O2`, `-std=c++20`), and performance profiling.
 
 ---
@@ -37,37 +38,41 @@ flowchart TD
         Editor["Monaco / Code Editor"]
         Viz["Multi-DS Canvas Engine"]
         CompUI["C++ Console & Package Tree"]
+        ApiClient["Typed API Client (src/lib/api-client.ts)"]
     end
 
-    subgraph Server["Fullstack Server Tier (TanStack Start + Nitro SSR)"]
-        RPC["Type-Safe Server Functions RPC"]
-        AuthGate["Supabase Auth Attacher / Guest Mode"]
-        ReviewFn["reviewPseudocode ServerFn"]
-        VizFn["generateDatasetViz ServerFn"]
-        CompilerFn["executeCppCode ServerFn"]
+    subgraph Server["Fullstack Server Tier (Node.js + Express API)"]
+        AuthGate["requireAuth Middleware (Firebase Admin JWT verifyIdToken)"]
+        RateLimiters["Rate Limiters (aiLimiter, compilerLimiter, apiLimiter)"]
+        ReviewAPI["POST /api/review"]
+        VizAPI["POST /api/visualize-dataset"]
+        CompilerAPI["POST /api/compiler/execute"]
+        OAuthAPI["OAuth Lifecycle (/api/github/url + /api/github/callback)"]
     end
 
     subgraph CoreEngine["Core Algorithmic Engines"]
         ModelRace["Multi-Model Race Engine"]
-        ContractNormalizer["AI Contract Normalizer & Heuristic AST"]
-        DeterministicSim["Ground-Truth Simulation Engines"]
-        CppSandbox["Wandbox & Piston Execution Sandboxes"]
+        ContractNormalizer["AI Contract Normalizer & AST Heuristics"]
+        DeterministicSim["Ground-Truth Simulation Engines (50+ Patterns)"]
+        CompilerSandbox["Compiler Explorer (Godbolt) & Wandbox Sandboxes"]
     end
 
-    subgraph External["External Services & APIs"]
-        Gemini["Google Gemini 3.6 Flash / 3.1 Flash-Lite"]
+    subgraph CloudInfrastructure["External Services & Databases"]
+        Gemini["Google Gemini 3.5 Flash / 3.1 Flash-Lite"]
         OpenRouter["OpenRouter Fallback Pool"]
-        SupabaseDB[("Supabase PostgreSQL & Auth")]
+        FirestoreDB[("Google Cloud Firestore")]
+        FirebaseAuth["Firebase Authentication"]
     end
 
-    Editor -->|Submit Pseudocode| RPC
-    RPC --> AuthGate
-    AuthGate --> ReviewFn
-    AuthGate --> VizFn
-    AuthGate --> CompilerFn
+    Editor -->|Submit Pseudocode| ApiClient
+    ApiClient --> RateLimiters
+    RateLimiters --> AuthGate
+    AuthGate --> ReviewAPI
+    AuthGate --> VizAPI
+    AuthGate --> CompilerAPI
 
-    ReviewFn --> ModelRace
-    VizFn --> ModelRace
+    ReviewAPI --> ModelRace
+    VizAPI --> ModelRace
 
     ModelRace --> Gemini
     ModelRace -.->|Fallback| OpenRouter
@@ -76,10 +81,11 @@ flowchart TD
     ContractNormalizer -->|Payload Validation| DeterministicSim
     ContractNormalizer -->|Structured Steps| Viz
 
-    CompilerFn --> CppSandbox
-    CppSandbox --> CompUI
+    CompilerAPI --> CompilerSandbox
+    CompilerSandbox --> CompUI
 
-    RPC <--> SupabaseDB
+    AuthGate <--> FirebaseAuth
+    Server <--> FirestoreDB
 ```
 
 ---

@@ -24,36 +24,43 @@ import dotenv from "dotenv";
 dotenv.config();
 
 
-const getEncryptionKey = () => {
-  const encKey = process.env.ENCRYPTION_KEY || process.env.VITE_ENCRYPTION_KEY;
-  if (encKey) return Buffer.from(encKey.padEnd(32, '0').slice(0, 32));
-  const secret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || 'default_secret';
-  return crypto.scryptSync(secret, 'salt', 32);
+const getEncryptionKey = (): Buffer => {
+  const encKey = process.env.ENCRYPTION_KEY;
+  if (encKey && encKey.length >= 32) {
+    return Buffer.from(encKey.slice(0, 32));
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("FATAL CONFIGURATION ERROR: ENCRYPTION_KEY (at least 32 characters) must be configured in production.");
+  }
+  console.warn("⚠️ [Security Notice]: ENCRYPTION_KEY is not configured. Deriving local development encryption key.");
+  const secret = process.env.GITHUB_CLIENT_SECRET || "dev_insecure_local_encryption_fallback_32";
+  return crypto.scryptSync(secret, "dsaviz_salt", 32);
 };
 
-function encryptToken(text) {
+function encryptToken(text: string): string {
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
+  const cipher = crypto.createCipheriv("aes-256-gcm", getEncryptionKey(), iv);
+  let encrypted = cipher.update(text, "utf8", "hex");
+  encrypted += cipher.final("hex");
   const authTag = cipher.getAuthTag();
-  return `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`;
+  return `${iv.toString("hex")}:${encrypted}:${authTag.toString("hex")}`;
 }
 
-function decryptToken(text) {
+function decryptToken(text: string): string | null {
   try {
-    const parts = text.split(':');
-    if (parts.length !== 3) return text; // Fallback for old unencrypted tokens
-    const iv = Buffer.from(parts[0], 'hex');
-    const encryptedText = Buffer.from(parts[1], 'hex');
-    const authTag = Buffer.from(parts[2], 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', getEncryptionKey(), iv);
+    const parts = text.split(":");
+    if (parts.length !== 3) return null;
+    const iv = Buffer.from(parts[0]!, "hex");
+    const encryptedText = Buffer.from(parts[1]!, "hex");
+    const authTag = Buffer.from(parts[2]!, "hex");
+    const decipher = crypto.createDecipheriv("aes-256-gcm", getEncryptionKey(), iv);
     decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
+    let decrypted = decipher.update(encryptedText, "hex", "utf8");
+    decrypted += decipher.final("utf8");
     return decrypted;
-  } catch(e) {
-    return text;
+  } catch (e) {
+    console.error("Token decryption error:", e);
+    return null;
   }
 }
 
@@ -61,9 +68,11 @@ const app = express();
 app.set("trust proxy", 1);
 const PORT = 3000;
 
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+// Security: Constrain global JSON & urlencoded payload sizes to 2MB
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
+// Rate Limiters
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 100,
@@ -73,10 +82,31 @@ const apiLimiter = rateLimit({
 
 const aiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 60,
+  max: 40,
   message: { error: "AI rate limit exceeded. Please wait a moment and try again." },
   validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false }
 });
+
+const compilerLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 20,
+  message: { error: "Compiler rate limit exceeded. Please wait a moment before running again." },
+  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false }
+});
+
+// Compiler concurrency tracker
+let inFlightCompilations = 0;
+const MAX_CONCURRENT_COMPILATIONS = 5;
+
+// Single-use OAuth nonce tracker with TTL
+const usedOAuthNonces = new Map<string, number>();
+const cleanupExpiredNonces = () => {
+  const now = Date.now();
+  for (const [nonce, expiresAt] of usedOAuthNonces.entries()) {
+    if (now > expiresAt) usedOAuthNonces.delete(nonce);
+  }
+};
+setInterval(cleanupExpiredNonces, 5 * 60 * 1000).unref();
 
 app.use("/api/", apiLimiter);
 
@@ -187,13 +217,18 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
   try {
     const user = await getOrCreateUser(req.user.uid, req.user.email || null).catch(() => null);
     const profile = await getProfile(req.user.uid).catch(() => null);
+    
+    // Privacy: Never return raw or encrypted githubToken to client
+    const { githubToken, ...safeProfile } = (profile || {}) as any;
+    
     res.json({
       uid: req.user.uid,
       email: req.user.email,
       displayName: user?.displayName || req.user.email?.split("@")[0] || "Explorer",
       avatarUrl: req.user.picture || null,
+      githubConnected: !!githubToken,
       ...user,
-      ...profile,
+      ...safeProfile,
     });
   } catch (error) {
     res.json({
@@ -201,6 +236,7 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
       email: req.user.email,
       displayName: req.user.email?.split("@")[0] || "Explorer",
       avatarUrl: req.user.picture || null,
+      githubConnected: false,
       createdAt: new Date().toISOString(),
     });
   }
@@ -436,10 +472,52 @@ app.post("/api/generate-image", aiLimiter, async (req: Request, res: Response) =
   }
 });
 
+// AI Request Validation Schemas
+const reviewInputSchema = z.object({
+  slug: z.string().min(1, "Slug is required").max(255),
+  title: z.string().min(1, "Title is required").max(255),
+  difficulty: z.string().optional(),
+  topics: z.array(z.string()).optional(),
+  pseudocode: z.string().min(1, "Pseudocode cannot be empty").max(50000, "Pseudocode exceeds maximum length of 50,000 characters"),
+});
+
+const datasetVizInputSchema = z.object({
+  slug: z.string().min(1).max(255),
+  dataset: z.object({
+    id: z.string(),
+    label: z.string(),
+    description: z.string().optional(),
+    array: z.array(z.union([z.number(), z.string()])).optional(),
+    matrix: z.array(z.array(z.union([z.number(), z.string()]))).optional(),
+    target: z.union([z.number(), z.string()]).optional(),
+    tree: z.any().optional(),
+    graph: z.any().optional(),
+    secondaryArray: z.array(z.union([z.number(), z.string()])).optional(),
+  }),
+  pseudocode: z.string().min(1).max(50000),
+});
+
+const playgroundReviewInputSchema = z.object({
+  title: z.string().min(1).max(255),
+  type: z.string().min(1).max(50),
+  pseudocode: z.string().min(1).max(50000),
+  testInput: z.array(z.union([z.number(), z.string()])).max(100),
+  target: z.union([z.number(), z.string()]).optional(),
+});
+
+const compilerExecuteSchema = z.object({
+  code: z.string().min(1, "Code cannot be empty").max(50000, "Code exceeds maximum length of 50,000 characters"),
+  stdin: z.string().max(10000, "Standard input exceeds maximum length of 10,000 characters").optional().default(""),
+});
+
 // AI Review Endpoint
-app.post("/api/review", async (req: Request, res: Response) => {
+app.post("/api/review", aiLimiter, async (req: Request, res: Response) => {
   try {
-    const result = await processReviewPseudocode(req.body);
+    const parsed = reviewInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid review request payload", details: parsed.error.format() });
+    }
+    const result = await processReviewPseudocode(parsed.data);
     res.json(result);
   } catch (err: any) {
     console.error("Error in /api/review:", err);
@@ -448,9 +526,13 @@ app.post("/api/review", async (req: Request, res: Response) => {
 });
 
 // AI Dataset Visualization Endpoint
-app.post("/api/visualize-dataset", async (req: Request, res: Response) => {
+app.post("/api/visualize-dataset", aiLimiter, async (req: Request, res: Response) => {
   try {
-    const result = await processDatasetVisualization(req.body);
+    const parsed = datasetVizInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid dataset visualization payload", details: parsed.error.format() });
+    }
+    const result = await processDatasetVisualization(parsed.data);
     res.json(result);
   } catch (err: any) {
     console.error("Error in /api/visualize-dataset:", err);
@@ -459,9 +541,13 @@ app.post("/api/visualize-dataset", async (req: Request, res: Response) => {
 });
 
 // AI Playground Review Endpoint
-app.post("/api/playground-review", async (req: Request, res: Response) => {
+app.post("/api/playground-review", aiLimiter, async (req: Request, res: Response) => {
   try {
-    const result = await processPlaygroundReview(req.body);
+    const parsed = playgroundReviewInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid playground review payload", details: parsed.error.format() });
+    }
+    const result = await processPlaygroundReview(parsed.data);
     res.json(result);
   } catch (err: any) {
     console.error("Error in /api/playground-review:", err);
@@ -469,10 +555,34 @@ app.post("/api/playground-review", async (req: Request, res: Response) => {
   }
 });
 
-// C++ Sandboxed Online Compiler Endpoint
-app.post("/api/compiler/execute", async (req: Request, res: Response) => {
+// C++ Sandboxed Online Compiler Endpoint with Concurrency Guard & Rate Limiting
+app.post("/api/compiler/execute", compilerLimiter, async (req: Request, res: Response) => {
+  const parsed = compilerExecuteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      stdout: "",
+      stderr: "Invalid compiler payload: " + JSON.stringify(parsed.error.format()),
+      exitCode: 1,
+      status: "error",
+      statusMessage: "Validation Error",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (inFlightCompilations >= MAX_CONCURRENT_COMPILATIONS) {
+    return res.status(429).json({
+      stdout: "",
+      stderr: "Sandbox compiler queue is currently at maximum capacity. Please retry in a few seconds.",
+      exitCode: 1,
+      status: "error",
+      statusMessage: "Concurrency Limit Exceeded",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  inFlightCompilations++;
   try {
-    const { code = "", stdin = "" } = req.body || {};
+    const { code, stdin } = parsed.data;
     const result = await runSecureCpp(code, stdin);
     res.json(result);
   } catch (err: any) {
@@ -485,36 +595,42 @@ app.post("/api/compiler/execute", async (req: Request, res: Response) => {
       statusMessage: "Execution Error",
       timestamp: new Date().toISOString(),
     });
+  } finally {
+    inFlightCompilations = Math.max(0, inFlightCompilations - 1);
   }
 });
 
-// Vite Middleware for Dev / Static Serving for Production
-// GitHub OAuth
-app.get("/api/github/url", requireAuth, (req, res) => {
+// GitHub OAuth Lifecycle
+app.get("/api/github/url", requireAuth, (req: any, res) => {
   const uid = req.user.uid;
-  const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID;
-  if (!clientId) {
-    return res.status(500).json({ error: "GITHUB_CLIENT_ID is not configured" });
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  const secret = process.env.GITHUB_CLIENT_SECRET;
+  
+  if (!clientId || !secret) {
+    return res.status(500).json({ error: "GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET is not configured on the server" });
   }
 
-  // Use the origin from the request to construct the redirect URI
+  // Construct canonical redirect URI
   const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   const origin = req.headers.origin || `${proto}://${host}`;
   const redirectUri = `${origin}/api/github/callback`;
   
-  // Create state combining uid and redirectUri
-  const payload = JSON.stringify({ uid, redirectUri });
-  const secret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || 'fallback-secret';
-  const hmac = crypto.createHmac('sha256', secret);
+  // Nonce + Expiry (10 minutes) for tamper-proof, single-use state
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + 10 * 60 * 1000;
+  
+  const payload = JSON.stringify({ uid, redirectUri, nonce, issuedAt, expiresAt });
+  const hmac = crypto.createHmac("sha256", secret);
   hmac.update(payload);
-  const signature = hmac.digest('hex');
-  const state = Buffer.from(JSON.stringify({ payload, signature })).toString('base64');
+  const signature = hmac.digest("hex");
+  const state = Buffer.from(JSON.stringify({ payload, signature })).toString("base64");
 
   const params = new URLSearchParams({
     client_id: clientId,
-    response_type: 'code',
-    scope: 'repo',
+    response_type: "code",
+    scope: "public_repo",
     state: state,
   });
 
@@ -524,20 +640,27 @@ app.get("/api/github/url", requireAuth, (req, res) => {
 
 app.get("/api/github/callback", async (req, res) => {
   const { code, state } = req.query;
-  if (!code || !state) {
-    return res.status(400).send("Missing code or state");
+  if (!code || !state || typeof state !== "string" || typeof code !== "string") {
+    return res.status(400).send("Missing code or state parameter");
   }
 
-  let uid, redirectUri;
+  const secret = process.env.GITHUB_CLIENT_SECRET;
+  if (!secret) {
+    return res.status(500).send("Server configuration error: GITHUB_CLIENT_SECRET missing");
+  }
+
+  let uid: string;
+  let nonce: string;
+  let expiresAt: number;
+
   try {
-    const decodedWrapper = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
+    const decodedWrapper = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
     const { payload, signature } = decodedWrapper;
     
-    // Verify signature
-    const secret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || 'fallback-secret';
-    const hmac = crypto.createHmac('sha256', secret);
+    // 1. Verify HMAC cryptographic signature
+    const hmac = crypto.createHmac("sha256", secret);
     hmac.update(payload);
-    const expectedSignature = hmac.digest('hex');
+    const expectedSignature = hmac.digest("hex");
     
     if (signature !== expectedSignature) {
       return res.status(403).send("State signature mismatch - possible CSRF attack");
@@ -545,14 +668,27 @@ app.get("/api/github/callback", async (req, res) => {
     
     const decoded = JSON.parse(payload);
     uid = decoded.uid;
-    redirectUri = decoded.redirectUri;
+    nonce = decoded.nonce;
+    expiresAt = decoded.expiresAt;
+
+    // 2. Verify state expiration
+    if (Date.now() > expiresAt) {
+      return res.status(400).send("OAuth state expired. Please initiate GitHub login again.");
+    }
+
+    // 3. Verify single-use nonce to prevent replay attacks
+    if (usedOAuthNonces.has(nonce)) {
+      return res.status(400).send("OAuth state has already been used.");
+    }
+    usedOAuthNonces.set(nonce, expiresAt);
   } catch (e) {
-    return res.status(400).send("Invalid state");
+    return res.status(400).send("Invalid or malformed state payload");
   }
 
   try {
-    const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID;
-    const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET;
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    
     const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: {
@@ -568,13 +704,16 @@ app.get("/api/github/callback", async (req, res) => {
     
     const tokenData = await tokenRes.json();
     if (tokenData.error) {
-      console.error("GitHub token error:", tokenData);
-      return res.status(400).send(`Error: ${tokenData.error_description}`);
+      console.error("GitHub token exchange error:", tokenData);
+      return res.status(400).send(`Error: ${tokenData.error_description || tokenData.error}`);
     }
 
     const accessToken = tokenData.access_token;
+    if (!accessToken) {
+      return res.status(400).send("No access token returned by GitHub");
+    }
     
-    // Save to DB
+    // Encrypt and persist token
     await updateProfile(uid, { githubToken: encryptToken(accessToken) });
 
     res.send(`

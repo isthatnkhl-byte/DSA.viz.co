@@ -409,7 +409,7 @@ function ProfilePage() {
                   <div>
                     <h3 className="text-base font-bold text-foreground flex items-center gap-2">
                       <span>GitHub Integration</span>
-                      {(profile as any)?.githubToken && (
+                      {((profile as any)?.githubConnected || (profile as any)?.githubToken) && (
                         <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
                           CONNECTED
                         </span>
@@ -421,7 +421,7 @@ function ProfilePage() {
                   </div>
                 </div>
 
-                {!(profile as any)?.githubToken ? (
+                {!((profile as any)?.githubConnected || (profile as any)?.githubToken) ? (
                   <Button
                     onClick={handleConnectGithub}
                     className="h-8 gap-1.5 font-mono text-xs bg-[#24292e] text-white hover:bg-[#24292e]/80"

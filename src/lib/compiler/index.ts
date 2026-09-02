@@ -15,32 +15,27 @@ export async function runSecureCpp(code: string, stdin = ""): Promise<CppExecuti
     return validationError;
   }
 
-  // 2. Parallel execution across isolated high-speed sandboxes (Godbolt GCC & Wandbox)
+  // 2. Resilient sequential-fallback execution across isolated high-speed sandboxes
   let result: CppExecutionResult | null = null;
   try {
-    result = await Promise.any([
-      executeOnGodbolt(code, stdin, "g132"),
-      executeOnGodbolt(code, stdin, "g141"),
-      executeOnWandbox(code, stdin),
-    ]);
-  } catch (err) {
-    // Parallel attempts timed out or failed, fallback to sequential execution
+    // Primary provider: Godbolt Compiler Explorer (GCC 14.1)
+    result = await executeOnGodbolt(code, stdin, "g141");
+  } catch (primaryErr) {
+    console.warn("[Compiler] Primary provider Godbolt failed, trying secondary provider Wandbox:", primaryErr);
     try {
-      result = await executeOnGodbolt(code, stdin, "g132");
-    } catch {
-      try {
-        result = await executeOnWandbox(code, stdin);
-      } catch (finalErr) {
-        return {
-          stdout: "",
-          stderr:
-            "Sandbox compiler service temporarily unavailable. Please check your internet connection or try again in a moment.",
-          exitCode: 1,
-          status: "error",
-          statusMessage: "Execution Service Unavailable",
-          timestamp: new Date().toISOString(),
-        };
-      }
+      // Secondary provider: Wandbox GCC
+      result = await executeOnWandbox(code, stdin);
+    } catch (secondaryErr) {
+      console.error("[Compiler] All sandbox compiler providers failed:", secondaryErr);
+      return {
+        stdout: "",
+        stderr:
+          "Sandbox compiler service temporarily unavailable. Please check your network connection or try again in a moment.",
+        exitCode: 1,
+        status: "error",
+        statusMessage: "Execution Service Unavailable",
+        timestamp: new Date().toISOString(),
+      };
     }
   }
 

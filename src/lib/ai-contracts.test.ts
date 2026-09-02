@@ -1332,3 +1332,70 @@ test("validateAndNormalizeVizPayload repairs raw AI steps containing INT_MAX, ze
   assert.deepEqual(normalized.viz_steps[2]?.map, { e: 1, l: 2 }, "Valid key-value map e:1, l:2 preserved");
 });
 
+test("E2E Pipeline - Tallest Billboard (Knapsack DP State Transition & Normalization)", () => {
+  const fallback = simulateProblemWithDataset("tallest-billboard", "standard");
+  assert.ok(fallback.steps.length > 0, "Fallback simulation must produce execution steps");
+
+  const candidateCode = [
+    "def tallestBillboard(rods):",
+    "  dp = {0: 0}",
+    "  for rod in rods:",
+    "    curr = dict(dp)",
+    "    for diff, y in curr.items():",
+    "      dp[diff + rod] = max(dp.get(diff + rod, 0), y)",
+    "      if diff >= rod:",
+    "        dp[diff - rod] = max(dp.get(diff - rod, 0), y + rod)",
+    "      else:",
+    "        dp[rod - diff] = max(dp.get(rod - diff, 0), y + diff)",
+    "  return dp.get(0, 0)",
+  ];
+
+  const rawAiPayload = {
+    is_complete: true,
+    code_lines: candidateCode,
+    test_array: [1, 2, 3, 6],
+    viz_steps: [
+      {
+        type: "array",
+        line: 1,
+        desc: "Initialize difference state map: dp[0] = 0.",
+        array: [1, 2, 3, 6],
+        map: { "0": 0 },
+        current: 1,
+        left: 0,
+        mSum: 0,
+      },
+      {
+        type: "array",
+        line: 5,
+        desc: "Processing rod = 1: add to taller support -> diff = 1, base height = 0.",
+        array: [1, 2, 3, 6],
+        map: { "0": 0, "1": 0 },
+        current: 1,
+        left: 0,
+        wSum: 1,
+        mSum: 0,
+      },
+      {
+        type: "array",
+        line: 10,
+        desc: "Billboard DP complete! Maximum height of two equal billboard supports is 6.",
+        array: [1, 2, 3, 6],
+        map: { "0": 6, "1": 5, "2": 4, "3": 3 },
+        current: 6,
+        left: 3,
+        wSum: 6,
+        mSum: 6,
+      },
+    ],
+  };
+
+  const normalized = validateAndNormalizeVizPayload(rawAiPayload, fallback, "array", candidateCode);
+  assert.ok(normalized.viz_steps.length >= 3, "Must produce valid normalized steps");
+  
+  const finalStep = normalized.viz_steps[normalized.viz_steps.length - 1]!;
+  assert.equal(finalStep.current, 6, "Final answer height must be 6");
+  assert.equal(finalStep.mSum, 6, "Final mSum must be 6");
+  assert.ok(finalStep.map && finalStep.map["0"] === 6, "Final map state at diff 0 must be 6");
+});
+

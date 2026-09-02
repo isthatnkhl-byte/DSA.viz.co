@@ -194,7 +194,7 @@ export function classifyProblem(
   if (/longest-common-subsequence|common-subsequence|common-subseq|\blcs\b/.test(s)) {
     return {
       category: "dp-2d",
-      primaryVizType: "matrix",
+      primaryVizType: "dp",
       pattern: "lcs",
       isMultiEntity: true,
       algorithmName: "2D Longest Common Subsequence Table",
@@ -208,7 +208,7 @@ export function classifyProblem(
   ) {
     return {
       category: "dp-2d",
-      primaryVizType: "matrix",
+      primaryVizType: "dp",
       pattern: "dp-2d",
       isMultiEntity: false,
       algorithmName: "2D Dynamic Programming Grid Optimization",

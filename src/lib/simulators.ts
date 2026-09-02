@@ -3899,12 +3899,17 @@ function dp2dSim(
     const m = grid.length;
     const n = grid[0]?.length ?? 1;
     const dp: number[][] = Array.from({ length: m }, () => new Array(n).fill(0));
+    dp[0]![0] = grid[0]![0]!;
 
     const steps: VizStep[] = [
       {
-        type: "matrix",
+        type: "dp",
         matrix: dp.map((r) => [...r]),
+        left: 0,
+        right: 0,
         current: grid[0]![0]!,
+        wSum: grid[0]![0]!,
+        mSum: grid[0]![0]!,
         line: 2,
         desc: `Initialize 2D DP matrix ${m}x${n} with base case dp[0][0] = ${grid[0]![0]}.`,
       },
@@ -3923,7 +3928,7 @@ function dp2dSim(
         }
 
         steps.push({
-          type: "matrix",
+          type: "dp",
           matrix: dp.map((row) => [...row]),
           left: r,
           right: c,
@@ -3944,10 +3949,13 @@ function dp2dSim(
 
     const minPathSum = dp[m - 1]![n - 1]!;
     steps.push({
-      type: "matrix",
+      type: "dp",
       matrix: dp.map((row) => [...row]),
+      left: m - 1,
+      right: n - 1,
       current: minPathSum,
       mSum: minPathSum,
+      wSum: minPathSum,
       line: 8,
       desc: `2D DP Complete! Minimum path sum from (0,0) to (${m - 1},${n - 1}) is ${minPathSum}.`,
     });
@@ -3970,9 +3978,13 @@ function dp2dSim(
 
   const steps: VizStep[] = [
     {
-      type: "matrix",
+      type: "dp",
       matrix: dp.map((r) => [...r]),
+      left: 0,
+      right: 0,
       current: 1,
+      wSum: 1,
+      mSum: 1,
       line: 0,
       desc: `Initialize 2D Unique Paths table ${m}x${n} with first row and column set to 1.`,
     },
@@ -3982,7 +3994,7 @@ function dp2dSim(
     for (let c = 1; c < n; c++) {
       dp[r]![c] = dp[r - 1]![c]! + dp[r]![c - 1]!;
       steps.push({
-        type: "matrix",
+        type: "dp",
         matrix: dp.map((row) => [...row]),
         left: r,
         right: c,
@@ -4003,10 +4015,13 @@ function dp2dSim(
 
   const uniquePaths = dp[m - 1]![n - 1]!;
   steps.push({
-    type: "matrix",
+    type: "dp",
     matrix: dp.map((row) => [...row]),
+    left: m - 1,
+    right: n - 1,
     current: uniquePaths,
     mSum: uniquePaths,
+    wSum: uniquePaths,
     line: 4,
     desc: `Unique Paths Computation Complete! Total paths to (${m - 1},${n - 1}) is ${uniquePaths}.`,
   });
@@ -4049,19 +4064,23 @@ function longestCommonSubsequence(
 
   const steps: VizStep[] = [
     {
-      type: "array",
-      array: text1 as unknown as number[],
-      secondaryArray: text2 as unknown as number[],
+      type: "dp",
+      array: text2 as unknown as number[],
+      secondaryArray: text1 as unknown as number[],
       left: 0,
+      right: 0,
       left2: 0,
+      current: 0,
+      wSum: 0,
+      mSum: 0,
       matrix: dp.map((r) => [...r]),
       line: 0,
       datasetLabels: {
-        primary: `Sequence 1 (text1: '${text1Str}')`,
-        secondaryArray: `Sequence 2 (text2: '${text2Str}')`,
+        primary: `Sequence 2 (text2: '${text2Str}')`,
+        secondaryArray: `Sequence 1 (text1: '${text1Str}')`,
       },
       activeDataset: "array",
-      desc: `Initialize DP matrix (${m + 1} × ${n + 1}) filled with 0s. Pointer L on text1[0]='${text1[0]}' and Pointer R on text2[0]='${text2[0]}'.`,
+      desc: `Initialize DP table (${m + 1} × ${n + 1}) filled with 0s for text1='${text1Str}' vs text2='${text2Str}'.`,
     },
   ];
 
@@ -4071,38 +4090,23 @@ function longestCommonSubsequence(
       const v2 = text2[j - 1]!;
       const isMatch = v1 === v2;
 
-      steps.push({
-        type: "array",
-        array: text1 as unknown as number[],
-        secondaryArray: text2 as unknown as number[],
-        left: i - 1, // L pointer on primary text1
-        left2: j - 1, // R pointer on secondary text2
-        current: v1 as unknown as number,
-        matrix: dp.map((r) => [...r]),
-        line: 3,
-        datasetLabels: {
-          primary: `Sequence 1 (text1: '${text1Str}')`,
-          secondaryArray: `Sequence 2 (text2: '${text2Str}')`,
-        },
-        activeDataset: "array",
-        desc: `Comparing text1[${i - 1}]='${v1}' (Pointer L) with text2[${j - 1}]='${v2}' (Pointer R)...`,
-      });
-
       if (isMatch) {
         dp[i]![j] = 1 + (dp[i - 1]?.[j - 1] ?? 0);
         steps.push({
-          type: "array",
-          array: text1 as unknown as number[],
-          secondaryArray: text2 as unknown as number[],
-          left: i - 1,
-          left2: j - 1,
-          current: v1 as unknown as number,
+          type: "dp",
+          array: text2 as unknown as number[],
+          secondaryArray: text1 as unknown as number[],
+          left: i,
+          right: j,
+          left2: j,
+          current: dp[i]![j],
           matrix: dp.map((r) => [...r]),
           line: 4,
           wSum: dp[i]![j],
+          mSum: dp[i]![j],
           datasetLabels: {
-            primary: `Sequence 1 (text1: '${text1Str}')`,
-            secondaryArray: `Sequence 2 (text2: '${text2Str}')`,
+            primary: `Sequence 2 (text2: '${text2Str}')`,
+            secondaryArray: `Sequence 1 (text1: '${text1Str}')`,
           },
           activeDataset: "array",
           shiftInfo: {
@@ -4111,25 +4115,27 @@ function longestCommonSubsequence(
             action: "match",
             reason: `Match found ('${v1}' == '${v2}')! dp[${i}][${j}] = 1 + dp[${i - 1}][${j - 1}] = ${dp[i]![j]}`,
           },
-          desc: `✓ Match found: text1[${i - 1}] == text2[${j - 1}] ('${v1}'). Increment LCS length to ${dp[i]![j]}.`,
+          desc: `✓ Match found: text1[${i - 1}] == text2[${j - 1}] ('${v1}'). dp[${i}][${j}] = 1 + ${dp[i - 1]?.[j - 1] ?? 0} = ${dp[i]![j]}.`,
         });
       } else {
         const top = dp[i - 1]?.[j] ?? 0;
         const leftVal = dp[i]?.[j - 1] ?? 0;
         dp[i]![j] = Math.max(top, leftVal);
         steps.push({
-          type: "array",
-          array: text1 as unknown as number[],
-          secondaryArray: text2 as unknown as number[],
-          left: i - 1,
-          left2: j - 1,
-          current: v2 as unknown as number,
+          type: "dp",
+          array: text2 as unknown as number[],
+          secondaryArray: text1 as unknown as number[],
+          left: i,
+          right: j,
+          left2: j,
+          current: dp[i]![j],
           matrix: dp.map((r) => [...r]),
           line: 6,
           wSum: dp[i]![j],
+          mSum: dp[i]![j],
           datasetLabels: {
-            primary: `Sequence 1 (text1: '${text1Str}')`,
-            secondaryArray: `Sequence 2 (text2: '${text2Str}')`,
+            primary: `Sequence 2 (text2: '${text2Str}')`,
+            secondaryArray: `Sequence 1 (text1: '${text1Str}')`,
           },
           activeDataset: "secondaryArray",
           desc: `✗ Mismatch: text1[${i - 1}]='${v1}' != text2[${j - 1}]='${v2}'. dp[${i}][${j}] = max(${top}, ${leftVal}) = ${dp[i]![j]}.`,
@@ -4138,23 +4144,25 @@ function longestCommonSubsequence(
     }
   }
 
+  const finalLcs = dp[m]![n]!;
   steps.push({
-    type: "array",
-    array: text1 as unknown as number[],
-    secondaryArray: text2 as unknown as number[],
-    left: m - 1,
-    left2: n - 1,
-    current: dp[m]![n]!,
+    type: "dp",
+    array: text2 as unknown as number[],
+    secondaryArray: text1 as unknown as number[],
+    left: m,
+    right: n,
+    left2: n,
+    current: finalLcs,
     matrix: dp.map((r) => [...r]),
     line: 7,
-    wSum: dp[m]![n]!,
-    mSum: dp[m]![n]!,
+    wSum: finalLcs,
+    mSum: finalLcs,
     datasetLabels: {
-      primary: `Sequence 1 (text1: '${text1Str}')`,
-      secondaryArray: `Sequence 2 (text2: '${text2Str}')`,
+      primary: `Sequence 2 (text2: '${text2Str}')`,
+      secondaryArray: `Sequence 1 (text1: '${text1Str}')`,
     },
     activeDataset: "array",
-    desc: `LCS Execution Complete! Longest Common Subsequence length is ${dp[m]![n]}.`,
+    desc: `LCS Execution Complete! Longest Common Subsequence length is ${finalLcs}.`,
   });
 
   return { code, array: text1 as unknown as number[], steps: cap(steps) };

@@ -2048,16 +2048,30 @@ export function validateAndNormalizeVizPayload(
   
     // Check if problem is 2D DP Table
     const is2dDpProb =
-      initialSteps.some((s) => s.type === "matrix" || (s.matrix && s.matrix.length > 0)) &&
-      code_lines.some((l) =>
-        /\b(?:dp\[r\]\[c\]|dp\[i\]\[j\]|unique_paths|min_path_sum|grid|maximal_square)\b/i.test(l),
-      );
-  
+      preferred === "dp" ||
+      (initialSteps.some((s) => s.type === "dp" || (s.matrix && s.matrix.length > 0)) &&
+        code_lines.some((l) =>
+          /\b(?:dp\[r\]\[c\]|dp\[i\]\[j\]|unique_paths|min_path_sum|maximal_square|longest_common_subsequence|lcs)\b/i.test(l),
+        ));
+
     if (is2dDpProb) {
       for (let i = 0; i < initialSteps.length; i++) {
         const step = initialSteps[i]!;
-        if (!step.type || step.type === "array") {
-          step.type = "matrix";
+        if (!step.type || step.type === "array" || step.type === "matrix") {
+          step.type = "dp";
+        }
+        if (
+          typeof step.current === "string" &&
+          step.current.includes(",") &&
+          (step.left === undefined || step.left === null)
+        ) {
+          const [rStr, cStr] = step.current.split(",");
+          const r = parseInt(rStr ?? "", 10);
+          const c = parseInt(cStr ?? "", 10);
+          if (!isNaN(r) && !isNaN(c)) {
+            step.left = r;
+            step.right = c;
+          }
         }
       }
     }

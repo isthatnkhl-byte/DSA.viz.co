@@ -6,6 +6,10 @@ import { Table, ArrowDownRight, ArrowDown, ArrowRight, Sparkles, CheckCircle } f
 interface DpTableVisualizerProps {
   matrix?: Val[][] | null | undefined;
   cols?: number | null | undefined;
+  left?: number | null | undefined;
+  right?: number | null | undefined;
+  left2?: number | null | undefined;
+  right2?: number | null | undefined;
   current: Val | null | undefined;
   visited: Val[];
   rowLabels?: string[] | null | undefined;
@@ -19,6 +23,10 @@ interface DpTableVisualizerProps {
 export function DpTableVisualizer({
   matrix: rawMatrix,
   cols: rawCols,
+  left,
+  right,
+  left2,
+  right2,
   current,
   visited: rawVisited,
   rowLabels,
@@ -34,19 +42,44 @@ export function DpTableVisualizer({
   const rows = matrix.length;
 
   const currentKey = coordKey(current);
-  const seenKeys = useMemo(() => {
-    return new Set(visited.map((item) => coordKey(item)));
-  }, [visited]);
 
-  // Parse active row and column from currentKey
+  // Parse active row and column from left/right or currentKey
   const activeCoord = useMemo<{ r: number; c: number } | null>(() => {
-    if (!currentKey || !currentKey.includes(",")) return null;
-    const [rStr, cStr] = currentKey.split(",");
-    const r = parseInt(rStr ?? "", 10);
-    const c = parseInt(cStr ?? "", 10);
-    if (isNaN(r) || isNaN(c)) return null;
-    return { r, c };
-  }, [currentKey]);
+    if (typeof left === "number" && typeof right === "number" && !isNaN(left) && !isNaN(right)) {
+      return { r: left, c: right };
+    }
+    if (typeof left === "number" && typeof left2 === "number" && !isNaN(left) && !isNaN(left2)) {
+      return { r: left, c: left2 };
+    }
+    if (currentKey && currentKey.includes(",")) {
+      const [rStr, cStr] = currentKey.split(",");
+      const r = parseInt(rStr ?? "", 10);
+      const c = parseInt(cStr ?? "", 10);
+      if (!isNaN(r) && !isNaN(c)) return { r, c };
+    }
+    return null;
+  }, [left, right, left2, currentKey]);
+
+  const currentCellKey = activeCoord ? `${activeCoord.r},${activeCoord.c}` : currentKey;
+
+  const seenKeys = useMemo(() => {
+    const s = new Set<string>();
+    visited.forEach((item) => {
+      const k = coordKey(item);
+      if (k && k.includes(",")) s.add(k);
+    });
+    // In 2D DP, all cells before activeCoord in row-major order are already computed
+    if (activeCoord) {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (r < activeCoord.r || (r === activeCoord.r && c < activeCoord.c)) {
+            s.add(`${r},${c}`);
+          }
+        }
+      }
+    }
+    return s;
+  }, [visited, activeCoord, rows, cols]);
 
   // Derive DP dependency cells (e.g. top, left, diagonal-top-left)
   const dependencyCells = useMemo(() => {
@@ -58,6 +91,19 @@ export function DpTableVisualizer({
       diag: r > 0 && c > 0 ? `${r - 1},${c - 1}` : null,
     };
   }, [activeCoord]);
+
+  // Resolve optimal answer to guarantee correct final display
+  const optimalAnswer = useMemo(() => {
+    if (mSum !== null && mSum !== undefined) return mSum;
+    if (wSum !== null && wSum !== undefined) return wSum;
+    if (activeCoord && matrix[activeCoord.r]?.[activeCoord.c] !== undefined) {
+      return matrix[activeCoord.r]![activeCoord.c];
+    }
+    if (rows > 0 && cols > 0 && matrix[rows - 1]?.[cols - 1] !== undefined) {
+      return matrix[rows - 1]![cols - 1];
+    }
+    return null;
+  }, [mSum, wSum, activeCoord, matrix, rows, cols]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -165,7 +211,7 @@ export function DpTableVisualizer({
                   {Array.from({ length: cols }, (_, c) => {
                     const val = row[c];
                     const key = `${r},${c}`;
-                    const isActive = currentKey === key;
+                    const isActive = currentCellKey === key;
                     const isVisited = seenKeys.has(key);
                     const isDiagDep = dependencyCells.diag === key;
                     const isTopDep = dependencyCells.top === key;
@@ -237,10 +283,10 @@ export function DpTableVisualizer({
           <Sparkles className="size-3.5 text-primary" />
           <span>Optimal Substructure Memoization: Computed states persist across recursive calls.</span>
         </div>
-        {mSum !== null && mSum !== undefined && (
+        {optimalAnswer !== null && optimalAnswer !== undefined && (
           <div className="flex items-center gap-1.5 font-bold text-foreground">
             <CheckCircle className="size-3.5 text-emerald-400" />
-            <span>Optimal Value: {String(mSum)}</span>
+            <span>Optimal Value: {toText(optimalAnswer)}</span>
           </div>
         )}
       </div>

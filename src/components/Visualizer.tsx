@@ -418,23 +418,38 @@ export const Visualizer = memo(function Visualizer({
   let readouts: ReadoutItem[] = [];
 
   if (type === "dp") {
-    const rows = Array.isArray(current.matrix) ? current.matrix.length : 1;
+    const activeMat = current.matrix ?? traceMatrix;
+    const rows = Array.isArray(activeMat) ? activeMat.length : 1;
     const cols =
-      current.cols ?? (Array.isArray(current.matrix?.[0]) ? current.matrix[0].length : 1);
+      current.cols ?? (Array.isArray(activeMat?.[0]) ? activeMat[0].length : 1);
+    const dpResult =
+      current.mSum ??
+      current.wSum ??
+      (current.current !== null && current.current !== undefined && typeof current.current !== "object"
+        ? current.current
+        : null) ??
+      (Array.isArray(activeMat) && activeMat.length > 0
+        ? activeMat[activeMat.length - 1]?.[(activeMat[0]?.length ?? 1) - 1]
+        : "—");
+
     readouts = [
       { label: "DP Table Size", value: `${rows} × ${cols}` },
       { label: "Active State", value: current.current ?? null, highlight: true },
       { label: "Computed Cells", value: visited.length },
       {
-        label: current.mSum !== null && current.mSum !== undefined ? "Optimal Result" : "Current Area",
-        value: current.mSum ?? current.wSum ?? "—",
+        label: "Optimal Result",
+        value: dpResult,
         highlight: true,
       },
     ];
     primaryBody = (
       <DpTableVisualizer
-        matrix={current.matrix ?? traceMatrix}
-        cols={current.cols ?? (Array.isArray(traceMatrix?.[0]) ? traceMatrix[0].length : 1)}
+        matrix={activeMat}
+        cols={cols}
+        left={typeof current.left === "number" ? current.left : null}
+        right={typeof current.right === "number" ? current.right : null}
+        left2={typeof current.left2 === "number" ? current.left2 : null}
+        right2={typeof current.right2 === "number" ? current.right2 : null}
         current={current.current ?? null}
         visited={visited}
         rowLabels={current.secondaryArray ? current.secondaryArray.map(String) : null}

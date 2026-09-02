@@ -280,15 +280,19 @@ export function ArrayVisualizer({
                 {/* Magnitude Bar (only rendered for numeric arrays with magnitude values) */}
                 {isNumericArray && !hideBars && (
                   <div
-                    className="w-10 rounded-t-lg transition-all duration-300 shadow-sm"
+                    className={`w-10 rounded-t-lg transition-all duration-300 shadow-sm ${
+                      isLeftPtr || isRightPtr || isCurrent || inWindow || isSingleLeftActive || isSingleRightActive
+                        ? "ring-2 ring-primary/70 shadow-lg shadow-primary/40 constant-glow-primary"
+                        : ""
+                    }`}
                     style={{
                       height: `${barHeight}px`,
                       background:
-                        inWindow || isCurrent || isSingleLeftActive || (isLeftPtr && isRightPtr)
-                          ? "linear-gradient(180deg, oklch(0.82 0.15 195) 0%, oklch(0.68 0.18 220) 100%)"
-                          : isVisited || isLeftPtr || isRightPtr
+                        inWindow || isCurrent || isSingleLeftActive || (isLeftPtr && isRightPtr) || isLeftPtr
+                          ? "linear-gradient(180deg, oklch(0.85 0.18 195) 0%, oklch(0.68 0.22 220) 100%)"
+                          : isVisited || isRightPtr
                             ? "linear-gradient(180deg, oklch(0.70 0.17 275) 0%, oklch(0.56 0.16 275) 100%)"
-                            : "linear-gradient(180deg, oklch(0.32 0.012 260) 0%, oklch(0.22 0.01 260) 100%)",
+                            : "linear-gradient(180deg, oklch(0.38 0.02 260) 0%, oklch(0.25 0.015 260) 100%)",
                     }}
                   />
                 )}
@@ -298,21 +302,22 @@ export function ArrayVisualizer({
                   title={strVal}
                   className={`flex size-12 sm:size-14 items-center justify-center rounded-2xl border font-mono text-base font-bold transition-all duration-300 shadow-sm ${
                     isLeftPtr && isMatchingPair
-                      ? "scale-105 border-emerald-400 bg-emerald-500/25 text-emerald-300 ring-2 ring-emerald-400/80 font-black shadow-lg shadow-emerald-500/40 animate-pulse"
-                      : isLeftPtr
-                        ? isSecondary
-                          ? "scale-105 border-indigo-400 bg-indigo-500/20 text-indigo-300 ring-2 ring-indigo-400/60 font-black shadow-lg shadow-indigo-500/40"
-                          : "scale-105 border-primary bg-primary/20 text-primary ring-2 ring-primary/60 font-black shadow-lg shadow-primary/40"
-                        : isCurrent ||
-                          (isLeftPtr && isRightPtr) ||
-                          isSingleLeftActive ||
-                          isSingleRightActive
-                          ? "scale-105 border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/40 ring-2 ring-primary/60 font-black constant-glow-primary"
-                          : inWindow
-                            ? "border-primary/80 bg-primary/15 text-primary font-black shadow-xs shadow-primary/20"
-                            : isVisited || isRightPtr
-                              ? "border-accent/70 bg-accent/20 text-accent font-bold shadow-xs"
-                              : "border-border/80 bg-card/90 text-foreground hover:border-border"
+                      ? "scale-105 border-emerald-400 bg-emerald-500/30 text-emerald-300 ring-2 ring-emerald-400 font-black shadow-lg shadow-emerald-500/50 constant-glow-success animate-pulse"
+                      : isLeftPtr && isRightPtr
+                        ? "scale-105 border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/50 ring-2 ring-primary font-black constant-glow-primary"
+                        : isLeftPtr
+                          ? isSecondary
+                            ? "scale-105 border-indigo-400 bg-indigo-500 text-white ring-2 ring-indigo-400 font-black shadow-lg shadow-indigo-500/50 constant-glow-accent"
+                            : "scale-105 border-primary bg-primary text-primary-foreground ring-2 ring-primary font-black shadow-lg shadow-primary/50 constant-glow-primary"
+                          : isRightPtr
+                            ? "scale-105 border-indigo-400 bg-indigo-500 text-white ring-2 ring-indigo-400 font-black shadow-lg shadow-indigo-500/50 constant-glow-accent"
+                            : isCurrent || isSingleLeftActive || isSingleRightActive
+                              ? "scale-105 border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/50 ring-2 ring-primary font-black constant-glow-primary"
+                              : inWindow
+                                ? "border-primary/80 bg-primary/20 text-primary font-black shadow-sm ring-1 ring-primary/40"
+                                : isVisited
+                                  ? "border-accent/70 bg-accent/20 text-accent font-bold shadow-xs"
+                                  : "border-border/80 bg-card/90 text-foreground hover:border-border"
                   }`}
                 >
                   {displayVal}

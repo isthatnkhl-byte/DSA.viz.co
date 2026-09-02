@@ -62,24 +62,27 @@ export function HashMapVisualizer({
         ) : (
           <div className="flex flex-wrap items-center justify-center gap-3 overflow-auto">
             {entries.map(([key, value], i) => {
-              const isActive = currentKey !== "" && currentKey === key;
-              const isSeen = visitedSet.has(key);
+              const isActive =
+                (currentKey !== "" && currentKey === key) ||
+                (currentKey !== "" && String(value) === currentKey) ||
+                (i === entries.length - 1 && entries.length > 0);
+              const isSeen = visitedSet.has(key) || (currentKey !== "" && visitedSet.has(String(value)));
 
               return (
                 <div
                   key={`map-entry-${key}-${i}`}
                   className={`flex flex-col rounded-xl border p-3 font-mono transition-all duration-300 shadow-sm ${
                     isActive
-                      ? "scale-105 border-primary bg-primary/20 text-primary shadow-lg shadow-primary/30 ring-2 ring-primary/60 motion-blur-active-node animate-sync-glow"
+                      ? "scale-105 border-primary bg-primary/25 text-primary shadow-xl shadow-primary/40 ring-2 ring-primary font-bold constant-glow-primary animate-sync-glow"
                       : isSeen
-                        ? "border-accent/60 bg-accent/15 text-accent font-semibold"
-                        : "border-border/80 bg-background/80 text-foreground"
+                        ? "border-accent/80 bg-accent/20 text-accent font-semibold shadow-md shadow-accent/20 constant-glow-accent"
+                        : "border-border/80 bg-background/90 text-foreground hover:border-primary/50"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-4 text-[10px] text-muted-foreground mb-1">
                     <span>slot #{i}</span>
                     {isActive && (
-                      <span className="rounded bg-primary text-primary-foreground px-1 py-0.5 text-[8px] font-bold">
+                      <span className="rounded bg-primary text-primary-foreground px-1.5 py-0.5 text-[8px] font-bold shadow-xs">
                         ACTIVE
                       </span>
                     )}

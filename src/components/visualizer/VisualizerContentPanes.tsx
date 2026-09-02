@@ -6,8 +6,8 @@ interface VisualizerContentPanesProps {
   layoutMode: "stacked" | "grid" | "tabs";
   hasMultipleDatasets: boolean;
   multiDatasetEnabled: boolean;
-  activeTab: "primary" | "aux_map" | "aux_buffer" | "aux_list" | "aux_tree" | "code";
-  onSelectTab: (tab: "primary" | "aux_map" | "aux_buffer" | "aux_list" | "aux_tree" | "code") => void;
+  activeTab: "primary" | "aux_map" | "aux_buffer" | "aux_list" | "aux_tree" | "aux_array" | "code";
+  onSelectTab: (tab: "primary" | "aux_map" | "aux_buffer" | "aux_list" | "aux_tree" | "aux_array" | "code") => void;
   type: string;
   current: VizStep;
   hasAuxMapInTrace: boolean;
@@ -16,6 +16,7 @@ interface VisualizerContentPanesProps {
   hasAuxQueueInTrace: boolean;
   hasAuxListInTrace: boolean;
   hasAuxTreeInTrace: boolean;
+  hasAuxArrayInTrace?: boolean;
   primaryBody: React.ReactNode;
   auxMapComponent: React.ReactNode;
   auxBufferComponent: React.ReactNode;
@@ -38,6 +39,7 @@ export function VisualizerContentPanes({
   hasAuxQueueInTrace,
   hasAuxListInTrace,
   hasAuxTreeInTrace,
+  hasAuxArrayInTrace,
   primaryBody,
   auxMapComponent,
   auxBufferComponent,
@@ -127,6 +129,21 @@ export function VisualizerContentPanes({
               <span>Aux Tree / Heap</span>
             </button>
           )}
+
+          {hasAuxArrayInTrace && type !== "array" && (
+            <button
+              type="button"
+              onClick={() => onSelectTab("aux_array")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-xs font-semibold transition-all ${
+                activeTab === "aux_array"
+                  ? "bg-indigo-600 text-white shadow-xs font-bold"
+                  : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              }`}
+            >
+              <Sparkles className="size-3.5" />
+              <span>Input Stream</span>
+            </button>
+          )}
         </div>
 
         {/* Active Tab View */}
@@ -136,6 +153,7 @@ export function VisualizerContentPanes({
           {activeTab === "aux_buffer" && auxBufferComponent}
           {activeTab === "aux_list" && auxListComponent}
           {activeTab === "aux_tree" && auxTreeComponent}
+          {activeTab === "aux_array" && auxArrayComponent}
         </div>
       </div>
     );

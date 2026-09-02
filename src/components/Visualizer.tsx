@@ -54,7 +54,7 @@ export const Visualizer = memo(function Visualizer({
   const [showExportModal, setShowExportModal] = useState(false);
   const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState<
-    "primary" | "aux_map" | "aux_buffer" | "aux_list" | "aux_tree" | "code"
+    "primary" | "aux_map" | "aux_buffer" | "aux_list" | "aux_tree" | "aux_array" | "code"
   >("primary");
 
   // Compute a stable fingerprint of the current algorithmic trace
@@ -887,6 +887,7 @@ export const Visualizer = memo(function Visualizer({
         hasAuxQueueInTrace={hasAuxQueueInTrace}
         hasAuxListInTrace={hasAuxListInTrace}
         hasAuxTreeInTrace={hasAuxTreeInTrace}
+        hasAuxArrayInTrace={hasAuxArrayInTrace}
         primaryBody={primaryBody}
         auxMapComponent={auxMapComponent}
         auxBufferComponent={auxBufferComponent}

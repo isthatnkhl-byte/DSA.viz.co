@@ -221,7 +221,7 @@ export function DpTableVisualizer({
                     let cellStyle = "border-border/60 bg-card/40 text-foreground";
                     if (isActive) {
                       cellStyle =
-                        "border-primary ring-2 ring-primary/60 bg-primary/25 text-primary-foreground font-black scale-105 shadow-md shadow-primary/30 z-10 animate-sync-glow";
+                        "border-primary ring-2 ring-primary bg-primary text-primary-foreground font-black scale-105 shadow-lg shadow-primary/40 z-10 animate-sync-glow constant-glow-primary";
                     } else if (isDiagDep) {
                       cellStyle =
                         "border-purple-500/70 bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/50 font-bold";

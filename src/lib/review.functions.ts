@@ -198,6 +198,13 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
     const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
     const reviewKeyForRequest = geminiKey || reviewKey || openRouterKey;
     const vizKeyForRequest = geminiKey || vizKey || openRouterKey;
+    
+    // Check if API keys are available
+    if (!reviewKeyForRequest) {
+      console.error("[CRITICAL] No API keys configured. Check GEMINI_API_KEY and OPENROUTER_API_KEY environment variables in Vercel.");
+      throw new Error("No API keys configured. Please set GEMINI_API_KEY or OPENROUTER_API_KEY in your Vercel environment variables.");
+    }
+    
     const statement = statementForSlug(data.slug).slice(0, 3500);
 
     const userCodeLines = userCodeLinesFromPseudocode(data.pseudocode);

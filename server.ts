@@ -25,8 +25,10 @@ dotenv.config();
 
 
 const getEncryptionKey = () => {
-  if (process.env.ENCRYPTION_KEY) return Buffer.from(process.env.ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32));
-  return crypto.scryptSync(process.env.GITHUB_CLIENT_SECRET || 'default_secret', 'salt', 32);
+  const encKey = process.env.ENCRYPTION_KEY || process.env.VITE_ENCRYPTION_KEY;
+  if (encKey) return Buffer.from(encKey.padEnd(32, '0').slice(0, 32));
+  const secret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || 'default_secret';
+  return crypto.scryptSync(secret, 'salt', 32);
 };
 
 function encryptToken(text) {
@@ -81,7 +83,11 @@ app.use("/api/", apiLimiter);
 
 // Server-side Gemini AI Client
 function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.VITE_GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable is missing.");
   }
@@ -106,6 +112,29 @@ app.get("/api/health", (_req: Request, res: Response) => {
     status: "ok",
     timestamp: new Date().toISOString(),
     service: "DSA.viz Full-Stack Intelligence & Workspace Platform",
+  });
+});
+
+// Debug endpoint to check environment variables
+app.get("/api/debug/env", (_req: Request, res: Response) => {
+  res.json({
+    gemini: !!(
+      process.env.GEMINI_API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.VITE_GOOGLE_API_KEY
+    ),
+    openrouter: !!(
+      process.env.OPENROUTER_API_KEY ||
+      process.env.VITE_OPENROUTER_API_KEY ||
+      process.env.OPEN_ROUTER_API_KEY ||
+      process.env.VITE_OPEN_ROUTER_API_KEY ||
+      process.env.Openrouterapi ||
+      process.env.VITE_Openrouterapi
+    ),
+    github: !!(process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID),
+    firebase: !!(process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID),
+    nodeEnv: process.env.NODE_ENV,
   });
 });
 
@@ -455,7 +484,7 @@ app.post("/api/compiler/execute", async (req: Request, res: Response) => {
 // GitHub OAuth
 app.get("/api/github/url", requireAuth, (req, res) => {
   const uid = req.user.uid;
-  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID;
   if (!clientId) {
     return res.status(500).json({ error: "GITHUB_CLIENT_ID is not configured" });
   }
@@ -468,7 +497,8 @@ app.get("/api/github/url", requireAuth, (req, res) => {
   
   // Create state combining uid and redirectUri
   const payload = JSON.stringify({ uid, redirectUri });
-  const hmac = crypto.createHmac('sha256', process.env.GITHUB_CLIENT_SECRET || 'fallback-secret');
+  const secret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || 'fallback-secret';
+  const hmac = crypto.createHmac('sha256', secret);
   hmac.update(payload);
   const signature = hmac.digest('hex');
   const state = Buffer.from(JSON.stringify({ payload, signature })).toString('base64');
@@ -496,7 +526,8 @@ app.get("/api/github/callback", async (req, res) => {
     const { payload, signature } = decodedWrapper;
     
     // Verify signature
-    const hmac = crypto.createHmac('sha256', process.env.GITHUB_CLIENT_SECRET || 'fallback-secret');
+    const secret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || 'fallback-secret';
+    const hmac = crypto.createHmac('sha256', secret);
     hmac.update(payload);
     const expectedSignature = hmac.digest('hex');
     
@@ -512,6 +543,8 @@ app.get("/api/github/callback", async (req, res) => {
   }
 
   try {
+    const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET;
     const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: {
@@ -519,8 +552,8 @@ app.get("/api/github/callback", async (req, res) => {
         "Accept": "application/json"
       },
       body: JSON.stringify({
-        client_id: process.env.GITHUB_CLIENT_ID,
-        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        client_id: clientId,
+        client_secret: clientSecret,
         code,
       })
     });

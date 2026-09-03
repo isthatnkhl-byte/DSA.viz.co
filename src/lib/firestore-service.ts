@@ -70,10 +70,14 @@ export interface UserProfileData {
   id: string;
   email?: string | null;
   displayName?: string | null;
+  display_name?: string | null;
   avatarUrl?: string | null;
+  avatar_url?: string | null;
   createdAt?: string;
   leetcodeUsername?: string | null;
+  leetcode_username?: string | null;
   leetcodeStats?: any;
+  leetcode_stats?: any;
   githubToken?: string | null;
 }
 

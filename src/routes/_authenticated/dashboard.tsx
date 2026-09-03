@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
+import { getAuth } from "firebase/auth";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -11,6 +12,8 @@ import {
   Sparkles,
   Brain,
   CheckCircle2,
+  XCircle,
+  Code2,
   TrendingUp,
   AlertTriangle,
   Target,
@@ -55,17 +58,19 @@ const badgeFor = (c: string) =>
         : "bg-purple-500/20 text-purple-300 border-purple-400/60 shadow-xs shadow-purple-500/25 font-extrabold";
 
 function Dashboard() {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const qc = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: statsData } = useQuery({
     queryKey: ["profileStats"],
     queryFn: async () => {
-      if (!token) throw new Error("No token");
+      const auth = getAuth();
+      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
+      if (!currentToken) throw new Error("No token");
       const [profileRes, subsRes] = await Promise.all([
-        fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/submissions", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
+        fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } }),
       ]);
       if (!profileRes.ok || !subsRes.ok) throw new Error("Failed to load stats");
       const profile = await profileRes.json();
@@ -91,20 +96,22 @@ function Dashboard() {
         hard: byDifficulty.Hard.size,
       };
     },
-    enabled: !!token,
+    enabled: !!user,
   });
 
-  const leetcodeStats = statsData?.profile?.leetcode_stats;
+  const leetcodeStats = statsData?.profile?.leetcode_stats || statsData?.profile?.leetcodeStats;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["submissions"],
     queryFn: async () => {
-      if (!token) return [];
-      const res = await fetch("/api/submissions", { headers: { Authorization: `Bearer ${token}` } });
+      const auth = getAuth();
+      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
+      if (!currentToken) return [];
+      const res = await fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
-    enabled: !!token,
+    enabled: !!user,
   });
 
   const del = useMutation({
@@ -193,6 +200,70 @@ function Dashboard() {
               streak={leetcodeStats.streak}
               totalActiveDays={leetcodeStats.totalActiveDays}
             />
+
+            {/* Recent Submissions Log from LeetCode */}
+            {Array.isArray(leetcodeStats.recentSubmissions) &&
+              leetcodeStats.recentSubmissions.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2.5 rounded-2xl border border-border/80 bg-card/60 p-4 shadow-sm backdrop-blur-sm">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Code2 className="size-4 text-primary" />
+                      <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                        Recent LeetCode Submissions
+                      </span>
+                    </div>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      Last synced:{" "}
+                      {new Date(leetcodeStats.lastSyncedAt || Date.now()).toLocaleTimeString()}
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-border/40">
+                    {leetcodeStats.recentSubmissions.map((sub: any, idx: number) => {
+                      const isAccepted = sub.statusDisplay === "Accepted";
+                      return (
+                        <div
+                          key={`lc-sub-${idx}`}
+                          className="flex items-center justify-between py-2 text-xs font-mono"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isAccepted ? (
+                              <CheckCircle2 className="size-4 text-emerald-400 shrink-0" />
+                            ) : (
+                              <XCircle className="size-4 text-rose-400 shrink-0" />
+                            )}
+                            <span className="font-bold text-foreground truncate">{sub.title}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                                isAccepted
+                                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                  : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                              }`}
+                            >
+                              {sub.statusDisplay}
+                            </span>
+                            <span className="rounded bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                              {sub.lang}
+                            </span>
+                            {sub.titleSlug && (
+                              <Link
+                                to="/problem/$slug"
+                                params={{ slug: sub.titleSlug }}
+                                className="hidden sm:inline-flex rounded-lg bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 text-[10px] font-bold hover:bg-primary/20 transition-all"
+                              >
+                                Visualizer
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
           </div>
         )}
         {!leetcodeStats && (

@@ -6,6 +6,7 @@ import {
   getRedirectResult, 
   onAuthStateChanged, 
   signOut as firebaseSignOut, 
+  updateProfile as updateAuthProfile,
   User as FirebaseUser 
 } from "firebase/auth";
 import { getOrCreateUserProfile, updateUserProfile, UserProfileData } from "@/lib/firestore-service";
@@ -52,16 +53,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const cleanDisplayName: string =
         firestoreDoc.displayName ||
+        firestoreDoc.display_name ||
+        firebaseUser.displayName ||
         (firebaseUser.email ? firebaseUser.email.split("@")[0] : null) ||
         "Explorer";
 
       setProfile({
         id: firebaseUser.uid,
         display_name: cleanDisplayName,
-        avatar_url: firestoreDoc.avatarUrl || firebaseUser.photoURL || null,
+        avatar_url: firestoreDoc.avatarUrl || (firestoreDoc as any).avatar_url || firebaseUser.photoURL || null,
         created_at: firestoreDoc.createdAt || new Date().toISOString(),
-        leetcode_username: firestoreDoc.leetcodeUsername || null,
-        leetcode_stats: firestoreDoc.leetcodeStats || null,
+        leetcode_username: firestoreDoc.leetcodeUsername || (firestoreDoc as any).leetcode_username || null,
+        leetcode_stats: firestoreDoc.leetcodeStats || (firestoreDoc as any).leetcode_stats || null,
         githubToken: firestoreDoc.githubToken || null,
       });
     } catch (firestoreErr) {
@@ -75,14 +78,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (res.ok) {
             const data = await res.json();
             const cleanDisplayName =
-              data.displayName || (data.email ? data.email.split("@")[0] : "Explorer");
+              data.displayName || data.display_name || (data.email ? data.email.split("@")[0] : "Explorer");
             setProfile({
               id: data.uid || data.id || firebaseUser.uid,
               display_name: cleanDisplayName,
-              avatar_url: data.avatarUrl || data.photoURL || firebaseUser.photoURL,
+              avatar_url: data.avatarUrl || data.avatar_url || data.photoURL || firebaseUser.photoURL || null,
               created_at: data.createdAt || new Date().toISOString(),
-              leetcode_username: data.leetcodeUsername || null,
-              leetcode_stats: data.leetcodeStats || null,
+              leetcode_username: data.leetcodeUsername || data.leetcode_username || null,
+              leetcode_stats: data.leetcodeStats || data.leetcode_stats || null,
               githubToken: data.githubToken || null,
             });
           }
@@ -103,9 +106,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateNickname = useCallback(
     async (newDisplayName: string) => {
-      if (!auth.currentUser) return;
       const clean = newDisplayName.trim().replace(/^@+/, "");
-      await updateUserProfile(auth.currentUser.uid, { displayName: clean });
+      if (auth.currentUser) {
+        try {
+          await updateAuthProfile(auth.currentUser, { displayName: clean }).catch(() => {});
+          await updateUserProfile(auth.currentUser.uid, { displayName: clean, display_name: clean }).catch(() => {});
+        } catch (e) {
+          console.warn("Client profile update non-fatal:", e);
+        }
+      }
       setProfile((prev) => (prev ? { ...prev, display_name: clean } : null));
     },
     [],

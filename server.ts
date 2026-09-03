@@ -370,23 +370,51 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
     
     // Privacy: Never return raw or encrypted githubToken to client
     const { githubToken, ...safeProfile } = (profile || {}) as any;
+    const effectiveDisplayName =
+      safeProfile.displayName ||
+      safeProfile.display_name ||
+      user?.displayName ||
+      user?.display_name ||
+      req.user.name ||
+      req.user.email?.split("@")[0] ||
+      "Explorer";
+
+    const leetcodeStats = safeProfile.leetcodeStats || safeProfile.leetcode_stats || null;
+    const leetcodeUsername = safeProfile.leetcodeUsername || safeProfile.leetcode_username || null;
+    const avatarUrl = req.user.picture || safeProfile.avatarUrl || safeProfile.avatar_url || null;
     
     res.json({
       uid: req.user.uid,
+      id: req.user.uid,
       email: req.user.email,
-      displayName: user?.displayName || req.user.email?.split("@")[0] || "Explorer",
-      avatarUrl: req.user.picture || null,
+      avatarUrl,
+      avatar_url: avatarUrl,
       githubConnected: !!githubToken,
+      githubToken: !!githubToken ? "connected" : null,
+      leetcodeStats,
+      leetcode_stats: leetcodeStats,
+      leetcodeUsername,
+      leetcode_username: leetcodeUsername,
       ...user,
       ...safeProfile,
+      displayName: effectiveDisplayName,
+      display_name: effectiveDisplayName,
     });
   } catch (error) {
+    const fallbackName = req.user.name || req.user.email?.split("@")[0] || "Explorer";
     res.json({
       uid: req.user.uid,
+      id: req.user.uid,
       email: req.user.email,
-      displayName: req.user.email?.split("@")[0] || "Explorer",
+      displayName: fallbackName,
+      display_name: fallbackName,
       avatarUrl: req.user.picture || null,
+      avatar_url: req.user.picture || null,
       githubConnected: false,
+      leetcodeStats: null,
+      leetcode_stats: null,
+      leetcodeUsername: null,
+      leetcode_username: null,
       createdAt: new Date().toISOString(),
     });
   }
@@ -405,12 +433,14 @@ app.post("/api/profile/update", requireAuth, async (req: any, res) => {
     if (!/^[a-zA-Z0-9_.-]+$/.test(clean)) {
       return res.status(400).json({ error: "Username can only contain letters, numbers, underscores, dashes, and periods." });
     }
-    const updated = await updateProfile(req.user.uid, { displayName: clean }).catch(() => null);
+    const updated = await updateProfile(req.user.uid, { displayName: clean, display_name: clean }).catch(() => null);
     res.json({
       ok: true,
       profile: {
         uid: req.user.uid,
+        id: req.user.uid,
         displayName: clean,
+        display_name: clean,
         ...(updated || {}),
       },
     });
@@ -437,7 +467,12 @@ app.post("/api/sync-leetcode", requireAuth, async (req: any, res) => {
     // Persist via DB if available
     try {
       if (req.user?.uid) {
-        await updateProfile(req.user.uid, { leetcodeUsername: cleanUsername, leetcodeStats: fetchedStats }).catch(() => null);
+        await updateProfile(req.user.uid, {
+          leetcodeUsername: cleanUsername,
+          leetcode_username: cleanUsername,
+          leetcodeStats: fetchedStats,
+          leetcode_stats: fetchedStats,
+        }).catch(() => null);
       }
     } catch (e) {
       console.warn("Server-side DB update warning in /api/sync-leetcode:", e);

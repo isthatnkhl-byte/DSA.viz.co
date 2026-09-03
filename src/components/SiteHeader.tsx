@@ -133,6 +133,17 @@ export function SiteHeader() {
               C++20
             </span>
           </Link>
+
+          <Link
+            to="/dashboard"
+            activeProps={{
+              className: "bg-primary/20 text-primary font-bold border-primary/40 shadow-xs",
+            }}
+            className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+          >
+            <LayoutDashboard className="size-3.5 text-primary shrink-0" />
+            <span>Dashboard</span>
+          </Link>
         </nav>
 
         {/* Right: Search, Theme Picker, Auth & Prominent 3-Lines Navigation Button */}
@@ -164,10 +175,10 @@ export function SiteHeader() {
                   activeProps={{
                     className: "bg-primary/15 text-primary border-primary/40 shadow-xs font-bold",
                   }}
-                  className="hidden lg:flex items-center gap-1.5 rounded-xl border border-transparent px-2.5 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+                  className="flex items-center gap-1.5 rounded-xl border border-transparent px-2.5 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
                 >
                   <LayoutDashboard className="size-3.5" />
-                  <span>Dashboard</span>
+                  <span className="hidden md:inline">Dashboard</span>
                 </Link>
 
                 <Link

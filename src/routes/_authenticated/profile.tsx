@@ -24,6 +24,7 @@ import {
   Check,
   ShieldCheck,
   UserCheck,
+  LayoutDashboard,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -109,10 +110,12 @@ function ProfilePage() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["profile-stats"],
     queryFn: async () => {
-      if (!token) throw new Error("No token");
+      const auth = getAuth();
+      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
+      if (!currentToken) throw new Error("No token");
       const [profileRes, subsRes] = await Promise.all([
-        fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/submissions", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
+        fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } }),
       ]);
       if (!profileRes.ok || !subsRes.ok) throw new Error("Failed to load stats");
       const profile = await profileRes.json();
@@ -138,7 +141,7 @@ function ProfilePage() {
         hard: byDifficulty.Hard.size,
       };
     },
-    enabled: !!token,
+    enabled: !!user,
   });
 
   const { token: authContextToken } = useAuth();
@@ -184,24 +187,39 @@ function ProfilePage() {
 
   const updateProfileUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
-      await updateNickname(username);
-      if (!token) throw new Error("No token");
-      const res = await fetch("/api/profile/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ username })
-      });
-      if (!res.ok) throw new Error("Failed to update username");
-      return res.json();
+      const auth = getAuth();
+      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
+
+      // Update client state non-blockingly
+      await updateNickname(username).catch((e) => console.warn("updateNickname warn:", e));
+
+      if (currentToken) {
+        const res = await fetch("/api/profile/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${currentToken}` },
+          body: JSON.stringify({ username })
+        });
+        if (!res.ok) {
+          let errText = "Failed to update username";
+          try {
+            const errJson = await res.json();
+            if (errJson.error) errText = errJson.error;
+          } catch {}
+          throw new Error(errText);
+        }
+        return res.json();
+      }
+      return { ok: true };
     },
-    onSuccess: (res) => {
-      if (res.ok) {
-        toast.success("Username handle updated successfully!");
+    onSuccess: (res: any) => {
+      if (res?.ok !== false) {
+        toast.success("Username handle updated successfully! 🎉");
         queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["profileStats"] });
         refreshProfile();
         setEditingUsername(false);
       } else {
-        toast.error(res.error || "Could not update username.");
+        toast.error(res?.error || "Could not update username.");
       }
     },
     onError: (err: any) => {
@@ -210,14 +228,16 @@ function ProfilePage() {
   });
 
   const profile = data?.profile;
-  const leetcodeStats = (profile as any)?.leetcode_stats;
-  const leetcodeUsername = (profile as any)?.leetcode_username;
+  const leetcodeStats = (profile as any)?.leetcode_stats || (profile as any)?.leetcodeStats;
+  const leetcodeUsername = (profile as any)?.leetcode_username || (profile as any)?.leetcodeUsername;
 
   const currentHandle = useMemo(() => {
     if (profile?.display_name) return profile.display_name;
+    if (profile?.displayName) return profile.displayName;
+    if (user?.displayName) return user.displayName;
     if (user?.email) return user.email.split("@")[0];
     return "explorer";
-  }, [profile?.display_name, user?.email]);
+  }, [profile?.display_name, profile?.displayName, user?.displayName, user?.email]);
 
   function handleSaveUsername() {
     const trimmed = usernameInput.trim().replace(/^@+/, "");
@@ -249,13 +269,23 @@ function ProfilePage() {
     <div className="min-h-screen pb-20">
       <SiteHeader />
       <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
-        <Link
-          to="/"
-          className="group mb-6 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
-          <span>Back to Problem Explorer</span>
-        </Link>
+        <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+          <Link
+            to="/"
+            className="group inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
+            <span>Back to Problem Explorer</span>
+          </Link>
+
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-1.5 font-mono text-xs font-bold text-primary hover:bg-primary/20 transition-all active:scale-95 shadow-xs"
+          >
+            <LayoutDashboard className="size-3.5" />
+            <span>Saved Submissions &amp; LeetCode Dashboard →</span>
+          </Link>
+        </div>
 
         {isLoading || !data ? (
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/80 bg-card/40 p-8 text-center animate-pulse">

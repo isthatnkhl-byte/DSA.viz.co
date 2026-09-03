@@ -74,6 +74,35 @@ const PORT = 3000;
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
+// Targeted API Path Normalizer for Vercel Serverless Rewrites
+const API_ENDPOINTS = [
+  "/statement",
+  "/review",
+  "/visualize-dataset",
+  "/playground-review",
+  "/profile",
+  "/sync-leetcode",
+  "/submissions",
+  "/chat",
+  "/chat-sessions",
+  "/code-diff-nudge",
+  "/rate-submission",
+  "/generate-mistakes-report",
+  "/user-reports",
+  "/compiler",
+  "/github",
+  "/health",
+  "/debug",
+];
+
+app.use((req, _res, next) => {
+  const pathname = req.url.split("?")[0] || "";
+  if (API_ENDPOINTS.some((endpoint) => pathname === endpoint || pathname.startsWith(`${endpoint}/`))) {
+    req.url = `/api${pathname}${req.url.slice(pathname.length)}`;
+  }
+  next();
+});
+
 // Rate Limiters
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute

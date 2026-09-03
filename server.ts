@@ -602,14 +602,19 @@ app.post("/api/chat", aiLimiter, async (req: Request, res: Response) => {
 
     // Determine role persona and system instruction
     let baseSystemInstruction = "";
+    const hasProblemContext = Boolean(context.problemSlug || context.problemTitle);
+
     if (role === "interviewer") {
-      baseSystemInstruction = `You are an elite, patient Senior Technical Interviewer and Socratic DSA Mentor at a top tech company.
+      baseSystemInstruction = hasProblemContext
+        ? `You are an elite, patient Senior Technical Interviewer and Socratic DSA Mentor at a top tech company.
 STRICT SOCRATIC INTERVIEWER LAWS:
-1. NEVER, UNDER ANY CIRCUMSTANCES, GIVE AWAY THE DIRECT CODE SOLUTION OR DIRECT ANSWER.
+1. When discussing the attached problem, NEVER give away the direct full code solution or direct answer immediately.
 2. If the user makes typing errors, syntax slips, off-by-one errors, or logical flaws, NUDGE THEM GENTLY WITHOUT OBVIOUS HINTS, exactly like a compassionate interviewer would.
 3. Ask thought-provoking, diagnostic questions (e.g., "What happens on the final iteration when right == n?", "Notice how you initialize your pointer—what happens if the array is empty?").
 4. If the user asks doubts about a problem or simulation step, explain the invariant or mechanics of the current step clearly, but ALWAYS drive the user to the final conclusion slowly on their own.
-5. If the user asks you to "rate my recent submission" or "analyze my activity", use the provided Firestore submissions history below to provide a balanced, encouraging rating with scores (out of 10) and specific areas of growth.`;
+5. If the user asks you to "rate my recent submission" or "analyze my activity", use the provided Firestore submissions history below to provide a balanced, encouraging rating with scores (out of 10) and specific areas of growth.`
+        : `You are an expert DSA & Software Engineering Coach. The user is in general conversation mode (no problem context attached).
+Provide direct, thorough, comprehensive explanations, full code implementations with clean syntax in Python, C++, Java, or JavaScript, and helpful architectural insights without restricting your answers.`;
     } else if (role === "step_doubts") {
       baseSystemInstruction = `You are a DSA Simulation Step Guide. The user is actively stepping through an algorithm animation/simulation on DSA.viz.
 GUIDELINES:
@@ -622,8 +627,10 @@ Provide a clear numerical rating (1-10), analyze Time and Space complexities, hi
     } else if (role === "mistake_analyzer") {
       baseSystemInstruction = `You are an AI Code Diagnostics Expert. You identify common typing errors, syntax slips (semicolons, type mismatch, vector bounds), and logical traps (infinite loop conditions, missing base cases). Explain WHY the mistake occurred and how to spot it systematically in technical interviews.`;
     } else {
-      baseSystemInstruction = customInstruction || "You are the expert DSA mentor and technical coach for DSA.viz.";
+      baseSystemInstruction = customInstruction || `You are an expert DSA & Computer Science Coach for DSA.viz.
+Provide direct, thorough explanations, code implementations in multiple languages, complexity analysis, and intuitive breakdowns to answer any question completely without artificial restrictions.`;
     }
+
 
     // Inject active problem and simulation step context if provided
     let problemContextStr = "";

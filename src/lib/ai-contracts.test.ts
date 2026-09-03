@@ -1528,7 +1528,8 @@ test("validateAndNormalizeVizPayload preserves list activePointers including slo
     ],
   };
 
-  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "list");
+  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "linkedlist");
+
   const step = normalized.viz_steps[0]!;
   assert.ok(step.activePointers, "activePointers should be preserved for list steps");
   assert.equal(step.activePointers.slow, 1);

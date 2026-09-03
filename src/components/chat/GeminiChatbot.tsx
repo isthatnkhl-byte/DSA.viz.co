@@ -57,8 +57,27 @@ export function GeminiChatbot() {
     "gemini-3.8-flash" | "gemini-3.5-flash" | "gemini-3.1-pro-preview" | "gemini-3.1-flash-lite"
   >("gemini-3.8-flash");
   const [selectedRole, setSelectedRole] = useState<
-    "interviewer" | "step_doubts" | "evaluator" | "mistake_analyzer"
+    "interviewer" | "step_doubts" | "evaluator" | "mistake_analyzer" | "general"
   >("interviewer");
+  const [isContextDismissed, setIsContextDismissed] = useState(false);
+
+  const handleRemoveContext = () => {
+    setIsContextDismissed(true);
+    if (selectedRole === "step_doubts") {
+      setSelectedRole("general");
+    }
+    toast.info("Context removed. Coach can now answer any general questions without problem constraints.", {
+      duration: 3000,
+    });
+  };
+
+  const handleReattachContext = () => {
+    setIsContextDismissed(false);
+    toast.success("Problem context re-attached.", {
+      duration: 2500,
+    });
+  };
+
 
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -152,7 +171,8 @@ export function GeminiChatbot() {
           messages: apiMessages.length ? apiMessages : [{ role: "user", content: text }],
           model: selectedModel,
           role: selectedRole,
-          context: activeContext || {},
+          context: isContextDismissed ? {} : (activeContext || {}),
+
           sessionId,
         }),
       });
@@ -273,6 +293,16 @@ export function GeminiChatbot() {
             Socratic Interviewer
           </button>
           <button
+            onClick={() => setSelectedRole("general")}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+              selectedRole === "general"
+                ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            General Coach
+          </button>
+          <button
             onClick={() => setSelectedRole("step_doubts")}
             className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
               selectedRole === "step_doubts"
@@ -317,10 +347,10 @@ export function GeminiChatbot() {
         </select>
       </div>
 
-      {/* Active Context Banner (if tied to a problem or simulation step) */}
-      {(activeContext?.problemTitle || activeContext?.currentStep !== undefined) && (
-        <div className="flex items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-1.5 text-[11px] text-primary shrink-0">
-          <div className="flex items-center gap-1.5 truncate">
+      {/* Active Context Banner (if tied to a problem or simulation step and not dismissed) */}
+      {!isContextDismissed && (activeContext?.problemTitle || activeContext?.currentStep !== undefined) && (
+        <div className="flex items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-1.5 text-[11px] text-primary shrink-0 animate-fade">
+          <div className="flex items-center gap-1.5 truncate mr-2">
             <Sparkles className="size-3 shrink-0" />
             <span className="font-semibold truncate">
               {activeContext.problemTitle || activeContext.problemSlug}
@@ -331,11 +361,37 @@ export function GeminiChatbot() {
               </span>
             )}
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-            Context Attached
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider hidden sm:inline">
+              Context Attached
+            </span>
+            <button
+              type="button"
+              onClick={handleRemoveContext}
+              className="flex size-4.5 items-center justify-center rounded-full bg-primary/10 hover:bg-destructive/20 text-primary hover:text-destructive transition-colors cursor-pointer"
+              title="Remove context (switch to unrestricted general mode)"
+              aria-label="Remove attached context"
+            >
+              <X className="size-3" />
+            </button>
+          </div>
         </div>
       )}
+
+      {/* Detached Context Banner with Quick Re-attach */}
+      {isContextDismissed && (activeContext?.problemTitle || activeContext?.currentStep !== undefined) && (
+        <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-4 py-1 text-[10px] text-muted-foreground shrink-0 animate-fade">
+          <span className="truncate">General Mode • Problem context detached</span>
+          <button
+            type="button"
+            onClick={handleReattachContext}
+            className="flex items-center gap-1 text-primary hover:underline font-mono text-[10px] font-semibold shrink-0 cursor-pointer ml-2"
+          >
+            <Sparkles className="size-2.5" /> Re-attach Context
+          </button>
+        </div>
+      )}
+
 
       {/* Scrollable Messages Thread */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">

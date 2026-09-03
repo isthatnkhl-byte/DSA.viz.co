@@ -11,6 +11,8 @@ import {
   Cpu,
 } from "lucide-react";
 import type { ReviewResult } from "@/lib/review.functions";
+import { formatMathAndMarkdown } from "@/lib/formatMath";
+
 
 interface ReviewCardProps {
   result: ReviewResult;
@@ -85,7 +87,7 @@ export const ReviewCard = memo(function ReviewCard({ result, saved }: ReviewCard
             Time Complexity
           </div>
           <div className="mt-0.5 font-mono text-base font-bold text-primary">
-            {result.complexity?.time ?? "—"}
+            {formatMathAndMarkdown(result.complexity?.time ?? "—")}
           </div>
         </div>
         <div className="rounded-xl border border-border/60 bg-background/60 p-3 shadow-xs">
@@ -93,7 +95,7 @@ export const ReviewCard = memo(function ReviewCard({ result, saved }: ReviewCard
             Space Complexity
           </div>
           <div className="mt-0.5 font-mono text-base font-bold text-accent">
-            {result.complexity?.space ?? "—"}
+            {formatMathAndMarkdown(result.complexity?.space ?? "—")}
           </div>
         </div>
       </div>
@@ -112,7 +114,7 @@ export const ReviewCard = memo(function ReviewCard({ result, saved }: ReviewCard
             <CheckCircle2 className="size-4 shrink-0 text-emerald-400 mt-0.5" />
             <div>
               <strong className="text-emerald-300 font-extrabold tracking-wide">Strong Habits: </strong>
-              <span className="text-foreground/95">{result.praise}</span>
+              <span className="text-foreground/95">{formatMathAndMarkdown(result.praise)}</span>
             </div>
           </div>
         )}
@@ -122,7 +124,7 @@ export const ReviewCard = memo(function ReviewCard({ result, saved }: ReviewCard
             <TrendingUp className="size-4 shrink-0 text-primary mt-0.5" />
             <div>
               <strong className="text-primary font-extrabold tracking-wide">Optimization Nudge: </strong>
-              <span className="text-foreground/95">{result.nudge}</span>
+              <span className="text-foreground/95">{formatMathAndMarkdown(result.nudge)}</span>
             </div>
           </div>
         )}
@@ -130,10 +132,39 @@ export const ReviewCard = memo(function ReviewCard({ result, saved }: ReviewCard
 
       {/* Structured Markdown Review */}
       {result.review && (
-        <div className="prose prose-sm dark:prose-invert max-w-none border-t border-border/60 pt-3.5 text-xs leading-relaxed text-muted-foreground [&_code]:rounded [&_code]:bg-background/90 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-foreground [&_strong]:text-foreground">
-          <ReactMarkdown>{result.review}</ReactMarkdown>
+        <div className="prose prose-sm dark:prose-invert max-w-none border-t border-border/60 pt-3.5 text-xs leading-relaxed text-muted-foreground min-w-0">
+          <ReactMarkdown
+            components={{
+              pre: ({ children }: any) => (
+                <div className="relative my-3 w-full max-w-full overflow-hidden rounded-xl border border-border/80 bg-zinc-950 text-zinc-100 shadow-md">
+                  <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/90 px-3 py-1 text-[10px] font-mono text-zinc-400 select-none">
+                    <span className="font-semibold text-zinc-300">Code Snippet</span>
+                    <span className="text-[9px] text-zinc-500">Scroll horizontally ↔</span>
+                  </div>
+                  <pre className="w-full overflow-x-auto p-3 font-mono text-[11px] leading-relaxed text-zinc-100 scrollbar-thin">
+                    {children}
+                  </pre>
+                </div>
+              ),
+              code: ({ node, inline, className, children, ...props }: any) => {
+                const isInline = inline || !className;
+                return isInline ? (
+                  <code className="rounded bg-background/90 px-1.5 py-0.5 font-mono text-[11px] text-foreground font-bold border border-border/50" {...props}>
+                    {children}
+                  </code>
+                ) : (
+                  <code className="block w-max min-w-full font-mono text-[11px] leading-relaxed" {...props}>
+                    {children}
+                  </code>
+                );
+              },
+            }}
+          >
+            {formatMathAndMarkdown(result.review)}
+          </ReactMarkdown>
         </div>
       )}
+
 
       {/* Model & Simulator Provenance Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3 text-[10px] font-mono text-muted-foreground">

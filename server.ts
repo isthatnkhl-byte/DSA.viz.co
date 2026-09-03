@@ -651,10 +651,19 @@ Provide direct, thorough explanations, code implementations in multiple language
       }
     }
 
+    const mathAndCodeFormattingRules = `
+
+FORMATTING RULES FOR MATHEMATICS & CODE:
+1. Always format mathematical formulas, Big-O notation, and equations using standard clean text and Unicode symbols (e.g., 'O(n log n)', 'O(n^2)', '≤', '≥', '≠', '×', '·', 'mod') instead of raw unescaped LaTeX macros or LaTeX comment percent signs like '\\%'.
+2. When outputting code, always enclose it in standard triple-backtick Markdown blocks with the language tag (e.g., \`\`\`python ... \`\`\` or \`\`\`cpp ... \`\`\`).
+`;
+
     const fullSystemInstruction = `${baseSystemInstruction}
+${mathAndCodeFormattingRules}
 ${problemContextStr}
 ${userProfileContext}
 ${userSubmissionsContext}`.trim();
+
 
     const ai = getGeminiClient();
     const allowedModels = [

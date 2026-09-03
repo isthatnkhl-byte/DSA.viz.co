@@ -32,7 +32,7 @@ CRITICAL EVALUATION RULES:
      * Set "is_complete": true
      * Set "classification": "Optimal" | "Better" | "Brute Force" (depending on efficiency).
      * Set "missing_elements": []
-     * Set "complexity": { "time": "O(...)", "space": "O(...)" } for the exact logic written.
+     * Set "complexity": { "time": "O(...)", "space": "O(...)" } for the exact logic written (use clean plain text like 'O(N)', 'O(N log N)', 'O(1)'; never output raw LaTeX macros like \\mathcal{O} or \\%).
      * Set "praise": 2-3 sentences highlighting genuine strong decisions in their pseudocode and structure management.
      * Set "nudge": If Brute Force or Better, hint at how to optimize further (e.g. using auxiliary structures). If Optimal, provide a tricky edge case or follow-up question.
      * Set "review": A structured markdown review under 200 words evaluating algorithm structure, invariants, time/space complexity justification, and dry-run correctness.

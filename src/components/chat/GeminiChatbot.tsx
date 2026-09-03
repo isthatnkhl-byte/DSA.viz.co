@@ -25,6 +25,8 @@ import { useChat, type ChatContextPayload } from "@/context/ChatContext";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
 import { toast } from "sonner";
+import { formatMathAndMarkdown } from "@/lib/formatMath";
+
 
 interface Message {
   id: string;
@@ -412,7 +414,7 @@ export function GeminiChatbot() {
               </div>
 
               <div
-                className={`group relative max-w-[88%] rounded-2xl p-3.5 leading-relaxed shadow-sm ${
+                className={`group relative w-fit max-w-[94%] min-w-0 rounded-2xl p-3.5 leading-relaxed shadow-sm ${
                   isUser
                     ? "bg-primary text-primary-foreground font-medium rounded-br-xs"
                     : "bg-muted/80 text-foreground border border-border/70 rounded-bl-xs"
@@ -431,31 +433,43 @@ export function GeminiChatbot() {
                   )}
                 </button>
 
-                <div className="prose prose-invert prose-xs max-w-none text-xs break-words">
+                <div className="prose prose-invert prose-xs max-w-none text-xs min-w-0">
                   <ReactMarkdown
                     components={{
-                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                      code: ({ className, children, ...props }: any) => {
-                        const isInline = !className;
+                      p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+                      pre: ({ children }: any) => (
+                        <div className="relative my-3 w-full max-w-full overflow-hidden rounded-xl border border-border/80 bg-zinc-950 text-zinc-100 shadow-md">
+                          <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/90 px-3 py-1 text-[10px] font-mono text-zinc-400 select-none">
+                            <span className="font-semibold text-zinc-300">Code Snippet</span>
+                            <span className="text-[9px] text-zinc-500">Scroll horizontally ↔</span>
+                          </div>
+                          <pre className="w-full overflow-x-auto p-3 font-mono text-[11px] leading-relaxed text-zinc-100 scrollbar-thin">
+                            {children}
+                          </pre>
+                        </div>
+                      ),
+                      code: ({ node, inline, className, children, ...props }: any) => {
+                        const isInline = inline || !className;
                         return isInline ? (
-                          <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-[11px] text-primary font-bold">
+                          <code className="rounded bg-background/70 px-1.5 py-0.5 font-mono text-[11px] text-primary font-bold border border-border/40" {...props}>
                             {children}
                           </code>
                         ) : (
-                          <pre className="my-2 overflow-x-auto rounded-lg bg-background/90 p-2.5 font-mono text-[11px] text-foreground border border-border/60">
-                            <code>{children}</code>
-                          </pre>
+                          <code className="block w-max min-w-full font-mono text-[11px] leading-relaxed" {...props}>
+                            {children}
+                          </code>
                         );
                       },
                       ul: ({ children }) => <ul className="my-1.5 ml-4 list-disc space-y-1">{children}</ul>,
                       ol: ({ children }) => <ol className="my-1.5 ml-4 list-decimal space-y-1">{children}</ol>,
-                      li: ({ children }) => <li>{children}</li>,
+                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
                     }}
                   >
-                    {msg.content}
+                    {formatMathAndMarkdown(msg.content)}
                   </ReactMarkdown>
                 </div>
               </div>
+
             </div>
           );
         })}

@@ -178,8 +178,8 @@ function ProblemPage() {
   const [activeDatasetId, setActiveDatasetId] = useState<string>("dataset_1");
   const [datasetLoading, setDatasetLoading] = useState(false);
   const [customDataset, setCustomDataset] = useState<TestDataset | null>(null);
-  const [activeSimulationLine, setActiveSimulationLine] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
+
 
   const [copied, setCopied] = useState(false);
   const reviewRef = useRef<HTMLDivElement>(null);
@@ -650,8 +650,8 @@ def solve(input_data):
                     array={currentTestArray}
                     codeLines={currentCodeLines}
                     steps={currentSteps}
-                    onStepChange={(_, line) => setActiveSimulationLine(line)}
                   />
+
 
                 </div>
               ) : (
@@ -744,8 +744,8 @@ def solve(input_data):
               defaultLanguage="python"
               height="380px"
               showSubmitButton={false}
-              activeLine={activeSimulationLine}
             />
+
 
           </div>
 <ProblemDiffNudgePanel

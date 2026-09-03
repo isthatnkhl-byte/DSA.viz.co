@@ -1458,7 +1458,19 @@ html.light .btn-moving-theme-gradient {
   transition: transform 0.3s ease, color 0.3s ease;
 }
 
+/* Optical weight reinforcement for letter 'S' in Silkscreen */
+.dsavizco-s-char {
+  display: inline-block;
+  font-weight: 900;
+  -webkit-text-stroke: 0.045em currentColor;
+  paint-order: stroke fill;
+  transform: scaleX(1.08);
+  transform-origin: center;
+  position: relative;
+}
+
 /* Light mode adaptation */
+
 html.light .dsavizco-purplish-bg-glow {
   background: radial-gradient(
     ellipse at center,

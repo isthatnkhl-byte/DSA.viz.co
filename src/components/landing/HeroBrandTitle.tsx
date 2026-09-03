@@ -10,8 +10,9 @@ export function HeroBrandTitle() {
 
         {/* Foreground Pixel Title matching screenshot: Silkscreen pixel font, solid white in dark mode, crisp pixel bevel */}
         <span className="dsavizco-pixel-text text-5xl sm:text-7xl md:text-8xl lg:text-[6.6rem] tracking-wider relative z-10">
-          DSAVIZCO
+          <span>D</span><span className="dsavizco-s-char">S</span><span>AVIZCO</span>
         </span>
+
       </div>
     </div>
   );

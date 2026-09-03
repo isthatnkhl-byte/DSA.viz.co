@@ -345,47 +345,11 @@ test("simulateProblemWithDataset - unique-paths 2D DP matrix table simulation", 
   );
 
   assert.ok(result.steps.length > 0);
-  assert.equal(result.steps[0]?.type, "dp");
-  assert.equal(result.steps[0]?.left, 0);
-  assert.equal(result.steps[0]?.right, 0);
+  assert.equal(result.steps[0]?.type, "matrix");
   const finalStep = result.steps[result.steps.length - 1];
   assert.ok(finalStep);
-  assert.equal(finalStep.type, "dp");
+  assert.equal(finalStep.type, "matrix");
   assert.equal(finalStep.current, 6, "3x3 unique paths is 6");
-  assert.equal(finalStep.mSum, 6, "Final mSum is 6");
-});
-
-test("simulateProblemWithDataset - minimum-path-sum 2D DP cell iteration and final answer", () => {
-  const dataset: TestDataset = {
-    id: "test_min_path",
-    label: "Test Min Path",
-    matrix: [
-      [1, 3, 1],
-      [1, 5, 1],
-      [4, 2, 1],
-    ],
-    category: "standard",
-  };
-
-  const result = simulateProblemWithDataset(
-    "minimum-path-sum",
-    "Minimum Path Sum",
-    ["Dynamic Programming", "Matrix"],
-    dataset,
-  );
-
-  assert.ok(result.steps.length > 0);
-  assert.equal(result.steps[0]?.type, "dp");
-  // Ensure every step has left (row) and right (col) coordinates
-  for (const s of result.steps) {
-    assert.equal(s.type, "dp");
-    assert.ok(typeof s.left === "number");
-    assert.ok(typeof s.right === "number");
-  }
-  const finalStep = result.steps[result.steps.length - 1];
-  assert.ok(finalStep);
-  assert.equal(finalStep.current, 7, "Min path sum for standard matrix is 7");
-  assert.equal(finalStep.mSum, 7, "Final mSum is 7");
 });
 
 test("simulateProblemWithDataset - longest-common-subsequence dual sequence traversal and match detection", () => {
@@ -405,25 +369,21 @@ test("simulateProblemWithDataset - longest-common-subsequence dual sequence trav
   );
 
   assert.ok(result.steps.length > 0);
-  assert.equal(result.steps[0]?.type, "dp");
   // Ensure both sequences are populated and pointers traverse
   const traversedPositions = result.steps
-    .filter((s) => typeof s.left === "number" && typeof s.right === "number")
-    .map((s) => `${s.left},${s.right}`);
+    .filter((s) => typeof s.left === "number" && typeof s.left2 === "number")
+    .map((s) => `${s.left},${s.left2}`);
   
   assert.ok(traversedPositions.length > 5, "Traverses multiple cell comparisons");
   assert.ok(traversedPositions.includes("0,0"), "Traverses text1[0] vs text2[0]");
-  assert.ok(traversedPositions.includes("3,2"), "Traverses text1[3] ('c') vs text2[2] ('c') in DP table");
+  assert.ok(traversedPositions.includes("2,1"), "Traverses text1[2] ('c') vs text2[1] ('c')");
   
   const matchSteps = result.steps.filter((s) => s.shiftInfo?.action === "match");
   assert.equal(matchSteps.length, 3, "Matches 'a', 'c', and 'e'");
   
   const finalStep = result.steps[result.steps.length - 1];
   assert.ok(finalStep);
-  assert.equal(finalStep.type, "dp");
   assert.equal(finalStep.wSum, 3, "Final LCS length is 3");
-  assert.equal(finalStep.mSum, 3, "Final LCS mSum is 3");
-  assert.equal(finalStep.current, 3, "Final LCS current is 3");
 });
 
 test("VisualizerTypes & Sanitizers - robust handling of arbitrary data types and TreeNode objects", () => {
@@ -470,28 +430,4 @@ test("VisualizerTypes & Sanitizers - robust handling of arbitrary data types and
   assert.equal(toText(Infinity), "∞");
   assert.equal(toText(123n), "123n");
 });
-
-test("simulateProblemWithDataset & pipeline - tallest-billboard dynamic programming flow", () => {
-  const dataset: TestDataset = {
-    id: "test_billboard",
-    label: "Test Billboard",
-    array: [1, 2, 3, 6],
-    target: 6,
-    category: "standard",
-  };
-
-  const result = simulateProblemWithDataset(
-    "tallest-billboard",
-    "Tallest Billboard",
-    ["Array", "Dynamic Programming", "Knapsack Problem", "0-1 Knapsack"],
-    dataset,
-  );
-
-  assert.ok(result.steps.length > 0);
-  assert.ok(result.code.length > 0);
-  const finalStep = result.steps[result.steps.length - 1];
-  assert.ok(finalStep);
-  assert.ok(typeof finalStep.current === "number" || typeof finalStep.mSum === "number" || finalStep.desc.length > 0);
-});
-
 

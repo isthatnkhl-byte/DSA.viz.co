@@ -194,7 +194,7 @@ export function classifyProblem(
   if (/longest-common-subsequence|common-subsequence|common-subseq|\blcs\b/.test(s)) {
     return {
       category: "dp-2d",
-      primaryVizType: "dp",
+      primaryVizType: "matrix",
       pattern: "lcs",
       isMultiEntity: true,
       algorithmName: "2D Longest Common Subsequence Table",
@@ -208,7 +208,7 @@ export function classifyProblem(
   ) {
     return {
       category: "dp-2d",
-      primaryVizType: "dp",
+      primaryVizType: "matrix",
       pattern: "dp-2d",
       isMultiEntity: false,
       algorithmName: "2D Dynamic Programming Grid Optimization",
@@ -445,8 +445,7 @@ export function classifyProblem(
     /group-anagrams|valid-anagram|first-unique-character|ransom-note|majority-element|contains-duplicate|word-pattern|isomorphic-strings|sort-characters-by-frequency|top-k-frequent-words|find-common-characters|intersection-of-two-arrays|minimum-index-sum-of-two-lists|custom-sort-string/.test(
       s,
     ) ||
-    (hasTopic("counting") && !hasTopic("two pointers", "sliding window")) ||
-    (hasTopic("hash table") && !hasTopic("two pointers", "sliding window"))
+    (hasTopic("hash table", "counting") && !hasTopic("two pointers", "sliding window"))
   ) {
     return {
       category: "hashmap",

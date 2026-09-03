@@ -117,6 +117,20 @@ export function StepDiffInspector({
       });
     }
 
+    // Secondary Stack size delta
+    const currSecStackLen = Array.isArray(currentStep.secondaryStack) ? currentStep.secondaryStack.length : 0;
+    const prevSecStackLen = Array.isArray(prevStep.secondaryStack) ? prevStep.secondaryStack.length : 0;
+    if (currSecStackLen !== prevSecStackLen) {
+      const isPush = currSecStackLen > prevSecStackLen;
+      items.push({
+        id: "sec-stack-delta",
+        label: isPush ? "Sec-Stack Push" : "Sec-Stack Pop",
+        before: `${prevSecStackLen} items`,
+        after: `${currSecStackLen} items`,
+        type: "collection",
+      });
+    }
+
     // Queue size delta
     const currQueueLen = Array.isArray(currentStep.queue) ? currentStep.queue.length : 0;
     const prevQueueLen = Array.isArray(prevStep.queue) ? prevStep.queue.length : 0;
@@ -128,6 +142,42 @@ export function StepDiffInspector({
         before: `${prevQueueLen} items`,
         after: `${currQueueLen} items`,
         type: "collection",
+      });
+    }
+
+    // Secondary Queue size delta
+    const currSecQueueLen = Array.isArray(currentStep.secondaryQueue) ? currentStep.secondaryQueue.length : 0;
+    const prevSecQueueLen = Array.isArray(prevStep.secondaryQueue) ? prevStep.secondaryQueue.length : 0;
+    if (currSecQueueLen !== prevSecQueueLen) {
+      const isEnqueue = currSecQueueLen > prevSecQueueLen;
+      items.push({
+        id: "sec-queue-delta",
+        label: isEnqueue ? "Sec-Queue Enqueue" : "Sec-Queue Dequeue",
+        before: `${prevSecQueueLen} items`,
+        after: `${currSecQueueLen} items`,
+        type: "collection",
+      });
+    }
+
+    // Target Index mutation
+    if (currentStep.targetIndex !== prevStep.targetIndex && currentStep.targetIndex !== undefined) {
+      items.push({
+        id: "target-index-delta",
+        label: "Target Index",
+        before: prevStep.targetIndex !== undefined && prevStep.targetIndex !== null ? `[${prevStep.targetIndex}]` : "—",
+        after: currentStep.targetIndex !== null ? `[${currentStep.targetIndex}]` : "—",
+        type: "pointer",
+      });
+    }
+
+    // Active Node ID mutation
+    if (currentStep.activeNodeId !== prevStep.activeNodeId && currentStep.activeNodeId !== undefined) {
+      items.push({
+        id: "node-id-delta",
+        label: "Active Node",
+        before: prevStep.activeNodeId !== undefined && prevStep.activeNodeId !== null ? String(prevStep.activeNodeId) : "—",
+        after: currentStep.activeNodeId !== null ? String(currentStep.activeNodeId) : "—",
+        type: "mutation",
       });
     }
 

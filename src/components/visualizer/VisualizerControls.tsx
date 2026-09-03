@@ -20,14 +20,20 @@ import { Slider } from "@/components/ui/slider";
 import { ThemeColorPicker } from "@/components/ThemeColorPicker";
 
 interface VisualizerControlsProps {
-  currentStep: number;
+  currentStep?: number;
+  activeStepIndex?: number;
   totalSteps: number;
   isPlaying: boolean;
   isLooping?: boolean;
+  isScrubbing?: boolean;
   speed: number;
   vizType: string;
   breakpointCount?: number;
+  breakpointIndices?: number[];
   onStepChange: (step: number) => void;
+  onScrubStart?: () => void;
+  onScrub?: (step: number) => void;
+  onScrubEnd?: (step: number) => void;
   onPlayToggle: () => void;
   onLoopToggle?: () => void;
   onSpeedChange: (speed: number) => void;
@@ -38,14 +44,20 @@ interface VisualizerControlsProps {
 }
 
 export function VisualizerControls({
-  currentStep,
+  currentStep: propCurrentStep,
+  activeStepIndex: propActiveStepIndex,
   totalSteps,
   isPlaying,
   isLooping = false,
+  isScrubbing = false,
   speed,
   vizType,
   breakpointCount = 0,
+  breakpointIndices = [],
   onStepChange,
+  onScrubStart,
+  onScrub,
+  onScrubEnd,
   onPlayToggle,
   onLoopToggle,
   onSpeedChange,
@@ -54,11 +66,30 @@ export function VisualizerControls({
   onOpenShortcuts,
   onOpenExport,
 }: VisualizerControlsProps) {
+  // Normalize activeStepIndex from either prop
+  const currentStep = propActiveStepIndex ?? propCurrentStep ?? 0;
   const speeds = [0.5, 1, 1.5, 2, 3];
   const progressPct = totalSteps > 1 ? Math.round(((currentStep + 1) / totalSteps) * 100) : 100;
 
   const jumpSteps = (delta: number) => {
     onStepChange(Math.max(0, Math.min(totalSteps - 1, currentStep + delta)));
+  };
+
+  const handleSliderValueChange = (val: number[]) => {
+    const target = val[0] ?? 0;
+    if (onScrub) {
+      onScrub(target);
+    } else {
+      onStepChange(target);
+    }
+  };
+
+  const handleSliderPointerDown = () => {
+    onScrubStart?.();
+  };
+
+  const handleSliderPointerUp = () => {
+    onScrubEnd?.(currentStep);
   };
 
   return (
@@ -280,20 +311,56 @@ export function VisualizerControls({
         </div>
       </div>
 
-      {/* Interactive Timeline Scrubber Slider */}
+      {/* Interactive Timeline Scrubber Slider with 60 FPS scrubbing & breakpoint markers */}
       {totalSteps > 1 && (
-        <div className="flex items-center gap-3 pt-0.5">
-          <span className="font-mono text-[10px] text-muted-foreground">01</span>
-          <Slider
-            value={[currentStep]}
-            max={Math.max(0, totalSteps - 1)}
-            step={1}
-            onValueChange={(val) => onStepChange(val[0] ?? 0)}
-            className="flex-1 cursor-pointer"
-          />
-          <span className="font-mono text-[10px] text-muted-foreground">
-            {String(totalSteps).padStart(2, "0")}
-          </span>
+        <div className="flex flex-col gap-1 pt-0.5">
+          <div className="relative flex items-center gap-3">
+            <span className="font-mono text-[10px] text-muted-foreground select-none">01</span>
+            <div
+              className="relative flex-1 flex items-center"
+              onPointerDown={handleSliderPointerDown}
+              onPointerUp={handleSliderPointerUp}
+              onTouchStart={handleSliderPointerDown}
+              onTouchEnd={handleSliderPointerUp}
+            >
+              {/* Breakpoint markers along the slider track */}
+              {breakpointIndices.length > 0 && (
+                <div className="absolute inset-x-0 h-1.5 pointer-events-none z-10">
+                  {breakpointIndices.map((bIdx) => {
+                    const pct = (bIdx / (totalSteps - 1)) * 100;
+                    return (
+                      <div
+                        key={`bp-marker-${bIdx}`}
+                        style={{ left: `${pct}%` }}
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2 rounded-full bg-rose-500 ring-2 ring-background shadow-xs"
+                        title={`Breakpoint at step ${bIdx + 1}`}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+
+              <Slider
+                value={[currentStep]}
+                max={Math.max(0, totalSteps - 1)}
+                step={1}
+                onValueChange={handleSliderValueChange}
+                className={`flex-1 cursor-pointer transition-opacity ${
+                  isScrubbing ? "opacity-95" : "opacity-100"
+                }`}
+              />
+            </div>
+            <span className="font-mono text-[10px] text-muted-foreground select-none">
+              {String(totalSteps).padStart(2, "0")}
+            </span>
+          </div>
+          {isScrubbing && (
+            <div className="flex justify-center">
+              <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-bold text-primary animate-pulse">
+                Scrubbing: Step {currentStep + 1} / {totalSteps} ({progressPct}%)
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

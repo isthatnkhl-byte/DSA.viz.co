@@ -33,7 +33,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
 import {
   getProfileStats,
-  syncLeetCodeData,
+  
   updateLeetcodeUsername,
   updateProfileUsername,
 } from "@/lib/submissions.functions";
@@ -60,13 +60,10 @@ export const Route = createFileRoute("/_authenticated/profile")({
 });
 
 import { LeetCodeHeatmap } from "@/components/dashboard/LeetCodeHeatmap";
+import { AiMistakesSection } from "@/components/dashboard/AiMistakesSection";
 
 function ProfilePage() {
-  const { user, refreshProfile, updateNickname } = useAuth();
-  const fetchStats = useServerFn(getProfileStats);
-  const syncLeetCodeFn = useServerFn(syncLeetCodeData);
-  const updateUsernameFn = useServerFn(updateLeetcodeUsername);
-  const updateProfileUsernameFn = useServerFn(updateProfileUsername);
+  const { user, token, refreshProfile, updateNickname } = useAuth();
   const queryClient = useQueryClient();
 
   const [inputUsername, setInputUsername] = useState("");
@@ -111,21 +108,74 @@ function ProfilePage() {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["profile-stats"],
-    queryFn: () => fetchStats(),
+    queryFn: async () => {
+      if (!token) throw new Error("No token");
+      const [profileRes, subsRes] = await Promise.all([
+        fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/submissions", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (!profileRes.ok || !subsRes.ok) throw new Error("Failed to load stats");
+      const profile = await profileRes.json();
+      const subs = await subsRes.json();
+      const subsArray = Array.isArray(subs) ? subs : [];
+      const completeRows = subsArray.filter((r: any) => r.classification !== "Incomplete");
+      const solved = new Set(completeRows.map((r: any) => r.slug));
+      const optimal = new Set(
+        completeRows.filter((r: any) => r.classification === "Optimal").map((r: any) => r.slug),
+      );
+      const byDifficulty = {
+        Easy: new Set(completeRows.filter((r: any) => r.difficulty === "Easy").map((r: any) => r.slug)),
+        Medium: new Set(completeRows.filter((r: any) => r.difficulty === "Medium").map((r: any) => r.slug)),
+        Hard: new Set(completeRows.filter((r: any) => r.difficulty === "Hard").map((r: any) => r.slug)),
+      };
+      return {
+        profile,
+        attempts: subsArray.length,
+        solved: solved.size,
+        optimal: optimal.size,
+        easy: byDifficulty.Easy.size,
+        medium: byDifficulty.Medium.size,
+        hard: byDifficulty.Hard.size,
+      };
+    },
+    enabled: !!token,
   });
 
+  const { token: authContextToken } = useAuth();
+
   const syncMutation = useMutation({
-    mutationFn: (username: string) => syncLeetCodeFn({ data: { username } }),
-    onSuccess: (res) => {
-      if (res.ok) {
-        toast.success("LeetCode profile & heatmap synced successfully!");
-        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-        refreshProfile();
-        setEditingLc(false);
-        setInputUsername("");
-      } else {
-        toast.error(res.error || "Could not find LeetCode account.");
+    mutationFn: async (username: string) => {
+      const auth = getAuth();
+      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : authContextToken;
+      
+      if (!currentToken) {
+        throw new Error("Authentication error: No valid token available. Please try logging out and back in.");
       }
+      
+      const res = await fetch("/api/sync-leetcode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${currentToken}`
+        },
+        body: JSON.stringify({ username })
+      });
+      if (!res.ok) {
+        let errStr = "Sync failed";
+        try {
+          const d = await res.json();
+          if (d.error) errStr = d.error;
+        } catch {}
+        throw new Error(errStr);
+      }
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast.success("LeetCode profile & heatmap synced successfully!");
+      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+      refreshProfile();
+      setEditingLc(false);
+      setInputUsername("");
     },
     onError: (err: any) => {
       toast.error(err?.message || "Sync failed.");
@@ -135,7 +185,14 @@ function ProfilePage() {
   const updateProfileUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
       await updateNickname(username);
-      return await updateProfileUsernameFn({ data: { username } });
+      if (!token) throw new Error("No token");
+      const res = await fetch("/api/profile/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username })
+      });
+      if (!res.ok) throw new Error("Failed to update username");
+      return res.json();
     },
     onSuccess: (res) => {
       if (res.ok) {
@@ -777,6 +834,9 @@ function ProfilePage() {
             </div>
           </div>
         )}
+
+        {/* AI Mistake Diagnostics & Common Patterns Report Section */}
+        <AiMistakesSection />
       </main>
     </div>
   );

@@ -1,5 +1,71 @@
 export type Val = number | string;
 
+/**
+ * Composite layout modes for synchronized multi-container visualizer arrangements
+ */
+export type CompositeLayoutMode =
+  | "single"
+  | "dual-array"
+  | "array-stack"
+  | "array-hashmap"
+  | "tree-stack"
+  | "matrix-queue"
+  | "matrix-stack"
+  | "graph-table";
+
+/**
+ * Parses any candidate value into an explicit [row, col] coordinate tuple.
+ * Returns null if the value is a scalar number, non-coordinate string, or invalid shape.
+ * This completely prevents counter variables (like 0, 1, or lengths) from false-lighting cell (0, 0).
+ */
+export function parse2DCoord(value: unknown): [number, number] | null {
+  if (value === null || value === undefined) return null;
+  
+  // Explicit tuple: [r, c]
+  if (Array.isArray(value)) {
+    if (value.length >= 2) {
+      const r = extractScalarValue(value[0]);
+      const c = extractScalarValue(value[1]);
+      if (typeof r === "number" && typeof c === "number" && Number.isFinite(r) && Number.isFinite(c)) {
+        return [r, c];
+      }
+      if (typeof r === "string" && typeof c === "string" && /^-?\d+$/.test(r) && /^-?\d+$/.test(c)) {
+        return [parseInt(r, 10), parseInt(c, 10)];
+      }
+    }
+    return null;
+  }
+
+  // Object format: { r, c }, { row, col }, { x, y }, { i, j }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const rVal = obj.r ?? obj.row ?? obj.rowIndex ?? obj.x ?? obj.i;
+    const cVal = obj.c ?? obj.col ?? obj.column ?? obj.colIndex ?? obj.y ?? obj.j;
+    if (rVal !== undefined && cVal !== undefined) {
+      const r = extractScalarValue(rVal);
+      const c = extractScalarValue(cVal);
+      if (typeof r === "number" && typeof c === "number" && Number.isFinite(r) && Number.isFinite(c)) {
+        return [r, c];
+      }
+      if (typeof r === "string" && typeof c === "string" && /^-?\d+$/.test(r) && /^-?\d+$/.test(c)) {
+        return [parseInt(r, 10), parseInt(c, 10)];
+      }
+    }
+    return null;
+  }
+
+  // String format: "(r, c)", "[r, c]", "r, c", "r:c"
+  if (typeof value === "string") {
+    const s = value.trim();
+    const m = s.match(/^\(?\[?\s*(-?\d+)\s*[,:\-]\s*(-?\d+)\s*\)?\]?$/);
+    if (m && m[1] !== undefined && m[2] !== undefined) {
+      return [parseInt(m[1], 10), parseInt(m[2], 10)];
+    }
+  }
+
+  return null;
+}
+
 const seenObjects = new WeakSet<object>();
 
 export function extractScalarValue(item: unknown, depth = 0): number | string | null {
@@ -246,33 +312,23 @@ export function safeTreeArray(value: unknown): (Val | null)[] {
 
 export function coordKey(value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (typeof value === "number") return String(value);
-  if (Array.isArray(value)) {
-    if (value.length >= 2) {
-      const r = extractScalarValue(value[0]);
-      const c = extractScalarValue(value[1]);
-      return `${r ?? 0},${c ?? 0}`;
-    }
-    if (value.length === 1) return coordKey(value[0]);
-    return "";
+  
+  // First, check if it forms an explicit 2D coordinate tuple
+  const parsed = parse2DCoord(value);
+  if (parsed) {
+    return `${parsed[0]},${parsed[1]}`;
   }
-  if (typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    const r = obj.r ?? obj.row ?? obj.rowIndex ?? obj.x ?? obj.i;
-    const c = obj.c ?? obj.col ?? obj.column ?? obj.colIndex ?? obj.y ?? obj.j;
-    if (r !== undefined && c !== undefined) {
-      return `${r},${c}`;
-    }
-  }
+
+  // If it's a structured object or non-coordinate string, format cleanly
   if (typeof value === "string") {
-    const s = value.trim();
-    // match (r, c), [r, c], r, c, or r:c with optional negative signs
-    const m = s.match(/^\(?\[?\s*(-?\d+)\s*[,:\-]\s*(-?\d+)\s*\)?\]?$/);
-    if (m && m[1] !== undefined && m[2] !== undefined) {
-      return `${m[1]},${m[2]}`;
-    }
-    return s;
+    return value.trim();
   }
+  
+  if (typeof value === "number") {
+    // Return numeric string for 1D indexing; callers checking 2D matrices will not match "r,c" format
+    return String(value);
+  }
+
   return String(value);
 }
 

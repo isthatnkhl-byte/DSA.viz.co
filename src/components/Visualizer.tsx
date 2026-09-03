@@ -21,7 +21,9 @@ import { CrossDatasetShiftBanner } from "./visualizer/CrossDatasetShiftBanner";
 import { VisualizerContentPanes } from "./visualizer/VisualizerContentPanes";
 import { PseudocodeTraceInspector } from "./visualizer/PseudocodeTraceInspector";
 import { AsymptoticComplexityVisualizer } from "./visualizer/AsymptoticComplexityVisualizer";
-import { Terminal, Database, Layers, Sparkles } from "lucide-react";
+import { Terminal, Database, Layers, Sparkles, HelpCircle, Bot } from "lucide-react";
+import { useChat } from "@/context/ChatContext";
+import { usePlaybackOrchestrator } from "@/hooks/usePlaybackOrchestrator";
 import {
   detectOperation,
   safeArray,
@@ -40,10 +42,6 @@ export const Visualizer = memo(function Visualizer({
 }) {
 
   const safeSteps = useMemo(() => (Array.isArray(steps) ? steps.filter(Boolean) : []), [steps]);
-  const [step, setStep] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [looping, setLooping] = useState(false);
-  const [speed, setSpeed] = useState(1);
   const [motionBlurEnabled, setMotionBlurEnabled] = useState(false);
   const [multiDatasetEnabled, setMultiDatasetEnabled] = useState(true);
   const [layoutMode, setLayoutMode] = useState<"stacked" | "grid" | "tabs">("stacked");
@@ -57,6 +55,19 @@ export const Visualizer = memo(function Visualizer({
     "primary" | "aux_map" | "aux_buffer" | "aux_list" | "aux_tree" | "aux_array" | "code"
   >("primary");
 
+  const { openChat, updateContext } = useChat();
+
+  // Initialize high-precision 60 FPS Playback Orchestrator
+  const playback = usePlaybackOrchestrator({
+    steps: safeSteps,
+    breakpoints,
+    initialSpeed: 1,
+    initialLooping: false,
+  });
+
+  const step = playback.activeStepIndex;
+  const setStep = playback.setActiveStepIndex;
+
   // Compute a stable fingerprint of the current algorithmic trace
   const traceSignature = useMemo(() => {
     if (safeSteps.length === 0) return "empty";
@@ -67,26 +78,20 @@ export const Visualizer = memo(function Visualizer({
 
   // Reset playback ONLY when the actual trace signature changes
   useEffect(() => {
-    setStep(0);
-    setPlaying(false);
+    playback.reset();
   }, [traceSignature]);
 
-  // Keep step strictly within bounds
+  // Synchronize current simulation step into ChatContext
   useEffect(() => {
-    if (safeSteps.length === 0) return;
-    if (step >= safeSteps.length) setStep(safeSteps.length - 1);
-  }, [safeSteps.length, step]);
-
-  // Playback toggle handler that cleanly restarts if at end
-  const handlePlayToggle = useCallback(() => {
-    if (safeSteps.length <= 1) return;
-    setPlaying((p) => {
-      if (!p && step >= safeSteps.length - 1) {
-        setStep(0);
-      }
-      return !p;
-    });
-  }, [safeSteps.length, step]);
+    if (safeSteps.length > 0 && safeSteps[step]) {
+      updateContext({
+        currentStep: step,
+        totalSteps: safeSteps.length,
+        stepDesc: toText(safeSteps[step]?.desc),
+        stepVariables: safeSteps[step]?.variables || {},
+      });
+    }
+  }, [step, safeSteps, updateContext]);
 
   // Toggle breakpoint on a line index
   const toggleBreakpoint = useCallback((lineIdx: number) => {
@@ -101,74 +106,13 @@ export const Visualizer = memo(function Visualizer({
     });
   }, []);
 
-  // Jump to next breakpoint
-  const jumpToNextBreakpoint = useCallback(() => {
-    if (safeSteps.length <= 1 || breakpoints.size === 0) return;
-    for (let i = step + 1; i < safeSteps.length; i++) {
-      const s = safeSteps[i];
-      if (s?.line !== undefined && breakpoints.has(s.line)) {
-        setStep(i);
-        return;
-      }
-    }
-    // wrap around if looping
-    if (looping) {
-      for (let i = 0; i <= step; i++) {
-        const s = safeSteps[i];
-        if (s?.line !== undefined && breakpoints.has(s.line)) {
-          setStep(i);
-          return;
-        }
-      }
-    }
-  }, [safeSteps, breakpoints, step, looping]);
-
   // Jump to specific line execution
   const jumpToLine = useCallback(
     (lineIdx: number) => {
-      if (safeSteps.length === 0) return;
-      for (let i = step + 1; i < safeSteps.length; i++) {
-        if (safeSteps[i]?.line === lineIdx) {
-          setStep(i);
-          return;
-        }
-      }
-      for (let i = 0; i <= step; i++) {
-        if (safeSteps[i]?.line === lineIdx) {
-          setStep(i);
-          return;
-        }
-      }
+      playback.jumpToLine(lineIdx);
     },
-    [safeSteps, step],
+    [playback],
   );
-
-  // Continuous interval timer for playback with dynamic speed & seamless looping
-  useEffect(() => {
-    if (!playing || safeSteps.length <= 1) {
-      return;
-    }
-    const intervalMs = Math.max(120, Math.round(850 / speed));
-    const id = setInterval(() => {
-      setStep((s) => {
-        const nextStep = s + 1;
-        if (nextStep >= safeSteps.length) {
-          if (looping) {
-            return 0; // seamless continuous loop
-          }
-          setPlaying(false);
-          return s;
-        }
-        // If next step hits a breakpoint while playing, pause
-        const nextStepObj = safeSteps[nextStep];
-        if (nextStepObj?.line !== undefined && breakpoints.has(nextStepObj.line)) {
-          setPlaying(false);
-        }
-        return nextStep;
-      });
-    }, intervalMs);
-    return () => clearInterval(id);
-  }, [playing, safeSteps, speed, looping, breakpoints]);
 
   // Keyboard navigation handler
   const handleKeyDown = useCallback(
@@ -185,29 +129,28 @@ export const Visualizer = memo(function Visualizer({
 
       if (e.code === "Space") {
         e.preventDefault();
-        handlePlayToggle();
+        playback.togglePlay();
       } else if (e.code === "ArrowLeft") {
         e.preventDefault();
-        setStep((s) => Math.max(0, s - 1));
+        playback.jumpRelative(-1);
       } else if (e.code === "ArrowRight") {
         e.preventDefault();
-        setStep((s) => Math.min(safeSteps.length - 1, s + 1));
+        playback.jumpRelative(1);
       } else if (e.code === "Home") {
         e.preventDefault();
-        setStep(0);
+        playback.jumpToFirst();
       } else if (e.code === "End") {
         e.preventDefault();
-        setStep(safeSteps.length - 1);
+        playback.jumpToLast();
       } else if (e.key === "r" || e.key === "R") {
         e.preventDefault();
-        setStep(0);
-        setPlaying(false);
+        playback.reset();
       } else if (e.key === "l" || e.key === "L") {
         e.preventDefault();
-        setLooping((prev) => !prev);
+        playback.toggleLoop();
       } else if (e.key === "b" || e.key === "B") {
         e.preventDefault();
-        jumpToNextBreakpoint();
+        playback.jumpToNextBreakpoint();
       } else if (e.key === "m" || e.key === "M") {
         e.preventDefault();
         setMotionBlurEnabled((prev) => !prev);
@@ -215,14 +158,14 @@ export const Visualizer = memo(function Visualizer({
         e.preventDefault();
         setShowShortcutsModal((prev) => !prev);
       } else if (e.key === "1") {
-        setSpeed(1);
+        playback.setSpeed(1);
       } else if (e.key === "2") {
-        setSpeed(2);
+        playback.setSpeed(2);
       } else if (e.key === "3") {
-        setSpeed(3);
+        playback.setSpeed(3);
       }
     },
-    [handlePlayToggle, safeSteps.length, jumpToNextBreakpoint],
+    [playback],
   );
 
   useEffect(() => {
@@ -337,6 +280,22 @@ export const Visualizer = memo(function Visualizer({
     [safeSteps],
   );
 
+  const hasSecondaryStackInTrace = useMemo(
+    () =>
+      safeSteps.some(
+        (s) => Array.isArray(s.secondaryStack) && s.secondaryStack.length > 0,
+      ),
+    [safeSteps],
+  );
+
+  const hasSecondaryQueueInTrace = useMemo(
+    () =>
+      safeSteps.some(
+        (s) => Array.isArray(s.secondaryQueue) && s.secondaryQueue.length > 0,
+      ),
+    [safeSteps],
+  );
+
   const hasMultipleDatasets =
     hasAuxMapInTrace ||
     hasAuxSetInTrace ||
@@ -345,7 +304,9 @@ export const Visualizer = memo(function Visualizer({
     hasAuxListInTrace ||
     hasAuxTreeInTrace ||
     hasAuxArrayInTrace ||
-    hasSecondaryArrayInTrace;
+    hasSecondaryArrayInTrace ||
+    hasSecondaryStackInTrace ||
+    hasSecondaryQueueInTrace;
 
   const traceMatrix = useMemo(() => {
     return safeSteps.find((s) => Array.isArray(s.matrix) && s.matrix.length > 0)?.matrix ?? [];
@@ -483,10 +444,17 @@ export const Visualizer = memo(function Visualizer({
     const items = safeArray(
       type === "stack" ? current.stack : type === "queue" ? current.queue : current.deque,
     );
+    const secondaryItems =
+      type === "stack"
+        ? current.secondaryStack
+        : type === "queue"
+          ? current.secondaryQueue
+          : undefined;
+
     readouts = [
-      { label: "Size", value: items.length },
+      { label: secondaryItems ? "Primary Size" : "Size", value: items.length },
       { label: "Current", value: current.current ?? null, highlight: true },
-      { label: "Processed", value: visited.length },
+      { label: secondaryItems ? "Sec. Size" : "Processed", value: secondaryItems ? secondaryItems.length : visited.length },
       {
         label: type === "stack" ? "Top Element" : "Front Element",
         value: type === "stack" ? (items[items.length - 1] ?? null) : (items[0] ?? null),
@@ -495,6 +463,9 @@ export const Visualizer = memo(function Visualizer({
     primaryBody = (
       <StackQueueVisualizer
         items={items}
+        secondaryItems={secondaryItems}
+        label1={current.datasetLabels?.primary ?? (secondaryItems ? "In-Stack (Input)" : "Primary Buffer")}
+        label2={current.datasetLabels?.secondaryArray ?? (secondaryItems ? "Out-Stack (Output)" : "Secondary Buffer")}
         current={current.current ?? null}
         visited={visited}
         type={type}
@@ -830,22 +801,24 @@ export const Visualizer = memo(function Visualizer({
 
       {/* Playback Controls & Timeline Scrubber */}
       <VisualizerControls
-        currentStep={step}
-        totalSteps={safeSteps.length}
-        isPlaying={playing}
-        isLooping={looping}
-        speed={speed}
+        activeStepIndex={playback.activeStepIndex}
+        totalSteps={playback.totalSteps}
+        isPlaying={playback.isPlaying}
+        isLooping={playback.isLooping}
+        isScrubbing={playback.isScrubbing}
+        speed={playback.speed}
         vizType={type}
         breakpointCount={breakpoints.size}
-        onStepChange={setStep}
-        onPlayToggle={handlePlayToggle}
-        onLoopToggle={() => setLooping((l) => !l)}
-        onSpeedChange={setSpeed}
-        onReset={() => {
-          setStep(0);
-          setPlaying(false);
-        }}
-        onJumpBreakpoint={jumpToNextBreakpoint}
+        breakpointIndices={playback.breakpointStepIndices}
+        onStepChange={playback.setActiveStepIndex}
+        onScrubStart={playback.startScrubbing}
+        onScrub={playback.scrubTo}
+        onScrubEnd={playback.commitScrub}
+        onPlayToggle={playback.togglePlay}
+        onLoopToggle={playback.toggleLoop}
+        onSpeedChange={playback.setSpeed}
+        onReset={playback.reset}
+        onJumpBreakpoint={playback.jumpToNextBreakpoint}
         onOpenShortcuts={() => setShowShortcutsModal(true)}
         onOpenExport={() => setShowExportModal(true)}
       />
@@ -910,6 +883,25 @@ export const Visualizer = memo(function Visualizer({
             </span>
             {toText(current.desc)}
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              openChat({
+                role: "step_doubts",
+                currentStep: step,
+                totalSteps: safeSteps.length,
+                stepDesc: toText(current.desc),
+                stepVariables: current.variables || {},
+                customPrompt: `Can you explain what is happening in Step ${step + 1} of this simulation ("${toText(current.desc)}") without giving away the rest of the algorithm?`,
+              });
+            }}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 px-2.5 py-1 text-[11px] font-bold text-primary transition-all shadow-xs"
+            title="Ask Gemini AI to explain this exact simulation step"
+          >
+            <Bot className="size-3.5" />
+            <span className="hidden sm:inline">Ask Doubt on Step</span>
+            <span className="sm:hidden">Ask AI</span>
+          </button>
         </div>
 
         {/* Step Mutation Diff Inspector */}

@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { toPng } from "html-to-image";
@@ -29,7 +28,6 @@ import {
 import { apiExecuteCpp } from "@/lib/api-client";
 import type { CppExecutionResult, CppTemplate } from "@/lib/compiler.types";
 import { toast } from "sonner";
-import { getProfileStats } from "@/lib/submissions.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
 
@@ -63,11 +61,16 @@ const STORAGE_KEY_PLAIN_STDIN = "dsa_plain_cpp_stdin_v1";
 
 function CppCompilerPage() {
   const { user } = useAuth();
-  const fetchStats = useServerFn(getProfileStats);
+  const { token } = useAuth();
   const { data: profileStats } = useQuery({
     queryKey: ["profile-stats"],
-    queryFn: () => fetchStats(),
-    enabled: !!user,
+    queryFn: async () => {
+      if (!token) return { profile: null };
+      const res = await fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return { profile: null };
+      return { profile: await res.json() };
+    },
+    enabled: !!user && !!token,
   });
 
   const [githubLoading, setGithubLoading] = useState(false);
@@ -368,135 +371,145 @@ function CppCompilerPage() {
     <div className="min-h-screen pb-20">
       <SiteHeader />
 
-      <main className="mx-auto w-full max-w-[1600px] px-4 py-10 sm:px-6 lg:px-8 xl:px-12">
-        {/* Header Hero Section */}
-        <section className="mb-8">
-          <div className="flex flex-wrap items-baseline justify-between gap-6">
+      <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
+        {/* Executive Header Banner */}
+        <div className="relative mb-8 overflow-hidden rounded-3xl border border-border/70 bg-card/60 p-6 sm:p-10 backdrop-blur-2xl shadow-xl">
+          {/* Subtle atmospheric ambient glows */}
+          <div className="absolute -left-20 -top-20 size-72 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+          <div className="absolute -right-20 -bottom-20 size-72 rounded-full bg-accent/20 blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
               <Link
-                to="/"
+                to="/problems"
                 className="group mb-2 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
               >
                 <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
-                <span>Back to Problems</span>
+                <span>Back to Algorithm Library</span>
               </Link>
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-                <Terminal className="size-4 text-primary" />
-                Online C++ IDE &amp; Execution Environment
+              <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-2">
+                <Terminal className="size-3.5 text-primary" />
+                <span>Zero-Latency Cloud Execution Sandbox</span>
               </div>
-              <h1 className="mt-1 text-3xl sm:text-4xl font-black tracking-tight text-foreground">
-                Online <span className="gradient-text">C++ Compiler</span>
+              <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">
+                C++ <span className="bg-gradient-to-r from-primary via-accent to-emerald-400 bg-clip-text text-transparent">Sandbox &amp; Compiler</span>
               </h1>
-              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Write standard C++, pass custom inputs via{" "}
-                <code className="text-primary font-mono text-xs">std::cin</code>, inspect{" "}
-                <code className="text-primary font-mono text-xs">std::cout</code> outputs, or
-                practice curated DSA algorithms.
+              <p className="mt-2 text-sm sm:text-base text-muted-foreground font-sans max-w-2xl leading-relaxed">
+                Full-featured ISO C++20 development container with interactive standard I/O streams, compiler diagnostic traces, GitHub snapshot synchronization, and FAANG algorithmic templates.
               </p>
+            </div>
+
+            {/* Hardware & Runtime Telemetry Card */}
+            <div className="rounded-2xl border border-border/80 bg-background/80 p-4 font-mono shadow-md backdrop-blur-xl shrink-0 w-full sm:w-auto flex items-center gap-6">
+              <div>
+                <div className="text-[10px] uppercase text-muted-foreground">Compiler Engine</div>
+                <div className="text-xl font-black text-foreground font-display">GCC 14.2 (C++20)</div>
+              </div>
+              <div className="h-10 w-px bg-border/60" />
+              <div>
+                <div className="text-[10px] uppercase text-muted-foreground">Optimization</div>
+                <div className="text-xl font-black text-emerald-400 font-display">-O3 Fast</div>
+              </div>
             </div>
           </div>
 
-          {/* Mode Switcher Tabs (Plain C++ Scratchpad vs DSA Question Templates) */}
-          <div className="mt-10 flex flex-col gap-4 relative">
-            {/* Ambient background glow for mode switcher */}
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/5 to-transparent blur-3xl -z-10 rounded-3xl opacity-50" />
-            
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-border/50 bg-card/40 p-3 sm:p-4 shadow-md backdrop-blur-2xl">
-              {/* Left: Mode Switcher Pills */}
-              <div className="flex items-center gap-1.5 bg-background/80 p-1 rounded-xl border border-border/60">
-                <button
-                  type="button"
-                  onClick={() => setMode("plain")}
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-2 font-mono text-xs font-bold transition-all ${
+          {/* Mode Switcher Tabs */}
+          <div className="mt-8 pt-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2 bg-background/80 p-1 rounded-2xl border border-border/70 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setMode("plain")}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-xs font-bold transition-all ${
+                  mode === "plain"
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25 scale-[1.02]"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                }`}
+              >
+                <Code2 className="size-4" />
+                <span>⚡ Plain C++ Playground</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[9px] ${
                     mode === "plain"
-                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]"
-                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                      ? "bg-white/20 text-white font-semibold"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  <Code2 className="size-4" />
-                  <span>⚡ Plain C++ Playground</span>
-                  <span
-                    className={`rounded-full px-1.5 py-px text-[9px] ${
-                      mode === "plain"
-                        ? "bg-white/20 text-white font-semibold"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    Custom Code &amp; I/O
-                  </span>
-                </button>
+                  Custom Code &amp; I/O
+                </span>
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() => setMode("templates")}
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-2 font-mono text-xs font-bold transition-all ${
+              <button
+                type="button"
+                onClick={() => setMode("templates")}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-xs font-bold transition-all ${
+                  mode === "templates"
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25 scale-[1.02]"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                }`}
+              >
+                <BookOpen className="size-4" />
+                <span>📚 DSA Question Templates</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[9px] ${
                     mode === "templates"
-                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]"
-                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                      ? "bg-white/20 text-white font-semibold"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  <BookOpen className="size-4" />
-                  <span>📚 DSA Question Templates</span>
-                  <span
-                    className={`rounded-full px-1.5 py-px text-[9px] ${
-                      mode === "templates"
-                        ? "bg-white/20 text-white font-semibold"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {CPP_DSA_TEMPLATES.length} Presets
-                  </span>
-                </button>
-              </div>
-
-              {/* Right: Quick Context Actions */}
-              {mode === "plain" ? (
-                <div className="flex flex-wrap items-center gap-1.5 px-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleResetPlainStarter}
-                    className="h-8 text-xs font-mono gap-1.5 hover:border-primary/50"
-                  >
-                    <RotateCcw className="size-3 text-primary" />
-                    <span>Hello World</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleLoadPlainFastIO}
-                    className="h-8 text-xs font-mono gap-1.5 hover:border-primary/50"
-                  >
-                    <Zap className="size-3 text-amber-400" />
-                    <span>Fast I/O Boilerplate</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearPlainEditor}
-                    className="h-8 text-xs font-mono text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1.5"
-                  >
-                    <Trash2 className="size-3" />
-                    <span>Clear</span>
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 px-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={copyTemplateToPlain}
-                    className="h-8 text-xs font-mono gap-1.5 text-primary border-primary/40 hover:bg-primary/10"
-                    title="Send current template into your Plain Playground scratchpad"
-                  >
-                    <Copy className="size-3" />
-                    <span>Copy to Plain Playground</span>
-                  </Button>
-                </div>
-              )}
+                  {CPP_DSA_TEMPLATES.length} Presets
+                </span>
+              </button>
             </div>
 
-            {/* Mode-Specific Context Banners */}
+            {/* Right: Quick Context Actions */}
+            {mode === "plain" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetPlainStarter}
+                  className="rounded-xl font-mono text-xs gap-1.5"
+                >
+                  <RotateCcw className="size-3 text-primary" />
+                  <span>Hello World</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLoadPlainFastIO}
+                  className="rounded-xl font-mono text-xs gap-1.5"
+                >
+                  <Zap className="size-3 text-amber-400" />
+                  <span>Fast I/O Boilerplate</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearPlainEditor}
+                  className="rounded-xl font-mono text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1.5"
+                >
+                  <Trash2 className="size-3" />
+                  <span>Clear</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={copyTemplateToPlain}
+                  className="rounded-xl font-mono text-xs gap-1.5 text-primary border-primary/40 hover:bg-primary/10"
+                  title="Send current template into your Plain Playground scratchpad"
+                >
+                  <Copy className="size-3" />
+                  <span>Copy to Plain Playground</span>
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Mode-Specific Context Banners */}
+          <div className="mt-6">
             {mode === "plain" ? (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/10 px-5 py-4 text-[13px] text-primary/90 shadow-[0_0_15px_-3px_rgba(var(--primary),0.15)] backdrop-blur-sm">
                 <div className="flex items-center gap-3">
@@ -573,7 +586,7 @@ function CppCompilerPage() {
               </div>
             )}
           </div>
-        </section>
+        </div>
 
         {/* Main Grid: Code Editor & Console (Left 8 cols), C++ Packages & Cheat Sheet (Right 4 cols) */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 xl:gap-10 mt-8">

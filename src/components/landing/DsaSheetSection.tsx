@@ -34,9 +34,9 @@ const SHEETS: SheetCardData[] = [
       { title: "Trapping Rain Water", slug: "trapping-rain-water" },
     ],
     icon: Target,
-    color: "text-blue-400",
-    bg: "bg-blue-500/10",
-    border: "border-blue-500/30",
+    color: "text-accent",
+    bg: "bg-accent/10",
+    border: "border-accent/30",
   },
   {
     title: "Striver's SDE Sheet",
@@ -72,9 +72,9 @@ const SHEETS: SheetCardData[] = [
       { title: "Coin Change", slug: "coin-change" },
     ],
     icon: CheckCircle2,
-    color: "text-purple-400",
-    bg: "bg-purple-500/10",
-    border: "border-purple-500/30",
+    color: "text-primary",
+    bg: "bg-primary/10",
+    border: "border-primary/30",
   },
 ];
 
@@ -93,7 +93,8 @@ export function DsaSheetSection() {
           <span>Curated Interview Curricula</span>
         </div>
         <h2 className="text-3xl md:text-5xl font-display font-black tracking-tight text-foreground mb-3">
-          Master the <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">DSA Sheets</span>
+          Master the <br />
+          <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent font-pixel text-4xl sm:text-5xl md:text-6xl py-2 block mt-6 mb-4 drop-shadow-[0_0_20px_color-mix(in_oklch,var(--primary)_60%,transparent)]">DSA Sheets</span>
         </h2>
         <p className="text-muted-foreground font-sans text-sm md:text-base leading-relaxed">
           Structured learning roadmaps with integrated visualizer simulations, spaced repetition tracking, and real-time execution.
@@ -177,24 +178,13 @@ export function DsaSheetSection() {
 
             {/* Bottom Action Link */}
             <div className="pt-4 border-t border-border/40">
-              {user ? (
-                <Link
-                  to={"/sheets" as any}
-                  className="inline-flex items-center justify-between w-full font-mono text-xs font-bold text-primary group-hover:text-primary transition-colors"
-                >
-                  <span>Launch {sheet.title}</span>
-                  <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => signInWithGoogle()}
-                  className="inline-flex items-center justify-between w-full font-mono text-xs font-bold text-primary group-hover:text-primary transition-colors text-left"
-                >
-                  <span>Sign in to Track Sheet</span>
-                  <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-              )}
+              <Link
+                to={"/sheets" as any}
+                className="inline-flex items-center justify-between w-full font-mono text-xs font-bold text-primary group-hover:text-primary transition-colors"
+              >
+                <span>Launch {sheet.title}</span>
+                <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
             </div>
           </div>
         ))}

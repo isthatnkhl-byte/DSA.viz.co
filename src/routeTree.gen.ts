@@ -88,6 +88,7 @@ export interface FileRoutesByTo {
   '/compiler': typeof CompilerRoute
   '/playground': typeof PlaygroundRoute
   '/problems': typeof ProblemsRoute
+  '/sheets': typeof SheetsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/problem/$slug': typeof ProblemSlugRoute
@@ -100,6 +101,7 @@ export interface FileRoutesById {
   '/compiler': typeof CompilerRoute
   '/playground': typeof PlaygroundRoute
   '/problems': typeof ProblemsRoute
+  '/sheets': typeof SheetsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/problem/$slug': typeof ProblemSlugRoute
@@ -123,6 +125,7 @@ export interface FileRouteTypes {
     | '/compiler'
     | '/playground'
     | '/problems'
+    | '/sheets'
     | '/dashboard'
     | '/profile'
     | '/problem/$slug'
@@ -134,6 +137,7 @@ export interface FileRouteTypes {
     | '/compiler'
     | '/playground'
     | '/problems'
+    | '/sheets'
     | '/_authenticated/dashboard'
     | '/_authenticated/profile'
     | '/problem/$slug'

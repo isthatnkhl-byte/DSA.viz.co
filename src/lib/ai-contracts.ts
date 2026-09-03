@@ -1,4 +1,5 @@
 import type { VizStep, VizType, ShiftInfo } from "./problems";
+import { parse2DCoord } from "../components/visualizer/VisualizerTypes";
 
 export const VALID_VIZ_TYPES = [
   "array",
@@ -315,6 +316,11 @@ export interface RawVizStep {
   pointer_labels?: unknown;
   array?: unknown;
   secondaryArray?: unknown;
+  secondaryStack?: unknown;
+  secondaryQueue?: unknown;
+  activeNodeId?: unknown;
+  targetIndex?: unknown;
+  activePointers?: unknown;
   left?: unknown;
   right?: unknown;
   left2?: unknown;
@@ -1059,7 +1065,9 @@ export function validateAndNormalizeVizPayload(
   let runningMap: Record<string, number | string | null> | null = null;
   let runningSet: (number | string)[] | null = null;
   let runningStack: (number | string)[] | null = null;
+  let runningSecondaryStack: (number | string)[] | null = null;
   let runningQueue: (number | string)[] | null = null;
+  let runningSecondaryQueue: (number | string)[] | null = null;
   let runningDeque: (number | string)[] | null = null;
 
   const initialSteps: VizStep[] = rawSteps
@@ -1171,6 +1179,15 @@ export function validateAndNormalizeVizPayload(
         auxStack = [];
       }
 
+      // Secondary Stack handling with forward persistence (e.g. queue via two stacks)
+      let auxSecondaryStack: (number | string)[] | null = null;
+      if (Array.isArray(step.secondaryStack) && step.secondaryStack.length > 0) {
+        auxSecondaryStack = sanitizeScalarArray(step.secondaryStack);
+        runningSecondaryStack = auxSecondaryStack;
+      } else if (runningSecondaryStack && step.secondaryStack === undefined) {
+        auxSecondaryStack = [...runningSecondaryStack];
+      }
+
       // Queue handling with forward persistence
       let auxQueue: (number | string)[] | null = null;
       if (Array.isArray(step.queue) && step.queue.length > 0) {
@@ -1180,6 +1197,15 @@ export function validateAndNormalizeVizPayload(
         auxQueue = [...runningQueue];
       } else if (type === "queue" && !runningQueue) {
         auxQueue = [];
+      }
+
+      // Secondary Queue handling with forward persistence
+      let auxSecondaryQueue: (number | string)[] | null = null;
+      if (Array.isArray(step.secondaryQueue) && step.secondaryQueue.length > 0) {
+        auxSecondaryQueue = sanitizeScalarArray(step.secondaryQueue);
+        runningSecondaryQueue = auxSecondaryQueue;
+      } else if (runningSecondaryQueue && step.secondaryQueue === undefined) {
+        auxSecondaryQueue = [...runningSecondaryQueue];
       }
 
       // Deque handling with forward persistence
@@ -1245,6 +1271,18 @@ export function validateAndNormalizeVizPayload(
       const stringCurrent =
         typeof rawCurrent === "string" && rawCurrent.trim() ? rawCurrent.trim() : null;
 
+      // Coordinate normalization for 2D matrix / graph visualizations
+      let resolvedCurrent: number | string | null = numericCurrent ?? stringCurrent ?? null;
+      if (type === "matrix" || auxMatrix) {
+        const coord = parse2DCoord(rawCurrent);
+        if (coord) {
+          resolvedCurrent = `${coord[0]},${coord[1]}`;
+        } else if (typeof rawCurrent === "number" || (typeof rawCurrent === "string" && !rawCurrent.includes(","))) {
+          // Disambiguate false scalar highlights (like 0 or counter index) on 2D matrices
+          resolvedCurrent = null;
+        }
+      }
+
       const cols =
         typeof step.cols === "number" && step.cols > 0
           ? step.cols
@@ -1268,6 +1306,19 @@ export function validateAndNormalizeVizPayload(
         ? Object.fromEntries(Object.entries(step.pointer_labels).map(([k, v]) => [k, String(v)]))
         : null;
 
+      const activeNodeId =
+        step.activeNodeId !== null && step.activeNodeId !== undefined
+          ? (typeof step.activeNodeId === "number" || typeof step.activeNodeId === "string" ? step.activeNodeId : null)
+          : null;
+      const targetIndex =
+        typeof step.targetIndex === "number" && Number.isFinite(step.targetIndex)
+          ? step.targetIndex
+          : null;
+      const activePointers =
+        Array.isArray(step.activePointers)
+          ? sanitizeScalarArray(step.activePointers)
+          : null;
+
       return {
         ...base,
         ...(auxArray ? { array: auxArray } : {}),
@@ -1276,17 +1327,22 @@ export function validateAndNormalizeVizPayload(
         ...(auxMap ? { map: auxMap } : {}),
         ...(auxSet ? { set: auxSet } : {}),
         ...(auxStack ? { stack: auxStack } : {}),
+        ...(auxSecondaryStack ? { secondaryStack: auxSecondaryStack } : {}),
         ...(auxQueue ? { queue: auxQueue } : {}),
+        ...(auxSecondaryQueue ? { secondaryQueue: auxSecondaryQueue } : {}),
         ...(auxDeque ? { deque: auxDeque } : {}),
         ...(auxTree ? { tree: auxTree } : {}),
         ...(auxMatrix ? { matrix: auxMatrix } : {}),
         ...(auxPointerLabels ? { pointer_labels: auxPointerLabels } : {}),
+        ...(activeNodeId !== null ? { activeNodeId } : {}),
+        ...(targetIndex !== null ? { targetIndex } : {}),
+        ...(activePointers ? { activePointers } : {}),
         cols,
         direction,
         currentArea,
         maxArea,
         islandCells,
-        current: numericCurrent ?? stringCurrent ?? null,
+        current: resolvedCurrent,
         left: rawLeft !== null && rawLeft !== undefined && !isNaN(Number(rawLeft)) ? Number(rawLeft) : null,
         right: rawRight !== null && rawRight !== undefined && !isNaN(Number(rawRight)) ? Number(rawRight) : null,
         left2: step.left2 !== null && step.left2 !== undefined && !isNaN(Number(step.left2)) ? Number(step.left2) : null,

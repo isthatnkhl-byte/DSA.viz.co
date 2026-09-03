@@ -1,5 +1,4 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Sparkles, RotateCcw, BookOpen, Lightbulb, ExternalLink, Code2, Play } from "lucide-react";
@@ -28,6 +27,8 @@ import { PseudocodeEditor } from "@/components/problem/PseudocodeEditor";
 import { MonacoCodeEditor } from "@/components/editor/MonacoCodeEditor";
 import { ReviewCard } from "@/components/problem/ReviewCard";
 import { DatasetToolbar } from "@/components/problem/DatasetToolbar";
+import { ProblemDiffNudgePanel } from "@/components/problem/ProblemDiffNudgePanel";
+import { useChat } from "@/context/ChatContext";
 
 export const Route = createFileRoute("/problem/$slug")({
   loader: ({ params }) => {
@@ -94,15 +95,17 @@ export const Route = createFileRoute("/problem/$slug")({
 function ProblemPage() {
   const loaderData = Route.useLoaderData();
   const problem = loaderData?.problem;
-  const fetchStatement = useServerFn(getStatement);
-  
   const {
     data: remoteStatement,
     isLoading: isStatementLoading,
     refetch: refetchStatement,
   } = useQuery({
     queryKey: ['problem-statement', problem?.slug],
-    queryFn: () => fetchStatement({ data: { slug: problem?.slug || "" } }),
+    queryFn: async () => {
+      const res = await fetch(`/api/statement?slug=${encodeURIComponent(problem?.slug || "")}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
     enabled: !!problem?.slug,
     staleTime: 1000 * 60 * 60,
   });
@@ -110,13 +113,17 @@ function ProblemPage() {
   const statement =
     remoteStatement?.statement || (problem?.slug ? statementForSlug(problem.slug, problem) : "");
 
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   
-  const fetchStats = useServerFn(getProfileStats);
   const { data: profileStats } = useQuery({
     queryKey: ["profile-stats"],
-    queryFn: () => fetchStats(),
-    enabled: !!user,
+    queryFn: async () => {
+      if (!token) return { profile: null };
+      const res = await fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return { profile: null };
+      return { profile: await res.json() };
+    },
+    enabled: !!user && !!token,
   });
   
   const [githubLoading, setGithubLoading] = useState(false);
@@ -160,7 +167,7 @@ function ProblemPage() {
     }
   };
 
-  const save = useServerFn(saveSubmission);
+  // (Replaced save function)
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"statement" | "strategy">("statement");
@@ -177,6 +184,19 @@ function ProblemPage() {
   const storageKey = `dsaviz:attempt:${problem?.slug ?? "unknown"}`;
 
   const currentSlugRef = useRef<string | null>(null);
+  const { updateContext } = useChat();
+
+  useEffect(() => {
+    if (problem) {
+      updateContext({
+        problemSlug: problem.slug,
+        problemTitle: problem.title,
+        difficulty: problem.difficulty,
+        userCode,
+        pseudocode,
+      });
+    }
+  }, [problem, userCode, pseudocode, updateContext]);
 
   // Restore the last draft + review for this problem
   useEffect(() => {
@@ -249,17 +269,21 @@ function ProblemPage() {
 
       if (user) {
         try {
-          const saveRes = await save({
-            data: {
-              slug: problem.slug,
-              title: problem.title,
-              difficulty: problem.difficulty,
-              code: pseudocode.trim(),
-              status: res.classification,
-              review: res.review,
-              complexity: res.complexity,
-            },
+          const submissionData = {
+            slug: problem.slug,
+            title: problem.title,
+            difficulty: problem.difficulty,
+            code: pseudocode.trim(),
+            status: res.classification,
+            review: res.review,
+            complexity: res.complexity,
+          };
+          const saveResRaw = await fetch("/api/submissions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify(submissionData)
           });
+          const saveRes = { ok: saveResRaw.ok };
           queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
           queryClient.invalidateQueries({ queryKey: ["profileStats"] });
           queryClient.invalidateQueries({ queryKey: ["submissions"] });
@@ -283,7 +307,7 @@ function ProblemPage() {
     } finally {
       setLoading(false);
     }
-  }, [pseudocode, problem, user, save, queryClient, persist]);
+  }, [pseudocode, problem, user, token, queryClient, persist]);
 
   const handleSelectDataset = useCallback(
     async (targetDataset: TestDataset) => {
@@ -423,10 +447,10 @@ def solve(input_data):
     <div className="min-h-screen pb-20">
       <SiteHeader />
 
-      <main className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-6 p-4 sm:p-6 lg:grid-cols-12">
-        {/* Left Column: Problem Details & Pseudocode Editor */}
-        <section className="flex flex-col gap-5 lg:col-span-6">
-          <div className="flex flex-col gap-4 rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm">
+      <main className="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-6 p-4 sm:p-6 lg:grid-cols-3 xl:grid-cols-3">
+        {/* Column 1: Problem Details & Examples */}
+        <section className="flex flex-col gap-5">
+<div className="flex flex-col gap-4 rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm">
             <ProblemHeader problem={problem} copied={copied} onCopyLink={copyCode} />
 
             {/* Tab Navigation: Problem Statement vs Strategy */}
@@ -491,37 +515,11 @@ def solve(input_data):
               </a>
             </div>
           </div>
+        </section>
 
-          {/* Box 1: Integrated Code Editor (VS Code / Monaco) */}
-          <div className="rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm flex flex-col gap-3">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2">
-                <Code2 className="size-4 text-primary" />
-                <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
-                  Integrated Code Editor (VS Code / Monaco)
-                </h3>
-              </div>
-              <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 font-mono text-[10px] font-bold text-primary">
-                Multi-Language (Python, C++, JS)
-              </span>
-            </div>
-
-            <MonacoCodeEditor
-              code={userCode}
-              onChange={(code) => setUserCode(code)}
-              onSubmit={() => void onSubmit()}
-              onPushToGithub={handlePushToGithub}
-              githubLoading={githubLoading}
-              problemTitle={problem.title}
-              problemSlug={problem.slug}
-              defaultLanguage="python"
-              height="380px"
-              showSubmitButton={false}
-            />
-          </div>
-
-          {/* Box 2: Pseudocode & Algorithm Draft */}
-          <div className="rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm flex flex-col gap-3">
+        {/* Column 2: Pseudocode & Review & Visualizer */}
+        <section ref={reviewRef} className="flex flex-col gap-5">
+<div className="rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm flex flex-col gap-3">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="size-4 text-primary" />
@@ -544,10 +542,7 @@ def solve(input_data):
               githubLoading={githubLoading}
             />
           </div>
-        </section>
 
-        {/* Right Column: AI Review & Interactive Multi-Dataset Visualizer */}
-        <section ref={reviewRef} className="flex flex-col gap-5 lg:col-span-6">
           {result ? <ReviewCard result={result} saved={saved} /> : null}
 
           {/* If review result is present, always keep DatasetToolbar visible */}
@@ -716,8 +711,48 @@ def solve(input_data):
               </div>
             </div>
           )}
+        
         </section>
-      </main>
+
+        {/* Column 3: VS Code Editor & Interview Agent */}
+        <section className="flex flex-col gap-5">
+<div className="rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm flex flex-col gap-3">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2">
+                <Code2 className="size-4 text-primary" />
+                <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                  Integrated Code Editor (VS Code / Monaco)
+                </h3>
+              </div>
+              <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 font-mono text-[10px] font-bold text-primary">
+                Multi-Language (Python, C++, JS)
+              </span>
+            </div>
+
+            <MonacoCodeEditor
+              code={userCode}
+              onChange={(code) => setUserCode(code)}
+              onSubmit={() => void onSubmit()}
+              onPushToGithub={handlePushToGithub}
+              githubLoading={githubLoading}
+              problemTitle={problem.title}
+              problemSlug={problem.slug}
+              defaultLanguage="python"
+              height="380px"
+              showSubmitButton={false}
+            />
+          </div>
+<ProblemDiffNudgePanel
+            problemSlug={problem.slug}
+            problemTitle={problem.title}
+            difficulty={problem.difficulty}
+            code={userCode}
+            pseudocode={pseudocode}
+            compilerError={result?.missing_elements?.join("; ") || (!result?.is_complete ? result?.nudge : "") || ""}
+            isLoading={loading}
+          />
+        </section>
+</main>
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { requireAuth, AuthRequest } from './src/middleware/auth';
 import { getOrCreateUser } from './src/db/users';
 import { getProfile, updateProfile } from './src/db/profiles';
 import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submissions';
+import { adminAuth, adminDb } from './src/lib/firebase-admin';
+import { saveAiReport, getUserAiReports, saveChatSession, getUserChatSessions, logUserActivity } from './src/db/ai-diagnostics';
 import { processReviewPseudocode, processDatasetVisualization } from './src/lib/review.functions';
 import { processPlaygroundReview } from './src/lib/playground.functions';
 import { runSecureCpp } from './src/lib/compiler/index';
@@ -135,6 +137,154 @@ function getGeminiClient(): GoogleGenAI {
       },
     },
   });
+}
+
+/**
+ * Robust Gemini model invoker with multi-model failover sequence.
+ * Resilient against temporary 503 (model high demand) and 429 (quota spikes).
+ */
+async function generateContentWithFallback(
+  ai: GoogleGenAI,
+  preferredModel: string,
+  params: {
+    contents: any;
+    config?: any;
+  }
+): Promise<{ text: string; modelUsed: string }> {
+  const candidateModels = [
+    preferredModel,
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+  ].filter((m, i, arr) => m && arr.indexOf(m) === i);
+
+  let lastError: any = null;
+  for (const model of candidateModels) {
+    try {
+      const resp = await ai.models.generateContent({
+        model,
+        contents: params.contents,
+        config: params.config,
+      });
+      return {
+        text: resp.text || "",
+        modelUsed: model,
+      };
+    } catch (err: any) {
+      lastError = err;
+      const status = err?.status || err?.code || (err?.error && err?.error?.code);
+      console.warn(`[Gemini Fallback] Model ${model} returned (${status}): ${err?.message || err}. Attempting fallback candidate...`);
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Intelligent offline heuristic code analyzer when external AI models are temporarily unreachable.
+ */
+function generateOfflineDiffAnalysis(
+  sourceCode: string,
+  problemTitle: string,
+  problemSlug: string,
+  _difficulty: string,
+  compilerError = ""
+) {
+  const lines = sourceCode.split("\n");
+  const issues: any[] = [];
+  const diffHunks: any[] = [];
+
+  lines.forEach((line, idx) => {
+    const lineNum = idx + 1;
+    let status = "clean";
+    let hint = "";
+
+    if (/for\s*\([^;]+;\s*[a-zA-Z0-9_]+\s*<=\s*(?:[a-zA-Z0-9_]+\.length|[a-zA-Z0-9_]+\.size\(\)|n)\s*;/i.test(line)) {
+      status = "warning";
+      hint = "Notice loop condition uses '<=' against length/size; this may cause an off-by-one Out-of-Bounds access.";
+      issues.push({
+        line: lineNum,
+        type: "logic",
+        severity: "warning",
+        description: "Potential off-by-one index error with '<=' against array boundary.",
+        suggestionHint: "Consider whether the last valid index is length - 1, or change condition to '<'."
+      });
+    } else if (/if\s*\([^=!<>]=[^=]/i.test(line)) {
+      status = "error";
+      hint = "Single '=' detected inside conditional expression. This assigns rather than compares.";
+      issues.push({
+        line: lineNum,
+        type: "syntax",
+        severity: "error",
+        description: "Assignment inside condition statement.",
+        suggestionHint: "Did you mean '==' or '===' for equality check?"
+      });
+    }
+
+    diffHunks.push({
+      line: lineNum,
+      code: line,
+      status,
+      hint: hint || undefined,
+    });
+  });
+
+  const hasErrors = issues.length > 0 || !!compilerError;
+
+  return {
+    hasErrors,
+    summary: compilerError
+      ? `Compiler note: ${compilerError.slice(0, 120)}. Verify variable types, closing delimiters, and function signatures.`
+      : issues.length > 0
+      ? `Identified ${issues.length} potential syntax or indexing boundary concern(s) in your code.`
+      : `Code structure appears clean. Double check your base cases and loop invariants on empty or single-element inputs.`,
+    interviewerNudges: [
+      {
+        level: 1,
+        title: "Invariant & Bounds Verification",
+        text: "Step through your loop bounds manually: what value does the loop variable take on the very first and very last iteration?"
+      },
+      {
+        level: 2,
+        title: "Edge Case Testing",
+        text: `How does your solution handle extreme constraints for "${problemTitle || problemSlug}" (e.g. n = 0, n = 1, or duplicate elements)?`
+      },
+      {
+        level: 3,
+        title: "Space & Time Complexity",
+        text: "Analyze whether nested operations or helper lookups add hidden overhead to your inner loop."
+      }
+    ],
+    detectedIssues: issues,
+    diffHunks,
+    promptSuggestion: `Can you explain the loop invariants and termination conditions for ${problemTitle || "this problem"}?`
+  };
+}
+
+/**
+ * Intelligent offline Socratic chat guide when model APIs encounter 503 high demand or 429 quota exhaustion.
+ */
+function generateOfflineSocraticChatReply(options: {
+  role: string;
+  lastUserMessage: string;
+  context: any;
+}): string {
+  const { role, context } = options;
+  const pTitle = context.problemTitle || context.problemSlug || "the problem";
+  const stepNum = context.currentStep !== undefined ? context.currentStep + 1 : null;
+
+  if (role === "step_doubts" && stepNum) {
+    return `In Step ${stepNum} of "${pTitle}": The algorithm updates its pointers and tracking variables to preserve the core invariant: "${context.stepDesc || 'advancing state'}".\n\nNotice what changed in the active variables:\n- Look at where the pointers were before this step versus where they are now.\n- What condition triggered this transition?\n\nBefore taking the next step, ask yourself: what happens to the remaining search space?`;
+  }
+
+  if (role === "interviewer") {
+    return `That's a great question regarding "${pTitle}".\n\nAs your technical interviewer, let me guide you with a diagnostic checkpoint:\n1. What is the fundamental invariant you are trying to maintain across iterations?\n2. If you trace a minimal example (such as an array of 2 elements, or an empty input), where does the state first diverge?\n\nWalk me through your reasoning on what the next logical operation should be.`;
+  }
+
+  if (role === "mistake_analyzer") {
+    return `Analyzing your logic for "${pTitle}":\n- Check your indexing bounds: are you accessing elements strictly within range?\n- Ensure your base cases or termination guards handle edge constraints (e.g., empty or duplicate inputs).\n- Verify that variable updates don't prematurely mutate state needed later in the same iteration.\n\nWhich line or condition feels most uncertain to you?`;
+  }
+
+  return `Regarding "${pTitle}":\nLet's break this down into first principles. What is the current state of your data structure, and what condition determines the next state change?`;
 }
 
 // Initialize problem statements in memory from statically bundled JSON
@@ -336,49 +486,169 @@ app.delete("/api/submissions/:id", requireAuth, async (req: any, res) => {
 });
 // ---------------------
 
-// API: Multi-turn Chatbot endpoint
+// API: Multi-turn Chatbot endpoint with Socratic Interviewer & Firestore access
 app.post("/api/chat", aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       messages = [],
-      systemInstruction = "You are the expert lead architect and DSA educator for the DSA.viz project. You provide clear, technically accurate, and structured insights into data structures, algorithms, system architecture, AI contract normalizers, and interview coaching.",
-      model = "gemini-3.5-flash",
-      temperature = 0.7,
+      systemInstruction: customInstruction,
+      role = "interviewer",
+      model = "gemini-3.8-flash",
+      temperature = 0.6,
+      context = {},
+      sessionId,
     } = req.body;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "Messages array is required." });
     }
 
+    // Optional user authentication via Bearer token to enrich with Firestore submissions
+    let authenticatedUid: string | null = null;
+    let userSubmissionsContext = "";
+    let userProfileContext = "";
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const idToken = authHeader.split("Bearer ")[1];
+        const decoded = await adminAuth.verifyIdToken(idToken);
+        authenticatedUid = decoded.uid;
+
+        // Fetch user's recent submissions and profile from Firestore to allow rating submissions & analyzing activity
+        const [recentSubs, profile] = await Promise.all([
+          getSubmissions(authenticatedUid).catch(() => []),
+          getProfile(authenticatedUid).catch(() => null),
+        ]);
+
+        if (recentSubs.length > 0) {
+          userSubmissionsContext = `\n[EXACT USER FIRESTORE SUBMISSIONS HISTORY (Total: ${recentSubs.length})]:\n` +
+            recentSubs.slice(0, 15).map((s: any, idx: number) => 
+              `${idx + 1}. Problem: "${s.title || s.slug}" | Lang: ${s.lang} | Classification: ${s.classification} | Time: ${s.timeComplexity || 'N/A'} | Space: ${s.spaceComplexity || 'N/A'} | Date: ${s.createdAt}`
+            ).join("\n");
+        }
+
+        if (profile) {
+          userProfileContext = `\n[USER PROFILE METRICS]: Display Name: ${profile.displayName || 'Explorer'}, LeetCode Username: ${profile.leetcodeUsername || 'Not connected'}`;
+        }
+      } catch (authErr) {
+        // Token invalid or expired; continue without user-specific persistence
+      }
+    }
+
+    // Determine role persona and system instruction
+    let baseSystemInstruction = "";
+    if (role === "interviewer") {
+      baseSystemInstruction = `You are an elite, patient Senior Technical Interviewer and Socratic DSA Mentor at a top tech company.
+STRICT SOCRATIC INTERVIEWER LAWS:
+1. NEVER, UNDER ANY CIRCUMSTANCES, GIVE AWAY THE DIRECT CODE SOLUTION OR DIRECT ANSWER.
+2. If the user makes typing errors, syntax slips, off-by-one errors, or logical flaws, NUDGE THEM GENTLY WITHOUT OBVIOUS HINTS, exactly like a compassionate interviewer would.
+3. Ask thought-provoking, diagnostic questions (e.g., "What happens on the final iteration when right == n?", "Notice how you initialize your pointer—what happens if the array is empty?").
+4. If the user asks doubts about a problem or simulation step, explain the invariant or mechanics of the current step clearly, but ALWAYS drive the user to the final conclusion slowly on their own.
+5. If the user asks you to "rate my recent submission" or "analyze my activity", use the provided Firestore submissions history below to provide a balanced, encouraging rating with scores (out of 10) and specific areas of growth.`;
+    } else if (role === "step_doubts") {
+      baseSystemInstruction = `You are a DSA Simulation Step Guide. The user is actively stepping through an algorithm animation/simulation on DSA.viz.
+GUIDELINES:
+1. Explain what happened in the current step (why the pointers moved, why the DP cell was updated, why an item was swapped).
+2. NEVER give away the rest of the algorithm or the final answer directly. Keep the user curious and engaged in discovering the invariant.
+3. Be concise, mathematically precise, and crystal-clear about data structure state transitions.`;
+    } else if (role === "evaluator") {
+      baseSystemInstruction = `You are an expert Algorithmic Submission Reviewer. You analyze the user's code/pseudocode submissions from their Firestore records.
+Provide a clear numerical rating (1-10), analyze Time and Space complexities, highlight edge-case handling, celebrate clever insights, and outline 1-2 constructive refinements.`;
+    } else if (role === "mistake_analyzer") {
+      baseSystemInstruction = `You are an AI Code Diagnostics Expert. You identify common typing errors, syntax slips (semicolons, type mismatch, vector bounds), and logical traps (infinite loop conditions, missing base cases). Explain WHY the mistake occurred and how to spot it systematically in technical interviews.`;
+    } else {
+      baseSystemInstruction = customInstruction || "You are the expert DSA mentor and technical coach for DSA.viz.";
+    }
+
+    // Inject active problem and simulation step context if provided
+    let problemContextStr = "";
+    if (context.problemSlug || context.problemTitle) {
+      problemContextStr += `\n[CURRENT PROBLEM CONTEXT]: Problem: "${context.problemTitle || context.problemSlug}" (${context.problemSlug})`;
+      if (context.difficulty) problemContextStr += ` | Difficulty: ${context.difficulty}`;
+    }
+    if (context.userCode) {
+      problemContextStr += `\n[USER CURRENT EDITOR CODE/PSEUDOCODE]:\n\`\`\`\n${context.userCode}\n\`\`\``;
+    }
+    if (context.compilerOutput) {
+      problemContextStr += `\n[COMPILER / EXECUTION OUTPUT OR ERRORS]:\n\`\`\`\n${context.compilerOutput}\n\`\`\``;
+    }
+    if (context.currentStep !== undefined) {
+      problemContextStr += `\n[ACTIVE SIMULATION STEP CONTEXT]: Step ${context.currentStep + 1} of ${context.totalSteps || 'N/A'} | Description: "${context.stepDesc || ''}"`;
+      if (context.stepVariables) {
+        problemContextStr += ` | Step Variables State: ${JSON.stringify(context.stepVariables)}`;
+      }
+    }
+
+    const fullSystemInstruction = `${baseSystemInstruction}
+${problemContextStr}
+${userProfileContext}
+${userSubmissionsContext}`.trim();
+
     const ai = getGeminiClient();
     const allowedModels = [
-      "gemini-3.1-pro-preview",
+      "gemini-3.8-flash",
       "gemini-3.5-flash",
+      "gemini-3.1-pro-preview",
       "gemini-3.1-flash-lite",
       "gemini-3.7-flash",
     ];
-    const selectedModel = allowedModels.includes(model) ? model : "gemini-3.5-flash";
+    const selectedModel = allowedModels.includes(model) ? model : "gemini-3.8-flash";
 
     const formattedContents = messages.map((m: { role: string; content: string }) => ({
       role: m.role === "assistant" || m.role === "model" ? "model" : "user",
       parts: [{ text: m.content || "" }],
     }));
 
-    const response = await ai.models.generateContent({
-      model: selectedModel,
-      contents: formattedContents,
-      config: {
-        systemInstruction,
-        temperature: Number(temperature) || 0.7,
-      },
-    });
+    let replyText = "";
+    let finalModelUsed = selectedModel;
 
-    const replyText = response.text || "I was unable to generate a response.";
+    try {
+      const { text, modelUsed } = await generateContentWithFallback(ai, selectedModel, {
+        contents: formattedContents,
+        config: {
+          systemInstruction: fullSystemInstruction,
+          temperature: Number(temperature) || 0.6,
+        },
+      });
+      replyText = text || "I was unable to generate a response.";
+      finalModelUsed = modelUsed;
+    } catch (apiErr: any) {
+      console.warn("Chat API models failed (503/429), deploying offline Socratic mentor:", apiErr?.message || apiErr);
+      replyText = generateOfflineSocraticChatReply({
+        role,
+        lastUserMessage: messages[messages.length - 1]?.content || "",
+        context,
+      });
+      finalModelUsed = "socratic-offline-assistant";
+    }
+
+    // If authenticated, asynchronously persist chat session in Firestore
+    let activeSessionId = sessionId;
+    if (authenticatedUid) {
+      const updatedMessages = [
+        ...messages,
+        { role: "model", content: replyText, timestamp: new Date().toISOString() },
+      ];
+      try {
+        const savedSession = await saveChatSession(authenticatedUid, {
+          id: sessionId,
+          title: context.problemTitle ? `Chat: ${context.problemTitle}` : (messages[0]?.content?.slice(0, 40) || "DSA Chat"),
+          problemSlug: context.problemSlug || null,
+          role,
+          messages: updatedMessages,
+        });
+        activeSessionId = savedSession.id;
+      } catch (sessionErr) {
+        console.warn("Could not persist chat session to Firestore:", sessionErr);
+      }
+    }
 
     return res.json({
       role: "assistant",
       content: replyText,
-      modelUsed: selectedModel,
+      modelUsed: finalModelUsed,
+      sessionId: activeSessionId,
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
@@ -387,6 +657,340 @@ app.post("/api/chat", aiLimiter, async (req: Request, res: Response) => {
       error: error.message || "Failed to process chat request.",
       details: error.toString(),
     });
+  }
+});
+
+// API: Code Diff & Interviewer Nudge Panel Endpoint
+app.post("/api/code-diff-nudge", aiLimiter, async (req: Request, res: Response) => {
+  try {
+    const {
+      code = "",
+      pseudocode = "",
+      problemSlug = "",
+      problemTitle = "",
+      difficulty = "Medium",
+      topics = [],
+      compilerError = "",
+    } = req.body;
+
+    const sourceCode = (code || pseudocode || "").trim();
+    if (!sourceCode) {
+      return res.status(400).json({ error: "Code or pseudocode is required." });
+    }
+
+    const ai = getGeminiClient();
+
+    const prompt = `Analyze the user's algorithmic code/pseudocode for the problem "${problemTitle || problemSlug}" (${difficulty}).
+Identify if there are any typing mistakes, syntax slips, off-by-one errors, boundary omissions, or logical flaws.
+CRITICAL CONSTRAINT: You must act as a SOCRATIC INTERVIEWER. You must NEVER give away the complete code solution or direct answer!
+Generate 3 progressive levels of interviewer nudges (Level 1: Gentle thought, Level 2: Directional clue, Level 3: Deep invariant question).
+
+USER CODE:
+\`\`\`
+${sourceCode}
+\`\`\`
+
+COMPILER / RUNTIME OUTPUT:
+\`\`\`
+${compilerError || "None provided"}
+\`\`\`
+
+Return a strictly valid JSON object matching this schema:
+{
+  "hasErrors": boolean,
+  "summary": "Brief 1-2 sentence overview of code health without revealing the answer",
+  "interviewerNudges": [
+    { "level": 1, "title": "Gentle Check", "text": "Subtle question about loop bounds or variable types" },
+    { "level": 2, "title": "Directional Clue", "text": "More focused clue on line or condition behavior" },
+    { "level": 3, "title": "Deep Invariant", "text": "Thought experiment testing an edge case like empty array or negative numbers" }
+  ],
+  "detectedIssues": [
+    {
+      "line": 1,
+      "type": "syntax" | "typing" | "logic" | "edge_case",
+      "severity": "error" | "warning",
+      "description": "Specific issue explanation",
+      "suggestionHint": "Socratic question to fix it without giving answer"
+    }
+  ],
+  "diffHunks": [
+    {
+      "line": 1,
+      "code": "Original line string",
+      "status": "clean" | "warning" | "error",
+      "hint": "Interviewer note for this line"
+    }
+  ],
+  "promptSuggestion": "Suggested question the user can ask the AI interviewer"
+}`;
+
+    const { text } = await generateContentWithFallback(ai, "gemini-3.8-flash", {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.3,
+      },
+    });
+
+    const parsed = JSON.parse(text || "{}");
+    return res.json(parsed);
+  } catch (error: any) {
+    console.warn("Code diff nudge fallback to heuristic analysis:", error?.message || error);
+    // Provide deterministic offline heuristic analysis so UI never breaks with 500 error
+    const offlineResult = generateOfflineDiffAnalysis(
+      sourceCode,
+      problemTitle,
+      problemSlug,
+      difficulty,
+      compilerError
+    );
+    return res.json(offlineResult);
+  }
+});
+
+// API: Rate Submission Endpoint
+app.post("/api/rate-submission", aiLimiter, async (req: Request, res: Response) => {
+  try {
+    const {
+      code = "",
+      pseudocode = "",
+      problemSlug = "",
+      problemTitle = "",
+      difficulty = "Medium",
+      submissionId = "",
+    } = req.body;
+
+    const sourceCode = (code || pseudocode || "").trim();
+    if (!sourceCode) {
+      return res.status(400).json({ error: "Submission code is required." });
+    }
+
+    const ai = getGeminiClient();
+
+    const prompt = `You are a senior algorithmic hiring reviewer. Evaluate this algorithmic submission for "${problemTitle || problemSlug}" (${difficulty}).
+Rate the submission strictly and constructivley.
+
+SUBMISSION:
+\`\`\`
+${sourceCode}
+\`\`\`
+
+Return a strictly valid JSON object matching this schema:
+{
+  "overallScore": 8.5,
+  "grade": "S" | "A" | "B" | "C" | "D",
+  "cleanlinessScore": 8,
+  "optimalityScore": 9,
+  "edgeCaseScore": 8,
+  "verdict": "Optimal" | "Good" | "Needs Refinement" | "Incomplete",
+  "timeComplexity": "O(N)",
+  "spaceComplexity": "O(1)",
+  "strengths": ["Clear naming conventions", "Optimal two-pointer approach"],
+  "improvements": ["Guard against empty input array"],
+  "interviewerFeedback": "Detailed constructive paragraph providing encouragement and senior perspective."
+}`;
+
+    const { text } = await generateContentWithFallback(ai, "gemini-3.8-flash", {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.4,
+      },
+    });
+
+    const ratingData = JSON.parse(text || "{}");
+
+    // If user is authenticated and submissionId provided, update rating in Firestore
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ") && submissionId) {
+      try {
+        const idToken = authHeader.split("Bearer ")[1];
+        const decoded = await adminAuth.verifyIdToken(idToken);
+        const subDoc = adminDb.collection("users").doc(decoded.uid).collection("submissions").doc(submissionId);
+        await subDoc.set({
+          rating: ratingData.overallScore,
+          ratingGrade: ratingData.grade,
+          ratingData,
+        }, { merge: true });
+      } catch (dbErr) {
+        console.warn("Could not update submission rating in Firestore:", dbErr);
+      }
+    }
+
+    return res.json(ratingData);
+  } catch (error: any) {
+    console.error("Rate submission error:", error);
+    return res.status(500).json({ error: "Failed to rate submission." });
+  }
+});
+
+// API: Generate Common Mistakes & Diagnostics Report from Profile
+app.post("/api/generate-mistakes-report", aiLimiter, async (req: Request, res: Response) => {
+  try {
+    let userId: string | null = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const idToken = authHeader.split("Bearer ")[1];
+        const decoded = await adminAuth.verifyIdToken(idToken);
+        userId = decoded.uid;
+      } catch (e) {
+        // Not authenticated
+      }
+    }
+
+    // Retrieve user submissions from Firestore if authenticated
+    let userSubmissions: any[] = [];
+    if (userId) {
+      userSubmissions = await getSubmissions(userId).catch(() => []);
+    }
+
+    // Allow fallback or manual payload if user passed submissions in body
+    if ((!userSubmissions || userSubmissions.length === 0) && Array.isArray(req.body.submissions)) {
+      userSubmissions = req.body.submissions;
+    }
+
+    const ai = getGeminiClient();
+
+    const submissionsSummary = userSubmissions.length > 0
+      ? userSubmissions.slice(0, 30).map((s, idx) => `
+[Submission ${idx + 1}]:
+Problem: ${s.title || s.slug} (${s.difficulty || 'Medium'})
+Classification: ${s.classification}
+Code Snippet:
+${(s.code || s.pseudocode || "").slice(0, 500)}
+Review Notes: ${s.review || s.nudge || "None"}
+`).join("\n---\n")
+      : "No previous submissions found. Provide a foundational diagnostic assessment of common DSA mistakes made by technical interview candidates.";
+
+    const prompt = `You are a Senior Algorithm Diagnostic Specialist at DSA.viz.
+Perform a comprehensive diagnostic analysis of this candidate's common syntax, typing, and logical mistakes based on their actual submission history.
+
+SUBMISSIONS DATA (${userSubmissions.length} submissions analyzed):
+${submissionsSummary}
+
+Produce a structured, deeply analytical diagnostics report.
+Return a strictly valid JSON object matching this schema:
+{
+  "reportTitle": "Candidate Algorithmic & Syntax Diagnostics Report",
+  "totalSubmissionsAnalyzed": ${userSubmissions.length},
+  "overallReadinessScore": 82,
+  "summary": "Executive summary of developer coding habits, syntax precision, and algorithmic intuition.",
+  "commonSyntaxMistakes": [
+    {
+      "mistake": "Unchecked Vector Boundaries / Off-By-One Indexing",
+      "frequency": "High" | "Medium" | "Low",
+      "impact": "Runtime Out of Bounds or Segfault",
+      "examplePattern": "for (int i = 0; i <= n; i++) accessing arr[i]",
+      "correctiveRule": "Use strict inequality or size() - 1 limits with explicit guard conditions."
+    }
+  ],
+  "commonTypingMistakes": [
+    {
+      "mistake": "Assignment vs Equality Comparison",
+      "description": "Accidentally writing 'if (x = 0)' instead of 'if (x == 0)'",
+      "proactiveTip": "Adopt Yoda condition style or enable strict compiler warning -Wparentheses"
+    }
+  ],
+  "logicalFlaws": [
+    {
+      "pattern": "Missing Base Case on Recursion / Edge Condition on Empty Array",
+      "occurrence": "Observed in 28% of attempts",
+      "whyItHappens": "Rushing straight into the recurrence relation without establishing foundational invariant state.",
+      "remediationStrategy": "Always write the return statement for empty/single-element inputs before writing loop."
+    }
+  ],
+  "complexityTraps": [
+    {
+      "pattern": "Hidden O(N) calls inside loops",
+      "impact": "Degrades O(N) to O(N^2)",
+      "example": "Calling .includes() or vector copy inside loop",
+      "fix": "Pre-populate hash set or pass by const reference"
+    }
+  ],
+  "topStrengths": [
+    "Strong grasp of two-pointer paradigms",
+    "Clean code formatting and descriptive variable naming"
+  ],
+  "actionPlan": [
+    {
+      "step": 1,
+      "title": "Drill Boundary Edge Cases",
+      "description": "Focus on empty string, single element array, and integer overflow constraints.",
+      "recommendedProblems": ["Two Sum", "Valid Palindrome", "Binary Search"]
+    },
+    {
+      "step": 2,
+      "title": "Invariant Checkpoints",
+      "description": "State your loop invariant in a one-line comment before writing the loop body.",
+      "recommendedProblems": ["Container With Most Water", "3Sum"]
+    }
+  ]
+}`;
+
+    const { text } = await generateContentWithFallback(ai, "gemini-3.8-flash", {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.3,
+      },
+    });
+
+    const reportData = JSON.parse(text || "{}");
+
+    // Save report to Firestore if user authenticated
+    let savedReportId = null;
+    if (userId) {
+      try {
+        const saved = await saveAiReport(userId, {
+          title: reportData.reportTitle || "Algorithmic Diagnostics Report",
+          totalSubmissions: userSubmissions.length,
+          reportData,
+        });
+        savedReportId = saved.id;
+      } catch (saveErr) {
+        console.warn("Could not save AI report to Firestore:", saveErr);
+      }
+    }
+
+    return res.json({
+      reportId: savedReportId,
+      ...reportData,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error("Generate mistakes report error:", error);
+    return res.status(500).json({ error: "Failed to generate diagnostic report." });
+  }
+});
+
+// API: Get User's Past Saved Diagnostic Reports
+app.get("/api/user-reports", requireAuth, async (req: any, res: Response) => {
+  try {
+    const reports = await getUserAiReports(req.user.uid);
+    res.json(reports);
+  } catch (error) {
+    console.error("Failed to get user AI reports:", error);
+    res.json([]);
+  }
+});
+
+// API: Get & Save Chat Sessions
+app.get("/api/chat-sessions", requireAuth, async (req: any, res: Response) => {
+  try {
+    const sessions = await getUserChatSessions(req.user.uid);
+    res.json(sessions);
+  } catch (error) {
+    res.json([]);
+  }
+});
+
+app.post("/api/chat-sessions", requireAuth, async (req: any, res: Response) => {
+  try {
+    const session = await saveChatSession(req.user.uid, req.body);
+    res.json(session);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to save chat session" });
   }
 });
 

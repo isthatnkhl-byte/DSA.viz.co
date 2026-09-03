@@ -262,3 +262,116 @@ export async function deleteUserSubmission(userId: string, submissionId: string)
     return false;
   }
 }
+
+/**
+ * Retrieves AI-generated diagnostic reports for the user.
+ */
+export async function getUserAiReports(userId: string): Promise<any[]> {
+  const path = `users/${userId}/ai_reports`;
+  try {
+    const reportsRef = collection(db, "users", userId, "ai_reports");
+    const q = query(reportsRef, orderBy("createdAt", "desc"), limit(20));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
+  } catch (error) {
+    console.warn("Could not retrieve AI reports from Firestore:", error);
+    return [];
+  }
+}
+
+/**
+ * Saves a new AI-generated diagnostic report to Firestore.
+ */
+export async function saveUserAiReport(userId: string, reportData: any): Promise<any> {
+  const path = `users/${userId}/ai_reports`;
+  try {
+    const reportsRef = collection(db, "users", userId, "ai_reports");
+    const docData = {
+      ...reportData,
+      createdAt: reportData.createdAt || new Date().toISOString(),
+    };
+    const docRef = await addDoc(reportsRef, docData);
+    return {
+      id: docRef.id,
+      ...docData,
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+    throw error;
+  }
+}
+
+/**
+ * Retrieves chat sessions for the user.
+ */
+export async function getUserChatSessions(userId: string): Promise<any[]> {
+  const path = `users/${userId}/chat_sessions`;
+  try {
+    const chatRef = collection(db, "users", userId, "chat_sessions");
+    const q = query(chatRef, orderBy("updatedAt", "desc"), limit(20));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
+  } catch (error) {
+    console.warn("Could not retrieve chat sessions from Firestore:", error);
+    return [];
+  }
+}
+
+/**
+ * Saves or updates a multi-turn chat session in Firestore.
+ */
+export async function saveUserChatSession(userId: string, sessionData: any): Promise<any> {
+  const path = `users/${userId}/chat_sessions`;
+  try {
+    const now = new Date().toISOString();
+    if (sessionData.id) {
+      const docRef = doc(db, "users", userId, "chat_sessions", sessionData.id);
+      const updateData = {
+        title: sessionData.title || "DSA Conversation",
+        problemSlug: sessionData.problemSlug || null,
+        role: sessionData.role || "interviewer",
+        messages: sessionData.messages || [],
+        updatedAt: now,
+      };
+      await setDoc(docRef, updateData, { merge: true });
+      return { id: sessionData.id, ...updateData };
+    } else {
+      const chatRef = collection(db, "users", userId, "chat_sessions");
+      const newDoc = {
+        title: sessionData.title || "DSA Conversation",
+        problemSlug: sessionData.problemSlug || null,
+        role: sessionData.role || "interviewer",
+        messages: sessionData.messages || [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      const docRef = await addDoc(chatRef, newDoc);
+      return { id: docRef.id, ...newDoc };
+    }
+  } catch (error) {
+    console.warn("Could not save chat session to Firestore:", error);
+    return sessionData;
+  }
+}
+
+/**
+ * Logs user activity to Firestore.
+ */
+export async function logUserActivity(userId: string, activity: { type: string; problemSlug?: string | null; metadata?: any }): Promise<void> {
+  try {
+    const actRef = collection(db, "users", userId, "activity");
+    await addDoc(actRef, {
+      ...activity,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.warn("Failed to log activity:", error);
+  }
+}
+

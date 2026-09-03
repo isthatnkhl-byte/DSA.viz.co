@@ -47,16 +47,16 @@ export const THEME_OPTIONS: ThemeOption[] = [
   {
     id: "amber",
     name: "Sunset Amber",
-    label: "Sunset Amber & Orange",
+    label: "Sunset Amber & Magenta",
     previewColor: "oklch(0.80 0.17 65)",
-    accentColor: "oklch(0.74 0.18 25)",
+    accentColor: "oklch(0.70 0.20 340)",
   },
   {
     id: "crimson",
     name: "Crimson Red",
-    label: "Crimson Red & Coral",
+    label: "Crimson Red & Magenta",
     previewColor: "oklch(0.70 0.22 25)",
-    accentColor: "oklch(0.78 0.17 65)",
+    accentColor: "oklch(0.65 0.22 345)",
   },
   {
     id: "rose",

@@ -424,9 +424,12 @@ export function classifyProblem(
   // 20. HASH MAP PAIR & COMPLEMENT SEARCH
   if (
     !s.includes("two-sum-ii") &&
-    /two-sum|3sum-with-multiplicity|4sum-ii|subarray-sum-equals-k|continuous-subarray-sum/.test(
+    (/two-sum|3sum-with-multiplicity|4sum-ii|subarray-sum-equals-k|continuous-subarray-sum/.test(
       s,
-    )
+    ) ||
+      (hasTopic("hash table") &&
+        !hasTopic("two pointers", "sliding window", "binary search") &&
+        /sum|target|pair|complement|diff/i.test(s)))
   ) {
     return {
       category: "hashmap",

@@ -1,6 +1,6 @@
+import { useAuth } from "@/hooks/useAuth";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
@@ -19,6 +19,7 @@ import { LeetCodeHeatmap } from "@/components/dashboard/LeetCodeHeatmap";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Visualizer } from "@/components/Visualizer";
 import { AnalyticsCharts } from "@/components/dashboard/AnalyticsCharts";
+import { AiMistakesSection } from "@/components/dashboard/AiMistakesSection";
 import { Button } from "@/components/ui/button";
 import { listSubmissions, deleteSubmission, getProfileStats, type Submission } from "@/lib/submissions.functions";
 import { toast } from "sonner";
@@ -54,25 +55,68 @@ const badgeFor = (c: string) =>
         : "bg-purple-500/20 text-purple-300 border-purple-400/60 shadow-xs shadow-purple-500/25 font-extrabold";
 
 function Dashboard() {
-  const fetchAll = useServerFn(listSubmissions);
-  const remove = useServerFn(deleteSubmission);
+  const { token } = useAuth();
   const qc = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
-  const fetchStats = useServerFn(getProfileStats);
+
   const { data: statsData } = useQuery({
     queryKey: ["profileStats"],
-    queryFn: () => fetchStats(),
+    queryFn: async () => {
+      if (!token) throw new Error("No token");
+      const [profileRes, subsRes] = await Promise.all([
+        fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/submissions", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (!profileRes.ok || !subsRes.ok) throw new Error("Failed to load stats");
+      const profile = await profileRes.json();
+      const subs = await subsRes.json();
+      const subsArray = Array.isArray(subs) ? subs : [];
+      const completeRows = subsArray.filter((r: any) => r.classification !== "Incomplete");
+      const solved = new Set(completeRows.map((r: any) => r.slug));
+      const optimal = new Set(
+        completeRows.filter((r: any) => r.classification === "Optimal").map((r: any) => r.slug),
+      );
+      const byDifficulty = {
+        Easy: new Set(completeRows.filter((r: any) => r.difficulty === "Easy").map((r: any) => r.slug)),
+        Medium: new Set(completeRows.filter((r: any) => r.difficulty === "Medium").map((r: any) => r.slug)),
+        Hard: new Set(completeRows.filter((r: any) => r.difficulty === "Hard").map((r: any) => r.slug)),
+      };
+      return {
+        profile,
+        attempts: subsArray.length,
+        solved: solved.size,
+        optimal: optimal.size,
+        easy: byDifficulty.Easy.size,
+        medium: byDifficulty.Medium.size,
+        hard: byDifficulty.Hard.size,
+      };
+    },
+    enabled: !!token,
   });
-  const leetcodeStats = statsData?.profile?.leetcode_stats;
 
+  const leetcodeStats = statsData?.profile?.leetcode_stats;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["submissions"],
-    queryFn: () => fetchAll(),
+    queryFn: async () => {
+      if (!token) return [];
+      const res = await fetch("/api/submissions", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: !!token,
   });
 
   const del = useMutation({
-    mutationFn: (id: string) => remove({ data: { id: id.toString() } }),
+    mutationFn: async (id: string) => {
+      if (!token) throw new Error("No token");
+      const res = await fetch(`/api/submissions/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to delete");
+      return res.json();
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["submissions"] });
       toast.success("Attempt removed from your dashboard");
@@ -170,6 +214,8 @@ function Dashboard() {
 
         {rows.length > 0 && <AnalyticsCharts submissions={rows} />}
 
+        {/* AI Mistake Diagnostics & Common Patterns Report */}
+        <AiMistakesSection className="mb-8" />
 
         {isLoading ? (
           <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/80 bg-card/40 p-8 text-center animate-pulse">

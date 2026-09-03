@@ -45,7 +45,7 @@ export function ThemeSwitchBanner() {
         <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground hidden md:inline mr-1">
           Glow:
         </span>
-        {THEME_OPTIONS.slice(0, 5).map((opt) => {
+        {THEME_OPTIONS.map((opt) => {
           const isSelected = opt.id === theme;
           return (
             <button

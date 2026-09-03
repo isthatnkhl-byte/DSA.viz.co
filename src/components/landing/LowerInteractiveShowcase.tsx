@@ -20,7 +20,7 @@ export function LowerInteractiveShowcase() {
     <section className="relative py-20 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto w-full my-12 overflow-hidden">
       {/* Dynamic Background Glow Canvas */}
       <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-accent/15 to-transparent rounded-3xl blur-3xl -z-10 pointer-events-none" />
-      <div className="absolute -bottom-10 left-1/4 w-[500px] h-[300px] bg-emerald-500/10 blur-[130px] rounded-full pointer-events-none" />
+      <div className="absolute -bottom-10 left-1/4 w-[500px] h-[300px] bg-accent/10 blur-[130px] rounded-full pointer-events-none" />
       <div className="absolute -top-10 right-1/4 w-[500px] h-[300px] bg-primary/15 blur-[130px] rounded-full pointer-events-none" />
 
       {/* Header Container */}
@@ -30,7 +30,8 @@ export function LowerInteractiveShowcase() {
           <span>Interactive Spatial Playground</span>
         </div>
         <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-black tracking-tight text-foreground">
-          Visual Algorithm Showroom
+          Visual Algorithm <br />
+          <span className="font-pixel text-4xl sm:text-5xl md:text-6xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent py-2 block mt-6 mb-4 drop-shadow-[0_0_20px_color-mix(in_oklch,var(--primary)_60%,transparent)]">Showroom</span>
         </h2>
         <p className="mt-3 text-sm sm:text-base text-muted-foreground font-sans leading-relaxed">
           Watch key algorithms execute step-by-step with vivid color states, pointer convergence, state grids, and graph traversals.
@@ -40,8 +41,8 @@ export function LowerInteractiveShowcase() {
         <div className="flex flex-wrap items-center justify-center gap-2 mt-8 p-1.5 rounded-2xl bg-card/80 border border-border/80 backdrop-blur-xl w-fit mx-auto shadow-lg">
           {[
             { id: "sorting", label: "QuickSort Partition", icon: TrendingUp, color: "text-amber-400" },
-            { id: "graph", label: "Graph BFS / Shortest Path", icon: GitGraph, color: "text-emerald-400" },
-            { id: "tree", label: "Binary Search Tree", icon: Binary, color: "text-cyan-400" },
+            { id: "graph", label: "Graph BFS / Shortest Path", icon: GitGraph, color: "text-primary" },
+            { id: "tree", label: "Binary Search Tree", icon: Binary, color: "text-accent" },
             { id: "dp", label: "DP 2D Matrix (Knapsack)", icon: Boxes, color: "text-purple-400" },
           ].map((tab) => {
             const isSelected = activeTab === tab.id;
@@ -168,7 +169,7 @@ function QuickSortVisualizer({ isPlaying, setIsPlaying }: { isPlaying: boolean; 
           } else if (isCompare) {
             barColor = "bg-rose-500 border-rose-400 text-white shadow-[0_0_16px_rgba(244,63,94,0.6)]";
           } else if (isSmaller) {
-            barColor = "bg-cyan-500 border-cyan-400 text-cyan-950 shadow-[0_0_12px_rgba(6,182,212,0.4)]";
+            barColor = "bg-accent border-accent text-accent-foreground shadow-[0_0_12px_color-mix(in_oklch,var(--accent)_50%,transparent)]";
           }
 
           return (
@@ -192,7 +193,7 @@ function QuickSortVisualizer({ isPlaying, setIsPlaying }: { isPlaying: boolean; 
                 <span className="font-mono text-[9px] font-bold h-4">
                   {isPivot && <span className="text-amber-400">PIVOT</span>}
                   {isCompare && <span className="text-rose-400">j (scan)</span>}
-                  {isSmaller && <span className="text-cyan-400">i (bound)</span>}
+                  {isSmaller && <span className="text-accent">i (bound)</span>}
                   {isSorted && <span className="text-emerald-400">✓</span>}
                 </span>
               </div>
@@ -212,7 +213,7 @@ function QuickSortVisualizer({ isPlaying, setIsPlaying }: { isPlaying: boolean; 
           <span className="text-muted-foreground">Current Scanning Pointer (j)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="size-3 rounded-md bg-cyan-500 shadow-sm" />
+          <span className="size-3 rounded-md bg-accent shadow-sm" />
           <span className="text-muted-foreground">Smaller Sub-boundary (i)</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -455,15 +456,15 @@ function BstTraversalVisualizer({ isPlaying, setIsPlaying }: { isPlaying: boolea
       {/* Top Status */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-4">
         <div>
-          <span className="font-mono text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-cyan-400 animate-ping" />
+          <span className="font-mono text-xs font-bold text-accent uppercase tracking-wider flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-accent animate-ping" />
             Binary Search Tree • Target = 27
           </span>
           <p className="font-mono text-sm font-semibold text-foreground mt-1">{curr.msg}</p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="font-mono text-xs rounded-xl bg-cyan-500/10 border border-cyan-500/30 px-3 py-1 text-cyan-400 font-bold">
+          <span className="font-mono text-xs rounded-xl bg-accent/10 border border-accent/30 px-3 py-1 text-accent font-bold">
             Comparisons: {curr.path.length} / 4
           </span>
         </div>
@@ -473,13 +474,13 @@ function BstTraversalVisualizer({ isPlaying, setIsPlaying }: { isPlaying: boolea
       <div className="relative h-80 sm:h-96 w-full rounded-2xl bg-background/80 border border-border/60 p-4 shadow-inner">
         {/* SVG Edges */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          <line x1="50%" y1="15%" x2="28%" y2="42%" stroke="#38bdf8" strokeWidth={curr.path.includes(25) ? "3" : "1.5"} opacity={curr.path.includes(25) ? 1 : 0.25} />
+          <line x1="50%" y1="15%" x2="28%" y2="42%" stroke="var(--accent)" strokeWidth={curr.path.includes(25) ? "3" : "1.5"} opacity={curr.path.includes(25) ? 1 : 0.25} />
           <line x1="50%" y1="15%" x2="72%" y2="42%" stroke="#64748b" strokeWidth="1.5" opacity="0.25" />
           <line x1="28%" y1="42%" x2="18%" y2="72%" stroke="#64748b" strokeWidth="1.5" opacity="0.25" />
-          <line x1="28%" y1="42%" x2="38%" y2="72%" stroke="#38bdf8" strokeWidth={curr.path.includes(35) ? "3" : "1.5"} opacity={curr.path.includes(35) ? 1 : 0.25} />
+          <line x1="28%" y1="42%" x2="38%" y2="72%" stroke="var(--accent)" strokeWidth={curr.path.includes(35) ? "3" : "1.5"} opacity={curr.path.includes(35) ? 1 : 0.25} />
           <line x1="72%" y1="42%" x2="62%" y2="72%" stroke="#64748b" strokeWidth="1.5" opacity="0.25" />
           <line x1="72%" y1="42%" x2="82%" y2="72%" stroke="#64748b" strokeWidth="1.5" opacity="0.25" />
-          <line x1="38%" y1="72%" x2="34%" y2="92%" stroke="#38bdf8" strokeWidth={curr.path.includes(27) ? "3" : "1.5"} opacity={curr.path.includes(27) ? 1 : 0.25} />
+          <line x1="38%" y1="72%" x2="34%" y2="92%" stroke="var(--accent)" strokeWidth={curr.path.includes(27) ? "3" : "1.5"} opacity={curr.path.includes(27) ? 1 : 0.25} />
         </svg>
 
         {BST_NODES.map((n) => {
@@ -491,9 +492,9 @@ function BstTraversalVisualizer({ isPlaying, setIsPlaying }: { isPlaying: boolea
           if (isTargetFound) {
             style = "border-emerald-400 bg-emerald-500 text-emerald-950 font-black shadow-[0_0_25px_rgba(16,185,129,0.8)] scale-125 animate-bounce";
           } else if (isCurrent) {
-            style = "border-cyan-400 bg-cyan-500 text-cyan-950 font-black shadow-[0_0_20px_rgba(56,189,248,0.8)] scale-110";
+            style = "border-accent bg-accent text-accent-foreground font-black shadow-[0_0_20px_color-mix(in_oklch,var(--accent)_80%,transparent)] scale-110";
           } else if (isVisited) {
-            style = "border-cyan-500/60 bg-cyan-500/20 text-cyan-300 font-bold";
+            style = "border-accent/60 bg-accent/20 text-accent font-bold";
           }
 
           return (

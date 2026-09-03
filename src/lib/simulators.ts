@@ -1459,6 +1459,22 @@ function islandMaxArea(matrixInput?: (number | string)[][]): VizBundle {
       const nk = `${nr},${nc}`;
       if (inBounds(nr, nc) && Number(matrix[nr]?.[nc]) === 1 && !visited.includes(nk)) {
         area += dfs(nr, nc, `(${r}, ${c})`, dname);
+        // Backtrack step: return pointer to parent coordinate so transitions are strictly continuous
+        steps.push({
+          type: "matrix",
+          matrix,
+          cols,
+          current: k,
+          visited: [...visited],
+          islandCells: [...islandCells],
+          direction: `RETURN from ${dname}`,
+          wSum: currentArea,
+          mSum: maxArea,
+          currentArea,
+          maxArea,
+          line: 14,
+          desc: `Backtrack to parent cell (${r}, ${c}) to explore remaining directions.`,
+        });
       }
     }
     return area;
@@ -1635,6 +1651,20 @@ function islandCount(matrixInput?: (number | string)[][]): VizBundle {
       const nk = `${nr},${nc}`;
       if (inBounds(nr, nc) && Number(matrix[nr]?.[nc]) === 1 && !visited.includes(nk)) {
         dfs(nr, nc, `(${r}, ${c})`, dname);
+        // Backtrack step: return pointer to parent coordinate so transitions are strictly continuous
+        steps.push({
+          type: "matrix",
+          matrix,
+          cols,
+          current: k,
+          visited: [...visited],
+          islandCells: [...islandCells],
+          direction: `RETURN from ${dname}`,
+          wSum: count,
+          mSum: count,
+          line: 12,
+          desc: `Backtrack to parent cell (${r}, ${c}) to continue component traversal.`,
+        });
       }
     }
   }

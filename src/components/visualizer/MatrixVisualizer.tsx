@@ -272,30 +272,36 @@ export function MatrixVisualizer({
                 {/* Cells in this row */}
                 {row.slice(0, cols).map((val, c) => {
                   const cellKey = `${r},${c}`;
-                  const flatIdx = r * cols + c;
 
+                  // Strict coordinate matching only; never match scalar index numbers to 2D coordinates
                   const isCoordActive = typeof left === "number" && typeof right === "number" && left === r && right === c;
-                  const isActive = isCoordActive || currentKey === cellKey || currentKey === String(flatIdx);
+                  const isActive = isCoordActive || currentKey === cellKey;
                   const isTopDependency = typeof left === "number" && typeof right === "number" && left > 0 && r === left - 1 && c === right;
                   const isLeftDependency = typeof left === "number" && typeof right === "number" && right > 0 && r === left && c === right - 1;
                   const isDependencyCell = !isActive && (isTopDependency || isLeftDependency);
 
-                  const isVisited = seenKeys.has(cellKey) || seenKeys.has(String(flatIdx));
+                  const isVisited = seenKeys.has(cellKey);
                   const isCurrentActiveIsland =
                     activeIslandSet.has(cellKey) || (isActive && (Number(val) === 1 || isVisited));
-                  const isLand =
+                  
+                  // Water cells must never mutate into land even when probed by DFS/BFS
+                  const isRawWater = Number(val) === 0 || String(val).toLowerCase() === "water";
+                  const isWater = isRawWater && !activeIslandSet.has(cellKey);
+                  const isLand = !isWater && (
                     Number(val) === 1 ||
                     String(val).toLowerCase() === "land" ||
                     isVisited ||
-                    isCurrentActiveIsland;
-                  const isWater = !isLand && (Number(val) === 0 || String(val).toLowerCase() === "water");
+                    isCurrentActiveIsland
+                  );
 
                   return (
                     <div
                       key={`cell-${r}-${c}`}
                       className={`relative flex size-12 flex-col items-center justify-center rounded-xl border font-mono transition-all duration-300 select-none ${
                         isActive
-                          ? "z-20 scale-110 border-primary bg-primary text-primary-foreground shadow-xl shadow-primary/50 ring-4 ring-primary/40 font-black animate-bounce-short"
+                          ? isWater
+                            ? "z-20 scale-110 border-amber-400 bg-amber-500/30 text-amber-200 shadow-xl shadow-amber-500/40 ring-4 ring-amber-400/40 font-black animate-bounce-short"
+                            : "z-20 scale-110 border-primary bg-primary text-primary-foreground shadow-xl shadow-primary/50 ring-4 ring-primary/40 font-black animate-bounce-short"
                           : isDependencyCell
                             ? "z-10 border-indigo-400/90 bg-indigo-500/25 text-indigo-200 shadow-md shadow-indigo-500/20 ring-2 ring-indigo-400/50 font-bold scale-[1.03]"
                             : isCurrentActiveIsland

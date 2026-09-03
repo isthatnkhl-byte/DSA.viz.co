@@ -1,6 +1,17 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Sparkles, ArrowLeft, ShieldCheck, CheckCircle2, UserCheck, KeyRound, AlertCircle } from "lucide-react";
+import { 
+  Sparkles, 
+  ArrowLeft, 
+  ShieldCheck, 
+  CheckCircle2, 
+  UserCheck, 
+  AlertCircle, 
+  Copy, 
+  Check, 
+  ExternalLink,
+  Info
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -18,7 +29,7 @@ export const Route = createFileRoute("/auth")({
       { property: "og:title", content: "Sign in — DSA.viz" },
       {
         property: "og:description",
-        content: "Save your DSA interview attempts and track progress across 200+ problems.",
+        content: "Save your DSA interview attempts and track progress across 1500+ problems.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -32,6 +43,11 @@ function AuthPage() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedHost, setCopiedHost] = useState(false);
+
+  const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
+  const isUnauthorizedDomain =
+    Boolean(error && (error.includes("unauthorized-domain") || error.includes("Authorized Domains") || error.includes("Authorized Domain")));
 
   useEffect(() => {
     if (user) {
@@ -49,9 +65,14 @@ function AuthPage() {
         navigate({ to: "/dashboard", replace: true });
       }
     } catch (err: any) {
-      console.error(err);
-      setError(err?.message || "Failed to initiate Google OAuth sign-in");
-      toast.error("Could not sign in with Google.");
+      console.warn("Google sign-in caught:", err);
+      const msg = err?.message || "Failed to initiate Google OAuth sign-in";
+      setError(msg);
+      if (err?.code === "auth/unauthorized-domain" || msg.includes("unauthorized-domain")) {
+        toast.error("Domain needs to be authorized in Firebase Console.");
+      } else {
+        toast.error("Could not sign in with Google.");
+      }
     } finally {
       setBusy(false);
     }
@@ -62,7 +83,7 @@ function AuthPage() {
     setError(null);
     try {
       await signInWithGuest();
-      toast.success("Signed in as Guest Explorer!");
+      toast.success("Signed in as Guest Developer!");
       navigate({ to: "/dashboard", replace: true });
     } catch (err: any) {
       setError(err?.message || "Could not sign in as guest.");
@@ -71,10 +92,19 @@ function AuthPage() {
     }
   }
 
+  const handleCopyHost = () => {
+    if (currentHost) {
+      navigator.clipboard.writeText(currentHost);
+      setCopiedHost(true);
+      toast.success(`Copied "${currentHost}" to clipboard`);
+      setTimeout(() => setCopiedHost(false), 2500);
+    }
+  };
+
   return (
     <div className="min-h-screen pb-20">
       <SiteHeader />
-      <main className="mx-auto flex w-full max-w-md flex-col items-center px-4 py-16 text-center">
+      <main className="mx-auto flex w-full max-w-lg flex-col items-center px-4 py-12 text-center">
         <Link
           to="/"
           className="group mb-8 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
@@ -84,7 +114,7 @@ function AuthPage() {
         </Link>
 
         {/* Card */}
-        <div className="w-full rounded-2xl border border-border/80 bg-card/75 p-8 shadow-sm backdrop-blur-sm animate-rise">
+        <div className="w-full rounded-2xl border border-border/80 bg-card/75 p-6 sm:p-8 shadow-sm backdrop-blur-sm animate-rise">
           <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm shadow-primary/20">
             <Sparkles className="size-7 animate-pulse" />
           </div>
@@ -98,15 +128,15 @@ function AuthPage() {
 
           <div className="my-6 space-y-2 text-left font-mono text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="size-3.5 text-success shrink-0" />
+              <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0" />
               <span>Full Firebase OAuth &amp; Profile Sync</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="size-3.5 text-success shrink-0" />
+              <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0" />
               <span>Connect LeetCode Heatmap &amp; Submissions</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="size-3.5 text-success shrink-0" />
+              <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0" />
               <span>Save pseudocode &amp; AI complexity verdicts</span>
             </div>
           </div>
@@ -158,8 +188,70 @@ function AuthPage() {
             </Button>
           </div>
 
-          {error ? (
-            <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
+          {/* Domain Authorization Notice Box */}
+          {isUnauthorizedDomain ? (
+            <div className="mt-5 text-left rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 font-mono text-xs text-amber-200/90 shadow-sm animate-in fade-in duration-200">
+              <div className="flex items-center gap-2 font-bold text-amber-400">
+                <Info className="size-4 shrink-0" />
+                <span>Firebase Authorized Domain Required</span>
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground font-sans">
+                Google OAuth requires this preview domain to be allowlisted in the Firebase project console:
+              </p>
+
+              <div className="my-2.5 flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-background/80 px-3 py-1.5">
+                <code className="text-[11px] font-mono font-semibold text-primary truncate">
+                  {currentHost}
+                </code>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleCopyHost}
+                  className="h-6 px-2 text-[10px] font-mono gap-1 text-primary hover:bg-primary/20 shrink-0"
+                >
+                  {copiedHost ? (
+                    <>
+                      <Check className="size-3 text-emerald-400" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <ol className="mt-2 space-y-1 text-[11px] text-muted-foreground font-sans list-decimal list-inside">
+                <li>
+                  Open{" "}
+                  <a
+                    href="https://console.firebase.google.com/project/seventh-cabinet-mq6d2/authentication/settings"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary underline font-medium hover:text-accent inline-flex items-center gap-0.5"
+                  >
+                    Firebase Console &gt; Auth Settings
+                    <ExternalLink className="size-2.5 inline" />
+                  </a>
+                </li>
+                <li>Under <strong>Authorized domains</strong>, click <strong>Add domain</strong> and paste the copied hostname.</li>
+              </ol>
+
+              <div className="mt-3 pt-2 border-t border-amber-500/20 flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground font-sans">Or continue testing right now:</span>
+                <Button
+                  size="sm"
+                  onClick={handleGuestSignIn}
+                  className="h-7 px-3 text-xs font-mono font-bold bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40"
+                >
+                  Enter Guest Mode &rarr;
+                </Button>
+              </div>
+            </div>
+          ) : error ? (
+            <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive text-left">
               {error}
             </p>
           ) : null}

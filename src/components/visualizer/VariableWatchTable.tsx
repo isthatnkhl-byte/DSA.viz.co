@@ -141,7 +141,7 @@ export function VariableWatchTable({
       });
     }
 
-    // 5. Collections
+    // 5. Collections (Primary & Secondary)
     if (currentStep.stack) {
       const arr = safeArray(currentStep.stack);
       list.push({
@@ -153,6 +153,17 @@ export function VariableWatchTable({
       });
     }
 
+    if (currentStep.secondaryStack) {
+      const arr = safeArray(currentStep.secondaryStack);
+      list.push({
+        name: "secondaryStack.length",
+        type: "Array",
+        currentValue: `${arr.length} [${arr.slice(-3).join(", ")}]`,
+        prevValue: prevStep?.secondaryStack ? `${safeArray(prevStep.secondaryStack).length}` : "—",
+        hasChanged: prevStep ? arr.length !== safeArray(prevStep.secondaryStack).length : false,
+      });
+    }
+
     if (currentStep.queue) {
       const arr = safeArray(currentStep.queue);
       list.push({
@@ -161,6 +172,17 @@ export function VariableWatchTable({
         currentValue: `${arr.length} [${arr.slice(0, 3).join(", ")}]`,
         prevValue: prevStep?.queue ? `${safeArray(prevStep.queue).length}` : "—",
         hasChanged: prevStep ? arr.length !== safeArray(prevStep.queue).length : false,
+      });
+    }
+
+    if (currentStep.secondaryQueue) {
+      const arr = safeArray(currentStep.secondaryQueue);
+      list.push({
+        name: "secondaryQueue.length",
+        type: "Array",
+        currentValue: `${arr.length} [${arr.slice(0, 3).join(", ")}]`,
+        prevValue: prevStep?.secondaryQueue ? `${safeArray(prevStep.secondaryQueue).length}` : "—",
+        hasChanged: prevStep ? arr.length !== safeArray(prevStep.secondaryQueue).length : false,
       });
     }
 
@@ -186,7 +208,53 @@ export function VariableWatchTable({
       });
     }
 
-    // 6. Active Execution Line
+    // 6. Target & Node Identifiers
+    if (currentStep.targetIndex !== undefined && currentStep.targetIndex !== null) {
+      list.push({
+        name: "targetIndex",
+        type: "number",
+        currentValue: String(currentStep.targetIndex),
+        prevValue: prevStep?.targetIndex !== undefined && prevStep?.targetIndex !== null ? String(prevStep.targetIndex) : "—",
+        hasChanged: prevStep ? currentStep.targetIndex !== prevStep.targetIndex : false,
+        deltaDir: getDelta(currentStep.targetIndex, prevStep?.targetIndex),
+      });
+    }
+
+    if (currentStep.activeNodeId !== undefined && currentStep.activeNodeId !== null) {
+      list.push({
+        name: "activeNodeId",
+        type: typeof currentStep.activeNodeId,
+        currentValue: String(currentStep.activeNodeId),
+        prevValue: prevStep?.activeNodeId !== undefined && prevStep?.activeNodeId !== null ? String(prevStep.activeNodeId) : "—",
+        hasChanged: prevStep ? currentStep.activeNodeId !== prevStep.activeNodeId : false,
+      });
+    }
+
+    // 7. Computed Span Metrics (e.g. Window Size R - L + 1)
+    if (
+      typeof currentStep.left === "number" &&
+      typeof currentStep.right === "number" &&
+      currentStep.right >= currentStep.left
+    ) {
+      const currSpan = currentStep.right - currentStep.left + 1;
+      const prevSpan =
+        typeof prevStep?.left === "number" &&
+        typeof prevStep?.right === "number" &&
+        prevStep.right >= prevStep.left
+          ? prevStep.right - prevStep.left + 1
+          : undefined;
+
+      list.push({
+        name: "windowSpan (R - L + 1)",
+        type: "computed",
+        currentValue: String(currSpan),
+        prevValue: prevSpan !== undefined ? String(prevSpan) : "—",
+        hasChanged: prevSpan !== undefined ? currSpan !== prevSpan : false,
+        deltaDir: getDelta(currSpan, prevSpan),
+      });
+    }
+
+    // 8. Active Execution Line
     if (currentStep.line !== undefined) {
       list.push({
         name: "execution.line",

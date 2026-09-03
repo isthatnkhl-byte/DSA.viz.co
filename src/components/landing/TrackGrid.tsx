@@ -178,7 +178,9 @@ export function TrackGrid() {
             <span>Structured Interview Mastery</span>
           </div>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-black tracking-tight text-foreground">
-            Curated Pattern Tracks
+            Curated <br />
+            <span className="font-pixel text-4xl sm:text-5xl md:text-6xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent py-2 block mt-6 mb-4 drop-shadow-[0_0_20px_color-mix(in_oklch,var(--primary)_60%,transparent)]">Pattern</span> 
+            Tracks
           </h2>
           <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-2xl font-sans">
             Every track is engineered around core algorithmic invariants with interactive step-by-step visualizations.

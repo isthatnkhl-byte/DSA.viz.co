@@ -204,17 +204,17 @@ export function ArrayVisualizer({
             const isMidPtr =
               typeof pLeft === "number" &&
               typeof pRight === "number" &&
-              pLeft < pRight &&
+              pLeft <= pRight &&
               !isSlidingWindow &&
-              Math.floor((pLeft + pRight) / 2) === i &&
-              current !== null &&
-              (String(val) === String(current) || current === i);
+              Math.floor((pLeft + pRight) / 2) === i;
 
+            // Strict index matching for current pointer; only fall back to value matching if current is not an index within bounds
+            const isCurrentIndex = typeof current === "number" && current >= 0 && current < items.length && current === i;
             const isCurrent =
               isThisActive &&
               current !== null &&
               current !== undefined &&
-              (current === i || String(val) === String(current));
+              (isCurrentIndex || (typeof current !== "number" && String(val) === String(current)));
 
             const isVisited =
               (typeof pLeft === "number" &&
@@ -233,6 +233,39 @@ export function ArrayVisualizer({
                   ? `${strVal.slice(0, 7)}…`
                   : strVal;
 
+            // Compute consolidated pointer tag list to prevent DOM badge collisions
+            const tags: { text: string; bg: string; textCol: string; border: string; glow?: boolean }[] = [];
+            if (isLeftPtr && isMatchingPair) {
+              tags.push({ text: "MATCH", bg: "bg-emerald-500", textCol: "text-white", border: "border-emerald-400", glow: true });
+            } else {
+              if (isLeftPtr && isRightPtr) {
+                tags.push({ text: `${isSecondary ? labelR : labelL}, ${labelR}`, bg: "bg-primary", textCol: "text-primary-foreground", border: "border-primary", glow: true });
+              } else {
+                if (isLeftPtr) {
+                  tags.push({
+                    text: isSecondary ? labelR : labelL,
+                    bg: isSecondary ? "bg-indigo-500/30" : "bg-emerald-500/30",
+                    textCol: isSecondary ? "text-indigo-300" : "text-emerald-400",
+                    border: isSecondary ? "border-indigo-500/60" : "border-emerald-500/60"
+                  });
+                }
+                if (isRightPtr) {
+                  tags.push({
+                    text: labelR,
+                    bg: "bg-indigo-500/30",
+                    textCol: "text-indigo-300",
+                    border: "border-indigo-500/60"
+                  });
+                }
+              }
+              if (isMidPtr && !isLeftPtr && !isRightPtr) {
+                tags.push({ text: labelMid, bg: "bg-amber-500/25", textCol: "text-amber-300", border: "border-amber-500/50" });
+              }
+              if (isCurrent && !isLeftPtr && !isRightPtr && !isMidPtr) {
+                tags.push({ text: labelCurr, bg: "bg-primary/25", textCol: "text-primary", border: "border-primary/50" });
+              }
+            }
+
             return (
               <div
                 key={`row-${rowLabel}-${i}`}
@@ -243,38 +276,18 @@ export function ArrayVisualizer({
                 }
                 className="relative flex flex-col items-center gap-2"
               >
-                {/* Floating Pointer Badges with Distinct Colors (L and R) */}
-                <div className="absolute -top-8 flex flex-col items-center z-10 select-none pointer-events-none">
-                  {isLeftPtr && isMatchingPair && (
-                    <span className="rounded-lg bg-emerald-500 px-2 py-0.5 font-mono text-[10px] font-black text-white border border-emerald-400 shadow-md shadow-emerald-500/50 animate-pulse">
-                      MATCH
-                    </span>
-                  )}
-                  {isLeftPtr && !isMatchingPair && isRightPtr && (
-                    <span className="rounded-lg bg-primary px-2 py-0.5 font-mono text-[10px] font-black text-primary-foreground shadow-md shadow-primary/40 constant-glow-primary">
-                      {labelL} / {labelR}
-                    </span>
-                  )}
-                  {isLeftPtr && !isMatchingPair && !isRightPtr && (
+                {/* Floating Pointer Badges with Distinct Consolidated Tags */}
+                <div className="absolute -top-8 flex items-center justify-center gap-1 z-10 select-none pointer-events-none whitespace-nowrap">
+                  {tags.map((t, tagIdx) => (
                     <span
-                      className={`rounded-lg px-2 py-0.5 font-mono text-[10px] font-black border shadow-xs ${
-                        isSecondary
-                          ? "bg-indigo-500/30 text-indigo-300 border-indigo-500/60 shadow-indigo-500/30"
-                          : "bg-emerald-500/30 text-emerald-400 border-emerald-500/60 shadow-emerald-500/30"
+                      key={`tag-${tagIdx}`}
+                      className={`rounded-lg px-2 py-0.5 font-mono text-[10px] font-black border shadow-xs ${t.bg} ${t.textCol} ${t.border} ${
+                        t.glow ? "shadow-md shadow-primary/40 constant-glow-primary" : ""
                       }`}
                     >
-                      {isSecondary ? labelR : labelL}
+                      {t.text}
                     </span>
-                  )}
-                  {isMidPtr && !isLeftPtr && !isRightPtr && (
-                    <span className="rounded-lg bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-black text-amber-300 border border-amber-500/50 shadow-xs shadow-amber-500/20">{labelMid}</span>
-                  )}
-                  {isRightPtr && !isLeftPtr && !isMatchingPair && (
-                    <span className="rounded-lg bg-indigo-500/20 px-2 py-0.5 font-mono text-[10px] font-black text-indigo-300 border border-indigo-500/50 shadow-xs shadow-indigo-500/20">{labelR}</span>
-                  )}
-                  {!isLeftPtr && !isRightPtr && !isMidPtr && isCurrent && (
-                    <span className="rounded-lg bg-primary/20 px-2 py-0.5 font-mono text-[10px] font-black text-primary border border-primary/50 shadow-xs shadow-primary/20">{labelCurr}</span>
-                  )}
+                  ))}
                 </div>
 
                 {/* Magnitude Bar (only rendered for numeric arrays with magnitude values) */}

@@ -274,8 +274,9 @@ CRITICAL INSTRUCTIONS:
             PLAYGROUND_VIZ_SYSTEM,
             vizPrompt,
             (j) =>
-              Array.isArray((j as { viz_steps?: unknown })?.viz_steps) &&
-              ((j as { viz_steps?: unknown[] })?.viz_steps?.length ?? 0) > 0,
+              (j as { is_complete?: unknown })?.is_complete === false ||
+              (Array.isArray((j as { viz_steps?: unknown })?.viz_steps) &&
+                ((j as { viz_steps?: unknown[] })?.viz_steps?.length ?? 0) > 0),
           );
           if (v.json) {
             vizOut = v.json;

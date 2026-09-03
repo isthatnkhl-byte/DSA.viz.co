@@ -226,13 +226,16 @@ export type VizStep = {
   /** list style structures */
   list?: (number | string)[] | null;
   stack?: (number | string)[] | null;
+  secondaryStack?: (number | string)[] | null;
   queue?: (number | string)[] | null;
+  secondaryQueue?: (number | string)[] | null;
   deque?: (number | string)[] | null;
   /** graph / matrix */
   matrix?: (number | string)[][] | null;
   cols?: number | null;
   /** tree / bst / heap / trie as heap-indexed level-order arrays */
   tree?: (number | string | null)[] | null;
+  activeNodeId?: number | string | null;
   /** hash map / set interfaces */
   map?: Record<string, number | string | null> | null;
   set?: (number | string)[] | null;
@@ -241,11 +244,13 @@ export type VizStep = {
   left?: number | null;
   right?: number | null;
   current?: number | string | null;
+  targetIndex?: number | null;
   predecessor?: number | string | null;
   visited?: (number | string)[] | null;
   wSum?: number | null;
   mSum?: number | null;
   pointer_labels?: Record<string, string> | null;
+  activePointers?: Record<string, number | string | [number, number] | null> | null;
   line: number;
   desc: string;
   /** Smart Multi-Dataset Metadata */
@@ -257,6 +262,8 @@ export type VizStep = {
   currentArea?: number | null;
   maxArea?: number | null;
   islandCells?: (string | [number, number])[] | null;
+  /** Variable tracker state */
+  variables?: Record<string, any> | null;
 };
 
 /** Structured test dataset specification for multi-dataset algorithmic walkthroughs */

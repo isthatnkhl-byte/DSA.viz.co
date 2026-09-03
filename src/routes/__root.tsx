@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useLocation,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -13,6 +14,9 @@ import { useThemeColor } from "@/hooks/useThemeColor";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AuthGuard } from "@/components/AuthGuard";
 import { CustomCursor } from "@/components/ui/custom-cursor";
+import { ChatProvider } from "@/context/ChatContext";
+import { GeminiChatbot } from "@/components/chat/GeminiChatbot";
+import { GeminiChatTrigger } from "@/components/chat/GeminiChatTrigger";
 
 function NotFoundComponent() {
   return (
@@ -128,6 +132,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const location = useLocation();
   useThemeColor();
 
   useEffect(() => {
@@ -142,15 +147,32 @@ function RootComponent() {
     }
   }, []);
 
+  const pathname = location.pathname;
+  const showChatbot =
+    pathname.startsWith("/problems") ||
+    pathname.startsWith("/problem") ||
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/compiler") ||
+    pathname.startsWith("/playground");
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <CustomCursor />
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <AuthGuard>
-          <Outlet />
-        </AuthGuard>
-        <Toaster position="bottom-right" richColors closeButton />
+        <ChatProvider>
+          <CustomCursor />
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <AuthGuard>
+            <Outlet />
+          </AuthGuard>
+          {showChatbot && (
+            <>
+              <GeminiChatbot />
+              <GeminiChatTrigger />
+            </>
+          )}
+          <Toaster position="bottom-right" richColors closeButton />
+        </ChatProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

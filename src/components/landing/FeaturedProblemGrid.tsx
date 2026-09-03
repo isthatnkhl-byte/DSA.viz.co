@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 type CategoryFilter = "all" | "arrays" | "trees" | "dp" | "stack";
 
 export function FeaturedProblemGrid() {
-  const { user, signInWithGoogle } = useAuth();
+  const { user } = useAuth();
   const [filter, setFilter] = useState<CategoryFilter>("all");
 
   const filteredProblems = problems.filter((p) => {
@@ -60,26 +60,13 @@ export function FeaturedProblemGrid() {
           </p>
         </div>
 
-        {user ? (
-          <Link
-            to="/problems"
-            className="group relative inline-flex items-center gap-2 rounded-xl btn-moving-theme-gradient px-4 py-2 text-xs sm:text-sm font-mono font-bold text-primary-foreground shadow-md shadow-primary/20 hover:scale-[1.03] hover:shadow-primary/30 transition-all self-start sm:self-end overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/20 pointer-events-none" />
-            <span className="relative z-10">Explore all {TOTAL_PROBLEMS}+ problems</span>
-            <ArrowRight className="size-4 relative z-10 transition-transform group-hover:translate-x-1" />
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={() => signInWithGoogle()}
-            className="group relative inline-flex items-center gap-2 rounded-xl btn-moving-theme-gradient px-4 py-2 text-xs sm:text-sm font-mono font-bold text-primary-foreground shadow-md shadow-primary/20 hover:scale-[1.03] hover:shadow-primary/30 transition-all self-start sm:self-end text-left overflow-hidden cursor-pointer"
-          >
-            <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/20 pointer-events-none" />
-            <span className="relative z-10">Explore all {TOTAL_PROBLEMS}+ problems</span>
-            <ArrowRight className="size-4 relative z-10 transition-transform group-hover:translate-x-1" />
-          </button>
-        )}
+        <Link
+          to="/problems"
+          className="group relative inline-flex items-center gap-2 rounded-xl btn-moving-theme-gradient px-4 py-2 text-xs sm:text-sm font-sans font-bold tracking-wide text-white shadow-md hover:scale-[1.03] transition-all self-start sm:self-end overflow-hidden"
+        >
+          <span className="relative z-10">Explore all {TOTAL_PROBLEMS}+ problems</span>
+          <ArrowRight className="size-4 relative z-10 transition-transform group-hover:translate-x-1" />
+        </Link>
       </div>
 
       {/* Category Filter Pills */}
@@ -165,7 +152,7 @@ export function FeaturedProblemGrid() {
             </div>
           );
 
-          return user ? (
+          return (
             <Link
               key={p.slug}
               to="/problem/$slug"
@@ -174,14 +161,6 @@ export function FeaturedProblemGrid() {
             >
               {cardContent}
             </Link>
-          ) : (
-            <div
-              key={p.slug}
-              onClick={() => signInWithGoogle()}
-              className="cursor-pointer block h-full"
-            >
-              {cardContent}
-            </div>
           );
         })}
       </div>

@@ -9,6 +9,10 @@ import {
   sampleInputFor,
   sampleMatrixFor,
   isIslandOrGridProblem,
+  isMatrixTransformationProblem,
+  isDynamicSlidingWindowProblem,
+  isInPlacePointerProblem,
+  isPrefixSumProblem,
   getCanonicalMultiDatasets,
   type TestDataset,
   type VizStep,
@@ -174,6 +178,9 @@ function isValidMatrixForProblem(
   matrix: unknown,
   slug: string,
   topics: string[] = [],
+  isLongerDataset = false,
+  canonicalRows = 0,
+  canonicalCols = 0,
 ): matrix is (number | string)[][] {
   if (!Array.isArray(matrix) || matrix.length < 2) return false;
   if (!matrix.every((r) => Array.isArray(r) && r.length >= 2 && r.length === matrix[0].length)) {
@@ -182,7 +189,7 @@ function isValidMatrixForProblem(
   const isIsland = isIslandOrGridProblem(slug, topics);
   if (isIsland) {
     if (matrix.length < 3 || (matrix[0]?.length ?? 0) < 3) return false;
-    return matrix.every((row: any) =>
+    const isBinary = matrix.every((row: any) =>
       Array.isArray(row) &&
       row.every((cell: any) => {
         const n = Number(cell);
@@ -190,6 +197,30 @@ function isValidMatrixForProblem(
         return n === 0 || n === 1 || n === 2 || s === "0" || s === "1" || s === "X" || s === "O";
       }),
     );
+    if (!isBinary) return false;
+  }
+  // Enforce size invariant for Dataset 2 (Longer): must not be shrunken smaller than canonical
+  if (isLongerDataset && canonicalRows > 0 && canonicalCols > 0) {
+    const aiCells = matrix.length * matrix[0].length;
+    const canonCells = canonicalRows * canonicalCols;
+    if (aiCells < canonCells || matrix.length < canonicalRows || matrix[0].length < canonicalCols) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isValidArrayForProblem(
+  arr: unknown,
+  _slug: string,
+  _topics: string[] = [],
+  isLongerDataset = false,
+  canonicalLength = 0,
+): arr is (number | string)[] {
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+  // If longer dataset, ensure AI didn't shrink it smaller than canonical
+  if (isLongerDataset && canonicalLength > 0 && arr.length < canonicalLength) {
+    return false;
   }
   return true;
 }
@@ -291,11 +322,13 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
             typeof d?.label === "string" && d.label.trim() ? d.label.trim() : `Dataset ${idx + 1}`,
           description: typeof d?.description === "string" ? d.description : undefined,
           array: Array.isArray(d?.array)
-            ? d.array
-                .map((x: any) =>
-                  typeof x === "number" || typeof x === "string" ? x : String(x),
-                )
-                .filter((x: any) => x !== null && x !== undefined)
+            ? (d.array.length === 1 && typeof d.array[0] === "string" && d.array[0].length > 1 && isDynamicSlidingWindowProblem(data.slug, data.topics ?? []))
+                ? d.array[0].split("")
+                : d.array
+                    .map((x: any) =>
+                      typeof x === "number" || typeof x === "string" ? x : String(x),
+                    )
+                    .filter((x: any) => x !== null && x !== undefined)
             : undefined,
           secondaryArray: Array.isArray(d?.secondaryArray)
             ? d.secondaryArray
@@ -318,14 +351,49 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
         datasets = canonicalDatasets.map((canon, i) => {
           const aiD = aiDatasets[i];
           if (!aiD) return canon;
+
+          // CRITICAL: Dataset 1 (Standard Case, i === 0) strictly preserves canonical problem input and target
+          if (i === 0) {
+            return {
+              ...canon,
+              label: aiD.label || canon.label,
+              description: aiD.description || canon.description,
+              array: canon.array,
+              secondaryArray: canon.secondaryArray,
+              matrix: canon.matrix,
+              tree: canon.tree,
+              target: canon.target,
+              k: canon.k,
+            };
+          }
+
+          const isLonger = i === 1;
+          const canonRows = canon.matrix?.length ?? 0;
+          const canonCols = canon.matrix?.[0]?.length ?? 0;
+          const canonArrayLength = canon.array?.length ?? 0;
           const validMatrix =
-            aiD.matrix && isValidMatrixForProblem(aiD.matrix, data.slug, data.topics ?? [])
+            aiD.matrix &&
+            isValidMatrixForProblem(
+              aiD.matrix,
+              data.slug,
+              data.topics ?? [],
+              isLonger,
+              canonRows,
+              canonCols,
+            )
               ? aiD.matrix
               : canon.matrix;
           const validArray =
             validMatrix && canon.matrix
               ? validMatrix.flat().filter((x: any): x is number => typeof x === "number")
-              : aiD.array && aiD.array.length > 0
+              : aiD.array &&
+                isValidArrayForProblem(
+                  aiD.array,
+                  data.slug,
+                  data.topics ?? [],
+                  isLonger,
+                  canonArrayLength,
+                )
                 ? aiD.array
                 : canon.array;
 
@@ -364,7 +432,8 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
         const matrixExample =
           activeDataset.matrix && activeDataset.matrix.length > 0
             ? activeDataset.matrix
-            : isIslandOrGridProblem(data.slug, data.topics ?? [])
+            : isIslandOrGridProblem(data.slug, data.topics ?? []) ||
+              isMatrixTransformationProblem(data.slug, data.topics ?? [])
               ? sampleMatrixFor(data.slug)
               : undefined;
 
@@ -595,20 +664,54 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
     };
   }
 
+  const isLonger = dataset.category === "longer" || dataset.id === "dataset_2";
+  const canonDatasets = getCanonicalMultiDatasets(data.slug, data.title, data.topics ?? []);
+  const canonMatch = canonDatasets.find((d) => d.id === dataset.id);
+  const canonRows = canonMatch?.matrix?.length ?? 0;
+  const canonCols = canonMatch?.matrix?.[0]?.length ?? 0;
+
   const matrixExample =
-    dataset.matrix && isValidMatrixForProblem(dataset.matrix, data.slug, data.topics ?? [])
+    dataset.matrix &&
+    isValidMatrixForProblem(
+      dataset.matrix,
+      data.slug,
+      data.topics ?? [],
+      isLonger,
+      canonRows,
+      canonCols,
+    )
       ? dataset.matrix
-      : isIslandOrGridProblem(data.slug, data.topics ?? [])
+      : isIslandOrGridProblem(data.slug, data.topics ?? []) ||
+        isMatrixTransformationProblem(data.slug, data.topics ?? [])
         ? sampleMatrixFor(data.slug)
         : undefined;
+
+  const isDynamicWindow = isDynamicSlidingWindowProblem(data.slug, data.topics ?? []);
+  let candidateArray = dataset.array;
+  if (
+    isDynamicWindow &&
+    candidateArray &&
+    candidateArray.length === 1 &&
+    typeof candidateArray[0] === "string" &&
+    candidateArray[0].length > 1
+  ) {
+    candidateArray = candidateArray[0].split("");
+  }
+
+  // If Dataset 1, strictly preserve canonical array and target
+  if (dataset.id === "dataset_1" && canonMatch) {
+    candidateArray = canonMatch.array ?? candidateArray;
+  }
 
   const sanitizedDataset: TestDataset = {
     ...dataset,
     matrix: matrixExample,
+    target: dataset.id === "dataset_1" && canonMatch?.target !== undefined ? canonMatch.target : dataset.target,
+    k: dataset.id === "dataset_1" && canonMatch?.k !== undefined ? canonMatch.k : dataset.k,
     array:
       matrixExample && matrixExample.length > 0
         ? matrixExample.flat().filter((x: any): x is number => typeof x === "number")
-        : dataset.array,
+        : candidateArray,
   };
 
   const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();

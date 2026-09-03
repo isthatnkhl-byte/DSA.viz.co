@@ -37,12 +37,16 @@ CRITICAL EVALUATION RULES:
      * Set "nudge": If Brute Force or Better, hint at how to optimize further (e.g. using auxiliary structures). If Optimal, provide a tricky edge case or follow-up question.
      * Set "review": A structured markdown review under 200 words evaluating algorithm structure, invariants, time/space complexity justification, and dry-run correctness.
      * MANDATORY DATASET TRIPLE GENERATION: Always generate exactly 3 curated test datasets:
+       - MANDATORY CANONICAL PRESERVATION FOR DATASET 1: Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case") MUST strictly preserve the exact canonical Example 1 from the problem statement (e.g., for Two Sum, nums=[2,7,11,15] and target=9; for Set Matrix Zeroes, matrix=[[1,1,1],[1,0,1],[1,1,1]]). Never invent or substitute a different array or target for Dataset 1.
        - MANDATORY DATASET SIZE ENFORCEMENT: 
          * For Arrays: Standard must be 6-10 elements. Longer must be 15-25 elements. Edge must be 10-15 elements.
          * For Trees (represented as arrays): Standard must have 7-15 nodes (depth 3-4). Longer must be very deep/wide with 15-31 nodes (depth 4-5). Edge must be highly unbalanced or large (10-15 nodes).
-         * For Grids/Matrices (Islands, etc): Standard must be at least 4x4 or 5x5. Longer must be at least 6x6, 8x8, or 10x10. Edge must be large (e.g. 5x8) but testing boundaries.
+         * For Grids/Matrices (Transformation, Islands, etc): Standard must be the canonical 3×3 or 3×4 matrix. Longer (dataset_2) MUST be guaranteed 5×6 or 6×6, strictly larger than Dataset 1. NEVER generate a 2×2 or smaller matrix for Dataset 2. Edge (dataset_3) must be 3×5 or test boundaries.
          * For Strings: Standard must be 10-15 chars, Longer must be 20-40 chars.
-       - Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case"): A solid standard test case adhering to the sizes above.
+         * For Sliding Window / Substrings: Standard must be canonical Example 1. If operating on characters, provide an array of individual single-character strings (e.g. ["a", "b", "c", ...]). Longer (dataset_2) must be 15-25 characters with repeated character clusters to induce multiple window expansions and contractions. For numeric sliding windows, provide integer parameter "k".
+         * For In-Place Pointers (Move Zeroes, Remove Duplicates, Sort Colors): Standard must be canonical Example 1. Longer (dataset_2) must be 14-20 elements with multiple scattered target elements (e.g. multiple adjacent/trailing zeroes or runs of 3-4 duplicates) so slow (write) and fast (read) pointers diverge significantly.
+         * For Prefix Sum & Complement Hash Map (Subarray Sum Equals K, Contiguous Array): Standard must be canonical Example 1 and target k. Longer (dataset_2) must be 12-18 elements with mixed positive, negative, and zero values with multiple valid subarrays summing to target k.
+       - Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case"): Exact canonical problem example 1.
        - Dataset 2 (id="dataset_2", label="Dataset 2: Longer & Complex Trace ⚡"): A significantly longer, extended dataset adhering to the large sizes above to produce an extensive full execution trace.
        - Dataset 3 (id="dataset_3", label="Dataset 3: Edge & Boundary Case"): Extreme constraint testing (negatives, duplicates, single paths) but maintaining the large edge sizes above.
 
@@ -63,22 +67,22 @@ Respond ONLY with a valid JSON object in this exact schema with no surrounding m
     {
       "id": "dataset_1",
       "label": "Dataset 1: Standard Case",
-      "description": "Baseline canonical test input.",
-      "array": [2, 7, 11, 15, 20, 24, 30, 35],
-      "target": 35
+      "description": "Baseline canonical test input from the problem statement.",
+      "array": [10, 20, 30, 40, 50],
+      "target": 50
     },
     {
       "id": "dataset_2",
       "label": "Dataset 2: Longer & Complex Trace ⚡",
       "description": "Longer extended sequence for in-depth execution traversal.",
-      "array": [3, 2, 4, 8, 11, 15, 19, 22, 27, 31, 35, 40, 42, 45, 50, 55, 60],
-      "target": 60
+      "array": [5, 12, 18, 23, 29, 34, 41, 48, 55, 62, 70, 77, 85, 92, 100],
+      "target": 100
     },
     {
       "id": "dataset_3",
       "label": "Dataset 3: Edge & Boundary Case",
       "description": "Edge case with negative values, duplicates, and extended length.",
-      "array": [-10, -3, 0, 0, 3, 4, 4, 90, 90, 100],
+      "array": [-25, -10, 0, 0, 15, 15, 50, 99],
       "target": 0
     }
   ]

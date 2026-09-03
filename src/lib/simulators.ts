@@ -27,14 +27,17 @@ export type Pattern =
   | "lru-cache"
   | "frequency-count"
   | "sliding-window"
+  | "sliding-window-dynamic"
   | "binary-search"
   | "two-pointers"
+  | "two-pointers-in-place"
   | "monotonic-stack"
   | "parentheses"
   | "island-max-area"
   | "island-count"
   | "grid-bfs"
   | "grid-dfs"
+  | "matrix-transform"
   | "graph-bfs"
   | "topological-sort"
   | "word-ladder"
@@ -50,6 +53,7 @@ export type Pattern =
   | "intervals"
   | "union-find"
   | "prefix-sum"
+  | "prefix-sum-hashmap"
   | "sorting"
   | "bit-manipulation"
   | "trie-insert"
@@ -71,6 +75,189 @@ const cap = (steps: VizStep[]) => {
 };
 
 // ---------------------------------------------------------------- simulators
+
+export function bruteForcePairSum(
+  input: (number | string)[],
+  targetInput?: number | string,
+): VizBundle {
+  const nums = input.map(Number).filter((n) => !isNaN(n)).slice(0, 10);
+  const safeNums = nums.length > 0 ? nums : [2, 7, 11, 15];
+  const target = typeof targetInput === "number" ? targetInput : 9;
+  const code = [
+    "for i in range(len(nums)):",
+    "    for j in range(i + 1, len(nums)):",
+    "        if nums[i] + nums[j] == target:",
+    "            return [i, j]",
+    "return []",
+  ];
+  const steps: VizStep[] = [
+    {
+      type: "array",
+      array: safeNums,
+      left: 0,
+      right: 1,
+      pointer_labels: { left: "i", right: "j" },
+      line: 0,
+      desc: `Initialize outer loop i = 0 (nums[0] = ${safeNums[0]}), target sum = ${target}.`,
+    },
+  ];
+
+  for (let i = 0; i < safeNums.length; i++) {
+    steps.push({
+      type: "array",
+      array: safeNums,
+      left: i,
+      right: i + 1 < safeNums.length ? i + 1 : i,
+      pointer_labels: { left: "i", right: "j" },
+      line: 0,
+      desc: `Outer loop: set i = ${i} (nums[${i}] = ${safeNums[i]}).`,
+    });
+
+    for (let j = i + 1; j < safeNums.length; j++) {
+      const sum = safeNums[i]! + safeNums[j]!;
+      steps.push({
+        type: "array",
+        array: safeNums,
+        left: i,
+        right: j,
+        pointer_labels: { left: "i", right: "j" },
+        wSum: sum,
+        mSum: target,
+        line: 2,
+        desc: `Inner loop: check nums[${i}] (${safeNums[i]}) + nums[${j}] (${safeNums[j]}) = ${sum} vs target ${target}.`,
+      });
+
+      if (sum === target) {
+        steps.push({
+          type: "array",
+          array: safeNums,
+          left: i,
+          right: j,
+          pointer_labels: { left: "i", right: "j" },
+          wSum: sum,
+          mSum: target,
+          line: 3,
+          desc: `Match found! nums[${i}] (${safeNums[i]}) + nums[${j}] (${safeNums[j]}) == ${target} → return [${i}, ${j}].`,
+        });
+        return { code, array: safeNums, steps: cap(steps) };
+      }
+    }
+  }
+
+  steps.push({
+    type: "array",
+    array: safeNums,
+    left: null,
+    right: null,
+    line: 4,
+    desc: `No pair found that sums to ${target}. Return [].`,
+  });
+  return { code, array: safeNums, steps: cap(steps) };
+}
+
+export function matrixTransformSim(
+  matrixInput?: (number | string)[][],
+  _slug = "",
+  _dataset?: TestDataset,
+): VizBundle {
+  const rawMatrix =
+    matrixInput && matrixInput.length >= 2 && (matrixInput[0]?.length ?? 0) >= 2
+      ? matrixInput
+      : [
+          [1, 1, 1],
+          [1, 0, 1],
+          [1, 1, 1],
+        ];
+
+  const matrix: number[][] = rawMatrix.map((r) => r.map((c) => Number(c) || 0));
+  const R = matrix.length;
+  const C = matrix[0]!.length;
+
+  const code = [
+    "for i in range(rows):",
+    "    for j in range(cols):",
+    "        if matrix[i][j] == 0:",
+    "            mark_zero_row_col(i, j)",
+    "for i in range(rows):",
+    "    for j in range(cols):",
+    "        if is_marked(i, j):",
+    "            matrix[i][j] = 0",
+  ];
+
+  const steps: VizStep[] = [];
+  steps.push({
+    type: "matrix",
+    matrix: matrix.map((r) => [...r]),
+    cols: C,
+    current: "0,0",
+    line: 0,
+    desc: `Initialize ${R}×${C} matrix scan. Target: propagate zeroes across affected rows and columns.`,
+  });
+
+  const zeroRows = new Set<number>();
+  const zeroCols = new Set<number>();
+
+  for (let r = 0; r < R; r++) {
+    for (let c = 0; c < C; c++) {
+      const isZero = matrix[r]![c] === 0;
+      if (isZero) {
+        zeroRows.add(r);
+        zeroCols.add(c);
+      }
+      steps.push({
+        type: "matrix",
+        matrix: matrix.map((row) => [...row]),
+        cols: C,
+        current: `${r},${c}`,
+        line: 2,
+        desc: `Scan cell (${r}, ${c}): matrix[${r}][${c}] = ${matrix[r]![c]}.${isZero ? " Found zero! Mark row " + r + " and column " + c + "." : ""}`,
+      });
+    }
+  }
+
+  for (const r of zeroRows) {
+    for (let c = 0; c < C; c++) {
+      matrix[r]![c] = 0;
+      steps.push({
+        type: "matrix",
+        matrix: matrix.map((row) => [...row]),
+        cols: C,
+        current: `${r},${c}`,
+        line: 7,
+        desc: `Propagate zero: set matrix[${r}][${c}] = 0 (row ${r} contains a zero).`,
+      });
+    }
+  }
+
+  for (const c of zeroCols) {
+    for (let r = 0; r < R; r++) {
+      matrix[r]![c] = 0;
+      steps.push({
+        type: "matrix",
+        matrix: matrix.map((row) => [...row]),
+        cols: C,
+        current: `${r},${c}`,
+        line: 7,
+        desc: `Propagate zero: set matrix[${r}][${c}] = 0 (column ${c} contains a zero).`,
+      });
+    }
+  }
+
+  steps.push({
+    type: "matrix",
+    matrix: matrix.map((row) => [...row]),
+    cols: C,
+    current: `${R - 1},${C - 1}`,
+    line: 7,
+    desc: `Matrix transformation complete: all affected rows and columns have been set to 0.`,
+  });
+
+  return {
+    code,
+    array: matrix.flat(),
+    steps: cap(steps),
+  };
+}
 
 function hashmapPair(input: number[], targetInput?: number): VizBundle {
   const code = [
@@ -5213,6 +5400,8 @@ export function simulateProblemWithDataset(
       return grid(matrixInput ?? numInput, "bfs");
     case "grid-dfs":
       return grid(matrixInput ?? numInput, "dfs");
+    case "matrix-transform":
+      return matrixTransformSim(matrixInput, slug, dataset);
     case "binary-search":
       return binarySearch(numInput, numTarget);
     case "two-pointers":
@@ -5220,7 +5409,10 @@ export function simulateProblemWithDataset(
         return arrayScan(safeInput);
       }
       return twoPointersPairSum(numInput, numTarget);
+    case "two-pointers-in-place":
+      return arrayScan(safeInput);
     case "sliding-window":
+    case "sliding-window-dynamic":
       return slidingWindow(safeInput, dataset);
     case "hashmap-pair":
       return hashmapPair(numInput, numTarget);
@@ -5259,6 +5451,7 @@ export function simulateProblemWithDataset(
     case "union-find":
       return unionFindSim(dataset, slug);
     case "prefix-sum":
+    case "prefix-sum-hashmap":
       return prefixSum(numInput);
     case "sorting":
       return sorting(numInput);

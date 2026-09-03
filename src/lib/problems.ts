@@ -526,14 +526,67 @@ export const CANONICAL_MATRICES: Record<string, (number | string)[][]> = {
   ],
 };
 
-/** Helper to identify island and 2D grid problems */
+/** Helper to identify island and connected-component graph problems */
 export function isIslandOrGridProblem(slug: string, topics: string[] = []): boolean {
   const s = (slug ?? "").toLowerCase();
   const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
   return (
-    /island|area-of-island|max-area|flood-fill|rotting-oranges|surrounded-regions|walls-and-gates|pacific-atlantic|01-matrix|shortest-path-in-binary|making-a-large-island|count-sub-islands/.test(
+    /island|area-of-island|max-area|flood-fill|rotting-oranges|surrounded-regions|walls-and-gates|pacific-atlantic|01-matrix|shortest-path-in-binary|making-a-large-island|count-sub-islands|as-far-from-land|number-of-enclaves|number-of-closed-islands|minesweeper/.test(
       s,
-    ) || /number of islands|max area|flood fill|matrix|grid/.test(t)
+    ) || /number of islands|max area of island|flood fill/.test(t)
+  );
+}
+
+/** Helper to identify 2D matrix transformation & in-place grid iteration problems */
+export function isMatrixTransformationProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  if (isIslandOrGridProblem(slug, topics)) return false;
+  return (
+    /set-matrix-zeroes|rotate-image|spiral-matrix|spiral-matrix-ii|game-of-life|valid-sudoku|diagonal-traverse|reshape-the-matrix|matrix-block-sum|shift-2d-grid|transpose-matrix|toeplitz-matrix|image-overlap|flipping-an-image|lucky-numbers-in-a-matrix|search-a-2d-matrix|search-a-2d-matrix-ii|kth-smallest-element-in-a-sorted-matrix/.test(
+      s,
+    ) ||
+    ((t.includes("matrix") || t.includes("grid")) &&
+      !t.includes("depth-first search") &&
+      !t.includes("breadth-first search") &&
+      !t.includes("dynamic programming") &&
+      !t.includes("graph"))
+  );
+}
+
+/** Helper to identify dynamic / variable-size sliding window problems */
+export function isDynamicSlidingWindowProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return (
+    /longest-substring-without-repeating|minimum-window-substring|longest-repeating-character-replacement|permutation-in-string|max-consecutive-ones-iii|fruit-into-baskets|subarray-product-less-than-k|minimum-size-subarray-sum/.test(
+      s,
+    ) ||
+    ((t.includes("sliding window") || t.includes("string")) &&
+      /substring|longest-substring|window|repeating/i.test(s))
+  );
+}
+
+/** Helper to identify same-direction in-place read/write / fast-slow pointer problems */
+export function isInPlacePointerProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return (
+    /remove-duplicates-from-sorted-array|remove-duplicates-from-sorted-array-ii|move-zeroes|remove-element|sort-colors|duplicate-zeros/.test(
+      s,
+    ) ||
+    (t.includes("two pointers") && /remove|move|zero|duplicate/i.test(s))
+  );
+}
+
+/** Helper to identify prefix sum and running sum complement problems */
+export function isPrefixSumProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return (
+    /subarray-sum-equals-k|contiguous-array|subarray-sums-divisible-by-k|range-sum-query-immutable|running-sum-of-1d-array|product-of-array-except-self|find-pivot-index/.test(
+      s,
+    ) || t.includes("prefix sum")
   );
 }
 
@@ -542,7 +595,7 @@ export function sampleMatrixFor(slug: string): (number | string)[][] {
   if (CANONICAL_MATRICES[slug]) {
     return CANONICAL_MATRICES[slug]!.map((r) => [...r]);
   }
-  const isIsland = /island|area|flood|surround|rotting|grid|matrix/.test(slug);
+  const isIsland = /island|flood|surround|rotting|enclave/.test(slug);
   if (isIsland) {
     return [
       [0, 1, 1, 0, 0, 0],
@@ -554,8 +607,8 @@ export function sampleMatrixFor(slug: string): (number | string)[][] {
     ];
   }
   const rnd = seeded(slug);
-  const rows = 6;
-  const cols = 6;
+  const rows = 4;
+  const cols = 4;
   return Array.from({ length: rows }, () =>
     Array.from({ length: cols }, () => 1 + Math.floor(rnd() * 99)),
   );
@@ -5510,7 +5563,7 @@ export function getCanonicalMultiDatasets(
       { id: "d1", label: "Dataset 1", category: "standard", array: [1,2,3,0,0,0], secondaryArray: [2,5,6], target: 3, description: "Actual Example 1 from LeetCode." }
     ],
     "longest-substring-without-repeating-characters": [
-      { id: "d1", label: "Dataset 1", category: "standard", array: ["abcabcbb"], description: "Actual Example 1 from LeetCode." }
+      { id: "d1", label: "Dataset 1", category: "standard", array: ["a", "b", "c", "a", "b", "c", "b", "b"], description: "Actual Example 1 from LeetCode." }
     ],
     "powx-n": [
       { id: "d1", label: "Dataset 1", category: "standard", target: 10, description: "Actual Example 1 from LeetCode." }
@@ -5738,6 +5791,7 @@ export function getCanonicalMultiDatasets(
   };
 
   const isIsland = isIslandOrGridProblem(slug, topics);
+  const isMatrixTransform = isMatrixTransformationProblem(slug, topics);
   const isTwoSeq = isTwoSequenceProblem(slug, topics);
   const isInterval = isIntervalProblem(slug, topics);
   const isBit = isBitManipulationProblem(slug, topics);
@@ -5749,6 +5803,9 @@ export function getCanonicalMultiDatasets(
   const isWordLadder = isWordLadderProblem(slug, topics);
   const isQueueSim = isQueueSimulationProblem(slug, topics);
   const isDesign = isDesignProblem(slug, topics);
+  const isDynamicWindow = isDynamicSlidingWindowProblem(slug, topics);
+  const isInPlacePointers = isInPlacePointerProblem(slug, topics);
+  const isPrefixSum = isPrefixSumProblem(slug, topics);
   const primaryType = pickShape(slug, topics);
   const isGraph =
     primaryType === "graph" ||
@@ -6255,11 +6312,59 @@ export function getCanonicalMultiDatasets(
     } else if (isIsland) {
       baseMatrix = sampleMatrixFor(slug);
       baseArray = baseMatrix.flat().filter((x): x is number => typeof x === "number");
+    } else if (isMatrixTransform) {
+      baseMatrix = CANONICAL_MATRICES[slug]
+        ? CANONICAL_MATRICES[slug]!.map((r) => [...r])
+        : [
+            [1, 1, 1],
+            [1, 0, 1],
+            [1, 1, 1],
+          ];
+      baseArray = baseMatrix.flat().filter((x): x is number => typeof x === "number");
     } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
       baseTree = sampleTreeFor(slug);
       baseArray = baseTree.filter((x): x is number | string => x !== null && x !== undefined && String(x) !== "null");
     } else if (isParentheses) {
       baseArray = ["(", "{", "[", "]", "}", ")"];
+    } else if (isDynamicWindow) {
+      if (slug === "longest-substring-without-repeating-characters") {
+        baseArray = ["a", "b", "c", "a", "b", "c", "b", "b"];
+        baseDescription = "Canonical string 'abcabcbb' testing window shrink on duplicate characters.";
+      } else if (slug === "minimum-window-substring") {
+        baseArray = ["A", "D", "O", "B", "E", "C", "O", "D", "E", "B", "A", "N", "C"];
+        baseSecondaryArray = ["A", "B", "C"];
+        baseDescription = "String S and pattern T='ABC'.";
+      } else if (slug === "max-consecutive-ones-iii") {
+        baseArray = [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0];
+        baseTarget = 2;
+        baseDescription = "Binary sequence with k=2 zero-flips permitted.";
+      } else {
+        baseArray = sampleInputFor(slug, undefined, topics);
+      }
+    } else if (isInPlacePointers) {
+      if (slug === "move-zeroes") {
+        baseArray = [0, 1, 0, 3, 12];
+        baseDescription = "Standard array with interleaved zeroes for slow/fast in-place compaction.";
+      } else if (slug === "remove-duplicates-from-sorted-array") {
+        baseArray = [0, 0, 1, 1, 1, 2, 2, 3, 3, 4];
+        baseDescription = "Sorted array with duplicate runs for in-place unique compaction.";
+      } else if (slug === "sort-colors") {
+        baseArray = [2, 0, 2, 1, 1, 0];
+        baseDescription = "Dutch National Flag 3-pointer partition array (0=red, 1=white, 2=blue).";
+      } else {
+        baseArray = sampleInputFor(slug, undefined, topics);
+      }
+    } else if (isPrefixSum) {
+      if (slug === "subarray-sum-equals-k") {
+        baseArray = [1, 1, 1];
+        baseTarget = 2;
+        baseDescription = "Standard array testing prefix sum count for k=2.";
+      } else if (slug === "contiguous-array") {
+        baseArray = [0, 1, 0, 1, 1, 1, 0, 0];
+        baseDescription = "Binary array finding maximum contiguous subarray with equal 0s and 1s.";
+      } else {
+        baseArray = sampleInputFor(slug, undefined, topics);
+      }
     } else {
       baseArray = sampleInputFor(slug, undefined, topics);
     }
@@ -6267,7 +6372,9 @@ export function getCanonicalMultiDatasets(
 
   if (slug === "two-sum") baseTarget = 9;
   else if (slug === "3sum") baseTarget = 0;
-  else if (baseTarget === undefined && !isGraph && !isIsland && !isParentheses && !isString && typeof baseArray[Math.floor(baseArray.length / 2)] === "number") {
+  else if (slug === "subarray-sum-equals-k") baseTarget = 2;
+  else if (slug === "max-consecutive-ones-iii") baseTarget = 2;
+  else if (baseTarget === undefined && !isGraph && !isIsland && !isMatrixTransform && !isParentheses && !isString && !isDynamicWindow && typeof baseArray[Math.floor(baseArray.length / 2)] === "number") {
     baseTarget = baseArray[Math.floor(baseArray.length / 2)];
   }
 
@@ -6321,6 +6428,70 @@ export function getCanonicalMultiDatasets(
     d2Array = d2Matrix.flat().filter((x): x is number => typeof x === "number");
     d2Desc =
       "Expansive 8×10 archipelago grid with multiple landmasses (including a 10-cell giant island) producing a rich multi-step DFS/BFS animation.";
+  } else if (isMatrixTransform) {
+    if (slug === "set-matrix-zeroes") {
+      d2Matrix = [
+        [1, 2, 3, 4, 5, 6],
+        [7, 0, 9, 10, 11, 12],
+        [13, 14, 15, 16, 17, 18],
+        [19, 20, 21, 0, 23, 24],
+        [25, 26, 27, 28, 29, 30],
+      ];
+      d2Desc =
+        "Extended 5×6 matrix with multiple distributed zeroes (at [1,1] and [3,3]) producing a rich, comprehensive cell-by-cell row and column transformation trace.";
+    } else {
+      const baseR = baseMatrix?.length ?? 3;
+      const baseC = baseMatrix?.[0]?.length ?? 3;
+      const rows = Math.max(5, baseR + 2);
+      const cols = Math.max(6, baseC + 2);
+      d2Matrix = Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => ((r * cols + c + 1) % 40) + 1),
+      );
+      d2Desc = `Extended ${rows}×${cols} matrix for comprehensive in-place 2D grid iteration and transformation.`;
+    }
+    d2Array = d2Matrix.flat().filter((x): x is number => typeof x === "number");
+  } else if (isDynamicWindow) {
+    if (slug === "longest-substring-without-repeating-characters") {
+      d2Array = ["p", "w", "w", "k", "e", "w", "a", "b", "c", "d", "e", "f", "k", "e", "w"];
+      d2Desc = "Extended 15-character sequence with multiple duplicate boundaries for a longer window animation.";
+    } else if (slug === "minimum-window-substring") {
+      d2Array = ["A", "A", "B", "D", "E", "C", "O", "D", "E", "B", "A", "N", "C", "X", "Y", "Z", "A", "B", "C"];
+      d2Desc = "Extended search sequence testing multiple candidate windows.";
+    } else if (slug === "max-consecutive-ones-iii") {
+      d2Array = [0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1];
+      d2Target = 3;
+      d2Desc = "Extended 19-element binary sequence with k=3 zero-flips.";
+    } else {
+      d2Array = ["a", "b", "c", "d", "b", "c", "e", "f", "g", "h", "c", "d", "i", "j", "k"];
+      d2Desc = "Extended 15-character sequence for in-depth sliding window traversal.";
+    }
+  } else if (isInPlacePointers) {
+    if (slug === "move-zeroes") {
+      d2Array = [0, 1, 0, 3, 12, 0, 0, 5, 8, 0, 9, 0, 14, 15];
+      d2Desc = "Extended 14-element array with multiple adjacent and trailing zeroes for fast/slow write-pointer trace.";
+    } else if (slug === "remove-duplicates-from-sorted-array") {
+      d2Array = [1, 1, 1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 7, 7, 8];
+      d2Desc = "Extended 17-element sorted array with repeated duplicate clusters for in-place compaction.";
+    } else if (slug === "sort-colors") {
+      d2Array = [2, 0, 1, 2, 1, 0, 0, 2, 1, 2, 0, 1, 1, 2, 0];
+      d2Desc = "Extended 15-element 3-color array testing Dutch National Flag multi-swap partitioning.";
+    } else {
+      d2Array = [0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 6, 7, 8];
+      d2Desc = "Extended array for in-place pointer simulation.";
+    }
+  } else if (isPrefixSum) {
+    if (slug === "subarray-sum-equals-k") {
+      d2Array = [3, 4, 7, 2, -3, 1, 4, 2, 0, 1];
+      d2Target = 7;
+      d2Desc = "Extended sequence with mixed positives, negatives, and zeroes yielding multiple sum=7 subarrays.";
+    } else if (slug === "contiguous-array") {
+      d2Array = [0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1];
+      d2Desc = "Extended 16-element binary sequence with fluctuating prefix sum balance.";
+    } else {
+      d2Array = [2, -1, 3, 1, -2, 4, -3, 5, -1, 2];
+      d2Target = 5;
+      d2Desc = "Extended array with mixed signs for comprehensive prefix sum tracking.";
+    }
   } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
     d2Tree = [
       10,
@@ -6430,6 +6601,7 @@ export function getCanonicalMultiDatasets(
   let d3Matrix: (number | string)[][] | undefined;
   let d3Tree: (number | string | null)[] | undefined;
   let d3Target: number | string | undefined;
+  let d3SecondaryArray: (number | string)[] | undefined;
   let d3Desc =
     "Boundary conditions testing edge cases, duplicates, negative numbers, or tight constraints.";
 
@@ -6453,6 +6625,66 @@ export function getCanonicalMultiDatasets(
     ];
     d3Array = d3Matrix.flat().filter((x): x is number => typeof x === "number");
     d3Desc = "Boundary 6×6 grid with isolated corner singletons and a central 2×2 square island.";
+  } else if (isMatrixTransform) {
+    if (slug === "set-matrix-zeroes") {
+      d3Matrix = [
+        [0, 1, 2, 0],
+        [3, 4, 5, 2],
+        [1, 3, 1, 5],
+      ];
+      d3Desc = "Boundary 3×4 matrix with multiple corner and edge zeroes (LeetCode Example 2).";
+    } else {
+      d3Matrix = [
+        [1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [9, 10, 11, 12],
+      ];
+      d3Desc = "Boundary 3×4 rectangular matrix testing edge dimension and boundary conditions.";
+    }
+    d3Array = d3Matrix.flat().filter((x): x is number => typeof x === "number");
+  } else if (isDynamicWindow) {
+    if (slug === "longest-substring-without-repeating-characters") {
+      d3Array = ["b", "b", "b", "b", "b"];
+      d3Desc = "Edge case with all identical characters where window size never exceeds 1.";
+    } else if (slug === "minimum-window-substring") {
+      d3Array = ["a"];
+      d3SecondaryArray = ["a"];
+      d3Desc = "Edge case with single-character exact match.";
+    } else if (slug === "max-consecutive-ones-iii") {
+      d3Array = [0, 0, 0, 0, 0];
+      d3Target = 0;
+      d3Desc = "Edge case with all zeroes and k=0 flips.";
+    } else {
+      d3Array = ["z", "z", "z"];
+      d3Desc = "Boundary edge case for sliding window.";
+    }
+  } else if (isInPlacePointers) {
+    if (slug === "move-zeroes") {
+      d3Array = [0, 0, 0, 0, 1];
+      d3Desc = "Edge case with leading zeroes and single non-zero value.";
+    } else if (slug === "remove-duplicates-from-sorted-array") {
+      d3Array = [1, 1, 1, 1, 1];
+      d3Desc = "Edge case where all elements are identical, reducing to length 1.";
+    } else if (slug === "sort-colors") {
+      d3Array = [2, 2, 1, 1, 0, 0];
+      d3Desc = "Reverse-sorted edge case testing maximum displacement.";
+    } else {
+      d3Array = [0, 0, 0];
+      d3Desc = "Homogeneous boundary array.";
+    }
+  } else if (isPrefixSum) {
+    if (slug === "subarray-sum-equals-k") {
+      d3Array = [-1, -1, 1];
+      d3Target = 0;
+      d3Desc = "Edge case with negative values summing to target zero.";
+    } else if (slug === "contiguous-array") {
+      d3Array = [0, 0, 0, 0];
+      d3Desc = "Edge case with only zeroes (no valid balance).";
+    } else {
+      d3Array = [-5, 5, -5, 5];
+      d3Target = 0;
+      d3Desc = "Oscillating prefix sums around zero.";
+    }
   } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
     d3Tree = [1, null, 2, null, null, null, 3, null, null, null, null, null, null, null, 4];
     d3Array = [1, 2, 3, 4];
@@ -6482,6 +6714,7 @@ export function getCanonicalMultiDatasets(
     matrix: d3Matrix,
     tree: d3Tree,
     target: d3Target,
+    secondaryArray: d3SecondaryArray,
     category: "edge",
   };
 
@@ -6754,7 +6987,7 @@ export function getProblemDatasets(slug: string, topics: string[] = []): Problem
   }
 
   // 12. Sliding Window + Hash Set / Frequency Map
-  if (sig.pattern === "sliding-window") {
+  if (sig.pattern === "sliding-window" || sig.pattern === "sliding-window-dynamic") {
     return [
       {
         name: "array",

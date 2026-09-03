@@ -1332,3 +1332,115 @@ test("validateAndNormalizeVizPayload repairs raw AI steps containing INT_MAX, ze
   assert.deepEqual(normalized.viz_steps[2]?.map, { e: 1, l: 2 }, "Valid key-value map e:1, l:2 preserved");
 });
 
+test("validateAndNormalizeVizPayload extracts i and j loop variables into dual pointers with labels", () => {
+  const rawPayload = {
+    code_lines: [
+      "for i in range(len(nums)):",
+      "    for j in range(i + 1, len(nums)):",
+      "        if nums[i] + nums[j] == target:",
+      "            return [i, j]",
+    ],
+    test_array: [2, 7, 11, 15],
+    viz_steps: [
+      {
+        type: "array",
+        line: 2,
+        desc: "Checking nums[0] + nums[1] == 9",
+        i: 0,
+        j: 1,
+      } as any,
+    ],
+  };
+
+  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
+  const step = normalized.viz_steps[0]!;
+  assert.equal(step.left, 0, "Extracts i into left pointer");
+  assert.equal(step.right, 1, "Extracts j into right pointer");
+  assert.deepEqual(
+    step.pointer_labels,
+    { left: "i", right: "j" },
+    "Populates pointer_labels with i and j",
+  );
+});
+
+test("validateAndNormalizeVizPayload extracts slow and fast pointers with labels", () => {
+  const rawPayload = {
+    code_lines: ["slow = 0", "for fast in range(len(nums)): if nums[fast] != 0: nums[slow] = nums[fast]; slow += 1"],
+    test_array: [0, 1, 0, 3, 12],
+    viz_steps: [
+      {
+        type: "array",
+        line: 1,
+        desc: "Inspecting nums[fast]",
+        slow: 0,
+        fast: 1,
+      } as any,
+    ],
+  };
+
+  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
+  const step = normalized.viz_steps[0]!;
+  assert.equal(step.left, 0, "Extracts slow into left pointer");
+  assert.equal(step.right, 1, "Extracts fast into right pointer");
+  assert.deepEqual(
+    step.pointer_labels,
+    { left: "slow", right: "fast" },
+    "Populates pointer_labels with slow and fast",
+  );
+});
+
+test("validateAndNormalizeVizPayload extracts start and end / window pointers with labels", () => {
+  const rawPayload = {
+    code_lines: ["while end < len(s):", "    if s[end] in seen: start += 1", "    end += 1"],
+    test_array: ["a", "b", "c", "a"],
+    viz_steps: [
+      {
+        type: "array",
+        line: 1,
+        desc: "Active window [0..2]",
+        window: [0, 2],
+      } as any,
+    ],
+  };
+
+  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
+  const step = normalized.viz_steps[0]!;
+  assert.equal(step.left, 0, "Extracts window[0] into left pointer");
+  assert.equal(step.right, 2, "Extracts window[1] into right pointer");
+  assert.deepEqual(
+    step.pointer_labels,
+    { left: "left", right: "right" },
+    "Populates pointer_labels with left and right",
+  );
+});
+
+test("validateAndNormalizeVizPayload extracts low, high, mid binary search pointers with labels", () => {
+  const rawPayload = {
+    code_lines: ["while low <= high:", "    mid = (low + high) // 2", "    if nums[mid] == target: return mid"],
+    test_array: [1, 3, 5, 7, 9, 11],
+    viz_steps: [
+      {
+        type: "array",
+        line: 1,
+        desc: "Checking mid index 2",
+        low: 0,
+        high: 5,
+        mid: 2,
+      } as any,
+    ],
+  };
+
+  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
+  const step = normalized.viz_steps[0]!;
+  assert.equal(step.left, 0, "Extracts low into left pointer");
+  assert.equal(step.right, 5, "Extracts high into right pointer");
+  assert.equal(step.current, 2, "Extracts mid into current pointer");
+  assert.deepEqual(
+    step.pointer_labels,
+    { left: "low", right: "high", current: "mid" },
+    "Populates pointer_labels with low, high, and mid",
+  );
+});
+
+
+

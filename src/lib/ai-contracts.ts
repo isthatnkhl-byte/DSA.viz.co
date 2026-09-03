@@ -1257,14 +1257,167 @@ export function validateAndNormalizeVizPayload(
         currentIdx?: unknown; prevIdx?: unknown; 
         curr?: unknown; currentNode?: unknown; node?: unknown; pointer?: unknown; index?: unknown; idx?: unknown; i?: unknown; j?: unknown; 
         ptr1?: unknown; ptr2?: unknown; l?: unknown; r?: unknown;
+        slow?: unknown; fast?: unknown; write?: unknown; read?: unknown; start?: unknown; end?: unknown;
+        low?: unknown; high?: unknown; mid?: unknown;
+        window?: unknown;
+        variables?: Record<string, unknown>; vars?: Record<string, unknown>;
       };
-      
-      let rawCurrent = step.current ?? rawStepItem.curr ?? rawStepItem.currentNode ?? rawStepItem.node ?? rawStepItem.pointer ?? rawStepItem.index ?? rawStepItem.idx ?? rawStepItem.i;
+
+      // Extract left and right pointers
+      let rawLeft: any = step.left ?? rawStepItem.l ?? rawStepItem.ptr1 ?? null;
+      let rawRight: any = step.right ?? rawStepItem.r ?? rawStepItem.ptr2 ?? null;
+
+      // Track inferred labels for UI badges
+      let inferredLabelLeft: string | null = null;
+      let inferredLabelRight: string | null = null;
+      let inferredLabelCurr: string | null = null;
+
+      const rawVars = rawStepItem.variables || rawStepItem.vars || {};
+
+      // Window array extraction (e.g. window: [0, 3])
+      if (Array.isArray(rawStepItem.window) && rawStepItem.window.length >= 2) {
+        if (rawLeft === null || rawLeft === undefined) {
+          rawLeft = rawStepItem.window[0];
+          inferredLabelLeft = "left";
+        }
+        if (rawRight === null || rawRight === undefined) {
+          rawRight = rawStepItem.window[1];
+          inferredLabelRight = "right";
+        }
+      }
+
+      // Slow & Fast pointers (Move Zeroes, Remove Duplicates, Floyd's Cycle)
+      const slowVal = rawStepItem.slow ?? rawVars.slow;
+      const fastVal = rawStepItem.fast ?? rawVars.fast;
+      if (slowVal !== undefined && slowVal !== null && (rawLeft === null || rawLeft === undefined)) {
+        rawLeft = slowVal;
+        inferredLabelLeft = "slow";
+      }
+      if (fastVal !== undefined && fastVal !== null && (rawRight === null || rawRight === undefined)) {
+        rawRight = fastVal;
+        inferredLabelRight = "fast";
+      }
+
+      // Write & Read pointers (In-place array modifications)
+      const writeVal = rawStepItem.write ?? rawVars.write;
+      const readVal = rawStepItem.read ?? rawVars.read;
+      if (writeVal !== undefined && writeVal !== null && (rawLeft === null || rawLeft === undefined)) {
+        rawLeft = writeVal;
+        inferredLabelLeft = "write";
+      }
+      if (readVal !== undefined && readVal !== null && (rawRight === null || rawRight === undefined)) {
+        rawRight = readVal;
+        inferredLabelRight = "read";
+      }
+
+      // Start & End pointers (Sliding window / ranges)
+      const startVal = rawStepItem.start ?? rawVars.start;
+      const endVal = rawStepItem.end ?? rawVars.end;
+      if (startVal !== undefined && startVal !== null && (rawLeft === null || rawLeft === undefined)) {
+        rawLeft = startVal;
+        inferredLabelLeft = "start";
+      }
+      if (endVal !== undefined && endVal !== null && (rawRight === null || rawRight === undefined)) {
+        rawRight = endVal;
+        inferredLabelRight = "end";
+      }
+
+      // Low & High pointers (Binary Search)
+      const lowVal = rawStepItem.low ?? rawVars.low;
+      const highVal = rawStepItem.high ?? rawVars.high;
+      if (lowVal !== undefined && lowVal !== null && (rawLeft === null || rawLeft === undefined)) {
+        rawLeft = lowVal;
+        inferredLabelLeft = "low";
+      }
+      if (highVal !== undefined && highVal !== null && (rawRight === null || rawRight === undefined)) {
+        rawRight = highVal;
+        inferredLabelRight = "high";
+      }
+
+      // Explicit i and j (Nested loops / brute-force)
+      const hasExplicitI = rawStepItem.i !== undefined && rawStepItem.i !== null;
+      const hasExplicitJ = rawStepItem.j !== undefined && rawStepItem.j !== null;
+
+      if (hasExplicitI && (rawLeft === null || rawLeft === undefined)) {
+        rawLeft = rawStepItem.i;
+        inferredLabelLeft = "i";
+      }
+      if (hasExplicitJ && (rawRight === null || rawRight === undefined)) {
+        rawRight = rawStepItem.j;
+        inferredLabelRight = "j";
+      }
+
+      if ((rawLeft === null || rawLeft === undefined) && rawVars.i !== undefined) {
+        rawLeft = rawVars.i;
+        inferredLabelLeft = "i";
+      }
+      if ((rawRight === null || rawRight === undefined) && rawVars.j !== undefined) {
+        rawRight = rawVars.j;
+        inferredLabelRight = "j";
+      }
+
+      // Fallback regex detection in step desc
+      const descText = String(step.desc ?? "");
+      if ((rawLeft === null || rawLeft === undefined) && (rawRight === null || rawRight === undefined)) {
+        const slowFastMatch = /\bslow\s*=\s*(\d+)\b[^\n\r]*?\bfast\s*=\s*(\d+)\b/i.exec(descText);
+        if (slowFastMatch) {
+          rawLeft = Number(slowFastMatch[1]);
+          rawRight = Number(slowFastMatch[2]);
+          inferredLabelLeft = "slow";
+          inferredLabelRight = "fast";
+        } else {
+          const writeReadMatch = /\bwrite\s*=\s*(\d+)\b[^\n\r]*?\bread\s*=\s*(\d+)\b/i.exec(descText);
+          if (writeReadMatch) {
+            rawLeft = Number(writeReadMatch[1]);
+            rawRight = Number(writeReadMatch[2]);
+            inferredLabelLeft = "write";
+            inferredLabelRight = "read";
+          } else {
+            const startEndMatch = /\bstart\s*=\s*(\d+)\b[^\n\r]*?\bend\s*=\s*(\d+)\b/i.exec(descText) ||
+                                  /\bleft\s*=\s*(\d+)\b[^\n\r]*?\bright\s*=\s*(\d+)\b/i.exec(descText);
+            if (startEndMatch) {
+              rawLeft = Number(startEndMatch[1]);
+              rawRight = Number(startEndMatch[2]);
+              inferredLabelLeft = "start";
+              inferredLabelRight = "end";
+            } else {
+              const lowHighMatch = /\blow\s*=\s*(\d+)\b[^\n\r]*?\bhigh\s*=\s*(\d+)\b/i.exec(descText);
+              if (lowHighMatch) {
+                rawLeft = Number(lowHighMatch[1]);
+                rawRight = Number(lowHighMatch[2]);
+                inferredLabelLeft = "low";
+                inferredLabelRight = "high";
+              } else {
+                const ijMatch = /\bi\s*=\s*(\d+)\b[^\n\r]*?\bj\s*=\s*(\d+)\b/i.exec(descText) ||
+                                /nums\[(\d+)\]\s*\+\s*nums\[(\d+)\]/i.exec(descText);
+                if (ijMatch) {
+                  rawLeft = Number(ijMatch[1]);
+                  rawRight = Number(ijMatch[2]);
+                  inferredLabelLeft = "i";
+                  inferredLabelRight = "j";
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Check current pointer (mid, curr, node, etc.)
+      const midVal = rawStepItem.mid ?? rawVars.mid;
+      let rawCurrent: any = step.current ?? rawStepItem.curr ?? rawStepItem.currentNode ?? rawStepItem.node ?? rawStepItem.pointer ?? rawStepItem.index ?? rawStepItem.idx;
+      if (midVal !== undefined && midVal !== null && (rawCurrent === undefined || rawCurrent === null)) {
+        rawCurrent = midVal;
+        inferredLabelCurr = "mid";
+      }
+
+      if (rawCurrent === undefined || rawCurrent === null) {
+        if (rawLeft === null && rawRight === null && hasExplicitI) {
+          rawCurrent = rawStepItem.i;
+        }
+      }
       if (rawCurrent && typeof rawCurrent === "object" && !Array.isArray(rawCurrent)) {
         rawCurrent = (rawCurrent as any).val ?? (rawCurrent as any).value ?? (rawCurrent as any).id ?? (rawCurrent as any).name ?? null;
       }
-      const rawLeft = step.left ?? rawStepItem.l ?? rawStepItem.ptr1 ?? (rawStepItem.i !== rawCurrent ? rawStepItem.i : null);
-      const rawRight = step.right ?? rawStepItem.r ?? rawStepItem.ptr2 ?? rawStepItem.j;
 
       const numericCurrent =
         typeof rawCurrent === "number" && Number.isFinite(rawCurrent) ? rawCurrent : null;
@@ -1305,6 +1458,35 @@ export function validateAndNormalizeVizPayload(
       let auxPointerLabels = typeof step.pointer_labels === "object" && step.pointer_labels !== null
         ? Object.fromEntries(Object.entries(step.pointer_labels).map(([k, v]) => [k, String(v)]))
         : null;
+
+      // Infer pointer labels if omitted
+      if (rawLeft !== null && rawLeft !== undefined && rawRight !== null && rawRight !== undefined) {
+        if (!auxPointerLabels || (!auxPointerLabels.left && !auxPointerLabels.right)) {
+          if (inferredLabelLeft && inferredLabelRight) {
+            auxPointerLabels = {
+              left: inferredLabelLeft,
+              right: inferredLabelRight,
+              ...(inferredLabelCurr ? { current: inferredLabelCurr } : {}),
+              ...(auxPointerLabels ?? {}),
+            };
+          } else {
+            const hasIJInCode = code_lines.some((l) => /\bfor\s+[ij]\b|\b[ij]\s*[=+\-<>]/i.test(l));
+            const hasIJInStep = hasExplicitI || hasExplicitJ || /\bi\b.*\bj\b/i.test(descText);
+            if (hasIJInCode || hasIJInStep) {
+              auxPointerLabels = {
+                left: "i",
+                right: "j",
+                ...(auxPointerLabels ?? {}),
+              };
+            }
+          }
+        }
+      } else if (inferredLabelCurr && (!auxPointerLabels || !auxPointerLabels.current)) {
+        auxPointerLabels = {
+          current: inferredLabelCurr,
+          ...(auxPointerLabels ?? {}),
+        };
+      }
 
       const activeNodeId =
         step.activeNodeId !== null && step.activeNodeId !== undefined

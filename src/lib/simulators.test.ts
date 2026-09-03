@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { simulateProblemWithDataset } from "./simulators";
+import { simulateProblemWithDataset, patternFor, bruteForcePairSum } from "./simulators";
 import type { TestDataset } from "./problems";
 import {
   extractScalarValue,
@@ -430,4 +430,66 @@ test("VisualizerTypes & Sanitizers - robust handling of arbitrary data types and
   assert.equal(toText(Infinity), "∞");
   assert.equal(toText(123n), "123n");
 });
+
+test("patternFor - categorizes matrix transformation problems as matrix-transform", () => {
+  assert.equal(
+    patternFor("set-matrix-zeroes", "Set Matrix Zeroes", ["Array", "Hash Table", "Matrix"]),
+    "matrix-transform",
+  );
+  assert.equal(
+    patternFor("rotate-image", "Rotate Image", ["Array", "Math", "Matrix"]),
+    "matrix-transform",
+  );
+  assert.equal(
+    patternFor("spiral-matrix", "Spiral Matrix", ["Array", "Matrix", "Simulation"]),
+    "matrix-transform",
+  );
+});
+
+test("simulateProblemWithDataset - matrix-transform generates in-place cell-by-cell steps", () => {
+  const dataset: TestDataset = {
+    id: "test_set_matrix_zeroes",
+    label: "Test Set Matrix Zeroes",
+    matrix: [
+      [1, 1, 1],
+      [1, 0, 1],
+      [1, 1, 1],
+    ],
+    category: "standard",
+  };
+
+  const result = simulateProblemWithDataset(
+    "set-matrix-zeroes",
+    "Set Matrix Zeroes",
+    ["Array", "Hash Table", "Matrix"],
+    dataset,
+  );
+
+  assert.ok(result.steps.length >= 9, "Generates cell-by-cell steps for every matrix coordinate");
+  assert.equal(result.steps[0]?.type, "matrix");
+  assert.ok(result.steps.some((s) => s.current === "1,1"), "Visits center zero cell");
+
+  const finalStep = result.steps[result.steps.length - 1];
+  assert.ok(finalStep);
+  assert.deepEqual(finalStep.matrix, [
+    [1, 0, 1],
+    [0, 0, 0],
+    [1, 0, 1],
+  ]);
+});
+
+test("bruteForcePairSum - animates nested loop with i and j pointer labels", () => {
+  const result = bruteForcePairSum([2, 7, 11, 15], 9);
+  assert.ok(result.steps.length > 0);
+  // Check that pointer_labels: { left: 'i', right: 'j' } are present
+  const innerStep = result.steps.find((s) => s.pointer_labels?.left === "i" && s.pointer_labels?.right === "j");
+  assert.ok(innerStep, "Steps have i and j pointer labels");
+  assert.equal(innerStep.left, 0);
+  assert.equal(innerStep.right, 1);
+  const matchStep = result.steps.find((s) => s.desc?.includes("Match found"));
+  assert.ok(matchStep, "Finds match for target 9 at [0, 1]");
+  assert.equal(matchStep.left, 0);
+  assert.equal(matchStep.right, 1);
+});
+
 

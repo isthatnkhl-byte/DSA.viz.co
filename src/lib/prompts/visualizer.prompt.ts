@@ -99,6 +99,20 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
    - RECURSIVE DFS ORDER: Follow the candidate's exact recursive call-stack order (when recursing into an adjacent neighbor, dive into that neighbor's sub-tree BEFORE visiting sibling directions of the caller).
    - FULL GRID SCAN: Systematically scan all rows and cols across the provided grid to discover and evaluate ALL islands in the dataset until the entire grid is traversed.
 
+7b) 2D MATRIX IN-PLACE TRANSFORMATION & CELL-BY-CELL GRID LOOPS (Set Matrix Zeroes, Rotate Image, Spiral Matrix, Game of Life, Valid Sudoku, Diagonal Traverse):
+   - Set "type": "matrix".
+   - "matrix": 2D array of rows representing the current state of the matrix (e.g. [[1, 0, 1], [0, 0, 0], ...]), updated in-place on EVERY cell write, flag, or sentinel assignment.
+   - "cols": integer number of columns.
+   - "current": string "i,j" (e.g. "0,1") representing the EXACT coordinates of the cell currently being inspected, evaluated, or modified.
+   - "visited": optional array of coordinate strings ["0,0", "0,1", ...] that have been evaluated.
+   - MANDATORY CELL-BY-CELL LOOP TRAVERSAL:
+     * When the pseudocode has nested loops (for i in 0..n: for j in 0..m:) or row/column traversals, you MUST iterate cell-by-cell!
+     * NEVER skip or take macro jumps across entire rows or columns in a single step (e.g. do NOT set an entire row to zeroes in one step).
+     * For every cell (i, j) evaluated: emit a step setting current: "i,j" and describing the comparison in "desc" (e.g. "Checking matrix[1][1] (0) == 0: Found zero! Will propagate.").
+     * When marking or overwriting a row or column: step through each cell along that row or column one-by-one with "current": "r,c", showing the in-place matrix mutation on each step.
+     * When performing a second pass: step through cells individually, highlighting each conversion or update in-place.
+     * In "desc", explicitly reference indices i, j and cell values matrix[i][j].
+
 8) BINARY TREE BFS / LEVEL-ORDER:
    - Set "type": "tree".
    - "tree": Level-order array of the binary tree with nulls for missing nodes.
@@ -112,6 +126,64 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
 10) DUAL POINTERS ACROSS MULTIPLE ARRAYS:
    - For Array 1: use "left" and "right".
    - For Array 2 ("secondaryArray"): use "left2" and "right2".
+
+10b) NESTED LOOPS & DUAL POINTERS ON ARRAYS (for i ... for j ..., e.g. Two Sum Brute Force / Pair Searches):
+   - When an algorithm uses nested loops over an array (e.g. "for i = 0 to n-1: for j = i + 1 to n-1:"):
+   - You MUST emit BOTH pointers simultaneously in every inner loop step:
+     * "left": integer index of the outer loop variable (e.g. i).
+     * "right": integer index of the inner loop variable (e.g. j).
+     * "pointer_labels": { "left": "i", "right": "j" } (or the candidate's exact loop variable names).
+   - "left" remains anchored at index i while "right" iterates through j = i + 1, i + 2, ...
+   - In "desc", state: "Checking nums[i] (X) + nums[j] (Y) = Sum vs target Target".
+   - NEVER collapse both into a single "current" pointer or omit "pointer_labels"!
+
+10c) DYNAMIC VARIABLE-SIZE SLIDING WINDOW (Longest Substring Without Repeating Characters, Minimum Window Substring, Max Consecutive Ones III, Subarray Product Less Than K):
+   - Set "type": "array".
+   - You MUST emit BOTH window boundary pointers on every step:
+     * "left": integer index of the window start pointer.
+     * "right": integer index of the window end pointer.
+     * "pointer_labels": { "left": "left", "right": "right" } (or candidate's exact pointer variable names).
+   - Dynamic Window Expansion & Contraction:
+     * EXPANSION: When right advances, add the character/element to the window and update auxiliary "map" (frequency or index) or "set".
+     * CONTRACTION: While the window condition is violated (e.g. duplicate character in set, or zeroes count > k), advance left step-by-step, removing characters or decrementing counts in "map"/"set" until the window is valid again.
+     * "wSum": active window length (right - left + 1).
+     * "mSum": running maximum or optimal window length found so far.
+   - In "desc", describe the character added/removed, window bounds [left..right], and the updated max length.
+
+10d) SAME-DIRECTION IN-PLACE READ/WRITE POINTERS (Move Zeroes, Remove Duplicates, Remove Element, Sort Colors):
+   - Set "type": "array".
+   - You MUST emit BOTH pointers simultaneously:
+     * "left": integer index of the slow / write pointer.
+     * "right": integer index of the fast / read pointer.
+     * "pointer_labels": { "left": "slow", "right": "fast" } (or "write" / "read").
+   - In-Place Mutation:
+     * When writing or swapping (e.g. nums[slow] = nums[fast]), update the "array" field in-place on that exact step so the UI reflects the modified elements.
+     * In "desc", explain: "nums[fast] (X) meets condition — overwrite/swap at nums[slow] (index Y) and advance slow."
+
+10e) PREFIX SUM WITH COMPLEMENT HASH MAP (Subarray Sum Equals K, Contiguous Array, Find Pivot Index):
+   - Set "type": "array".
+   - In every step:
+     * "left": integer index i of the current element being processed.
+     * "wSum": running cumulative prefix sum up to index i.
+     * "map": { [prefix_sum]: count } frequency dictionary of all prefix sums encountered so far (including initial { 0: 1 }).
+     * In "desc", explicitly state: "Running sum = S. Checking if (S - target) = Remainder exists in map. Found M matches so far."
+
+10f) MONOTONIC STACK (Daily Temperatures, Next Greater Element, Online Stock Span):
+   - Set "type": "stack".
+   - In every step:
+     * "current": current incoming value or index.
+     * "stack": array of active elements or indices currently in stack in strictly monotonic order.
+     * When incoming element violates monotonic property, emit a step for each popped element with "shiftInfo": { "from": "stack", "to": "array", "action": "pop", "reason": "..." }, showing the answer resolved for the popped element.
+     * Then emit a step pushing the incoming element onto "stack".
+
+10g) BINARY SEARCH (Binary Search, Search in Rotated Sorted Array, Find Peak Element):
+   - Set "type": "array".
+   - In every step:
+     * "left": low boundary index.
+     * "right": high boundary index.
+     * "current": middle element index (mid = floor((low + high) / 2)).
+     * "pointer_labels": { "left": "low", "right": "high", "current": "mid" }.
+     * In "desc", state: "nums[mid] (X) vs target (Y). Search space reduced: discard half and set new bounds."
 
 11) ARRAY / STRING ALGORITHMS:
    - For standard array/string problems, set "type": "array".
@@ -151,13 +223,18 @@ export function buildVisualizerUserPrompt({
   datasetDescription?: string;
   pseudocode: string;
 }) {
-  const isIslandOrGrid =
-    /island|max.*area|number[- ]of[- ]islands|grid|matrix|flood[- ]fill|rotting|surrounded[- ]regions/i.test(
+  const isIsland =
+    /island|max.*area.*island|number[- ]of[- ]islands|flood[- ]fill|rotting.*orange|surrounded[- ]regions|walls[- ]and[- ]gates|pacific[- ]atlantic|count-sub-islands|making-a-large-island/i.test(
       title,
     ) ||
-    /grid\[r\]\[c\]|grid\[row\]\[col\]|neighbours|in_bounds|\bdr,\s*dc\b|\bdirections\b/i.test(
-      pseudocode,
-    );
+    (/\bdr,\s*dc\b|\bdirections\b/i.test(pseudocode) && /dfs|bfs|connected|component|land|water/i.test(pseudocode));
+
+  const isMatrixTransform =
+    !isIsland &&
+    (/set[- ]matrix|rotate[- ]image|spiral[- ]matrix|game[- ]of[- ]life|valid[- ]sudoku|diagonal[- ]traverse|matrix.*zero|zeroes/i.test(
+      title,
+    ) ||
+      Boolean(matrixExample && matrixExample.length > 0 && !isIsland));
 
   const isTree =
     /tree|level[- ]order|zigzag|right-side-view|bst/i.test(title) ||
@@ -177,7 +254,7 @@ export function buildVisualizerUserPrompt({
 
   if (secondaryArrayExample && secondaryArrayExample.length > 0) {
     sampleGuidance = `Simulate dual-sequence / multi-attribute array execution using primary array (${JSON.stringify(safeExample)}) and secondaryArray (${JSON.stringify(secondaryArrayExample)}).${targetExample !== undefined ? ` Target / minProfit = ${targetExample}.` : ""} Track dual pointers ("left", "right" on primary array and "left2", "right2" on secondaryArray).`;
-  } else if (isIslandOrGrid) {
+  } else if (isIsland) {
     const gridRows =
       matrixExample && matrixExample.length > 0
         ? matrixExample
@@ -204,6 +281,25 @@ MANDATORY FOR GRID/ISLAND TRAVERSALS:
   * 'maxArea' (or 'mSum'): Running maximum island area discovered across the entire grid so far.
   * 'direction': Vector being traversed (e.g. "DOWN (+1, 0)", "UP (-1, 0)", "RIGHT (0, +1)", "LEFT (0, -1)").
 - When an island's DFS completes, update maxArea = max(maxArea, currentArea), then continue the outer scan (for r... for c...) to discover and fully explore Island #2, Island #3, etc. until the entire grid is complete.`;
+  } else if (isMatrixTransform) {
+    const gridRows =
+      matrixExample && matrixExample.length > 0
+        ? matrixExample
+        : [
+            [1, 1, 1],
+            [1, 0, 1],
+            [1, 1, 1],
+          ];
+    sampleGuidance = `Simulate 2D Matrix In-Place Transformation & Cell-by-Cell Traversal on this input matrix:
+matrix = ${JSON.stringify(gridRows)}
+cols = ${gridRows[0]?.length ?? 3}
+Set type='matrix'. Step through candidate's nested loops (for i = 0..n-1: for j = 0..m-1:) cell-by-cell!
+MANDATORY FOR 2D MATRIX CELL-BY-CELL LOOPS:
+- Step through loop iterations cell by cell! DO NOT take macro skips across entire rows or columns in a single step.
+- For every cell visited, set 'current' to the active cell coordinates string "i,j" (e.g. "0,0", "0,1", "1,1").
+- Mutate 'matrix' in-place on each step to reflect updated cell values, sentinels, or zeroes.
+- When scanning/marking a row or column, step through each cell along that row/column individually with 'current' set to each coordinate (e.g. (i, 0), (i, 1), ...).
+- Set 'line' to the exact line in candidate's pseudocode being executed.`;
   } else if (isTree) {
     const treeArr = treeExample ?? [3, 9, 20, null, null, 15, 7];
     sampleGuidance = `Simulate binary tree traversal using 'tree' (level-order array with nulls: ${JSON.stringify(treeArr)}) and 'queue' (active FIFO buffer updated on every enqueue/dequeue step). Set type='tree'. Continue until the queue becomes empty and traversal completes.`;
@@ -221,8 +317,54 @@ MANDATORY FOR QUEUE & CARD REVEAL SIMULATION:
       "Simulate candidate's methods (e.g. put, get, remove, or class methods) according to the problem's canonical example sequence through to the final method call. Do NOT emit a fake 'array' field if this is a pure HashMap/HashSet/Cache design.";
   }
 
+  const isDynamicSlidingWindow =
+    !isIsland &&
+    !isMatrixTransform &&
+    (/longest.*substring|minimum.*window|sliding.*window|character.*replacement|consecutive.*ones|fruit.*basket|subarray.*product.*less/i.test(title) ||
+      (/\b(left|start)\b/i.test(pseudocode) && /\b(right|end)\b/i.test(pseudocode) && /window|shrink|expand|frequency/i.test(pseudocode)));
+
+  const isInPlacePointers =
+    !isIsland &&
+    !isMatrixTransform &&
+    (/move.*zero|remove.*duplicate|remove.*element|sort.*colors|duplicate.*zero/i.test(title) ||
+      (/\b(slow|write)\b/i.test(pseudocode) && /\b(fast|read)\b/i.test(pseudocode)));
+
+  const isPrefixSum =
+    !isIsland &&
+    !isMatrixTransform &&
+    (/subarray.*sum.*equals|contiguous.*array|pivot.*index|running.*sum|prefix.*sum/i.test(title) ||
+      (/prefix.*sum|running.*sum|curr.*sum/i.test(pseudocode) && /hash|map|dict/i.test(pseudocode)));
+
+  if (isDynamicSlidingWindow) {
+    sampleGuidance = `Simulate Dynamic Sliding Window execution on input sequence: ${JSON.stringify(safeExample)}.${targetExample !== undefined ? ` Target / k = ${targetExample}.` : ""}
+Set type='array'.
+MANDATORY FOR SLIDING WINDOW:
+- Emit both window boundary pointers on EVERY step: 'left' (window start) and 'right' (window end) with pointer_labels: { left: 'left', right: 'right' }.
+- Animate window expansion when 'right' advances, adding the element to active window and updating 'map' (frequency dictionary) or 'set'.
+- Animate window contraction when 'left' advances, removing elements from 'map'/'set' while condition is violated.
+- Track 'wSum' as active window width (right - left + 1) and 'mSum' as running maximum/optimal window width.
+- Set 'line' to the exact line in candidate's pseudocode being executed.`;
+  } else if (isInPlacePointers) {
+    sampleGuidance = `Simulate In-Place Read/Write Two-Pointer execution on input: ${JSON.stringify(safeExample)}.
+Set type='array'.
+MANDATORY FOR IN-PLACE READ/WRITE POINTERS:
+- Emit both pointers simultaneously on EVERY step: 'left' (slow / write pointer) and 'right' (fast / read pointer) with pointer_labels: { left: 'slow', right: 'fast' } (or 'write' / 'read').
+- When elements are overwritten or swapped (nums[slow] = nums[fast]), update the 'array' field in-place on that exact step so the UI reflects the modified elements.
+- In 'desc', explain the inspection and write: e.g. "nums[fast] (X) meets condition — overwrite at nums[slow] (index Y) and advance slow."
+- Set 'line' to the exact line in candidate's pseudocode being executed.`;
+  } else if (isPrefixSum) {
+    sampleGuidance = `Simulate Prefix Sum with Complement Hash Map on input: ${JSON.stringify(safeExample)}.${targetExample !== undefined ? ` Target k = ${targetExample}.` : ""}
+Set type='array'.
+MANDATORY FOR PREFIX SUM WITH HASH MAP:
+- On each step, emit 'left': index i of the current element being processed.
+- Track running cumulative sum in 'wSum' (curr_sum).
+- Track prefix sum frequencies in 'map' (e.g. { "0": 1, ... }), updated dynamically on every step.
+- In 'desc', detail the complement check: "Current prefix sum = S. Checking if (S - k) = Diff exists in map."
+- Set 'line' to the exact line in candidate's pseudocode being executed.`;
+  }
+
   const isDp = /dp\[|dp_table|memo|tabulation|dynamic programming|longest common subsequence|knapsack|cost to merge/i.test(title + " " + (pseudocode || ""));
-  if (isDp && !isIslandOrGrid) {
+  if (isDp && !isIsland && !isMatrixTransform && !isDynamicSlidingWindow && !isPrefixSum) {
     sampleGuidance = `Simulate Dynamic Programming execution. Set type='dp' or 'matrix'. Track the active cell being computed using "current" set to "r,c" (or just the index if 1D). Put the DP table in "matrix" and the input array in "array".`;
   }
 

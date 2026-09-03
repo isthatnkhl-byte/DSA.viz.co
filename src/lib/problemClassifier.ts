@@ -190,6 +190,23 @@ export function classifyProblem(
     };
   }
 
+  // 5b. 2D MATRIX IN-PLACE TRANSFORMATION & GRID LOOPS (Set Matrix Zeroes, Rotate Image, Spiral Matrix, Game of Life, Sudoku)
+  if (
+    /set-matrix-zeroes|rotate-image|spiral-matrix|spiral-matrix-ii|game-of-life|valid-sudoku|diagonal-traverse|reshape-the-matrix|matrix-block-sum|shift-2d-grid|transpose-matrix|toeplitz-matrix|image-overlap|flipping-an-image|lucky-numbers-in-a-matrix|search-a-2d-matrix|search-a-2d-matrix-ii/.test(
+      s,
+    ) ||
+    (hasTopic("matrix") &&
+      !hasTopic("depth-first search", "breadth-first search", "dynamic programming", "graph", "intervals"))
+  ) {
+    return {
+      category: "grid-matrix",
+      primaryVizType: "matrix",
+      pattern: "matrix-transform",
+      isMultiEntity: false,
+      algorithmName: "2D Matrix In-Place Cell-by-Cell Transformation",
+    };
+  }
+
   // 6. 2D DYNAMIC PROGRAMMING (Grid DP, Subsequence Matrices, String Distances)
   if (/longest-common-subsequence|common-subsequence|common-subseq|\blcs\b/.test(s)) {
     return {
@@ -424,11 +441,11 @@ export function classifyProblem(
   // 20. HASH MAP PAIR & COMPLEMENT SEARCH
   if (
     !s.includes("two-sum-ii") &&
-    (/two-sum|3sum-with-multiplicity|4sum-ii|subarray-sum-equals-k|continuous-subarray-sum/.test(
+    (/two-sum|3sum-with-multiplicity|4sum-ii/.test(
       s,
     ) ||
       (hasTopic("hash table") &&
-        !hasTopic("two pointers", "sliding window", "binary search") &&
+        !hasTopic("two pointers", "sliding window", "binary search", "prefix sum") &&
         /sum|target|pair|complement|diff/i.test(s)))
   ) {
     return {
@@ -437,6 +454,22 @@ export function classifyProblem(
       pattern: "hashmap-pair",
       isMultiEntity: false,
       algorithmName: "Hash Map Complement Lookup (Two Sum O(n))",
+    };
+  }
+
+  // 20b. PREFIX SUM WITH HASH MAP COMPLEMENT LOOKUP (Subarray Sum Equals K, Contiguous Array)
+  if (
+    /subarray-sum-equals-k|continuous-subarray-sum|contiguous-array|subarray-sums-divisible-by-k/.test(
+      s,
+    ) ||
+    (hasTopic("prefix sum") && hasTopic("hash table"))
+  ) {
+    return {
+      category: "prefix-sum",
+      primaryVizType: "array",
+      pattern: "prefix-sum-hashmap",
+      isMultiEntity: false,
+      algorithmName: "Prefix Sum with Running Hash Map Complement Lookup",
     };
   }
 
@@ -456,9 +489,24 @@ export function classifyProblem(
     };
   }
 
-  // 21. SLIDING WINDOW
+  // 21a. DYNAMIC VARIABLE-SIZE SLIDING WINDOW & SUBSTRINGS
   if (
-    /longest-substring-without-repeating|minimum-window-substring|sliding-window-maximum|longest-repeating-character-replacement|permutation-in-string|max-consecutive-ones-iii|fruit-into-baskets|maximum-average-subarray-i|find-all-anagrams-in-a-string/.test(
+    /longest-substring-without-repeating|minimum-window-substring|longest-repeating-character-replacement|permutation-in-string|max-consecutive-ones-iii|fruit-into-baskets|subarray-product-less-than-k|minimum-size-subarray-sum/.test(
+      s,
+    )
+  ) {
+    return {
+      category: "sliding-window",
+      primaryVizType: "array",
+      pattern: "sliding-window-dynamic",
+      isMultiEntity: false,
+      algorithmName: "Dynamic Variable-Size Window with Expanding Right & Shrinking Left",
+    };
+  }
+
+  // 21b. FIXED-WIDTH SLIDING WINDOW
+  if (
+    /sliding-window-maximum|maximum-average-subarray-i|find-all-anagrams-in-a-string/.test(
       s,
     ) ||
     hasTopic("sliding window")
@@ -468,13 +516,28 @@ export function classifyProblem(
       primaryVizType: "array",
       pattern: "sliding-window",
       isMultiEntity: false,
-      algorithmName: "Dynamic Sliding Window with Expanding Right & Shrinking Left",
+      algorithmName: "Fixed-Width K Sliding Window Scan",
     };
   }
 
-  // 22. TWO POINTERS
+  // 22a. IN-PLACE SAME-DIRECTION READ-WRITE / FAST-SLOW POINTERS
   if (
-    /container-with-most-water|valid-palindrome|3sum|3sum-closest|reverse-string|remove-duplicates-from-sorted-array|move-zeroes|squares-of-a-sorted-array|two-sum-ii-input-array-is-sorted|two-sum-ii|4sum|backspace-string-compare|boats-to-save-people/.test(
+    /remove-duplicates-from-sorted-array|remove-duplicates-from-sorted-array-ii|move-zeroes|remove-element|sort-colors|duplicate-zeros/.test(
+      s,
+    )
+  ) {
+    return {
+      category: "two-pointers",
+      primaryVizType: "array",
+      pattern: "two-pointers-in-place",
+      isMultiEntity: false,
+      algorithmName: "Unidirectional Fast/Slow Read-Write In-Place Pointers",
+    };
+  }
+
+  // 22b. INWARD CONVERGING / OPPOSING TWO POINTERS
+  if (
+    /container-with-most-water|valid-palindrome|3sum|3sum-closest|reverse-string|squares-of-a-sorted-array|two-sum-ii-input-array-is-sorted|two-sum-ii|4sum|backspace-string-compare|boats-to-save-people/.test(
       s,
     ) ||
     hasTopic("two pointers")

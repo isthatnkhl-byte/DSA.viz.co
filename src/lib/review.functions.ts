@@ -70,35 +70,26 @@ const CLASSES = ["Incomplete", "Brute Force", "Better", "Optimal"];
 function userCodeLinesFromPseudocode(pseudocode: string): string[] {
   if (!pseudocode || typeof pseudocode !== "string") return ["const result = solve(input);"];
 
+  // Split lines while preserving indentation
   const rawLines = pseudocode
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+    .map((line) => line.replace(/\s+$/, "")) // trim right only to preserve indentation
+    .filter((line) => line.trim().length > 0);
 
-  if (rawLines.length > 3) {
-    return rawLines.slice(0, 60);
+  if (rawLines.length >= 2) {
+    return rawLines.slice(0, 200);
   }
 
-  // Break compact or single-line pasted pseudocode into discrete logical lines
+  // Break single-line or compact semicolon-separated pseudocode only if single line
   let text = pseudocode;
-  text = text.replace(
-    /(\/\/[^\n]*?\s+)(?=(?:prev\s*=|curr\s*=|m\s*=|n\s*=|for\s+[a-zA-Z_]|if\s+|return\b))/gi,
-    "$1\n",
-  );
-  text = text.replace(
-    /(\s{2,}|\s*;\s*)(?=(?:for\s+[a-zA-Z_]|if\s+|else:|return\b|while\s+|prev\s*=|curr\s*=|m\s*=|n\s*=|\/\/|function\b|def\b))/gi,
-    "\n",
-  );
-  text = text.replace(
-    /(:\s+)(?=(?:m\s*=|n\s*=|prev\s*=|curr\s*=|for\s+[a-zA-Z_]|if\s+|else:|return\b|while\s+|[a-zA-Z_]\w*\s*=|\/\/))/gi,
-    ":\n",
-  );
+  text = text.replace(/;\s*(?=[a-zA-Z_])/g, ";\n");
+  text = text.replace(/(\/\/[^\n]*?\s+)(?=(?:prev\s*=|curr\s*=|m\s*=|n\s*=|for\s+[a-zA-Z_]|if\s+|return\b))/gi, "$1\n");
 
   const formatted = text
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .slice(0, 60);
+    .map((line) => line.replace(/\s+$/, ""))
+    .filter((line) => line.trim().length > 0)
+    .slice(0, 200);
 
   return formatted.length > 0 ? formatted : ["const result = solve(input);"];
 }
@@ -112,6 +103,17 @@ function evaluatePseudocodeHeuristic(pseudocode: string): {
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0 && !l.startsWith("#") && !l.startsWith("//") && !l.startsWith("/*") && !l.startsWith("*"));
+
+  // Check for recursive structure (e.g. dfs, helper, solve, backtrack, or function call inside body)
+  const isRecursive = lines.some((l) =>
+    /\b(?:dfs|bfs|helper|recur|backtrack|solve|traverse)\s*\(|\bdef\s+(\w+)\b.*:\s*.*\b\1\s*\(/i.test(l),
+  );
+
+  // Check for O(1) mathematical or bitwise expressions
+  const isMathBitwiseO1 = lines.some((l) =>
+    /\breturn\b.*(?:[&|^~]|>>|<<|\bpow\b|\bsqrt\b|\bmath\.)/i.test(l) ||
+    (/\breturn\b/i.test(l) && /[=<>!]=?|[+*/%-]/.test(l) && lines.length <= 4),
+  );
 
   // Check for substantive algorithmic keywords and tokens
   const substantiveTokens = [
@@ -140,8 +142,25 @@ function evaluatePseudocodeHeuristic(pseudocode: string): {
     );
   });
 
+  // If mathematical O(1) with return or self-contained recursive function with return and base case
+  if (isMathBitwiseO1 && lines.some((l) => /\breturn\b/i.test(l)) && !hasTrivialPlaceholdersOnly) {
+    return {
+      isComplete: true,
+      missing: [],
+      nudge: "Optimal mathematical / bitwise formula detected! Verifying execution steps.",
+    };
+  }
+
+  if (isRecursive && lines.some((l) => /\breturn\b/i.test(l)) && lines.some((l) => /\bif\b/i.test(l)) && !hasTrivialPlaceholdersOnly) {
+    return {
+      isComplete: true,
+      missing: [],
+      nudge: "Recursive approach detected! Verifying base cases and branch transitions.",
+    };
+  }
+
   // Pseudocode is considered incomplete if it has fewer than 2 meaningful lines,
-  // fewer than 6 total words, matches fewer than 2 substantive syntax categories,
+  // fewer than 5 total words, matches fewer than 2 substantive syntax categories,
   // or contains only trivial placeholders.
   if (lines.length < 2 || totalWords < 5 || matchedTokensCount < 2 || hasTrivialPlaceholdersOnly) {
     const missing: string[] = [];
@@ -163,7 +182,7 @@ function evaluatePseudocodeHeuristic(pseudocode: string): {
         "Result extraction & return statement",
       ],
       nudge:
-        "Write your pseudocode approach (a complete flow with loops, state updates, and return value) to unlock the interactive step-by-step animation.",
+        "Write your pseudocode approach (a complete flow with loops or recursion, state updates, and return value) to unlock the interactive step-by-step animation.",
     };
   }
 

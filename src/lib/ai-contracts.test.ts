@@ -1442,5 +1442,101 @@ test("validateAndNormalizeVizPayload extracts low, high, mid binary search point
   );
 });
 
+test("validateAndNormalizeVizPayload preserves multi-pointer activePointers dictionary", () => {
+  const rawPayload = {
+    code_lines: ["low = 0", "mid = 0", "high = len(nums) - 1", "while mid <= high:"],
+    test_array: [2, 0, 2, 1, 1, 0],
+    viz_steps: [
+      {
+        type: "array",
+        line: 3,
+        desc: "Dutch national flag partitioned pointers",
+        array: [0, 0, 1, 1, 2, 2],
+        activePointers: {
+          low: 1,
+          mid: 3,
+          high: 4,
+        },
+      } as any,
+    ],
+  };
+
+  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
+  const step = normalized.viz_steps[0]!;
+  assert.ok(step.activePointers, "activePointers must not be erased");
+  assert.equal(step.activePointers.low, 1);
+  assert.equal(step.activePointers.mid, 3);
+  assert.equal(step.activePointers.high, 4);
+});
+
+test("validateAndNormalizeVizPayload matches code_anchor with exact candidate line", () => {
+  const codeLines = [
+    "def search(nums, target):",
+    "    low = 0",
+    "    high = len(nums) - 1",
+    "    while low <= high:",
+    "        mid = (low + high) // 2",
+    "        if nums[mid] == target:",
+    "            return mid",
+    "    return -1",
+  ];
+
+  const rawPayload = {
+    code_lines: codeLines,
+    test_array: [1, 3, 5, 7, 9],
+    viz_steps: [
+      {
+        type: "array",
+        line: 0, // AI incorrectly said line 0
+        code_anchor: "if nums[mid] == target:",
+        desc: "Checking if nums[mid] equals target",
+        array: [1, 3, 5, 7, 9],
+      } as any,
+    ],
+  };
+
+  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
+  const step = normalized.viz_steps[0]!;
+  assert.equal(step.line, 5, "Line should be matched to index 5 via code_anchor");
+});
+
+test("validateAndNormalizeVizPayload preserves list activePointers including slow, fast, and dummy", () => {
+  const codeLines = [
+    "slow = head",
+    "fast = head",
+    "while fast and fast.next:",
+    "    slow = slow.next",
+    "    fast = fast.next.next",
+  ];
+
+  const rawPayload = {
+    code_lines: codeLines,
+    test_array: [1, 2, 3, 4, 5],
+    viz_steps: [
+      {
+        type: "list",
+        line: 3,
+        desc: "Advancing slow by 1 node and fast by 2 nodes",
+        list: [1, 2, 3, 4, 5],
+        current: 2,
+        activePointers: {
+          slow: 1,
+          fast: 3,
+          dummy: 0,
+        },
+      } as any,
+    ],
+  };
+
+  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "list");
+  const step = normalized.viz_steps[0]!;
+  assert.ok(step.activePointers, "activePointers should be preserved for list steps");
+  assert.equal(step.activePointers.slow, 1);
+  assert.equal(step.activePointers.fast, 3);
+  assert.equal(step.activePointers.dummy, 0);
+});
+
+
+
 
 

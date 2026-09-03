@@ -18,6 +18,7 @@ interface DpTableVisualizerProps {
   wSum?: number | null | undefined;
   mSum?: number | null | undefined;
   pointer_labels?: Record<string, string> | null;
+  activePointers?: Record<string, number | string | [number, number] | null> | null;
 }
 
 export function DpTableVisualizer({
@@ -35,7 +36,9 @@ export function DpTableVisualizer({
   wSum,
   mSum,
   pointer_labels,
+  activePointers,
 }: DpTableVisualizerProps) {
+
   const matrix = useMemo(() => safeMatrix(rawMatrix ?? []), [rawMatrix]);
   const visited = useMemo(() => safeArray(rawVisited), [rawVisited]);
   const cols = Number(rawCols ?? matrix[0]?.length ?? 1) || 1;

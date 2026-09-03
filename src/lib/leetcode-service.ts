@@ -274,3 +274,130 @@ export async function fetchLeetCodeStats(username: string): Promise<LeetCodeStat
 
   return null;
 }
+
+export interface LeetCodeQuestionDetails {
+  questionId: string;
+  title: string;
+  titleSlug: string;
+  content: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  topics: string[];
+  exampleTestcases?: string[];
+  hints?: string[];
+}
+
+function htmlToMarkdown(html: string): string {
+  if (!html) return "";
+  try {
+    let md = html
+      .replace(/<pre>([\s\S]*?)<\/pre>/gi, (_, code) => `\n\`\`\`text\n${code.replace(/<[^>]+>/g, "").trim()}\n\`\`\`\n`)
+      .replace(/<code>(.*?)<\/code>/gi, "`$1`")
+      .replace(/<strong>(.*?)<\/strong>/gi, "**$1**")
+      .replace(/<b>(.*?)<\/b>/gi, "**$1**")
+      .replace(/<em>(.*?)<\/em>/gi, "*$1*")
+      .replace(/<i>(.*?)<\/i>/gi, "*$1*")
+      .replace(/<p>/gi, "\n\n")
+      .replace(/<\/p>/gi, "")
+      .replace(/<ul>([\s\S]*?)<\/ul>/gi, "$1")
+      .replace(/<li>(.*?)<\/li>/gi, "\n- $1")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/<[^>]+>/g, "");
+
+    return md.replace(/\n{3,}/g, "\n\n").trim();
+  } catch {
+    return html.replace(/<[^>]+>/g, "");
+  }
+}
+
+export async function fetchLeetCodeQuestionDetails(titleSlug: string): Promise<LeetCodeQuestionDetails | null> {
+  const cleanSlug = (titleSlug || "")
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\/leetcode\.com\/problems\//i, "")
+    .replace(/\/+$/, "")
+    .replace(/[^a-z0-9-]/g, "");
+
+  if (!cleanSlug) return null;
+
+  // Strategy 1: Official LeetCode GraphQL
+  try {
+    const query = `
+      query getQuestionData($titleSlug: String!) {
+        question(titleSlug: $titleSlug) {
+          questionId
+          title
+          titleSlug
+          content
+          difficulty
+          topicTags {
+            name
+            slug
+          }
+          exampleTestcaseList
+          hints
+        }
+      }
+    `;
+
+    const res = await fetch("https://leetcode.com/graphql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Referer: "https://leetcode.com",
+      },
+      body: JSON.stringify({ query, variables: { titleSlug: cleanSlug } }),
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const q = data?.data?.question;
+      if (q && q.title) {
+        return {
+          questionId: q.questionId || "",
+          title: q.title || cleanSlug,
+          titleSlug: q.titleSlug || cleanSlug,
+          content: htmlToMarkdown(q.content || ""),
+          difficulty: (q.difficulty as "Easy" | "Medium" | "Hard") || "Medium",
+          topics: Array.isArray(q.topicTags) ? q.topicTags.map((t: any) => t.name).filter(Boolean) : [],
+          exampleTestcases: Array.isArray(q.exampleTestcaseList) ? q.exampleTestcaseList : [],
+          hints: Array.isArray(q.hints) ? q.hints : [],
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[LeetCode Question Fetcher] Strategy 1 failed:", e);
+  }
+
+  // Strategy 2: Alfa LeetCode API Mirror
+  try {
+    const res = await fetch(`https://alfa-leetcode-api.onrender.com/select?titleSlug=${encodeURIComponent(cleanSlug)}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.questionTitle) {
+        return {
+          questionId: data.questionId || "",
+          title: data.questionTitle || cleanSlug,
+          titleSlug: cleanSlug,
+          content: htmlToMarkdown(data.question || ""),
+          difficulty: (data.difficulty as "Easy" | "Medium" | "Hard") || "Medium",
+          topics: Array.isArray(data.topicTags) ? data.topicTags.map((t: any) => t.name || t).filter(Boolean) : [],
+          exampleTestcases: Array.isArray(data.exampleTestcases) ? data.exampleTestcases : [],
+          hints: Array.isArray(data.hints) ? data.hints : [],
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[LeetCode Question Fetcher] Strategy 2 failed:", e);
+  }
+
+  return null;
+}

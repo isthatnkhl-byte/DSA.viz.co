@@ -246,6 +246,34 @@ export function sanitizeMap(value: unknown): Record<string, number | string | nu
   return {};
 }
 
+export function sanitizePointerRecord(value: unknown): Record<string, number | string | [number, number]> | null {
+  if (!value || typeof value !== "object") return null;
+  if (Array.isArray(value)) {
+    const rec: Record<string, number | string> = {};
+    value.forEach((item, idx) => {
+      const s = extractScalarValue(item);
+      if (s !== null && s !== undefined) {
+        rec[`p${idx + 1}`] = s;
+      }
+    });
+    return Object.keys(rec).length > 0 ? rec : null;
+  }
+  const obj = value as Record<string, unknown>;
+  const result: Record<string, number | string | [number, number]> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === "number" && Number.isFinite(v)) {
+      result[k] = v;
+    } else if (typeof v === "string" && v.trim()) {
+      result[k] = v.trim();
+    } else if (Array.isArray(v) && v.length === 2 && !isNaN(Number(v[0])) && !isNaN(Number(v[1]))) {
+      result[k] = [Number(v[0]), Number(v[1])];
+    }
+  }
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+
 function normalizeType(type: unknown, preferred: VizType): VizType {
   return isVizType(type) ? (type as VizType) : preferred;
 }
@@ -1093,7 +1121,11 @@ export function validateAndNormalizeVizPayload(
           step.datasetLabels && typeof step.datasetLabels === "object"
             ? (step.datasetLabels as Record<string, string>)
             : null,
+        ...((step as any).code_anchor ? { code_anchor: (step as any).code_anchor } : {}),
+        ...((step as any).codeAnchor ? { code_anchor: (step as any).codeAnchor } : {}),
       };
+
+
 
       // Extract all potential auxiliary / multi-dataset structures
       const isStringInputArray = canonicalArray?.some((x) => typeof x === "string");
@@ -1496,10 +1528,24 @@ export function validateAndNormalizeVizPayload(
         typeof step.targetIndex === "number" && Number.isFinite(step.targetIndex)
           ? step.targetIndex
           : null;
-      const activePointers =
-        Array.isArray(step.activePointers)
-          ? sanitizeScalarArray(step.activePointers)
-          : null;
+      const rawActivePointers = sanitizePointerRecord(step.activePointers);
+
+      const activePointers: Record<string, number | string | [number, number]> = {
+        ...(rawActivePointers ?? {}),
+      };
+      if (rawLeft !== null && rawLeft !== undefined && !isNaN(Number(rawLeft))) {
+        const label = auxPointerLabels?.left || "left";
+        if (activePointers[label] === undefined) activePointers[label] = Number(rawLeft);
+      }
+      if (rawRight !== null && rawRight !== undefined && !isNaN(Number(rawRight))) {
+        const label = auxPointerLabels?.right || "right";
+        if (activePointers[label] === undefined) activePointers[label] = Number(rawRight);
+      }
+      if (resolvedCurrent !== null && resolvedCurrent !== undefined && auxPointerLabels?.current) {
+        const label = auxPointerLabels.current;
+        if (activePointers[label] === undefined) activePointers[label] = resolvedCurrent;
+      }
+
 
       return {
         ...base,
@@ -2319,10 +2365,24 @@ export function validateAndNormalizeVizPayload(
       const currentLineText = code_lines[currentLineIdx] ?? "";
       const desc = step.desc ?? "";
 
+      // Check if step includes an explicit code_anchor matching user code line
+      const anchor = (step as any)?.code_anchor || (step as any)?.codeAnchor;
+      if (typeof anchor === "string" && anchor.trim()) {
+        const cleanAnchor = anchor.trim().toLowerCase();
+        const directIdx = code_lines.findIndex((l) => {
+          const cleanLine = l.trim().toLowerCase();
+          return cleanLine.includes(cleanAnchor) || cleanAnchor.includes(cleanLine);
+        });
+        if (directIdx !== -1) {
+          return { ...step, line: directIdx };
+        }
+      }
+
       // Check if current line is a helper return / statement that shouldn't be frozen across distinct operations
       const isHelperReturn =
         /^\s*return\b/i.test(currentLineText) &&
         !/\b(?:return|complete|answer|not found|-1)\b/i.test(desc);
+
 
       // Check consecutive freeze
       const isConsecutiveSame =

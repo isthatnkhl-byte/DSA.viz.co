@@ -9,6 +9,7 @@ interface LinkedListVisualizerProps {
   predecessor: Val | null;
   visited: Val[];
   pointer_labels?: Record<string, string> | null;
+  activePointers?: Record<string, number | string | [number, number] | null> | null;
 }
 
 export function LinkedListVisualizer({
@@ -17,7 +18,9 @@ export function LinkedListVisualizer({
   predecessor,
   visited: rawVisited,
   pointer_labels,
+  activePointers,
 }: LinkedListVisualizerProps) {
+
   const list = useMemo(() => safeArray(rawList), [rawList]);
   const visited = useMemo(() => safeArray(rawVisited), [rawVisited]);
   const visitedSet = useMemo(() => new Set(visited.map(String)), [visited]);
@@ -84,33 +87,77 @@ export function LinkedListVisualizer({
               const isHead = i === 0;
               const isTail = i === list.length - 1;
 
+              const nodeTags: { text: string; bg: string; textCol: string; border: string }[] = [];
+              if (isHead) {
+                nodeTags.push({ text: "HEAD", bg: "bg-emerald-500/20", textCol: "text-emerald-400", border: "border-emerald-500/30" });
+              }
+              if (isPrev) {
+                nodeTags.push({ text: labelPrev, bg: "bg-indigo-500/20", textCol: "text-indigo-300", border: "border-indigo-500/30" });
+              }
+              if (isCurrent) {
+                nodeTags.push({ text: labelCurr, bg: "bg-primary/20", textCol: "text-primary", border: "border-primary/40" });
+              }
+              if (isTail && !isHead) {
+                nodeTags.push({ text: "TAIL", bg: "bg-muted/60", textCol: "text-muted-foreground", border: "border-border" });
+              }
+
+              if (activePointers && typeof activePointers === "object") {
+                for (const [pName, pVal] of Object.entries(activePointers)) {
+                  if (pVal === null || pVal === undefined) continue;
+                  const isMatchingIndex = typeof pVal === "number" && pVal === i;
+                  const isMatchingVal = typeof pVal !== "number" && String(pVal) === String(val);
+                  if (
+                    (isMatchingIndex || isMatchingVal) &&
+                    !nodeTags.some((t) => t.text.toLowerCase() === pName.toLowerCase())
+                  ) {
+                    const lower = pName.toLowerCase();
+                    let bg = "bg-sky-500/25";
+                    let textCol = "text-sky-300";
+                    let border = "border-sky-500/50";
+                    if (/slow|prev|first|l1/.test(lower)) {
+                      bg = "bg-emerald-500/25";
+                      textCol = "text-emerald-400";
+                      border = "border-emerald-500/50";
+                    } else if (/fast|next|second|l2/.test(lower)) {
+                      bg = "bg-purple-500/25";
+                      textCol = "text-purple-300";
+                      border = "border-purple-500/50";
+                    } else if (/curr|mid/.test(lower)) {
+                      bg = "bg-amber-500/25";
+                      textCol = "text-amber-300";
+                      border = "border-amber-500/50";
+                    } else if (/dummy|anchor/.test(lower)) {
+                      bg = "bg-cyan-500/25";
+                      textCol = "text-cyan-300";
+                      border = "border-cyan-500/50";
+                    }
+
+                    nodeTags.push({
+                      text: pName.slice(0, 8),
+                      bg,
+                      textCol,
+                      border,
+                    });
+                  }
+                }
+              }
+
               return (
                 <div key={`node-${i}`} className="flex items-center gap-2">
                   {/* Node Capsule Container */}
                   <div className="relative flex flex-col items-center">
                     {/* Floating Pointers above node */}
-                    <div className="absolute -top-7 flex items-center gap-1">
-                      {isHead && (
-                        <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[9px] font-bold text-emerald-400 border border-emerald-500/30">
-                          HEAD
+                    <div className="absolute -top-7 flex items-center gap-1 z-10 select-none pointer-events-none whitespace-nowrap">
+                      {nodeTags.map((t, tagIdx) => (
+                        <span
+                          key={`tag-${tagIdx}`}
+                          className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold border shadow-xs ${t.bg} ${t.textCol} ${t.border}`}
+                        >
+                          {t.text}
                         </span>
-                      )}
-                      {isPrev && (
-                        <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 font-mono text-[9px] font-bold text-indigo-300 border border-indigo-500/30">
-                          {labelPrev}
-                        </span>
-                      )}
-                      {isCurrent && (
-                        <span className="rounded bg-primary/20 px-1.5 py-0.5 font-mono text-[9px] font-extrabold text-primary border border-primary/40 shadow-xs">
-                          {labelCurr}
-                        </span>
-                      )}
-                      {isTail && !isHead && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9px] font-medium text-muted-foreground border border-border">
-                          TAIL
-                        </span>
-                      )}
+                      ))}
                     </div>
+
 
                     {/* Dual-Compartment Node [ Value | Next • ] */}
                     <div

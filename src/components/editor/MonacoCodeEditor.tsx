@@ -39,6 +39,7 @@ export interface MonacoCodeEditorProps {
   height?: string;
   showSubmitButton?: boolean;
   submitButtonText?: string;
+  activeLine?: number | null;
 }
 
 export const MonacoCodeEditor = memo(function MonacoCodeEditor({
@@ -57,7 +58,9 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
   height = "380px",
   showSubmitButton = true,
   submitButtonText = "Review & Step-by-Step Trace",
+  activeLine,
 }: MonacoCodeEditorProps) {
+
   const { mode } = useThemeColor();
   const isLight = mode === "light";
 
@@ -76,10 +79,13 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
   }, [isLight]);
 
   const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
+  const decorationsRef = useRef<string[]>([]);
   const templates = getCodeTemplates(problemTitle, problemSlug);
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
 
     // Add Cmd/Ctrl + Enter shortcut to trigger onRun or onSubmit
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
@@ -90,6 +96,35 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
       }
     });
   };
+
+  // Synchronize visualizer execution step line with Monaco line decoration
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current) return;
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+
+    if (typeof activeLine === "number" && activeLine >= 0) {
+      const targetLine = activeLine + 1;
+      const model = editor.getModel();
+      const lineCount = model ? model.getLineCount() : 100;
+      const clampedLine = Math.min(Math.max(1, targetLine), lineCount);
+
+      decorationsRef.current = editor.deltaDecorations(decorationsRef.current, [
+        {
+          range: new monaco.Range(clampedLine, 1, clampedLine, 1),
+          options: {
+            isWholeLine: true,
+            className: "bg-primary/20 border-l-4 border-primary font-bold",
+            glyphMarginClassName: "text-primary font-black",
+          },
+        },
+      ]);
+      editor.revealLineInCenterIfOutsideViewport(clampedLine);
+    } else {
+      decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
+    }
+  }, [activeLine]);
+
 
   const handleLanguageChange = (newLang: SupportedLanguage) => {
     setLanguage(newLang);
@@ -313,7 +348,9 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
             fontSize: fontSize,
             fontFamily: "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
             lineNumbers: "on",
+            glyphMargin: true,
             roundedSelection: true,
+
             scrollBeyondLastLine: false,
             automaticLayout: true,
             tabSize: 4,

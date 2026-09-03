@@ -20,7 +20,9 @@ interface ArrayVisualizerProps {
   isMathMode?: boolean;
   hideBars?: boolean;
   pointer_labels?: Record<string, string> | null;
+  activePointers?: Record<string, number | string | [number, number] | null> | null;
 }
+
 
 export function ArrayVisualizer({
   cells: rawCells,
@@ -39,7 +41,9 @@ export function ArrayVisualizer({
   isMathMode,
   hideBars,
   pointer_labels,
+  activePointers,
 }: ArrayVisualizerProps) {
+
   const labelL = pointer_labels?.left ? pointer_labels.left.slice(0, 7) : "L";
   const labelR = pointer_labels?.right ? pointer_labels.right.slice(0, 7) : "R";
   const labelL2 = pointer_labels?.left2 ? pointer_labels.left2.slice(0, 7) : "L2";
@@ -264,7 +268,47 @@ export function ArrayVisualizer({
               if (isCurrent && !isLeftPtr && !isRightPtr && !isMidPtr) {
                 tags.push({ text: labelCurr, bg: "bg-primary/25", textCol: "text-primary", border: "border-primary/50" });
               }
+
+              // Multi-Pointer Stacker: render all auxiliary active pointers (e.g. low, mid, high, i, j, k)
+              if (activePointers && typeof activePointers === "object" && !isSecondary) {
+                for (const [ptrName, ptrPos] of Object.entries(activePointers)) {
+                  if (ptrPos === null || ptrPos === undefined) continue;
+                  const isMatchingIndex = typeof ptrPos === "number" && ptrPos === i;
+                  const isMatchingVal = typeof ptrPos !== "number" && String(ptrPos) === String(val);
+                  if (
+                    (isMatchingIndex || isMatchingVal) &&
+                    !tags.some((t) => t.text.toLowerCase() === ptrName.toLowerCase())
+                  ) {
+                    const lower = ptrName.toLowerCase();
+                    let bg = "bg-sky-500/25";
+                    let textCol = "text-sky-300";
+                    let border = "border-sky-500/50";
+
+                    if (/slow|left|low|start|write|p1|\bi\b/.test(lower)) {
+                      bg = "bg-emerald-500/30";
+                      textCol = "text-emerald-400";
+                      border = "border-emerald-500/60";
+                    } else if (/fast|right|high|end|read|p2|\bj\b/.test(lower)) {
+                      bg = "bg-indigo-500/30";
+                      textCol = "text-indigo-300";
+                      border = "border-indigo-500/60";
+                    } else if (/mid|pivot|center|\bk\b/.test(lower)) {
+                      bg = "bg-amber-500/25";
+                      textCol = "text-amber-300";
+                      border = "border-amber-500/50";
+                    }
+
+                    tags.push({
+                      text: ptrName.slice(0, 8),
+                      bg,
+                      textCol,
+                      border,
+                    });
+                  }
+                }
+              }
             }
+
 
             return (
               <div

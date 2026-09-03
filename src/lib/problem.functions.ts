@@ -2,8 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import statementsData from "../data/statements.json";
 import { statementForSlug } from "./statements";
+import { fetchLeetCodeQuestionDetails } from "./leetcode-service";
 
 const statementsMap = ((statementsData as any)?.default || statementsData || {}) as Record<string, string>;
+const liveCache = new Map<string, string>();
 
 export const getStatement = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
@@ -33,12 +35,24 @@ export const getStatement = createServerFn({ method: "POST" })
       const direct =
         statementsMap[s] ||
         statementsMap[s.replace(/_/g, "-").replace(/\s+/g, "-")] ||
+        liveCache.get(s) ||
         "";
       if (direct) {
         return { statement: direct };
       }
 
-      // 2. Return synthesized canonical statement
+      // 2. Fetch official live problem statement from LeetCode
+      try {
+        const live = await fetchLeetCodeQuestionDetails(s);
+        if (live && live.content && live.content.length > 50) {
+          liveCache.set(s, live.content);
+          return { statement: live.content };
+        }
+      } catch (err) {
+        console.warn("Live LeetCode question fetch warning:", err);
+      }
+
+      // 3. Return synthesized canonical statement
       const fallback = statementForSlug(slug);
       return { statement: fallback };
     } catch (e) {
@@ -46,3 +60,4 @@ export const getStatement = createServerFn({ method: "POST" })
       return { statement: statementForSlug(data?.slug || "") };
     }
   });
+

@@ -44,8 +44,13 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
    - "code_lines" MUST contain the candidate's submitted pseudocode verbatim, line-by-line, in the exact order written.
    - Do NOT rewrite, clean up, rename, or substitute generic code or template algorithms.
    - Every step's "line" integer MUST strictly point to the corresponding 0-indexed line in the user's pseudocode that executes for that action.
+   - EXACT CODE ANCHOR: You can ALSO include "code_anchor": "exact substring of candidate code line" on any step for guaranteed 100% synchronized line highlighting.
    - Use the candidate's exact variable names (e.g. nums, seen, diff, max_val, left, right, res, stack, queue, dp) throughout your step descriptions ("desc").
-   - VERY IMPORTANT: The ONLY valid top-level properties for pointers are "left", "right", "left2", "right2", and "current" (e.g. "left": 0). If the pseudocode uses specific variable names (e.g. "low", "high", "pivot"), you MUST map them to these standard top-level properties. You must ALSO include a "pointer_labels" object to tell the UI what variable name to display (e.g. "pointer_labels": { "left": "low", "right": "high" }). Do NOT invent or add custom top-level properties like "low": 0 on the step; instead use "left": 0 and map it in "pointer_labels".
+   - POINTER MAPPING:
+     * For primary dual-pointers, use "left", "right", "left2", "right2", and "current" (e.g. "left": 0) and provide "pointer_labels" (e.g. "pointer_labels": { "left": "low", "right": "high" }).
+     * MULTI-POINTERS (3+ Pointers): If the algorithm tracks 3 or more pointers (e.g. Dutch National Flag low, mid, high, or 3Sum i, left, right), emit an "activePointers" record on the step:
+       "activePointers": { "low": 0, "mid": 2, "high": 5 }
+       or for 2D grids: "activePointers": { "curr": "1,2", "next": "1,3" }.
 
 3) EXPANDED & INFORMATIVE STEP DESCRIPTIONS ("desc"):
    - Write clear, detailed, and educational explanations in "desc" for every step so the user learns how their algorithm executes.
@@ -367,6 +372,35 @@ MANDATORY FOR PREFIX SUM WITH HASH MAP:
   if (isDp && !isIsland && !isMatrixTransform && !isDynamicSlidingWindow && !isPrefixSum) {
     sampleGuidance = `Simulate Dynamic Programming execution. Set type='dp' or 'matrix'. Track the active cell being computed using "current" set to "r,c" (or just the index if 1D). Put the DP table in "matrix" and the input array in "array".`;
   }
+
+  const isIntervals =
+    /interval|meeting.*room|insert.*interval|merge.*interval/i.test(title) ||
+    (/\bintervals\b/i.test(pseudocode) && /start|end|overlap/i.test(pseudocode));
+  if (isIntervals && !isIsland && !isMatrixTransform) {
+    sampleGuidance = `Simulate Interval Merging & Overlap Analysis. Set type='matrix' or 'array'. Track previous interval vs current interval, showing whether they overlap (curr.start <= prev.end) and updating the merged interval.`;
+  }
+
+  const isGraph =
+    /graph|course.*schedule|alien.*dict|topological|bipartite|clone.*graph/i.test(title) ||
+    (/\b(?:adj|graph|indegree)\b/i.test(pseudocode) && /queue|stack|dfs|bfs/i.test(pseudocode));
+  if (isGraph && !isIsland && !isMatrixTransform && !isTree) {
+    sampleGuidance = `Simulate Graph & Topological Sort traversal. Set type='graph'. Track active vertex in 'current', visited vertices in 'visited', in-degrees in 'map', and BFS buffer in 'queue'.`;
+  }
+
+  const isHeap =
+    /kth.*largest|heap|median.*data.*stream|merge.*k.*sorted/i.test(title) ||
+    /\b(?:heap|heappush|heappop|priority_queue)\b/i.test(pseudocode);
+  if (isHeap && !isTree) {
+    sampleGuidance = `Simulate Heap / Priority Queue operations. Set type='heap' or 'tree'. Track heap array representation in 'tree' and the active sifted element in 'current'.`;
+  }
+
+  const isTrie =
+    /trie|prefix.*tree|word.*search.*ii|replace.*words/i.test(title) ||
+    /\b(?:trie|children|is_end|end_of_word)\b/i.test(pseudocode);
+  if (isTrie) {
+    sampleGuidance = `Simulate Prefix Trie insertion/search. Set type='trie' or 'tree'. Track the active character node in 'current' and character dictionary in 'map'.`;
+  }
+
 
   const isLongerDataset = /longer|complex|dataset\s*2/i.test(datasetLabel ?? "");
   const datasetContext = datasetLabel

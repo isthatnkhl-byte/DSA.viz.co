@@ -26,6 +26,7 @@ interface MatrixVisualizerProps {
   islandCells?: (string | [number, number])[] | null | undefined;
   wSum?: number | null | undefined;
   mSum?: number | null | undefined;
+  activePointers?: Record<string, number | string | [number, number] | null> | null | undefined;
 }
 
 export function MatrixVisualizer({
@@ -41,8 +42,10 @@ export function MatrixVisualizer({
   islandCells: rawIslandCells,
   wSum,
   mSum,
+  activePointers,
 }: MatrixVisualizerProps) {
   const matrix = useMemo(() => safeMatrix(rawMatrix ?? []), [rawMatrix]);
+
   const visited = useMemo(() => safeArray(rawVisited), [rawVisited]);
   const cols = Number(rawCols ?? matrix[0]?.length ?? 1) || 1;
   const rows = matrix.length;
@@ -294,27 +297,53 @@ export function MatrixVisualizer({
                     isCurrentActiveIsland
                   );
 
+                  const matchingPointerLabels: string[] = [];
+                  if (activePointers && typeof activePointers === "object") {
+                    for (const [pName, pVal] of Object.entries(activePointers)) {
+                      if (!pVal) continue;
+                      if (Array.isArray(pVal) && pVal.length === 2 && Number(pVal[0]) === r && Number(pVal[1]) === c) {
+                        matchingPointerLabels.push(pName);
+                      } else if (typeof pVal === "string" && (pVal === cellKey || pVal === `${r},${c}`)) {
+                        matchingPointerLabels.push(pName);
+                      }
+                    }
+                  }
+
                   return (
                     <div
                       key={`cell-${r}-${c}`}
                       className={`relative flex size-12 flex-col items-center justify-center rounded-xl border font-mono transition-all duration-300 select-none ${
                         isActive
-                          ? isWater
-                            ? "z-20 scale-110 border-amber-400 bg-amber-500/30 text-amber-200 shadow-xl shadow-amber-500/40 ring-4 ring-amber-400/40 font-black animate-bounce-short"
-                            : "z-20 scale-110 border-primary bg-primary text-primary-foreground shadow-xl shadow-primary/50 ring-4 ring-primary/40 font-black animate-bounce-short"
-                          : isDependencyCell
-                            ? "z-10 border-indigo-400/90 bg-indigo-500/25 text-indigo-200 shadow-md shadow-indigo-500/20 ring-2 ring-indigo-400/50 font-bold scale-[1.03]"
-                            : isCurrentActiveIsland
-                              ? "z-10 border-emerald-400 bg-gradient-to-br from-emerald-500/40 via-emerald-600/35 to-teal-500/30 text-emerald-100 shadow-md shadow-emerald-500/30 ring-2 ring-emerald-400/80 font-bold scale-[1.03]"
-                              : isVisited
-                                ? "border-teal-400/80 bg-teal-800/60 text-teal-100 font-bold shadow-sm shadow-teal-900/40 ring-1 ring-teal-400/50"
-                                : isLand
-                                  ? "border-amber-400/80 bg-amber-500/25 text-amber-200 font-bold hover:border-amber-300 hover:bg-amber-500/35 ring-1 ring-amber-500/40 shadow-xs"
-                                  : isWater
-                                    ? "border-slate-800/80 bg-slate-950/60 text-slate-500/60 hover:bg-slate-900/60"
-                                    : "border-border/60 bg-card/60 text-muted-foreground"
+                          ? "border-primary bg-primary text-primary-foreground font-black shadow-lg shadow-primary/40 ring-2 ring-primary/80 z-10 scale-105"
+                          : matchingPointerLabels.length > 0
+                            ? "border-amber-400 bg-amber-500/30 text-amber-200 font-black shadow-md ring-2 ring-amber-400/80 z-10 scale-105"
+                            : isDependencyCell
+                              ? "border-purple-400/70 bg-purple-950/40 text-purple-200 ring-1 ring-purple-400/40"
+                              : isCurrentActiveIsland
+                                ? "border-emerald-400/80 bg-emerald-500/25 text-emerald-200 font-bold hover:border-emerald-300 hover:bg-emerald-500/35 ring-1 ring-emerald-500/40 shadow-xs"
+                                : isVisited && isLand
+                                  ? "border-teal-400/80 bg-teal-800/60 text-teal-100 font-bold shadow-sm shadow-teal-900/40 ring-1 ring-teal-400/50"
+                                  : isLand
+                                    ? "border-amber-400/80 bg-amber-500/25 text-amber-200 font-bold hover:border-amber-300 hover:bg-amber-500/35 ring-1 ring-amber-500/40 shadow-xs"
+                                    : isWater
+                                      ? "border-slate-800/80 bg-slate-950/60 text-slate-500/60 hover:bg-slate-900/60"
+                                      : "border-border/60 bg-card/60 text-muted-foreground"
                       }`}
                     >
+                      {/* Floating Multi-Pointer Label Badge */}
+                      {matchingPointerLabels.length > 0 && !isActive && (
+                        <div className="absolute -top-3 z-20 flex gap-0.5 pointer-events-none">
+                          {matchingPointerLabels.map((lbl, li) => (
+                            <span
+                              key={li}
+                              className="rounded bg-amber-500 text-slate-950 px-1 py-0.2 font-mono text-[8px] font-black uppercase shadow-xs"
+                            >
+                              {lbl.slice(0, 5)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
                       {/* Active Cell Notification Dot */}
                       {isActive && (
                         <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center">

@@ -35,11 +35,14 @@ export const Visualizer = memo(function Visualizer({
   array,
   codeLines = [],
   steps = [],
+  onStepChange,
 }: {
   array: (number | string)[];
   codeLines: string[];
   steps: VizStep[];
+  onStepChange?: (stepIndex: number, lineIndex: number) => void;
 }) {
+
 
   const safeSteps = useMemo(() => (Array.isArray(steps) ? steps.filter(Boolean) : []), [steps]);
   const [motionBlurEnabled, setMotionBlurEnabled] = useState(false);
@@ -81,7 +84,7 @@ export const Visualizer = memo(function Visualizer({
     playback.reset();
   }, [traceSignature]);
 
-  // Synchronize current simulation step into ChatContext
+  // Synchronize current simulation step into ChatContext and parent listeners
   useEffect(() => {
     if (safeSteps.length > 0 && safeSteps[step]) {
       updateContext({
@@ -90,8 +93,10 @@ export const Visualizer = memo(function Visualizer({
         stepDesc: toText(safeSteps[step]?.desc),
         stepVariables: safeSteps[step]?.variables || {},
       });
+      onStepChange?.(step, safeSteps[step]?.line ?? 0);
     }
-  }, [step, safeSteps, updateContext]);
+  }, [step, safeSteps, updateContext, onStepChange]);
+
 
   // Toggle breakpoint on a line index
   const toggleBreakpoint = useCallback((lineIdx: number) => {
@@ -419,9 +424,11 @@ export const Visualizer = memo(function Visualizer({
         wSum={current.wSum}
         mSum={current.mSum}
         pointer_labels={current.pointer_labels}
+        activePointers={current.activePointers}
       />
     );
   } else if (type === "bit") {
+
     readouts = [
       { label: "Bit Value", value: current.current ?? cells[0] ?? null, highlight: true },
       { label: "Active Bit Index", value: current.left ?? 0 },
@@ -485,8 +492,11 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         predecessor={current.predecessor ?? null}
         visited={visited}
+        pointer_labels={current.pointer_labels}
+        activePointers={current.activePointers}
       />
     );
+
   } else if (type === "tree" || type === "bst" || type === "heap" || type === "trie") {
     const fullTreeAcrossSteps = safeSteps.find(
       (s) =>
@@ -582,12 +592,14 @@ export const Visualizer = memo(function Visualizer({
         islandCells={current.islandCells}
         wSum={current.wSum}
         mSum={current.mSum}
+        activePointers={current.activePointers}
       />
     );
   } else if (type === "graph") {
     const rows = Array.isArray(current.matrix) ? current.matrix.length : 1;
     const cols =
       current.cols ?? (Array.isArray(current.matrix?.[0]) ? current.matrix[0].length : 1);
+
     readouts = [
       { label: "Nodes / Rows", value: rows },
       { label: "Cols", value: cols },
@@ -601,6 +613,7 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type={type}
+        map={current.map}
       />
     );
   } else {
@@ -658,9 +671,11 @@ export const Visualizer = memo(function Visualizer({
         mSum={current.mSum}
         isMathMode={isMathMode}
         pointer_labels={current.pointer_labels}
+        activePointers={current.activePointers}
       />
     );
   }
+
 
   // -------------------------------------------------------------
   // AUXILIARY STRUCTURE COMPONENTS
@@ -719,7 +734,10 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         predecessor={current.predecessor ?? null}
         visited={visited}
+        pointer_labels={current.pointer_labels}
+        activePointers={current.activePointers}
       />
+
     </div>
   );
 

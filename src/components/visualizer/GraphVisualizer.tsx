@@ -10,7 +10,9 @@ interface GraphVisualizerProps {
   current: Val | null | undefined;
   visited: Val[];
   type: "graph" | "matrix";
+  map?: Record<string, any> | null | undefined;
 }
+
 
 interface GraphNode {
   id: string;
@@ -34,6 +36,7 @@ export function GraphVisualizer({
   current,
   visited: rawVisited,
   type,
+  map,
 }: GraphVisualizerProps) {
   const matrix = useMemo(() => safeMatrix(rawMatrix ?? []), [rawMatrix]);
   const visited = useMemo(() => safeArray(rawVisited), [rawVisited]);
@@ -77,6 +80,19 @@ export function GraphVisualizer({
         const s = String(current);
         if (s !== "null" && s !== "" && s !== "undefined") nodeSet.add(s);
       }
+      if (map && typeof map === "object") {
+        Object.keys(map).forEach((k) => {
+          if (k !== "null" && k !== "") nodeSet.add(k);
+        });
+        Object.values(map).forEach((neighbors) => {
+          if (Array.isArray(neighbors)) {
+            neighbors.forEach((neighbor) => {
+              const s = String(neighbor);
+              if (s !== "null" && s !== "" && s !== "undefined") nodeSet.add(s);
+            });
+          }
+        });
+      }
       nodeIds = Array.from(nodeSet);
     }
 
@@ -96,7 +112,7 @@ export function GraphVisualizer({
       const y = centerY + radius * Math.sin(angle);
       return { id, x, y };
     });
-  }, [is2DGrid, matrix, visited, current]);
+  }, [is2DGrid, matrix, visited, current, map]);
 
   // Generate real adjacency edges for node-link graph
   const graphEdges = useMemo<GraphEdge[]>(() => {
@@ -104,8 +120,30 @@ export function GraphVisualizer({
     const nodeMap = new Map(graphNodes.map((n) => [n.id, n]));
     const edges: GraphEdge[] = [];
 
+    // If map (adjacency list) exists, extract directed edges
+    if (map && typeof map === "object") {
+      for (const [uStr, neighbors] of Object.entries(map)) {
+        const list = Array.isArray(neighbors) ? neighbors : [neighbors];
+        list.forEach((vVal) => {
+          const vStr = String(vVal);
+          const n1 = nodeMap.get(uStr);
+          const n2 = nodeMap.get(vStr);
+          if (n1 && n2 && n1.id !== n2.id && !edges.some((e) => e.from === n1.id && e.to === n2.id)) {
+            edges.push({
+              from: n1.id,
+              to: n2.id,
+              x1: n1.x,
+              y1: n1.y,
+              x2: n2.x,
+              y2: n2.y,
+            });
+          }
+        });
+      }
+    }
+
     // If matrix is square adjacency matrix
-    if (matrix.length > 1 && matrix[0]?.length === matrix.length) {
+    if (edges.length === 0 && matrix.length > 1 && matrix[0]?.length === matrix.length) {
       for (let u = 0; u < matrix.length; u++) {
         for (let v = 0; v < matrix.length; v++) {
           const val = Number(matrix[u]?.[v]);
@@ -126,7 +164,7 @@ export function GraphVisualizer({
           }
         }
       }
-    } else if (matrix.length > 0 && matrix.every((r) => Array.isArray(r) && r.length >= 2)) {
+    } else if (edges.length === 0 && matrix.length > 0 && matrix.every((r) => Array.isArray(r) && r.length >= 2)) {
       // If matrix is an edge list [u, v] (e.g. Union-Find redundant connection, Course Schedule)
       matrix.forEach((row) => {
         const u = String(row[0]);
@@ -150,6 +188,7 @@ export function GraphVisualizer({
 
     if (edges.length === 0) {
       for (let i = 0; i < graphNodes.length; i++) {
+
         const n1 = graphNodes[i]!;
         const n2 = graphNodes[(i + 1) % graphNodes.length]!;
         edges.push({ from: n1.id, to: n2.id, x1: n1.x, y1: n1.y, x2: n2.x, y2: n2.y });

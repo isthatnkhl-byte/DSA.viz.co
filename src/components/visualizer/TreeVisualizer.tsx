@@ -34,7 +34,7 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
 
   const currentStr = current !== null && current !== undefined ? String(current) : null;
 
-  // Compute depth (supports up to 5 levels for complete trees)
+  // Compute depth (supports up to 7 levels for complete trees and deep traces)
   const depth = useMemo(() => {
     if (safeNodes.length === 0) return 1;
     let maxIdx = 0;
@@ -43,12 +43,14 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
         maxIdx = idx;
       }
     }
-    return Math.min(5, Math.max(1, Math.floor(Math.log2(maxIdx + 1)) + 1));
+    return Math.min(7, Math.max(1, Math.floor(Math.log2(maxIdx + 1)) + 1));
   }, [safeNodes]);
 
-  const svgWidth = depth >= 4 ? 640 : 560;
-  const levelHeight = 65;
+  const svgWidth = depth >= 6 ? 960 : depth === 5 ? 740 : depth >= 4 ? 640 : 560;
+  const levelHeight = depth >= 6 ? 55 : 65;
   const svgHeight = Math.max(180, 50 + depth * levelHeight);
+  const nodeRadius = depth >= 6 ? 15 : depth === 5 ? 17 : 19;
+
 
   // Compute position for each node
   const nodePositions = useMemo(() => {
@@ -195,7 +197,7 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
                   {/* Outer constant glow ring for active node */}
                   {isCurrent && (
                     <circle
-                      r="24"
+                      r={nodeRadius + 5}
                       className="fill-primary/10 stroke-primary/50 transition-all duration-300"
                       strokeWidth="1.5"
                     />
@@ -203,7 +205,7 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
 
                   {/* Main Node Circle */}
                   <circle
-                    r="19"
+                    r={nodeRadius}
                     filter={isCurrent ? "url(#active-node-glow)" : undefined}
                     className={`transition-all duration-300 ${
                       isCurrent
@@ -216,8 +218,9 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
 
                   {/* Trie End of Word Double Ring */}
                   {type === "trie" && (
-                    <circle r="15" className="fill-none stroke-primary/40 stroke-1" />
+                    <circle r={Math.max(10, nodeRadius - 4)} className="fill-none stroke-primary/40 stroke-1" />
                   )}
+
 
                   {/* Node Value */}
                   <text

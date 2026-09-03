@@ -101,7 +101,83 @@ export function isOpenRouterKey(key: string): boolean {
   return false;
 }
 
-/** Tolerant JSON extraction — raw, fenced, or embedded in prose with trailing comma cleanup. */
+/** Tolerant JSON repair for truncated streaming or token-limited LLM responses. */
+export function repairTruncatedJson(str: string): string | null {
+  if (!str) return null;
+  const trimmed = str.trim();
+  const firstBrace = trimmed.indexOf("{");
+  if (firstBrace === -1) return null;
+  const content = trimmed.slice(firstBrace);
+
+  // Strategy A: Targeted viz_steps array closure
+  const stepsIdx = content.indexOf('"viz_steps"');
+  if (stepsIdx !== -1) {
+    const arrayBracket = content.indexOf("[", stepsIdx);
+    if (arrayBracket !== -1) {
+      const lastStepEnd = content.lastIndexOf("}");
+      if (lastStepEnd > arrayBracket) {
+        const candidate = content.slice(0, lastStepEnd + 1).replace(/,\s*$/, "") + "\n]}";
+        try {
+          JSON.parse(candidate);
+          return candidate;
+        } catch {
+          // continue
+        }
+      }
+    }
+  }
+
+  // Strategy B: Token stack-based bracket auto-closure
+  let inString = false;
+  let escape = false;
+  const stack: string[] = [];
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === "\\") {
+      escape = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === "{" || char === "[") {
+        stack.push(char);
+      } else if (char === "}") {
+        if (stack.length > 0 && stack[stack.length - 1] === "{") stack.pop();
+      } else if (char === "]") {
+        if (stack.length > 0 && stack[stack.length - 1] === "[") stack.pop();
+      }
+    }
+  }
+
+  let repaired = content;
+  if (inString) {
+    repaired += '"';
+  }
+  repaired = repaired.replace(/,\s*$/, "");
+  repaired = repaired.replace(/,\s*"(?:[^"\\]|\\.)*"\s*:\s*$/, "");
+
+  while (stack.length > 0) {
+    const open = stack.pop();
+    if (open === "{") repaired += "}";
+    else if (open === "[") repaired += "]";
+  }
+
+  try {
+    JSON.parse(repaired);
+    return repaired;
+  } catch {
+    return null;
+  }
+}
+
+/** Tolerant JSON extraction — raw, fenced, embedded in prose, or truncated mid-token. */
 export function extractJson(str: string): any | null {
   if (!str) return null;
   const attempts: string[] = [str];
@@ -110,6 +186,11 @@ export function extractJson(str: string): any | null {
   const first = str.indexOf("{");
   const last = str.lastIndexOf("}");
   if (first !== -1 && last > first) attempts.push(str.slice(first, last + 1));
+
+  // Also try repairing if truncated
+  const repaired = repairTruncatedJson(str);
+  if (repaired) attempts.push(repaired);
+
   for (const a of attempts) {
     const trimmed = a.trim();
     const parseAttempts = [trimmed, trimmed.replace(/,\s*([}\]])/g, "$1")];
@@ -129,6 +210,9 @@ export function extractJson(str: string): any | null {
           if (!parsed.test_array && (parsed.testArray || parsed.testCase || parsed.array)) {
             parsed.test_array = parsed.testArray || parsed.testCase || parsed.array;
           }
+          if (!parsed.test_datasets && (parsed.testDatasets || parsed.datasets)) {
+            parsed.test_datasets = parsed.testDatasets || parsed.datasets;
+          }
           return parsed;
         }
       } catch {
@@ -138,6 +222,7 @@ export function extractJson(str: string): any | null {
   }
   return null;
 }
+
 
 function describe(status: number, model: string, provider: "OpenRouter" | "Gemini") {
   if (provider === "Gemini") {

@@ -178,7 +178,9 @@ function ProblemPage() {
   const [activeDatasetId, setActiveDatasetId] = useState<string>("dataset_1");
   const [datasetLoading, setDatasetLoading] = useState(false);
   const [customDataset, setCustomDataset] = useState<TestDataset | null>(null);
+  const [activeSimulationLine, setActiveSimulationLine] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
+
   const [copied, setCopied] = useState(false);
   const reviewRef = useRef<HTMLDivElement>(null);
   const storageKey = `dsaviz:attempt:${problem?.slug ?? "unknown"}`;
@@ -648,7 +650,9 @@ def solve(input_data):
                     array={currentTestArray}
                     codeLines={currentCodeLines}
                     steps={currentSteps}
+                    onStepChange={(_, line) => setActiveSimulationLine(line)}
                   />
+
                 </div>
               ) : (
                 <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/80 bg-card/40 p-6 text-center animate-fade">
@@ -740,7 +744,9 @@ def solve(input_data):
               defaultLanguage="python"
               height="380px"
               showSubmitButton={false}
+              activeLine={activeSimulationLine}
             />
+
           </div>
 <ProblemDiffNudgePanel
             problemSlug={problem.slug}

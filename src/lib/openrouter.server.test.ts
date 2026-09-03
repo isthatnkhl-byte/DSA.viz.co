@@ -149,3 +149,24 @@ test("visualizer agent response contract produces valid step sequences", () => {
   assert.equal(mockAiOutput.viz_steps[0]?.activeDataset, "map");
   assert.equal(mockAiOutput.viz_steps[2]?.shiftInfo?.action, "write");
 });
+
+test("repairTruncatedJson and extractJson recover steps cut off mid-stream", () => {
+  // Simulate an LLM reaching max tokens mid-generation inside viz_steps
+  const truncatedPayload = `
+  {
+    "is_complete": true,
+    "code_lines": ["left = 0", "right = len(nums) - 1"],
+    "viz_steps": [
+      { "line": 0, "desc": "Initialize left pointer", "array": [1, 2, 3] },
+      { "line": 1, "desc": "Initialize right pointer", "array": [1, 2, 3] },
+      { "line": 2, "desc": "Checking elements", "array": [1, 2,
+  `;
+
+  const extracted = extractJson(truncatedPayload);
+  assert.ok(extracted, "Should extract valid JSON from truncated payload");
+  assert.ok(Array.isArray(extracted.viz_steps), "viz_steps should be an array");
+  assert.equal(extracted.viz_steps.length, 2, "Should recover the 2 fully completed steps");
+  assert.equal(extracted.viz_steps[0]?.desc, "Initialize left pointer");
+  assert.equal(extracted.viz_steps[1]?.desc, "Initialize right pointer");
+});
+

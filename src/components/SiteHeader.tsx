@@ -83,27 +83,24 @@ export function SiteHeader() {
         </Link>
 
         {/* Center: Main Navigation Capsule (Desktop & Laptop) */}
-        <nav className="hidden md:flex items-center gap-1 lg:gap-1.5 rounded-full border border-border/80 bg-card/75 px-2 py-1 shadow-md shadow-black/10 backdrop-blur-xl">
+        <nav className="hidden md:flex items-center gap-1 rounded-full border border-border/80 bg-card/75 px-1.5 py-1 shadow-sm shadow-black/10 backdrop-blur-xl">
           <Link
             to="/problems"
             activeProps={{
-              className: "bg-primary/20 text-primary font-bold border-primary/40 shadow-xs",
+              className: "bg-primary/15 text-primary font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
           >
             <Layers className="size-3.5 text-primary shrink-0" />
             <span>Problems</span>
-            <span className="rounded-full bg-primary/15 px-1.5 py-0.2 text-[9px] font-bold text-primary">
-              1500+
-            </span>
           </Link>
 
           <Link
             to={"/sheets" as any}
             activeProps={{
-              className: "bg-primary/20 text-primary font-bold border-primary/40 shadow-xs",
+              className: "bg-primary/15 text-primary font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
           >
             <BookOpen className="size-3.5 text-primary shrink-0" />
             <span>DSA Sheets</span>
@@ -112,9 +109,9 @@ export function SiteHeader() {
           <Link
             to="/playground"
             activeProps={{
-              className: "bg-primary/20 text-primary font-bold border-primary/40 shadow-xs",
+              className: "bg-primary/15 text-primary font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
           >
             <Sparkles className="size-3.5 text-primary shrink-0" />
             <span>Playground</span>
@@ -123,20 +120,28 @@ export function SiteHeader() {
           <Link
             to="/compiler"
             activeProps={{
-              className: "bg-emerald-500/15 text-emerald-400 font-bold border-emerald-500/40 shadow-xs",
+              className: "bg-emerald-500/15 text-emerald-400 font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
           >
             <Code2 className="size-3.5 text-emerald-400 shrink-0" />
-            <span>C++ Compiler</span>
-            <span className="hidden xl:inline rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[9px] font-bold text-emerald-400">
-              C++20
-            </span>
+            <span>Compiler</span>
+          </Link>
+
+          <Link
+            to="/dashboard"
+            activeProps={{
+              className: "bg-primary/15 text-primary font-bold shadow-xs",
+            }}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+          >
+            <LayoutDashboard className="size-3.5 text-primary shrink-0" />
+            <span>Dashboard</span>
           </Link>
         </nav>
 
         {/* Right: Search, Theme Picker, Auth & Prominent 3-Lines Navigation Button */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Quick Problem Search Trigger */}
           <Link
             to="/problems"
@@ -160,17 +165,6 @@ export function SiteHeader() {
             {user ? (
               <div className="flex items-center gap-1">
                 <Link
-                  to="/dashboard"
-                  activeProps={{
-                    className: "bg-primary/15 text-primary border-primary/40 shadow-xs font-bold",
-                  }}
-                  className="hidden lg:flex items-center gap-1.5 rounded-xl border border-transparent px-2.5 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
-                >
-                  <LayoutDashboard className="size-3.5" />
-                  <span>Dashboard</span>
-                </Link>
-
-                <Link
                   to="/profile"
                   activeProps={{
                     className: "bg-primary/15 text-primary border-primary/40 shadow-xs font-bold",
@@ -182,7 +176,7 @@ export function SiteHeader() {
                     <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
                   </span>
                   <UserIcon className="size-3.5" />
-                  <span className="hidden md:inline max-w-[90px] truncate">{user.displayName || "Profile"}</span>
+                  <span className="hidden md:inline max-w-[100px] truncate">{user.displayName || "Profile"}</span>
                 </Link>
 
                 <Button

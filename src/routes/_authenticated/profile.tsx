@@ -24,6 +24,7 @@ import {
   Check,
   ShieldCheck,
   UserCheck,
+  LayoutDashboard,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -32,8 +33,12 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
 import {
+  getOrCreateUserProfile,
+  updateUserProfile,
+  getUserSubmissions,
+} from "@/lib/firestore-service";
+import {
   getProfileStats,
-  
   updateLeetcodeUsername,
   updateProfileUsername,
 } from "@/lib/submissions.functions";
@@ -109,15 +114,71 @@ function ProfilePage() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["profile-stats"],
     queryFn: async () => {
-      if (!token) throw new Error("No token");
-      const [profileRes, subsRes] = await Promise.all([
-        fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/submissions", { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
-      if (!profileRes.ok || !subsRes.ok) throw new Error("Failed to load stats");
-      const profile = await profileRes.json();
-      const subs = await subsRes.json();
-      const subsArray = Array.isArray(subs) ? subs : [];
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken() : token;
+
+      let clientProfile: any = null;
+      let clientSubs: any[] = [];
+      if (currentUser) {
+        try {
+          clientProfile = await getOrCreateUserProfile(currentUser.uid, currentUser.email, currentUser.photoURL);
+          clientSubs = await getUserSubmissions(currentUser.uid);
+        } catch (e) {
+          console.warn("Client Firestore read fallback:", e);
+        }
+      }
+
+      let serverProfile: any = null;
+      let serverSubs: any[] = [];
+      if (currentToken) {
+        try {
+          const [profileRes, subsRes] = await Promise.all([
+            fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
+            fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } }),
+          ]);
+          if (profileRes.ok) serverProfile = await profileRes.json();
+          if (subsRes.ok) serverSubs = await subsRes.json();
+        } catch (e) {
+          console.warn("Server profile read fallback:", e);
+        }
+      }
+
+      const effectiveDisplayName =
+        clientProfile?.displayName ||
+        clientProfile?.display_name ||
+        serverProfile?.displayName ||
+        serverProfile?.display_name ||
+        currentUser?.displayName ||
+        currentUser?.email?.split("@")[0] ||
+        "Explorer";
+
+      const effectiveLcStats =
+        clientProfile?.leetcodeStats ||
+        clientProfile?.leetcode_stats ||
+        serverProfile?.leetcodeStats ||
+        serverProfile?.leetcode_stats ||
+        null;
+
+      const effectiveLcUsername =
+        clientProfile?.leetcodeUsername ||
+        clientProfile?.leetcode_username ||
+        serverProfile?.leetcodeUsername ||
+        serverProfile?.leetcode_username ||
+        null;
+
+      const mergedProfile = {
+        ...(serverProfile || {}),
+        ...(clientProfile || {}),
+        displayName: effectiveDisplayName,
+        display_name: effectiveDisplayName,
+        leetcodeStats: effectiveLcStats,
+        leetcode_stats: effectiveLcStats,
+        leetcodeUsername: effectiveLcUsername,
+        leetcode_username: effectiveLcUsername,
+      };
+
+      const subsArray = (clientSubs && clientSubs.length > 0 ? clientSubs : serverSubs) || [];
       const completeRows = subsArray.filter((r: any) => r.classification !== "Incomplete");
       const solved = new Set(completeRows.map((r: any) => r.slug));
       const optimal = new Set(
@@ -129,7 +190,7 @@ function ProfilePage() {
         Hard: new Set(completeRows.filter((r: any) => r.difficulty === "Hard").map((r: any) => r.slug)),
       };
       return {
-        profile,
+        profile: mergedProfile,
         attempts: subsArray.length,
         solved: solved.size,
         optimal: optimal.size,
@@ -138,7 +199,7 @@ function ProfilePage() {
         hard: byDifficulty.Hard.size,
       };
     },
-    enabled: !!token,
+    enabled: !!user,
   });
 
   const { token: authContextToken } = useAuth();
@@ -152,13 +213,14 @@ function ProfilePage() {
         throw new Error("Authentication error: No valid token available. Please try logging out and back in.");
       }
       
+      const clean = username.trim().replace(/^@+/, "");
       const res = await fetch("/api/sync-leetcode", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${currentToken}`
         },
-        body: JSON.stringify({ username })
+        body: JSON.stringify({ username: clean })
       });
       if (!res.ok) {
         let errStr = "Sync failed";
@@ -168,11 +230,47 @@ function ProfilePage() {
         } catch {}
         throw new Error(errStr);
       }
-      return await res.json();
+      const data = await res.json();
+      const stats = data?.stats;
+
+      // Persist directly to authenticated client Firestore
+      if (auth.currentUser && stats) {
+        try {
+          await updateUserProfile(auth.currentUser.uid, {
+            leetcodeUsername: clean,
+            leetcode_username: clean,
+            leetcodeStats: stats,
+            leetcode_stats: stats,
+          });
+        } catch (dbErr) {
+          console.warn("Client Firestore leetcode persist warning:", dbErr);
+        }
+      }
+
+      return { ...data, targetUsername: clean };
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       toast.success("LeetCode profile & heatmap synced successfully!");
-      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+      const clean = data.targetUsername;
+
+      if (data?.stats) {
+        const updater = (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            profile: {
+              ...old.profile,
+              leetcodeUsername: clean,
+              leetcode_username: clean,
+              leetcodeStats: data.stats,
+              leetcode_stats: data.stats,
+            },
+          };
+        };
+        queryClient.setQueryData(["profile-stats"], updater);
+        queryClient.setQueryData(["profileStats"], updater);
+      }
+
       refreshProfile();
       setEditingLc(false);
       setInputUsername("");
@@ -184,25 +282,55 @@ function ProfilePage() {
 
   const updateProfileUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
-      await updateNickname(username);
-      if (!token) throw new Error("No token");
-      const res = await fetch("/api/profile/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ username })
-      });
-      if (!res.ok) throw new Error("Failed to update username");
-      return res.json();
-    },
-    onSuccess: (res) => {
-      if (res.ok) {
-        toast.success("Username handle updated successfully!");
-        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-        refreshProfile();
-        setEditingUsername(false);
-      } else {
-        toast.error(res.error || "Could not update username.");
+      const clean = username.trim().replace(/^@+/, "");
+      const auth = getAuth();
+      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
+
+      // 1. Direct write to authenticated client Firestore
+      if (auth.currentUser) {
+        try {
+          await updateUserProfile(auth.currentUser.uid, {
+            displayName: clean,
+            display_name: clean,
+          });
+        } catch (dbErr) {
+          console.warn("Client Firestore username update warning:", dbErr);
+        }
       }
+
+      // 2. Also update AuthContext & Firebase Auth user profile
+      await updateNickname(clean).catch((e) => console.warn("updateNickname warn:", e));
+
+      // 3. Notify backend API
+      if (currentToken) {
+        await fetch("/api/profile/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${currentToken}` },
+          body: JSON.stringify({ username: clean })
+        }).catch(() => null);
+      }
+
+      return { ok: true, username: clean };
+    },
+    onSuccess: (res: any) => {
+      const clean = res.username;
+      toast.success("Username handle updated successfully! 🎉");
+      
+      const updater = (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          profile: {
+            ...old.profile,
+            displayName: clean,
+            display_name: clean,
+          },
+        };
+      };
+      queryClient.setQueryData(["profile-stats"], updater);
+      queryClient.setQueryData(["profileStats"], updater);
+      refreshProfile();
+      setEditingUsername(false);
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to update username.");
@@ -210,14 +338,16 @@ function ProfilePage() {
   });
 
   const profile = data?.profile;
-  const leetcodeStats = (profile as any)?.leetcode_stats;
-  const leetcodeUsername = (profile as any)?.leetcode_username;
+  const leetcodeStats = (profile as any)?.leetcode_stats || (profile as any)?.leetcodeStats;
+  const leetcodeUsername = (profile as any)?.leetcode_username || (profile as any)?.leetcodeUsername;
 
   const currentHandle = useMemo(() => {
     if (profile?.display_name) return profile.display_name;
+    if (profile?.displayName) return profile.displayName;
+    if (user?.displayName) return user.displayName;
     if (user?.email) return user.email.split("@")[0];
     return "explorer";
-  }, [profile?.display_name, user?.email]);
+  }, [profile?.display_name, profile?.displayName, user?.displayName, user?.email]);
 
   function handleSaveUsername() {
     const trimmed = usernameInput.trim().replace(/^@+/, "");
@@ -249,13 +379,23 @@ function ProfilePage() {
     <div className="min-h-screen pb-20">
       <SiteHeader />
       <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
-        <Link
-          to="/"
-          className="group mb-6 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
-          <span>Back to Problem Explorer</span>
-        </Link>
+        <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+          <Link
+            to="/"
+            className="group inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
+            <span>Back to Problem Explorer</span>
+          </Link>
+
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-1.5 font-mono text-xs font-bold text-primary hover:bg-primary/20 transition-all active:scale-95 shadow-xs"
+          >
+            <LayoutDashboard className="size-3.5" />
+            <span>Saved Submissions &amp; LeetCode Dashboard →</span>
+          </Link>
+        </div>
 
         {isLoading || !data ? (
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/80 bg-card/40 p-8 text-center animate-pulse">

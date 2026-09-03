@@ -6226,48 +6226,34 @@ export function getCanonicalMultiDatasets(
     return [d1, d2, d3];
   }
 
-  let baseArray!: (number | string)[];
+  let baseArray: (number | string)[];
   let baseMatrix: (number | string)[][] | undefined;
   let baseTree: (number | string | null)[] | undefined;
   let baseTarget: number | string | undefined;
-  let baseSecondaryArray: (number | string)[] | undefined;
-  let baseDescription: string | undefined;
 
-  const customD1 = isParentheses ? undefined : CUSTOM_DATASETS[slug]?.[0];
-  if (customD1) {
-    if (customD1.array && customD1.array.length > 0) baseArray = customD1.array;
-    if (customD1.secondaryArray && customD1.secondaryArray.length > 0) baseSecondaryArray = customD1.secondaryArray;
-    if (customD1.matrix && customD1.matrix.length > 0) baseMatrix = customD1.matrix;
-    if (customD1.tree && customD1.tree.length > 0) baseTree = customD1.tree;
-    if (customD1.target !== undefined) baseTarget = customD1.target;
-    if (customD1.description) baseDescription = customD1.description;
-  }
-
-  if (!baseArray) {
-    if (isGraph) {
-      baseMatrix = CANONICAL_MATRICES[slug] ?? [
-        [0, 1, 1, 0],
-        [0, 0, 0, 1],
-        [0, 0, 0, 1],
-        [0, 0, 0, 0],
-      ];
-      baseArray = Array.from({ length: baseMatrix.length }, (_, i) => i);
-    } else if (isIsland) {
-      baseMatrix = sampleMatrixFor(slug);
-      baseArray = baseMatrix.flat().filter((x): x is number => typeof x === "number");
-    } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
-      baseTree = sampleTreeFor(slug);
-      baseArray = baseTree.filter((x): x is number | string => x !== null && x !== undefined && String(x) !== "null");
-    } else if (isParentheses) {
-      baseArray = ["(", "{", "[", "]", "}", ")"];
-    } else {
-      baseArray = sampleInputFor(slug, undefined, topics);
-    }
+  if (isGraph) {
+    baseMatrix = CANONICAL_MATRICES[slug] ?? [
+      [0, 1, 1, 0],
+      [0, 0, 0, 1],
+      [0, 0, 0, 1],
+      [0, 0, 0, 0],
+    ];
+    baseArray = Array.from({ length: baseMatrix.length }, (_, i) => i);
+  } else if (isIsland) {
+    baseMatrix = sampleMatrixFor(slug);
+    baseArray = baseMatrix.flat().filter((x): x is number => typeof x === "number");
+  } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
+    baseTree = sampleTreeFor(slug);
+    baseArray = baseTree.filter((x): x is number | string => x !== null && x !== undefined && String(x) !== "null");
+  } else if (isParentheses) {
+    baseArray = ["(", "{", "[", "]", "}", ")"];
+  } else {
+    baseArray = sampleInputFor(slug, undefined, topics);
   }
 
   if (slug === "two-sum") baseTarget = 9;
   else if (slug === "3sum") baseTarget = 0;
-  else if (baseTarget === undefined && !isGraph && !isIsland && !isParentheses && !isString && typeof baseArray[Math.floor(baseArray.length / 2)] === "number") {
+  else if (!isGraph && !isIsland && !isParentheses && !isString && typeof baseArray[Math.floor(baseArray.length / 2)] === "number") {
     baseTarget = baseArray[Math.floor(baseArray.length / 2)];
   }
 
@@ -6275,13 +6261,12 @@ export function getCanonicalMultiDatasets(
   const d1: TestDataset = {
     id: "dataset_1",
     label: "Dataset 1: Standard Case",
-    description: baseDescription ?? (isGraph
+    description: isGraph
       ? "Standard 4-node directed acyclic graph (DAG) verifying path traversal and topological ordering."
       : isParentheses
         ? "Balanced parentheses sequence with nested bracket pairs."
-        : "Standard canonical problem example verifying baseline correctness."),
+        : "Standard canonical problem example verifying baseline correctness.",
     array: baseArray,
-    secondaryArray: baseSecondaryArray,
     matrix: baseMatrix,
     tree: baseTree,
     target: baseTarget,
@@ -6392,26 +6377,6 @@ export function getCanonicalMultiDatasets(
     d2Target = 36;
     d2Desc =
       "Extended 16-element sequence demonstrating multi-step pointer convergence, window scaling, and partition dynamics.";
-  }
-
-  // Ensure Dataset 2 is strictly longer and larger than Dataset 1
-  if (d2Array && baseArray && d2Array.length <= baseArray.length) {
-    if (typeof baseArray[0] === "number") {
-      const step = 2;
-      const start = Number(baseArray[baseArray.length - 1] ?? 0) + 1;
-      const extra = Array.from({ length: baseArray.length + 8 }, (_, i) => start + i * step);
-      d2Array = [...baseArray, ...extra];
-    } else {
-      d2Array = [...baseArray, ...baseArray];
-    }
-  }
-  if (d2Matrix && baseMatrix && (d2Matrix.length * (d2Matrix[0]?.length ?? 0)) <= (baseMatrix.length * (baseMatrix[0]?.length ?? 0))) {
-    const r = Math.max(6, baseMatrix.length + 2);
-    const c = Math.max(6, (baseMatrix[0]?.length ?? 0) + 2);
-    d2Matrix = Array.from({ length: r }, (_, rowIdx) =>
-      Array.from({ length: c }, (_, colIdx) => (rowIdx * c + colIdx + 1))
-    );
-    d2Array = d2Matrix.flat() as number[];
   }
 
   const d2: TestDataset = {

@@ -70,14 +70,10 @@ export interface UserProfileData {
   id: string;
   email?: string | null;
   displayName?: string | null;
-  display_name?: string | null;
   avatarUrl?: string | null;
-  avatar_url?: string | null;
   createdAt?: string;
   leetcodeUsername?: string | null;
-  leetcode_username?: string | null;
   leetcodeStats?: any;
-  leetcode_stats?: any;
   githubToken?: string | null;
 }
 
@@ -99,23 +95,14 @@ export async function getOrCreateUserProfile(
 
     if (snap.exists()) {
       const data = snap.data() as any;
-      const effectiveDisplayName = data.displayName || data.display_name || defaultUsername;
-      const effectiveAvatar = data.avatarUrl || data.avatar_url || photoURL || null;
-      const effectiveLcUsername = data.leetcodeUsername || data.leetcode_username || null;
-      const effectiveLcStats = data.leetcodeStats || data.leetcode_stats || null;
-
       return {
         id: userId,
         email: data.email || email || null,
-        displayName: effectiveDisplayName,
-        display_name: effectiveDisplayName,
-        avatarUrl: effectiveAvatar,
-        avatar_url: effectiveAvatar,
+        displayName: data.displayName || defaultUsername,
+        avatarUrl: data.avatarUrl || photoURL || null,
         createdAt: data.createdAt || new Date().toISOString(),
-        leetcodeUsername: effectiveLcUsername,
-        leetcode_username: effectiveLcUsername,
-        leetcodeStats: effectiveLcStats,
-        leetcode_stats: effectiveLcStats,
+        leetcodeUsername: data.leetcodeUsername || null,
+        leetcodeStats: data.leetcodeStats || null,
         githubToken: data.githubToken || null,
       };
     }

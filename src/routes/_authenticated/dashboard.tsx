@@ -1,5 +1,4 @@
 import { useAuth } from "@/hooks/useAuth";
-import { getAuth } from "firebase/auth";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -12,8 +11,6 @@ import {
   Sparkles,
   Brain,
   CheckCircle2,
-  XCircle,
-  Code2,
   TrendingUp,
   AlertTriangle,
   Target,
@@ -24,11 +21,6 @@ import { Visualizer } from "@/components/Visualizer";
 import { AnalyticsCharts } from "@/components/dashboard/AnalyticsCharts";
 import { AiMistakesSection } from "@/components/dashboard/AiMistakesSection";
 import { Button } from "@/components/ui/button";
-import {
-  getOrCreateUserProfile,
-  getUserSubmissions,
-  deleteUserSubmission,
-} from "@/lib/firestore-service";
 import { listSubmissions, deleteSubmission, getProfileStats, type Submission } from "@/lib/submissions.functions";
 import { toast } from "sonner";
 
@@ -63,78 +55,22 @@ const badgeFor = (c: string) =>
         : "bg-purple-500/20 text-purple-300 border-purple-400/60 shadow-xs shadow-purple-500/25 font-extrabold";
 
 function Dashboard() {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const qc = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: statsData } = useQuery({
     queryKey: ["profileStats"],
     queryFn: async () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      const currentToken = currentUser ? await currentUser.getIdToken() : token;
-
-      let clientProfile: any = null;
-      let clientSubs: any[] = [];
-      if (currentUser) {
-        try {
-          clientProfile = await getOrCreateUserProfile(currentUser.uid, currentUser.email, currentUser.photoURL);
-          clientSubs = await getUserSubmissions(currentUser.uid);
-        } catch (e) {
-          console.warn("Client Firestore read fallback in dashboard:", e);
-        }
-      }
-
-      let serverProfile: any = null;
-      let serverSubs: any[] = [];
-      if (currentToken) {
-        try {
-          const [profileRes, subsRes] = await Promise.all([
-            fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
-            fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } }),
-          ]);
-          if (profileRes.ok) serverProfile = await profileRes.json();
-          if (subsRes.ok) serverSubs = await subsRes.json();
-        } catch (e) {
-          console.warn("Server profile read fallback in dashboard:", e);
-        }
-      }
-
-      const effectiveDisplayName =
-        clientProfile?.displayName ||
-        clientProfile?.display_name ||
-        serverProfile?.displayName ||
-        serverProfile?.display_name ||
-        currentUser?.displayName ||
-        currentUser?.email?.split("@")[0] ||
-        "Explorer";
-
-      const effectiveLcStats =
-        clientProfile?.leetcodeStats ||
-        clientProfile?.leetcode_stats ||
-        serverProfile?.leetcodeStats ||
-        serverProfile?.leetcode_stats ||
-        null;
-
-      const effectiveLcUsername =
-        clientProfile?.leetcodeUsername ||
-        clientProfile?.leetcode_username ||
-        serverProfile?.leetcodeUsername ||
-        serverProfile?.leetcode_username ||
-        null;
-
-      const mergedProfile = {
-        ...(serverProfile || {}),
-        ...(clientProfile || {}),
-        displayName: effectiveDisplayName,
-        display_name: effectiveDisplayName,
-        leetcodeStats: effectiveLcStats,
-        leetcode_stats: effectiveLcStats,
-        leetcodeUsername: effectiveLcUsername,
-        leetcode_username: effectiveLcUsername,
-      };
-
-      const subsArray = (clientSubs && clientSubs.length > 0 ? clientSubs : serverSubs) || [];
+      if (!token) throw new Error("No token");
+      const [profileRes, subsRes] = await Promise.all([
+        fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/submissions", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (!profileRes.ok || !subsRes.ok) throw new Error("Failed to load stats");
+      const profile = await profileRes.json();
+      const subs = await subsRes.json();
+      const subsArray = Array.isArray(subs) ? subs : [];
       const completeRows = subsArray.filter((r: any) => r.classification !== "Incomplete");
       const solved = new Set(completeRows.map((r: any) => r.slug));
       const optimal = new Set(
@@ -146,7 +82,7 @@ function Dashboard() {
         Hard: new Set(completeRows.filter((r: any) => r.difficulty === "Hard").map((r: any) => r.slug)),
       };
       return {
-        profile: mergedProfile,
+        profile,
         attempts: subsArray.length,
         solved: solved.size,
         optimal: optimal.size,
@@ -155,67 +91,34 @@ function Dashboard() {
         hard: byDifficulty.Hard.size,
       };
     },
-    enabled: !!user,
+    enabled: !!token,
   });
 
-  const leetcodeStats = statsData?.profile?.leetcode_stats || statsData?.profile?.leetcodeStats;
+  const leetcodeStats = statsData?.profile?.leetcode_stats;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["submissions"],
     queryFn: async () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      const currentToken = currentUser ? await currentUser.getIdToken() : token;
-
-      if (currentUser) {
-        try {
-          const clientSubs = await getUserSubmissions(currentUser.uid);
-          if (clientSubs && clientSubs.length > 0) return clientSubs;
-        } catch (e) {
-          console.warn("Client Firestore getUserSubmissions fallback:", e);
-        }
-      }
-
-      if (currentToken) {
-        try {
-          const res = await fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } });
-          if (res.ok) return await res.json();
-        } catch (e) {
-          console.warn("Server submissions fallback:", e);
-        }
-      }
-
-      return [];
+      if (!token) return [];
+      const res = await fetch("/api/submissions", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
     },
-    enabled: !!user,
+    enabled: !!token,
   });
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      const currentToken = currentUser ? await currentUser.getIdToken() : token;
-
-      if (currentUser) {
-        try {
-          await deleteUserSubmission(currentUser.uid, id);
-        } catch (e) {
-          console.warn("Client Firestore deleteUserSubmission non-fatal:", e);
-        }
-      }
-
-      if (currentToken) {
-        await fetch(`/api/submissions/${id}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${currentToken}` },
-        }).catch(() => null);
-      }
-
-      return { ok: true };
+      if (!token) throw new Error("No token");
+      const res = await fetch(`/api/submissions/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to delete");
+      return res.json();
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["submissions"] });
-      qc.invalidateQueries({ queryKey: ["profileStats"] });
       toast.success("Attempt removed from your dashboard");
     },
     onError: () => {
@@ -290,70 +193,6 @@ function Dashboard() {
               streak={leetcodeStats.streak}
               totalActiveDays={leetcodeStats.totalActiveDays}
             />
-
-            {/* Recent Submissions Log from LeetCode */}
-            {Array.isArray(leetcodeStats.recentSubmissions) &&
-              leetcodeStats.recentSubmissions.length > 0 && (
-                <div className="mt-4 flex flex-col gap-2.5 rounded-2xl border border-border/80 bg-card/60 p-4 shadow-sm backdrop-blur-sm">
-                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                    <div className="flex items-center gap-2">
-                      <Code2 className="size-4 text-primary" />
-                      <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
-                        Recent LeetCode Submissions
-                      </span>
-                    </div>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      Last synced:{" "}
-                      {new Date(leetcodeStats.lastSyncedAt || Date.now()).toLocaleTimeString()}
-                    </span>
-                  </div>
-
-                  <div className="divide-y divide-border/40">
-                    {leetcodeStats.recentSubmissions.map((sub: any, idx: number) => {
-                      const isAccepted = sub.statusDisplay === "Accepted";
-                      return (
-                        <div
-                          key={`lc-sub-${idx}`}
-                          className="flex items-center justify-between py-2 text-xs font-mono"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            {isAccepted ? (
-                              <CheckCircle2 className="size-4 text-emerald-400 shrink-0" />
-                            ) : (
-                              <XCircle className="size-4 text-rose-400 shrink-0" />
-                            )}
-                            <span className="font-bold text-foreground truncate">{sub.title}</span>
-                          </div>
-
-                          <div className="flex items-center gap-2.5 shrink-0">
-                            <span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                                isAccepted
-                                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                                  : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                              }`}
-                            >
-                              {sub.statusDisplay}
-                            </span>
-                            <span className="rounded bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                              {sub.lang}
-                            </span>
-                            {sub.titleSlug && (
-                              <Link
-                                to="/problem/$slug"
-                                params={{ slug: sub.titleSlug }}
-                                className="hidden sm:inline-flex rounded-lg bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 text-[10px] font-bold hover:bg-primary/20 transition-all"
-                              >
-                                Visualizer
-                              </Link>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
           </div>
         )}
         {!leetcodeStats && (

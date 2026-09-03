@@ -206356,6 +206356,32 @@ function sanitizeMap(value) {
   }
   return {};
 }
+function sanitizePointerRecord(value) {
+  if (!value || typeof value !== "object") return null;
+  if (Array.isArray(value)) {
+    const rec = {};
+    value.forEach((item, idx) => {
+      const s2 = extractScalarValue2(item);
+      if (s2 !== null && s2 !== void 0) {
+        rec[`p${idx + 1}`] = s2;
+      }
+    });
+    return Object.keys(rec).length > 0 ? rec : null;
+  }
+  const obj = value;
+  const result = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === void 0) continue;
+    if (typeof v === "number" && Number.isFinite(v)) {
+      result[k] = v;
+    } else if (typeof v === "string" && v.trim()) {
+      result[k] = v.trim();
+    } else if (Array.isArray(v) && v.length === 2 && !isNaN(Number(v[0])) && !isNaN(Number(v[1]))) {
+      result[k] = [Number(v[0]), Number(v[1])];
+    }
+  }
+  return Object.keys(result).length > 0 ? result : null;
+}
 function normalizeType(type, preferred) {
   return isVizType(type) ? type : preferred;
 }
@@ -206936,7 +206962,9 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
       desc: typeof step.desc === "string" && step.desc.trim() ? step.desc.trim() : "Executing step.",
       activeDataset: typeof step.activeDataset === "string" ? step.activeDataset : null,
       shiftInfo: step.shiftInfo && typeof step.shiftInfo === "object" ? step.shiftInfo : null,
-      datasetLabels: step.datasetLabels && typeof step.datasetLabels === "object" ? step.datasetLabels : null
+      datasetLabels: step.datasetLabels && typeof step.datasetLabels === "object" ? step.datasetLabels : null,
+      ...step.code_anchor ? { code_anchor: step.code_anchor } : {},
+      ...step.codeAnchor ? { code_anchor: step.codeAnchor } : {}
     };
     const isStringInputArray = canonicalArray?.some((x2) => typeof x2 === "string");
     const hasExtremeValues = Array.isArray(step.array) && step.array.some((x2) => {
@@ -207044,12 +207072,136 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
       auxMatrix = canonicalMatrix.map((r2) => [...r2]);
     }
     const rawStepItem = step;
-    let rawCurrent = step.current ?? rawStepItem.curr ?? rawStepItem.currentNode ?? rawStepItem.node ?? rawStepItem.pointer ?? rawStepItem.index ?? rawStepItem.idx ?? rawStepItem.i;
+    let rawLeft = step.left ?? rawStepItem.l ?? rawStepItem.ptr1 ?? null;
+    let rawRight = step.right ?? rawStepItem.r ?? rawStepItem.ptr2 ?? null;
+    let inferredLabelLeft = null;
+    let inferredLabelRight = null;
+    let inferredLabelCurr = null;
+    const rawVars = rawStepItem.variables || rawStepItem.vars || {};
+    if (Array.isArray(rawStepItem.window) && rawStepItem.window.length >= 2) {
+      if (rawLeft === null || rawLeft === void 0) {
+        rawLeft = rawStepItem.window[0];
+        inferredLabelLeft = "left";
+      }
+      if (rawRight === null || rawRight === void 0) {
+        rawRight = rawStepItem.window[1];
+        inferredLabelRight = "right";
+      }
+    }
+    const slowVal = rawStepItem.slow ?? rawVars.slow;
+    const fastVal = rawStepItem.fast ?? rawVars.fast;
+    if (slowVal !== void 0 && slowVal !== null && (rawLeft === null || rawLeft === void 0)) {
+      rawLeft = slowVal;
+      inferredLabelLeft = "slow";
+    }
+    if (fastVal !== void 0 && fastVal !== null && (rawRight === null || rawRight === void 0)) {
+      rawRight = fastVal;
+      inferredLabelRight = "fast";
+    }
+    const writeVal = rawStepItem.write ?? rawVars.write;
+    const readVal = rawStepItem.read ?? rawVars.read;
+    if (writeVal !== void 0 && writeVal !== null && (rawLeft === null || rawLeft === void 0)) {
+      rawLeft = writeVal;
+      inferredLabelLeft = "write";
+    }
+    if (readVal !== void 0 && readVal !== null && (rawRight === null || rawRight === void 0)) {
+      rawRight = readVal;
+      inferredLabelRight = "read";
+    }
+    const startVal = rawStepItem.start ?? rawVars.start;
+    const endVal = rawStepItem.end ?? rawVars.end;
+    if (startVal !== void 0 && startVal !== null && (rawLeft === null || rawLeft === void 0)) {
+      rawLeft = startVal;
+      inferredLabelLeft = "start";
+    }
+    if (endVal !== void 0 && endVal !== null && (rawRight === null || rawRight === void 0)) {
+      rawRight = endVal;
+      inferredLabelRight = "end";
+    }
+    const lowVal = rawStepItem.low ?? rawVars.low;
+    const highVal = rawStepItem.high ?? rawVars.high;
+    if (lowVal !== void 0 && lowVal !== null && (rawLeft === null || rawLeft === void 0)) {
+      rawLeft = lowVal;
+      inferredLabelLeft = "low";
+    }
+    if (highVal !== void 0 && highVal !== null && (rawRight === null || rawRight === void 0)) {
+      rawRight = highVal;
+      inferredLabelRight = "high";
+    }
+    const hasExplicitI = rawStepItem.i !== void 0 && rawStepItem.i !== null;
+    const hasExplicitJ = rawStepItem.j !== void 0 && rawStepItem.j !== null;
+    if (hasExplicitI && (rawLeft === null || rawLeft === void 0)) {
+      rawLeft = rawStepItem.i;
+      inferredLabelLeft = "i";
+    }
+    if (hasExplicitJ && (rawRight === null || rawRight === void 0)) {
+      rawRight = rawStepItem.j;
+      inferredLabelRight = "j";
+    }
+    if ((rawLeft === null || rawLeft === void 0) && rawVars.i !== void 0) {
+      rawLeft = rawVars.i;
+      inferredLabelLeft = "i";
+    }
+    if ((rawRight === null || rawRight === void 0) && rawVars.j !== void 0) {
+      rawRight = rawVars.j;
+      inferredLabelRight = "j";
+    }
+    const descText = String(step.desc ?? "");
+    if ((rawLeft === null || rawLeft === void 0) && (rawRight === null || rawRight === void 0)) {
+      const slowFastMatch = /\bslow\s*=\s*(\d+)\b[^\n\r]*?\bfast\s*=\s*(\d+)\b/i.exec(descText);
+      if (slowFastMatch) {
+        rawLeft = Number(slowFastMatch[1]);
+        rawRight = Number(slowFastMatch[2]);
+        inferredLabelLeft = "slow";
+        inferredLabelRight = "fast";
+      } else {
+        const writeReadMatch = /\bwrite\s*=\s*(\d+)\b[^\n\r]*?\bread\s*=\s*(\d+)\b/i.exec(descText);
+        if (writeReadMatch) {
+          rawLeft = Number(writeReadMatch[1]);
+          rawRight = Number(writeReadMatch[2]);
+          inferredLabelLeft = "write";
+          inferredLabelRight = "read";
+        } else {
+          const startEndMatch = /\bstart\s*=\s*(\d+)\b[^\n\r]*?\bend\s*=\s*(\d+)\b/i.exec(descText) || /\bleft\s*=\s*(\d+)\b[^\n\r]*?\bright\s*=\s*(\d+)\b/i.exec(descText);
+          if (startEndMatch) {
+            rawLeft = Number(startEndMatch[1]);
+            rawRight = Number(startEndMatch[2]);
+            inferredLabelLeft = "start";
+            inferredLabelRight = "end";
+          } else {
+            const lowHighMatch = /\blow\s*=\s*(\d+)\b[^\n\r]*?\bhigh\s*=\s*(\d+)\b/i.exec(descText);
+            if (lowHighMatch) {
+              rawLeft = Number(lowHighMatch[1]);
+              rawRight = Number(lowHighMatch[2]);
+              inferredLabelLeft = "low";
+              inferredLabelRight = "high";
+            } else {
+              const ijMatch = /\bi\s*=\s*(\d+)\b[^\n\r]*?\bj\s*=\s*(\d+)\b/i.exec(descText) || /nums\[(\d+)\]\s*\+\s*nums\[(\d+)\]/i.exec(descText);
+              if (ijMatch) {
+                rawLeft = Number(ijMatch[1]);
+                rawRight = Number(ijMatch[2]);
+                inferredLabelLeft = "i";
+                inferredLabelRight = "j";
+              }
+            }
+          }
+        }
+      }
+    }
+    const midVal = rawStepItem.mid ?? rawVars.mid;
+    let rawCurrent = step.current ?? rawStepItem.curr ?? rawStepItem.currentNode ?? rawStepItem.node ?? rawStepItem.pointer ?? rawStepItem.index ?? rawStepItem.idx;
+    if (midVal !== void 0 && midVal !== null && (rawCurrent === void 0 || rawCurrent === null)) {
+      rawCurrent = midVal;
+      inferredLabelCurr = "mid";
+    }
+    if (rawCurrent === void 0 || rawCurrent === null) {
+      if (rawLeft === null && rawRight === null && hasExplicitI) {
+        rawCurrent = rawStepItem.i;
+      }
+    }
     if (rawCurrent && typeof rawCurrent === "object" && !Array.isArray(rawCurrent)) {
       rawCurrent = rawCurrent.val ?? rawCurrent.value ?? rawCurrent.id ?? rawCurrent.name ?? null;
     }
-    const rawLeft = step.left ?? rawStepItem.l ?? rawStepItem.ptr1 ?? (rawStepItem.i !== rawCurrent ? rawStepItem.i : null);
-    const rawRight = step.right ?? rawStepItem.r ?? rawStepItem.ptr2 ?? rawStepItem.j;
     const numericCurrent = typeof rawCurrent === "number" && Number.isFinite(rawCurrent) ? rawCurrent : null;
     const stringCurrent = typeof rawCurrent === "string" && rawCurrent.trim() ? rawCurrent.trim() : null;
     let resolvedCurrent = numericCurrent ?? stringCurrent ?? null;
@@ -207067,9 +207219,51 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
     const maxArea = typeof step.maxArea === "number" ? step.maxArea : typeof step.mSum === "number" ? step.mSum : null;
     const islandCells = Array.isArray(step.islandCells) ? step.islandCells : null;
     let auxPointerLabels = typeof step.pointer_labels === "object" && step.pointer_labels !== null ? Object.fromEntries(Object.entries(step.pointer_labels).map(([k, v]) => [k, String(v)])) : null;
+    if (rawLeft !== null && rawLeft !== void 0 && rawRight !== null && rawRight !== void 0) {
+      if (!auxPointerLabels || !auxPointerLabels.left && !auxPointerLabels.right) {
+        if (inferredLabelLeft && inferredLabelRight) {
+          auxPointerLabels = {
+            left: inferredLabelLeft,
+            right: inferredLabelRight,
+            ...inferredLabelCurr ? { current: inferredLabelCurr } : {},
+            ...auxPointerLabels ?? {}
+          };
+        } else {
+          const hasIJInCode = code_lines.some((l) => /\bfor\s+[ij]\b|\b[ij]\s*[=+\-<>]/i.test(l));
+          const hasIJInStep = hasExplicitI || hasExplicitJ || /\bi\b.*\bj\b/i.test(descText);
+          if (hasIJInCode || hasIJInStep) {
+            auxPointerLabels = {
+              left: "i",
+              right: "j",
+              ...auxPointerLabels ?? {}
+            };
+          }
+        }
+      }
+    } else if (inferredLabelCurr && (!auxPointerLabels || !auxPointerLabels.current)) {
+      auxPointerLabels = {
+        current: inferredLabelCurr,
+        ...auxPointerLabels ?? {}
+      };
+    }
     const activeNodeId = step.activeNodeId !== null && step.activeNodeId !== void 0 ? typeof step.activeNodeId === "number" || typeof step.activeNodeId === "string" ? step.activeNodeId : null : null;
     const targetIndex = typeof step.targetIndex === "number" && Number.isFinite(step.targetIndex) ? step.targetIndex : null;
-    const activePointers = Array.isArray(step.activePointers) ? sanitizeScalarArray(step.activePointers) : null;
+    const rawActivePointers = sanitizePointerRecord(step.activePointers);
+    const activePointers = {
+      ...rawActivePointers ?? {}
+    };
+    if (rawLeft !== null && rawLeft !== void 0 && !isNaN(Number(rawLeft))) {
+      const label = auxPointerLabels?.left || "left";
+      if (activePointers[label] === void 0) activePointers[label] = Number(rawLeft);
+    }
+    if (rawRight !== null && rawRight !== void 0 && !isNaN(Number(rawRight))) {
+      const label = auxPointerLabels?.right || "right";
+      if (activePointers[label] === void 0) activePointers[label] = Number(rawRight);
+    }
+    if (resolvedCurrent !== null && resolvedCurrent !== void 0 && auxPointerLabels?.current) {
+      const label = auxPointerLabels.current;
+      if (activePointers[label] === void 0) activePointers[label] = resolvedCurrent;
+    }
     return {
       ...base,
       ...auxArray ? { array: auxArray } : {},
@@ -207680,6 +207874,17 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
       const currentLineIdx = step.line;
       const currentLineText = code_lines[currentLineIdx] ?? "";
       const desc = step.desc ?? "";
+      const anchor2 = step?.code_anchor || step?.codeAnchor;
+      if (typeof anchor2 === "string" && anchor2.trim()) {
+        const cleanAnchor = anchor2.trim().toLowerCase();
+        const directIdx = code_lines.findIndex((l) => {
+          const cleanLine = l.trim().toLowerCase();
+          return cleanLine.includes(cleanAnchor) || cleanAnchor.includes(cleanLine);
+        });
+        if (directIdx !== -1) {
+          return { ...step, line: directIdx };
+        }
+      }
       const isHelperReturn = /^\s*return\b/i.test(currentLineText) && !/\b(?:return|complete|answer|not found|-1)\b/i.test(desc);
       const isConsecutiveSame = idx > 0 && step.line === arr[idx - 1]?.line && step.desc !== arr[idx - 1]?.desc;
       const methodForCurrentLine = getMethodForLine(currentLineIdx);
@@ -239867,6 +240072,17 @@ function classifyProblem(slug = "", title = "", topics = []) {
       algorithmName: "2D Grid Boundary & Flood Traversal"
     };
   }
+  if (/set-matrix-zeroes|rotate-image|spiral-matrix|spiral-matrix-ii|game-of-life|valid-sudoku|diagonal-traverse|reshape-the-matrix|matrix-block-sum|shift-2d-grid|transpose-matrix|toeplitz-matrix|image-overlap|flipping-an-image|lucky-numbers-in-a-matrix|search-a-2d-matrix|search-a-2d-matrix-ii/.test(
+    s2
+  ) || hasTopic("matrix") && !hasTopic("depth-first search", "breadth-first search", "dynamic programming", "graph", "intervals")) {
+    return {
+      category: "grid-matrix",
+      primaryVizType: "matrix",
+      pattern: "matrix-transform",
+      isMultiEntity: false,
+      algorithmName: "2D Matrix In-Place Cell-by-Cell Transformation"
+    };
+  }
   if (/longest-common-subsequence|common-subsequence|common-subseq|\blcs\b/.test(s2)) {
     return {
       category: "dp-2d",
@@ -240033,15 +240249,26 @@ function classifyProblem(slug = "", title = "", topics = []) {
       algorithmName: "FIFO Queue Simulation & Card Ordering Engine"
     };
   }
-  if (!s2.includes("two-sum-ii") && (/two-sum|3sum-with-multiplicity|4sum-ii|subarray-sum-equals-k|continuous-subarray-sum/.test(
+  if (!s2.includes("two-sum-ii") && (/two-sum|3sum-with-multiplicity|4sum-ii/.test(
     s2
-  ) || hasTopic("hash table") && !hasTopic("two pointers", "sliding window", "binary search") && /sum|target|pair|complement|diff/i.test(s2))) {
+  ) || hasTopic("hash table") && !hasTopic("two pointers", "sliding window", "binary search", "prefix sum") && /sum|target|pair|complement|diff/i.test(s2))) {
     return {
       category: "hashmap",
       primaryVizType: "hashmap",
       pattern: "hashmap-pair",
       isMultiEntity: false,
       algorithmName: "Hash Map Complement Lookup (Two Sum O(n))"
+    };
+  }
+  if (/subarray-sum-equals-k|continuous-subarray-sum|contiguous-array|subarray-sums-divisible-by-k/.test(
+    s2
+  ) || hasTopic("prefix sum") && hasTopic("hash table")) {
+    return {
+      category: "prefix-sum",
+      primaryVizType: "array",
+      pattern: "prefix-sum-hashmap",
+      isMultiEntity: false,
+      algorithmName: "Prefix Sum with Running Hash Map Complement Lookup"
     };
   }
   if (/group-anagrams|valid-anagram|first-unique-character|ransom-note|majority-element|contains-duplicate|word-pattern|isomorphic-strings|sort-characters-by-frequency|top-k-frequent-words|find-common-characters|intersection-of-two-arrays|minimum-index-sum-of-two-lists|custom-sort-string/.test(
@@ -240055,7 +240282,18 @@ function classifyProblem(slug = "", title = "", topics = []) {
       algorithmName: "Hash Table Frequency Map & Bucket Counting"
     };
   }
-  if (/longest-substring-without-repeating|minimum-window-substring|sliding-window-maximum|longest-repeating-character-replacement|permutation-in-string|max-consecutive-ones-iii|fruit-into-baskets|maximum-average-subarray-i|find-all-anagrams-in-a-string/.test(
+  if (/longest-substring-without-repeating|minimum-window-substring|longest-repeating-character-replacement|permutation-in-string|max-consecutive-ones-iii|fruit-into-baskets|subarray-product-less-than-k|minimum-size-subarray-sum/.test(
+    s2
+  )) {
+    return {
+      category: "sliding-window",
+      primaryVizType: "array",
+      pattern: "sliding-window-dynamic",
+      isMultiEntity: false,
+      algorithmName: "Dynamic Variable-Size Window with Expanding Right & Shrinking Left"
+    };
+  }
+  if (/sliding-window-maximum|maximum-average-subarray-i|find-all-anagrams-in-a-string/.test(
     s2
   ) || hasTopic("sliding window")) {
     return {
@@ -240063,10 +240301,21 @@ function classifyProblem(slug = "", title = "", topics = []) {
       primaryVizType: "array",
       pattern: "sliding-window",
       isMultiEntity: false,
-      algorithmName: "Dynamic Sliding Window with Expanding Right & Shrinking Left"
+      algorithmName: "Fixed-Width K Sliding Window Scan"
     };
   }
-  if (/container-with-most-water|valid-palindrome|3sum|3sum-closest|reverse-string|remove-duplicates-from-sorted-array|move-zeroes|squares-of-a-sorted-array|two-sum-ii-input-array-is-sorted|two-sum-ii|4sum|backspace-string-compare|boats-to-save-people/.test(
+  if (/remove-duplicates-from-sorted-array|remove-duplicates-from-sorted-array-ii|move-zeroes|remove-element|sort-colors|duplicate-zeros/.test(
+    s2
+  )) {
+    return {
+      category: "two-pointers",
+      primaryVizType: "array",
+      pattern: "two-pointers-in-place",
+      isMultiEntity: false,
+      algorithmName: "Unidirectional Fast/Slow Read-Write In-Place Pointers"
+    };
+  }
+  if (/container-with-most-water|valid-palindrome|3sum|3sum-closest|reverse-string|squares-of-a-sorted-array|two-sum-ii-input-array-is-sorted|two-sum-ii|4sum|backspace-string-compare|boats-to-save-people/.test(
     s2
   ) || hasTopic("two pointers")) {
     return {
@@ -240407,15 +240656,44 @@ var CANONICAL_MATRICES = {
 function isIslandOrGridProblem(slug, topics = []) {
   const s2 = (slug ?? "").toLowerCase();
   const t2 = (topics ?? []).map((x2) => String(x2).toLowerCase()).join(" ");
-  return /island|area-of-island|max-area|flood-fill|rotting-oranges|surrounded-regions|walls-and-gates|pacific-atlantic|01-matrix|shortest-path-in-binary|making-a-large-island|count-sub-islands/.test(
+  return /island|area-of-island|max-area|flood-fill|rotting-oranges|surrounded-regions|walls-and-gates|pacific-atlantic|01-matrix|shortest-path-in-binary|making-a-large-island|count-sub-islands|as-far-from-land|number-of-enclaves|number-of-closed-islands|minesweeper/.test(
     s2
-  ) || /number of islands|max area|flood fill|matrix|grid/.test(t2);
+  ) || /number of islands|max area of island|flood fill/.test(t2);
+}
+function isMatrixTransformationProblem(slug, topics = []) {
+  const s2 = (slug ?? "").toLowerCase();
+  const t2 = (topics ?? []).map((x2) => String(x2).toLowerCase()).join(" ");
+  if (isIslandOrGridProblem(slug, topics)) return false;
+  return /set-matrix-zeroes|rotate-image|spiral-matrix|spiral-matrix-ii|game-of-life|valid-sudoku|diagonal-traverse|reshape-the-matrix|matrix-block-sum|shift-2d-grid|transpose-matrix|toeplitz-matrix|image-overlap|flipping-an-image|lucky-numbers-in-a-matrix|search-a-2d-matrix|search-a-2d-matrix-ii|kth-smallest-element-in-a-sorted-matrix/.test(
+    s2
+  ) || (t2.includes("matrix") || t2.includes("grid")) && !t2.includes("depth-first search") && !t2.includes("breadth-first search") && !t2.includes("dynamic programming") && !t2.includes("graph");
+}
+function isDynamicSlidingWindowProblem(slug, topics = []) {
+  const s2 = (slug ?? "").toLowerCase();
+  const t2 = (topics ?? []).map((x2) => String(x2).toLowerCase()).join(" ");
+  return /longest-substring-without-repeating|minimum-window-substring|longest-repeating-character-replacement|permutation-in-string|max-consecutive-ones-iii|fruit-into-baskets|subarray-product-less-than-k|minimum-size-subarray-sum/.test(
+    s2
+  ) || (t2.includes("sliding window") || t2.includes("string")) && /substring|longest-substring|window|repeating/i.test(s2);
+}
+function isInPlacePointerProblem(slug, topics = []) {
+  const s2 = (slug ?? "").toLowerCase();
+  const t2 = (topics ?? []).map((x2) => String(x2).toLowerCase()).join(" ");
+  return /remove-duplicates-from-sorted-array|remove-duplicates-from-sorted-array-ii|move-zeroes|remove-element|sort-colors|duplicate-zeros/.test(
+    s2
+  ) || t2.includes("two pointers") && /remove|move|zero|duplicate/i.test(s2);
+}
+function isPrefixSumProblem(slug, topics = []) {
+  const s2 = (slug ?? "").toLowerCase();
+  const t2 = (topics ?? []).map((x2) => String(x2).toLowerCase()).join(" ");
+  return /subarray-sum-equals-k|contiguous-array|subarray-sums-divisible-by-k|range-sum-query-immutable|running-sum-of-1d-array|product-of-array-except-self|find-pivot-index/.test(
+    s2
+  ) || t2.includes("prefix sum");
 }
 function sampleMatrixFor(slug) {
   if (CANONICAL_MATRICES[slug]) {
     return CANONICAL_MATRICES[slug].map((r2) => [...r2]);
   }
-  const isIsland = /island|area|flood|surround|rotting|grid|matrix/.test(slug);
+  const isIsland = /island|flood|surround|rotting|enclave/.test(slug);
   if (isIsland) {
     return [
       [0, 1, 1, 0, 0, 0],
@@ -240427,8 +240705,8 @@ function sampleMatrixFor(slug) {
     ];
   }
   const rnd = seeded(slug);
-  const rows = 6;
-  const cols = 6;
+  const rows = 4;
+  const cols = 4;
   return Array.from(
     { length: rows },
     () => Array.from({ length: cols }, () => 1 + Math.floor(rnd() * 99))
@@ -245205,7 +245483,7 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
       { id: "d1", label: "Dataset 1", category: "standard", array: [1, 2, 3, 0, 0, 0], secondaryArray: [2, 5, 6], target: 3, description: "Actual Example 1 from LeetCode." }
     ],
     "longest-substring-without-repeating-characters": [
-      { id: "d1", label: "Dataset 1", category: "standard", array: ["abcabcbb"], description: "Actual Example 1 from LeetCode." }
+      { id: "d1", label: "Dataset 1", category: "standard", array: ["a", "b", "c", "a", "b", "c", "b", "b"], description: "Actual Example 1 from LeetCode." }
     ],
     "powx-n": [
       { id: "d1", label: "Dataset 1", category: "standard", target: 10, description: "Actual Example 1 from LeetCode." }
@@ -245431,6 +245709,7 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
     ]
   };
   const isIsland = isIslandOrGridProblem(slug, topics);
+  const isMatrixTransform = isMatrixTransformationProblem(slug, topics);
   const isTwoSeq = isTwoSequenceProblem(slug, topics);
   const isInterval = isIntervalProblem(slug, topics);
   const isBit = isBitManipulationProblem(slug, topics);
@@ -245442,6 +245721,9 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
   const isWordLadder = isWordLadderProblem(slug, topics);
   const isQueueSim = isQueueSimulationProblem(slug, topics);
   const isDesign = isDesignProblem(slug, topics);
+  const isDynamicWindow = isDynamicSlidingWindowProblem(slug, topics);
+  const isInPlacePointers = isInPlacePointerProblem(slug, topics);
+  const isPrefixSum = isPrefixSumProblem(slug, topics);
   const primaryType = pickShape(slug, topics);
   const isGraph = primaryType === "graph" || topics.some((t2) => /graph|union|topological/i.test(t2)) || /graph|course-schedule|clone-graph|network-delay|bipartite|judge|redundant|alien-dictionary|word-ladder/i.test(slug);
   const isParentheses = /parenthes|bracket/i.test(slug);
@@ -245902,18 +246184,66 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
     } else if (isIsland) {
       baseMatrix = sampleMatrixFor(slug);
       baseArray = baseMatrix.flat().filter((x2) => typeof x2 === "number");
+    } else if (isMatrixTransform) {
+      baseMatrix = CANONICAL_MATRICES[slug] ? CANONICAL_MATRICES[slug].map((r2) => [...r2]) : [
+        [1, 1, 1],
+        [1, 0, 1],
+        [1, 1, 1]
+      ];
+      baseArray = baseMatrix.flat().filter((x2) => typeof x2 === "number");
     } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
       baseTree = sampleTreeFor(slug);
       baseArray = baseTree.filter((x2) => x2 !== null && x2 !== void 0 && String(x2) !== "null");
     } else if (isParentheses) {
       baseArray = ["(", "{", "[", "]", "}", ")"];
+    } else if (isDynamicWindow) {
+      if (slug === "longest-substring-without-repeating-characters") {
+        baseArray = ["a", "b", "c", "a", "b", "c", "b", "b"];
+        baseDescription = "Canonical string 'abcabcbb' testing window shrink on duplicate characters.";
+      } else if (slug === "minimum-window-substring") {
+        baseArray = ["A", "D", "O", "B", "E", "C", "O", "D", "E", "B", "A", "N", "C"];
+        baseSecondaryArray = ["A", "B", "C"];
+        baseDescription = "String S and pattern T='ABC'.";
+      } else if (slug === "max-consecutive-ones-iii") {
+        baseArray = [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0];
+        baseTarget = 2;
+        baseDescription = "Binary sequence with k=2 zero-flips permitted.";
+      } else {
+        baseArray = sampleInputFor(slug, void 0, topics);
+      }
+    } else if (isInPlacePointers) {
+      if (slug === "move-zeroes") {
+        baseArray = [0, 1, 0, 3, 12];
+        baseDescription = "Standard array with interleaved zeroes for slow/fast in-place compaction.";
+      } else if (slug === "remove-duplicates-from-sorted-array") {
+        baseArray = [0, 0, 1, 1, 1, 2, 2, 3, 3, 4];
+        baseDescription = "Sorted array with duplicate runs for in-place unique compaction.";
+      } else if (slug === "sort-colors") {
+        baseArray = [2, 0, 2, 1, 1, 0];
+        baseDescription = "Dutch National Flag 3-pointer partition array (0=red, 1=white, 2=blue).";
+      } else {
+        baseArray = sampleInputFor(slug, void 0, topics);
+      }
+    } else if (isPrefixSum) {
+      if (slug === "subarray-sum-equals-k") {
+        baseArray = [1, 1, 1];
+        baseTarget = 2;
+        baseDescription = "Standard array testing prefix sum count for k=2.";
+      } else if (slug === "contiguous-array") {
+        baseArray = [0, 1, 0, 1, 1, 1, 0, 0];
+        baseDescription = "Binary array finding maximum contiguous subarray with equal 0s and 1s.";
+      } else {
+        baseArray = sampleInputFor(slug, void 0, topics);
+      }
     } else {
       baseArray = sampleInputFor(slug, void 0, topics);
     }
   }
   if (slug === "two-sum") baseTarget = 9;
   else if (slug === "3sum") baseTarget = 0;
-  else if (baseTarget === void 0 && !isGraph && !isIsland && !isParentheses && !isString && typeof baseArray[Math.floor(baseArray.length / 2)] === "number") {
+  else if (slug === "subarray-sum-equals-k") baseTarget = 2;
+  else if (slug === "max-consecutive-ones-iii") baseTarget = 2;
+  else if (baseTarget === void 0 && !isGraph && !isIsland && !isMatrixTransform && !isParentheses && !isString && !isDynamicWindow && typeof baseArray[Math.floor(baseArray.length / 2)] === "number") {
     baseTarget = baseArray[Math.floor(baseArray.length / 2)];
   }
   const d1 = {
@@ -245956,6 +246286,70 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
     ];
     d2Array = d2Matrix.flat().filter((x2) => typeof x2 === "number");
     d2Desc = "Expansive 8\xD710 archipelago grid with multiple landmasses (including a 10-cell giant island) producing a rich multi-step DFS/BFS animation.";
+  } else if (isMatrixTransform) {
+    if (slug === "set-matrix-zeroes") {
+      d2Matrix = [
+        [1, 2, 3, 4, 5, 6],
+        [7, 0, 9, 10, 11, 12],
+        [13, 14, 15, 16, 17, 18],
+        [19, 20, 21, 0, 23, 24],
+        [25, 26, 27, 28, 29, 30]
+      ];
+      d2Desc = "Extended 5\xD76 matrix with multiple distributed zeroes (at [1,1] and [3,3]) producing a rich, comprehensive cell-by-cell row and column transformation trace.";
+    } else {
+      const baseR = baseMatrix?.length ?? 3;
+      const baseC = baseMatrix?.[0]?.length ?? 3;
+      const rows = Math.max(5, baseR + 2);
+      const cols = Math.max(6, baseC + 2);
+      d2Matrix = Array.from(
+        { length: rows },
+        (_, r2) => Array.from({ length: cols }, (_2, c) => (r2 * cols + c + 1) % 40 + 1)
+      );
+      d2Desc = `Extended ${rows}\xD7${cols} matrix for comprehensive in-place 2D grid iteration and transformation.`;
+    }
+    d2Array = d2Matrix.flat().filter((x2) => typeof x2 === "number");
+  } else if (isDynamicWindow) {
+    if (slug === "longest-substring-without-repeating-characters") {
+      d2Array = ["p", "w", "w", "k", "e", "w", "a", "b", "c", "d", "e", "f", "k", "e", "w"];
+      d2Desc = "Extended 15-character sequence with multiple duplicate boundaries for a longer window animation.";
+    } else if (slug === "minimum-window-substring") {
+      d2Array = ["A", "A", "B", "D", "E", "C", "O", "D", "E", "B", "A", "N", "C", "X", "Y", "Z", "A", "B", "C"];
+      d2Desc = "Extended search sequence testing multiple candidate windows.";
+    } else if (slug === "max-consecutive-ones-iii") {
+      d2Array = [0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1];
+      d2Target = 3;
+      d2Desc = "Extended 19-element binary sequence with k=3 zero-flips.";
+    } else {
+      d2Array = ["a", "b", "c", "d", "b", "c", "e", "f", "g", "h", "c", "d", "i", "j", "k"];
+      d2Desc = "Extended 15-character sequence for in-depth sliding window traversal.";
+    }
+  } else if (isInPlacePointers) {
+    if (slug === "move-zeroes") {
+      d2Array = [0, 1, 0, 3, 12, 0, 0, 5, 8, 0, 9, 0, 14, 15];
+      d2Desc = "Extended 14-element array with multiple adjacent and trailing zeroes for fast/slow write-pointer trace.";
+    } else if (slug === "remove-duplicates-from-sorted-array") {
+      d2Array = [1, 1, 1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 7, 7, 8];
+      d2Desc = "Extended 17-element sorted array with repeated duplicate clusters for in-place compaction.";
+    } else if (slug === "sort-colors") {
+      d2Array = [2, 0, 1, 2, 1, 0, 0, 2, 1, 2, 0, 1, 1, 2, 0];
+      d2Desc = "Extended 15-element 3-color array testing Dutch National Flag multi-swap partitioning.";
+    } else {
+      d2Array = [0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 6, 7, 8];
+      d2Desc = "Extended array for in-place pointer simulation.";
+    }
+  } else if (isPrefixSum) {
+    if (slug === "subarray-sum-equals-k") {
+      d2Array = [3, 4, 7, 2, -3, 1, 4, 2, 0, 1];
+      d2Target = 7;
+      d2Desc = "Extended sequence with mixed positives, negatives, and zeroes yielding multiple sum=7 subarrays.";
+    } else if (slug === "contiguous-array") {
+      d2Array = [0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1];
+      d2Desc = "Extended 16-element binary sequence with fluctuating prefix sum balance.";
+    } else {
+      d2Array = [2, -1, 3, 1, -2, 4, -3, 5, -1, 2];
+      d2Target = 5;
+      d2Desc = "Extended array with mixed signs for comprehensive prefix sum tracking.";
+    }
   } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
     d2Tree = [
       10,
@@ -246078,6 +246472,7 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
   let d3Matrix;
   let d3Tree;
   let d3Target;
+  let d3SecondaryArray;
   let d3Desc = "Boundary conditions testing edge cases, duplicates, negative numbers, or tight constraints.";
   if (isGraph) {
     d3Matrix = [
@@ -246099,6 +246494,66 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
     ];
     d3Array = d3Matrix.flat().filter((x2) => typeof x2 === "number");
     d3Desc = "Boundary 6\xD76 grid with isolated corner singletons and a central 2\xD72 square island.";
+  } else if (isMatrixTransform) {
+    if (slug === "set-matrix-zeroes") {
+      d3Matrix = [
+        [0, 1, 2, 0],
+        [3, 4, 5, 2],
+        [1, 3, 1, 5]
+      ];
+      d3Desc = "Boundary 3\xD74 matrix with multiple corner and edge zeroes (LeetCode Example 2).";
+    } else {
+      d3Matrix = [
+        [1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [9, 10, 11, 12]
+      ];
+      d3Desc = "Boundary 3\xD74 rectangular matrix testing edge dimension and boundary conditions.";
+    }
+    d3Array = d3Matrix.flat().filter((x2) => typeof x2 === "number");
+  } else if (isDynamicWindow) {
+    if (slug === "longest-substring-without-repeating-characters") {
+      d3Array = ["b", "b", "b", "b", "b"];
+      d3Desc = "Edge case with all identical characters where window size never exceeds 1.";
+    } else if (slug === "minimum-window-substring") {
+      d3Array = ["a"];
+      d3SecondaryArray = ["a"];
+      d3Desc = "Edge case with single-character exact match.";
+    } else if (slug === "max-consecutive-ones-iii") {
+      d3Array = [0, 0, 0, 0, 0];
+      d3Target = 0;
+      d3Desc = "Edge case with all zeroes and k=0 flips.";
+    } else {
+      d3Array = ["z", "z", "z"];
+      d3Desc = "Boundary edge case for sliding window.";
+    }
+  } else if (isInPlacePointers) {
+    if (slug === "move-zeroes") {
+      d3Array = [0, 0, 0, 0, 1];
+      d3Desc = "Edge case with leading zeroes and single non-zero value.";
+    } else if (slug === "remove-duplicates-from-sorted-array") {
+      d3Array = [1, 1, 1, 1, 1];
+      d3Desc = "Edge case where all elements are identical, reducing to length 1.";
+    } else if (slug === "sort-colors") {
+      d3Array = [2, 2, 1, 1, 0, 0];
+      d3Desc = "Reverse-sorted edge case testing maximum displacement.";
+    } else {
+      d3Array = [0, 0, 0];
+      d3Desc = "Homogeneous boundary array.";
+    }
+  } else if (isPrefixSum) {
+    if (slug === "subarray-sum-equals-k") {
+      d3Array = [-1, -1, 1];
+      d3Target = 0;
+      d3Desc = "Edge case with negative values summing to target zero.";
+    } else if (slug === "contiguous-array") {
+      d3Array = [0, 0, 0, 0];
+      d3Desc = "Edge case with only zeroes (no valid balance).";
+    } else {
+      d3Array = [-5, 5, -5, 5];
+      d3Target = 0;
+      d3Desc = "Oscillating prefix sums around zero.";
+    }
   } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
     d3Tree = [1, null, 2, null, null, null, 3, null, null, null, null, null, null, null, 4];
     d3Array = [1, 2, 3, 4];
@@ -246125,6 +246580,7 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
     matrix: d3Matrix,
     tree: d3Tree,
     target: d3Target,
+    secondaryArray: d3SecondaryArray,
     category: "edge"
   };
   return [d1, d2, d3];
@@ -246160,6 +246616,93 @@ var cap = (steps) => {
   const truncated = steps.slice(0, MAX_SIMULATION_STEPS - 1);
   return [...truncated, finalStep];
 };
+function matrixTransformSim(matrixInput, _slug = "", _dataset) {
+  const rawMatrix = matrixInput && matrixInput.length >= 2 && (matrixInput[0]?.length ?? 0) >= 2 ? matrixInput : [
+    [1, 1, 1],
+    [1, 0, 1],
+    [1, 1, 1]
+  ];
+  const matrix = rawMatrix.map((r2) => r2.map((c) => Number(c) || 0));
+  const R = matrix.length;
+  const C = matrix[0].length;
+  const code = [
+    "for i in range(rows):",
+    "    for j in range(cols):",
+    "        if matrix[i][j] == 0:",
+    "            mark_zero_row_col(i, j)",
+    "for i in range(rows):",
+    "    for j in range(cols):",
+    "        if is_marked(i, j):",
+    "            matrix[i][j] = 0"
+  ];
+  const steps = [];
+  steps.push({
+    type: "matrix",
+    matrix: matrix.map((r2) => [...r2]),
+    cols: C,
+    current: "0,0",
+    line: 0,
+    desc: `Initialize ${R}\xD7${C} matrix scan. Target: propagate zeroes across affected rows and columns.`
+  });
+  const zeroRows = /* @__PURE__ */ new Set();
+  const zeroCols = /* @__PURE__ */ new Set();
+  for (let r2 = 0; r2 < R; r2++) {
+    for (let c = 0; c < C; c++) {
+      const isZero = matrix[r2][c] === 0;
+      if (isZero) {
+        zeroRows.add(r2);
+        zeroCols.add(c);
+      }
+      steps.push({
+        type: "matrix",
+        matrix: matrix.map((row) => [...row]),
+        cols: C,
+        current: `${r2},${c}`,
+        line: 2,
+        desc: `Scan cell (${r2}, ${c}): matrix[${r2}][${c}] = ${matrix[r2][c]}.${isZero ? " Found zero! Mark row " + r2 + " and column " + c + "." : ""}`
+      });
+    }
+  }
+  for (const r2 of zeroRows) {
+    for (let c = 0; c < C; c++) {
+      matrix[r2][c] = 0;
+      steps.push({
+        type: "matrix",
+        matrix: matrix.map((row) => [...row]),
+        cols: C,
+        current: `${r2},${c}`,
+        line: 7,
+        desc: `Propagate zero: set matrix[${r2}][${c}] = 0 (row ${r2} contains a zero).`
+      });
+    }
+  }
+  for (const c of zeroCols) {
+    for (let r2 = 0; r2 < R; r2++) {
+      matrix[r2][c] = 0;
+      steps.push({
+        type: "matrix",
+        matrix: matrix.map((row) => [...row]),
+        cols: C,
+        current: `${r2},${c}`,
+        line: 7,
+        desc: `Propagate zero: set matrix[${r2}][${c}] = 0 (column ${c} contains a zero).`
+      });
+    }
+  }
+  steps.push({
+    type: "matrix",
+    matrix: matrix.map((row) => [...row]),
+    cols: C,
+    current: `${R - 1},${C - 1}`,
+    line: 7,
+    desc: `Matrix transformation complete: all affected rows and columns have been set to 0.`
+  });
+  return {
+    code,
+    array: matrix.flat(),
+    steps: cap(steps)
+  };
+}
 function hashmapPair(input2, targetInput) {
   const code = [
     "seen = {}",
@@ -250667,6 +251210,8 @@ function simulateProblemWithDataset(slug, title = "", topics = [], dataset) {
       return grid(matrixInput ?? numInput, "bfs");
     case "grid-dfs":
       return grid(matrixInput ?? numInput, "dfs");
+    case "matrix-transform":
+      return matrixTransformSim(matrixInput, slug, dataset);
     case "binary-search":
       return binarySearch(numInput, numTarget);
     case "two-pointers":
@@ -250674,7 +251219,10 @@ function simulateProblemWithDataset(slug, title = "", topics = [], dataset) {
         return arrayScan(safeInput);
       }
       return twoPointersPairSum(numInput, numTarget);
+    case "two-pointers-in-place":
+      return arrayScan(safeInput);
     case "sliding-window":
+    case "sliding-window-dynamic":
       return slidingWindow(safeInput, dataset);
     case "hashmap-pair":
       return hashmapPair(numInput, numTarget);
@@ -250713,6 +251261,7 @@ function simulateProblemWithDataset(slug, title = "", topics = [], dataset) {
     case "union-find":
       return unionFindSim(dataset, slug);
     case "prefix-sum":
+    case "prefix-sum-hashmap":
       return prefixSum(numInput);
     case "sorting":
       return sorting(numInput);
@@ -250857,17 +251406,21 @@ CRITICAL EVALUATION RULES:
      * Set "is_complete": true
      * Set "classification": "Optimal" | "Better" | "Brute Force" (depending on efficiency).
      * Set "missing_elements": []
-     * Set "complexity": { "time": "O(...)", "space": "O(...)" } for the exact logic written.
+     * Set "complexity": { "time": "O(...)", "space": "O(...)" } for the exact logic written (use clean plain text like 'O(N)', 'O(N log N)', 'O(1)'; never output raw LaTeX macros like \\mathcal{O} or \\%).
      * Set "praise": 2-3 sentences highlighting genuine strong decisions in their pseudocode and structure management.
      * Set "nudge": If Brute Force or Better, hint at how to optimize further (e.g. using auxiliary structures). If Optimal, provide a tricky edge case or follow-up question.
      * Set "review": A structured markdown review under 200 words evaluating algorithm structure, invariants, time/space complexity justification, and dry-run correctness.
      * MANDATORY DATASET TRIPLE GENERATION: Always generate exactly 3 curated test datasets:
+       - MANDATORY CANONICAL PRESERVATION FOR DATASET 1: Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case") MUST strictly preserve the exact canonical Example 1 from the problem statement (e.g., for Two Sum, nums=[2,7,11,15] and target=9; for Set Matrix Zeroes, matrix=[[1,1,1],[1,0,1],[1,1,1]]). Never invent or substitute a different array or target for Dataset 1.
        - MANDATORY DATASET SIZE ENFORCEMENT: 
          * For Arrays: Standard must be 6-10 elements. Longer must be 15-25 elements. Edge must be 10-15 elements.
          * For Trees (represented as arrays): Standard must have 7-15 nodes (depth 3-4). Longer must be very deep/wide with 15-31 nodes (depth 4-5). Edge must be highly unbalanced or large (10-15 nodes).
-         * For Grids/Matrices (Islands, etc): Standard must be at least 4x4 or 5x5. Longer must be at least 6x6, 8x8, or 10x10. Edge must be large (e.g. 5x8) but testing boundaries.
+         * For Grids/Matrices (Transformation, Islands, etc): Standard must be the canonical 3\xD73 or 3\xD74 matrix. Longer (dataset_2) MUST be guaranteed 5\xD76 or 6\xD76, strictly larger than Dataset 1. NEVER generate a 2\xD72 or smaller matrix for Dataset 2. Edge (dataset_3) must be 3\xD75 or test boundaries.
          * For Strings: Standard must be 10-15 chars, Longer must be 20-40 chars.
-       - Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case"): A solid standard test case adhering to the sizes above.
+         * For Sliding Window / Substrings: Standard must be canonical Example 1. If operating on characters, provide an array of individual single-character strings (e.g. ["a", "b", "c", ...]). Longer (dataset_2) must be 15-25 characters with repeated character clusters to induce multiple window expansions and contractions. For numeric sliding windows, provide integer parameter "k".
+         * For In-Place Pointers (Move Zeroes, Remove Duplicates, Sort Colors): Standard must be canonical Example 1. Longer (dataset_2) must be 14-20 elements with multiple scattered target elements (e.g. multiple adjacent/trailing zeroes or runs of 3-4 duplicates) so slow (write) and fast (read) pointers diverge significantly.
+         * For Prefix Sum & Complement Hash Map (Subarray Sum Equals K, Contiguous Array): Standard must be canonical Example 1 and target k. Longer (dataset_2) must be 12-18 elements with mixed positive, negative, and zero values with multiple valid subarrays summing to target k.
+       - Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case"): Exact canonical problem example 1.
        - Dataset 2 (id="dataset_2", label="Dataset 2: Longer & Complex Trace \u26A1"): A significantly longer, extended dataset adhering to the large sizes above to produce an extensive full execution trace.
        - Dataset 3 (id="dataset_3", label="Dataset 3: Edge & Boundary Case"): Extreme constraint testing (negatives, duplicates, single paths) but maintaining the large edge sizes above.
 
@@ -250888,22 +251441,22 @@ Respond ONLY with a valid JSON object in this exact schema with no surrounding m
     {
       "id": "dataset_1",
       "label": "Dataset 1: Standard Case",
-      "description": "Baseline canonical test input.",
-      "array": [2, 7, 11, 15, 20, 24, 30, 35],
-      "target": 35
+      "description": "Baseline canonical test input from the problem statement.",
+      "array": [10, 20, 30, 40, 50],
+      "target": 50
     },
     {
       "id": "dataset_2",
       "label": "Dataset 2: Longer & Complex Trace \u26A1",
       "description": "Longer extended sequence for in-depth execution traversal.",
-      "array": [3, 2, 4, 8, 11, 15, 19, 22, 27, 31, 35, 40, 42, 45, 50, 55, 60],
-      "target": 60
+      "array": [5, 12, 18, 23, 29, 34, 41, 48, 55, 62, 70, 77, 85, 92, 100],
+      "target": 100
     },
     {
       "id": "dataset_3",
       "label": "Dataset 3: Edge & Boundary Case",
       "description": "Edge case with negative values, duplicates, and extended length.",
-      "array": [-10, -3, 0, 0, 3, 4, 4, 90, 90, 100],
+      "array": [-25, -10, 0, 0, 15, 15, 50, 99],
       "target": 0
     }
   ]
@@ -250983,8 +251536,13 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
    - "code_lines" MUST contain the candidate's submitted pseudocode verbatim, line-by-line, in the exact order written.
    - Do NOT rewrite, clean up, rename, or substitute generic code or template algorithms.
    - Every step's "line" integer MUST strictly point to the corresponding 0-indexed line in the user's pseudocode that executes for that action.
+   - EXACT CODE ANCHOR: You can ALSO include "code_anchor": "exact substring of candidate code line" on any step for guaranteed 100% synchronized line highlighting.
    - Use the candidate's exact variable names (e.g. nums, seen, diff, max_val, left, right, res, stack, queue, dp) throughout your step descriptions ("desc").
-   - VERY IMPORTANT: The ONLY valid top-level properties for pointers are "left", "right", "left2", "right2", and "current" (e.g. "left": 0). If the pseudocode uses specific variable names (e.g. "low", "high", "pivot"), you MUST map them to these standard top-level properties. You must ALSO include a "pointer_labels" object to tell the UI what variable name to display (e.g. "pointer_labels": { "left": "low", "right": "high" }). Do NOT invent or add custom top-level properties like "low": 0 on the step; instead use "left": 0 and map it in "pointer_labels".
+   - POINTER MAPPING:
+     * For primary dual-pointers, use "left", "right", "left2", "right2", and "current" (e.g. "left": 0) and provide "pointer_labels" (e.g. "pointer_labels": { "left": "low", "right": "high" }).
+     * MULTI-POINTERS (3+ Pointers): If the algorithm tracks 3 or more pointers (e.g. Dutch National Flag low, mid, high, or 3Sum i, left, right), emit an "activePointers" record on the step:
+       "activePointers": { "low": 0, "mid": 2, "high": 5 }
+       or for 2D grids: "activePointers": { "curr": "1,2", "next": "1,3" }.
 
 3) EXPANDED & INFORMATIVE STEP DESCRIPTIONS ("desc"):
    - Write clear, detailed, and educational explanations in "desc" for every step so the user learns how their algorithm executes.
@@ -251038,6 +251596,20 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
    - RECURSIVE DFS ORDER: Follow the candidate's exact recursive call-stack order (when recursing into an adjacent neighbor, dive into that neighbor's sub-tree BEFORE visiting sibling directions of the caller).
    - FULL GRID SCAN: Systematically scan all rows and cols across the provided grid to discover and evaluate ALL islands in the dataset until the entire grid is traversed.
 
+7b) 2D MATRIX IN-PLACE TRANSFORMATION & CELL-BY-CELL GRID LOOPS (Set Matrix Zeroes, Rotate Image, Spiral Matrix, Game of Life, Valid Sudoku, Diagonal Traverse):
+   - Set "type": "matrix".
+   - "matrix": 2D array of rows representing the current state of the matrix (e.g. [[1, 0, 1], [0, 0, 0], ...]), updated in-place on EVERY cell write, flag, or sentinel assignment.
+   - "cols": integer number of columns.
+   - "current": string "i,j" (e.g. "0,1") representing the EXACT coordinates of the cell currently being inspected, evaluated, or modified.
+   - "visited": optional array of coordinate strings ["0,0", "0,1", ...] that have been evaluated.
+   - MANDATORY CELL-BY-CELL LOOP TRAVERSAL:
+     * When the pseudocode has nested loops (for i in 0..n: for j in 0..m:) or row/column traversals, you MUST iterate cell-by-cell!
+     * NEVER skip or take macro jumps across entire rows or columns in a single step (e.g. do NOT set an entire row to zeroes in one step).
+     * For every cell (i, j) evaluated: emit a step setting current: "i,j" and describing the comparison in "desc" (e.g. "Checking matrix[1][1] (0) == 0: Found zero! Will propagate.").
+     * When marking or overwriting a row or column: step through each cell along that row or column one-by-one with "current": "r,c", showing the in-place matrix mutation on each step.
+     * When performing a second pass: step through cells individually, highlighting each conversion or update in-place.
+     * In "desc", explicitly reference indices i, j and cell values matrix[i][j].
+
 8) BINARY TREE BFS / LEVEL-ORDER:
    - Set "type": "tree".
    - "tree": Level-order array of the binary tree with nulls for missing nodes.
@@ -251051,6 +251623,64 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
 10) DUAL POINTERS ACROSS MULTIPLE ARRAYS:
    - For Array 1: use "left" and "right".
    - For Array 2 ("secondaryArray"): use "left2" and "right2".
+
+10b) NESTED LOOPS & DUAL POINTERS ON ARRAYS (for i ... for j ..., e.g. Two Sum Brute Force / Pair Searches):
+   - When an algorithm uses nested loops over an array (e.g. "for i = 0 to n-1: for j = i + 1 to n-1:"):
+   - You MUST emit BOTH pointers simultaneously in every inner loop step:
+     * "left": integer index of the outer loop variable (e.g. i).
+     * "right": integer index of the inner loop variable (e.g. j).
+     * "pointer_labels": { "left": "i", "right": "j" } (or the candidate's exact loop variable names).
+   - "left" remains anchored at index i while "right" iterates through j = i + 1, i + 2, ...
+   - In "desc", state: "Checking nums[i] (X) + nums[j] (Y) = Sum vs target Target".
+   - NEVER collapse both into a single "current" pointer or omit "pointer_labels"!
+
+10c) DYNAMIC VARIABLE-SIZE SLIDING WINDOW (Longest Substring Without Repeating Characters, Minimum Window Substring, Max Consecutive Ones III, Subarray Product Less Than K):
+   - Set "type": "array".
+   - You MUST emit BOTH window boundary pointers on every step:
+     * "left": integer index of the window start pointer.
+     * "right": integer index of the window end pointer.
+     * "pointer_labels": { "left": "left", "right": "right" } (or candidate's exact pointer variable names).
+   - Dynamic Window Expansion & Contraction:
+     * EXPANSION: When right advances, add the character/element to the window and update auxiliary "map" (frequency or index) or "set".
+     * CONTRACTION: While the window condition is violated (e.g. duplicate character in set, or zeroes count > k), advance left step-by-step, removing characters or decrementing counts in "map"/"set" until the window is valid again.
+     * "wSum": active window length (right - left + 1).
+     * "mSum": running maximum or optimal window length found so far.
+   - In "desc", describe the character added/removed, window bounds [left..right], and the updated max length.
+
+10d) SAME-DIRECTION IN-PLACE READ/WRITE POINTERS (Move Zeroes, Remove Duplicates, Remove Element, Sort Colors):
+   - Set "type": "array".
+   - You MUST emit BOTH pointers simultaneously:
+     * "left": integer index of the slow / write pointer.
+     * "right": integer index of the fast / read pointer.
+     * "pointer_labels": { "left": "slow", "right": "fast" } (or "write" / "read").
+   - In-Place Mutation:
+     * When writing or swapping (e.g. nums[slow] = nums[fast]), update the "array" field in-place on that exact step so the UI reflects the modified elements.
+     * In "desc", explain: "nums[fast] (X) meets condition \u2014 overwrite/swap at nums[slow] (index Y) and advance slow."
+
+10e) PREFIX SUM WITH COMPLEMENT HASH MAP (Subarray Sum Equals K, Contiguous Array, Find Pivot Index):
+   - Set "type": "array".
+   - In every step:
+     * "left": integer index i of the current element being processed.
+     * "wSum": running cumulative prefix sum up to index i.
+     * "map": { [prefix_sum]: count } frequency dictionary of all prefix sums encountered so far (including initial { 0: 1 }).
+     * In "desc", explicitly state: "Running sum = S. Checking if (S - target) = Remainder exists in map. Found M matches so far."
+
+10f) MONOTONIC STACK (Daily Temperatures, Next Greater Element, Online Stock Span):
+   - Set "type": "stack".
+   - In every step:
+     * "current": current incoming value or index.
+     * "stack": array of active elements or indices currently in stack in strictly monotonic order.
+     * When incoming element violates monotonic property, emit a step for each popped element with "shiftInfo": { "from": "stack", "to": "array", "action": "pop", "reason": "..." }, showing the answer resolved for the popped element.
+     * Then emit a step pushing the incoming element onto "stack".
+
+10g) BINARY SEARCH (Binary Search, Search in Rotated Sorted Array, Find Peak Element):
+   - Set "type": "array".
+   - In every step:
+     * "left": low boundary index.
+     * "right": high boundary index.
+     * "current": middle element index (mid = floor((low + high) / 2)).
+     * "pointer_labels": { "left": "low", "right": "high", "current": "mid" }.
+     * In "desc", state: "nums[mid] (X) vs target (Y). Search space reduced: discard half and set new bounds."
 
 11) ARRAY / STRING ALGORITHMS:
    - For standard array/string problems, set "type": "array".
@@ -251078,11 +251708,12 @@ function buildVisualizerUserPrompt({
   datasetDescription,
   pseudocode
 }) {
-  const isIslandOrGrid = /island|max.*area|number[- ]of[- ]islands|grid|matrix|flood[- ]fill|rotting|surrounded[- ]regions/i.test(
+  const isIsland = /island|max.*area.*island|number[- ]of[- ]islands|flood[- ]fill|rotting.*orange|surrounded[- ]regions|walls[- ]and[- ]gates|pacific[- ]atlantic|count-sub-islands|making-a-large-island/i.test(
     title
-  ) || /grid\[r\]\[c\]|grid\[row\]\[col\]|neighbours|in_bounds|\bdr,\s*dc\b|\bdirections\b/i.test(
-    pseudocode
-  );
+  ) || /\bdr,\s*dc\b|\bdirections\b/i.test(pseudocode) && /dfs|bfs|connected|component|land|water/i.test(pseudocode);
+  const isMatrixTransform = !isIsland && (/set[- ]matrix|rotate[- ]image|spiral[- ]matrix|game[- ]of[- ]life|valid[- ]sudoku|diagonal[- ]traverse|matrix.*zero|zeroes/i.test(
+    title
+  ) || Boolean(matrixExample && matrixExample.length > 0 && !isIsland));
   const isTree = /tree|level[- ]order|zigzag|right-side-view|bst/i.test(title) || /TreeNode|node\.left|node\.right|root/i.test(pseudocode);
   const isClassOrDesign = /class\s+|def\s+put|def\s+get|def\s+remove|MyHashMap|MyHashSet|LRUCache|Trie/i.test(
     pseudocode
@@ -251092,7 +251723,7 @@ function buildVisualizerUserPrompt({
   let sampleGuidance = `Suggested sample input: [${safeExample.join(", ")}].${targetExample !== void 0 ? ` Target = ${targetExample}.` : ""}`;
   if (secondaryArrayExample && secondaryArrayExample.length > 0) {
     sampleGuidance = `Simulate dual-sequence / multi-attribute array execution using primary array (${JSON.stringify(safeExample)}) and secondaryArray (${JSON.stringify(secondaryArrayExample)}).${targetExample !== void 0 ? ` Target / minProfit = ${targetExample}.` : ""} Track dual pointers ("left", "right" on primary array and "left2", "right2" on secondaryArray).`;
-  } else if (isIslandOrGrid) {
+  } else if (isIsland) {
     const gridRows = matrixExample && matrixExample.length > 0 ? matrixExample : [
       [0, 0, 1, 0, 0, 0, 0, 1],
       [0, 0, 0, 0, 0, 0, 0, 1],
@@ -251116,6 +251747,22 @@ MANDATORY FOR GRID/ISLAND TRAVERSALS:
   * 'maxArea' (or 'mSum'): Running maximum island area discovered across the entire grid so far.
   * 'direction': Vector being traversed (e.g. "DOWN (+1, 0)", "UP (-1, 0)", "RIGHT (0, +1)", "LEFT (0, -1)").
 - When an island's DFS completes, update maxArea = max(maxArea, currentArea), then continue the outer scan (for r... for c...) to discover and fully explore Island #2, Island #3, etc. until the entire grid is complete.`;
+  } else if (isMatrixTransform) {
+    const gridRows = matrixExample && matrixExample.length > 0 ? matrixExample : [
+      [1, 1, 1],
+      [1, 0, 1],
+      [1, 1, 1]
+    ];
+    sampleGuidance = `Simulate 2D Matrix In-Place Transformation & Cell-by-Cell Traversal on this input matrix:
+matrix = ${JSON.stringify(gridRows)}
+cols = ${gridRows[0]?.length ?? 3}
+Set type='matrix'. Step through candidate's nested loops (for i = 0..n-1: for j = 0..m-1:) cell-by-cell!
+MANDATORY FOR 2D MATRIX CELL-BY-CELL LOOPS:
+- Step through loop iterations cell by cell! DO NOT take macro skips across entire rows or columns in a single step.
+- For every cell visited, set 'current' to the active cell coordinates string "i,j" (e.g. "0,0", "0,1", "1,1").
+- Mutate 'matrix' in-place on each step to reflect updated cell values, sentinels, or zeroes.
+- When scanning/marking a row or column, step through each cell along that row/column individually with 'current' set to each coordinate (e.g. (i, 0), (i, 1), ...).
+- Set 'line' to the exact line in candidate's pseudocode being executed.`;
   } else if (isTree) {
     const treeArr = treeExample ?? [3, 9, 20, null, null, 15, 7];
     sampleGuidance = `Simulate binary tree traversal using 'tree' (level-order array with nulls: ${JSON.stringify(treeArr)}) and 'queue' (active FIFO buffer updated on every enqueue/dequeue step). Set type='tree'. Continue until the queue becomes empty and traversal completes.`;
@@ -251131,9 +251778,55 @@ MANDATORY FOR QUEUE & CARD REVEAL SIMULATION:
   } else if (isClassOrDesign) {
     sampleGuidance = "Simulate candidate's methods (e.g. put, get, remove, or class methods) according to the problem's canonical example sequence through to the final method call. Do NOT emit a fake 'array' field if this is a pure HashMap/HashSet/Cache design.";
   }
+  const isDynamicSlidingWindow = !isIsland && !isMatrixTransform && (/longest.*substring|minimum.*window|sliding.*window|character.*replacement|consecutive.*ones|fruit.*basket|subarray.*product.*less/i.test(title) || /\b(left|start)\b/i.test(pseudocode) && /\b(right|end)\b/i.test(pseudocode) && /window|shrink|expand|frequency/i.test(pseudocode));
+  const isInPlacePointers = !isIsland && !isMatrixTransform && (/move.*zero|remove.*duplicate|remove.*element|sort.*colors|duplicate.*zero/i.test(title) || /\b(slow|write)\b/i.test(pseudocode) && /\b(fast|read)\b/i.test(pseudocode));
+  const isPrefixSum = !isIsland && !isMatrixTransform && (/subarray.*sum.*equals|contiguous.*array|pivot.*index|running.*sum|prefix.*sum/i.test(title) || /prefix.*sum|running.*sum|curr.*sum/i.test(pseudocode) && /hash|map|dict/i.test(pseudocode));
+  if (isDynamicSlidingWindow) {
+    sampleGuidance = `Simulate Dynamic Sliding Window execution on input sequence: ${JSON.stringify(safeExample)}.${targetExample !== void 0 ? ` Target / k = ${targetExample}.` : ""}
+Set type='array'.
+MANDATORY FOR SLIDING WINDOW:
+- Emit both window boundary pointers on EVERY step: 'left' (window start) and 'right' (window end) with pointer_labels: { left: 'left', right: 'right' }.
+- Animate window expansion when 'right' advances, adding the element to active window and updating 'map' (frequency dictionary) or 'set'.
+- Animate window contraction when 'left' advances, removing elements from 'map'/'set' while condition is violated.
+- Track 'wSum' as active window width (right - left + 1) and 'mSum' as running maximum/optimal window width.
+- Set 'line' to the exact line in candidate's pseudocode being executed.`;
+  } else if (isInPlacePointers) {
+    sampleGuidance = `Simulate In-Place Read/Write Two-Pointer execution on input: ${JSON.stringify(safeExample)}.
+Set type='array'.
+MANDATORY FOR IN-PLACE READ/WRITE POINTERS:
+- Emit both pointers simultaneously on EVERY step: 'left' (slow / write pointer) and 'right' (fast / read pointer) with pointer_labels: { left: 'slow', right: 'fast' } (or 'write' / 'read').
+- When elements are overwritten or swapped (nums[slow] = nums[fast]), update the 'array' field in-place on that exact step so the UI reflects the modified elements.
+- In 'desc', explain the inspection and write: e.g. "nums[fast] (X) meets condition \u2014 overwrite at nums[slow] (index Y) and advance slow."
+- Set 'line' to the exact line in candidate's pseudocode being executed.`;
+  } else if (isPrefixSum) {
+    sampleGuidance = `Simulate Prefix Sum with Complement Hash Map on input: ${JSON.stringify(safeExample)}.${targetExample !== void 0 ? ` Target k = ${targetExample}.` : ""}
+Set type='array'.
+MANDATORY FOR PREFIX SUM WITH HASH MAP:
+- On each step, emit 'left': index i of the current element being processed.
+- Track running cumulative sum in 'wSum' (curr_sum).
+- Track prefix sum frequencies in 'map' (e.g. { "0": 1, ... }), updated dynamically on every step.
+- In 'desc', detail the complement check: "Current prefix sum = S. Checking if (S - k) = Diff exists in map."
+- Set 'line' to the exact line in candidate's pseudocode being executed.`;
+  }
   const isDp = /dp\[|dp_table|memo|tabulation|dynamic programming|longest common subsequence|knapsack|cost to merge/i.test(title + " " + (pseudocode || ""));
-  if (isDp && !isIslandOrGrid) {
+  if (isDp && !isIsland && !isMatrixTransform && !isDynamicSlidingWindow && !isPrefixSum) {
     sampleGuidance = `Simulate Dynamic Programming execution. Set type='dp' or 'matrix'. Track the active cell being computed using "current" set to "r,c" (or just the index if 1D). Put the DP table in "matrix" and the input array in "array".`;
+  }
+  const isIntervals = /interval|meeting.*room|insert.*interval|merge.*interval/i.test(title) || /\bintervals\b/i.test(pseudocode) && /start|end|overlap/i.test(pseudocode);
+  if (isIntervals && !isIsland && !isMatrixTransform) {
+    sampleGuidance = `Simulate Interval Merging & Overlap Analysis. Set type='matrix' or 'array'. Track previous interval vs current interval, showing whether they overlap (curr.start <= prev.end) and updating the merged interval.`;
+  }
+  const isGraph = /graph|course.*schedule|alien.*dict|topological|bipartite|clone.*graph/i.test(title) || /\b(?:adj|graph|indegree)\b/i.test(pseudocode) && /queue|stack|dfs|bfs/i.test(pseudocode);
+  if (isGraph && !isIsland && !isMatrixTransform && !isTree) {
+    sampleGuidance = `Simulate Graph & Topological Sort traversal. Set type='graph'. Track active vertex in 'current', visited vertices in 'visited', in-degrees in 'map', and BFS buffer in 'queue'.`;
+  }
+  const isHeap = /kth.*largest|heap|median.*data.*stream|merge.*k.*sorted/i.test(title) || /\b(?:heap|heappush|heappop|priority_queue)\b/i.test(pseudocode);
+  if (isHeap && !isTree) {
+    sampleGuidance = `Simulate Heap / Priority Queue operations. Set type='heap' or 'tree'. Track heap array representation in 'tree' and the active sifted element in 'current'.`;
+  }
+  const isTrie = /trie|prefix.*tree|word.*search.*ii|replace.*words/i.test(title) || /\b(?:trie|children|is_end|end_of_word)\b/i.test(pseudocode);
+  if (isTrie) {
+    sampleGuidance = `Simulate Prefix Trie insertion/search. Set type='trie' or 'tree'. Track the active character node in 'current' and character dictionary in 'map'.`;
   }
   const isLongerDataset = /longer|complex|dataset\s*2/i.test(datasetLabel ?? "");
   const datasetContext = datasetLabel ? `
@@ -251254,6 +251947,72 @@ function isOpenRouterKey(key) {
   if (key.startsWith("AIza") || key.startsWith("AQ.")) return false;
   return false;
 }
+function repairTruncatedJson(str) {
+  if (!str) return null;
+  const trimmed = str.trim();
+  const firstBrace = trimmed.indexOf("{");
+  if (firstBrace === -1) return null;
+  const content = trimmed.slice(firstBrace);
+  const stepsIdx = content.indexOf('"viz_steps"');
+  if (stepsIdx !== -1) {
+    const arrayBracket = content.indexOf("[", stepsIdx);
+    if (arrayBracket !== -1) {
+      const lastStepEnd = content.lastIndexOf("}");
+      if (lastStepEnd > arrayBracket) {
+        const candidate = content.slice(0, lastStepEnd + 1).replace(/,\s*$/, "") + "\n]}";
+        try {
+          JSON.parse(candidate);
+          return candidate;
+        } catch {
+        }
+      }
+    }
+  }
+  let inString = false;
+  let escape2 = false;
+  const stack = [];
+  for (let i2 = 0; i2 < content.length; i2++) {
+    const char = content[i2];
+    if (escape2) {
+      escape2 = false;
+      continue;
+    }
+    if (char === "\\") {
+      escape2 = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === "{" || char === "[") {
+        stack.push(char);
+      } else if (char === "}") {
+        if (stack.length > 0 && stack[stack.length - 1] === "{") stack.pop();
+      } else if (char === "]") {
+        if (stack.length > 0 && stack[stack.length - 1] === "[") stack.pop();
+      }
+    }
+  }
+  let repaired = content;
+  if (inString) {
+    repaired += '"';
+  }
+  repaired = repaired.replace(/,\s*$/, "");
+  repaired = repaired.replace(/,\s*"(?:[^"\\]|\\.)*"\s*:\s*$/, "");
+  while (stack.length > 0) {
+    const open3 = stack.pop();
+    if (open3 === "{") repaired += "}";
+    else if (open3 === "[") repaired += "]";
+  }
+  try {
+    JSON.parse(repaired);
+    return repaired;
+  } catch {
+    return null;
+  }
+}
 function extractJson(str) {
   if (!str) return null;
   const attempts = [str];
@@ -251262,6 +252021,8 @@ function extractJson(str) {
   const first = str.indexOf("{");
   const last = str.lastIndexOf("}");
   if (first !== -1 && last > first) attempts.push(str.slice(first, last + 1));
+  const repaired = repairTruncatedJson(str);
+  if (repaired) attempts.push(repaired);
   for (const a of attempts) {
     const trimmed = a.trim();
     const parseAttempts = [trimmed, trimmed.replace(/,\s*([}\]])/g, "$1")];
@@ -251280,6 +252041,9 @@ function extractJson(str) {
           }
           if (!parsed.test_array && (parsed.testArray || parsed.testCase || parsed.array)) {
             parsed.test_array = parsed.testArray || parsed.testCase || parsed.array;
+          }
+          if (!parsed.test_datasets && (parsed.testDatasets || parsed.datasets)) {
+            parsed.test_datasets = parsed.testDatasets || parsed.datasets;
           }
           return parsed;
         }
@@ -251519,28 +252283,24 @@ var Input = external_exports.object({
 var CLASSES = ["Incomplete", "Brute Force", "Better", "Optimal"];
 function userCodeLinesFromPseudocode(pseudocode) {
   if (!pseudocode || typeof pseudocode !== "string") return ["const result = solve(input);"];
-  const rawLines = pseudocode.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
-  if (rawLines.length > 3) {
-    return rawLines.slice(0, 60);
+  const rawLines = pseudocode.split(/\r?\n/).map((line) => line.replace(/\s+$/, "")).filter((line) => line.trim().length > 0);
+  if (rawLines.length >= 2) {
+    return rawLines.slice(0, 200);
   }
   let text = pseudocode;
-  text = text.replace(
-    /(\/\/[^\n]*?\s+)(?=(?:prev\s*=|curr\s*=|m\s*=|n\s*=|for\s+[a-zA-Z_]|if\s+|return\b))/gi,
-    "$1\n"
-  );
-  text = text.replace(
-    /(\s{2,}|\s*;\s*)(?=(?:for\s+[a-zA-Z_]|if\s+|else:|return\b|while\s+|prev\s*=|curr\s*=|m\s*=|n\s*=|\/\/|function\b|def\b))/gi,
-    "\n"
-  );
-  text = text.replace(
-    /(:\s+)(?=(?:m\s*=|n\s*=|prev\s*=|curr\s*=|for\s+[a-zA-Z_]|if\s+|else:|return\b|while\s+|[a-zA-Z_]\w*\s*=|\/\/))/gi,
-    ":\n"
-  );
-  const formatted = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0).slice(0, 60);
+  text = text.replace(/;\s*(?=[a-zA-Z_])/g, ";\n");
+  text = text.replace(/(\/\/[^\n]*?\s+)(?=(?:prev\s*=|curr\s*=|m\s*=|n\s*=|for\s+[a-zA-Z_]|if\s+|return\b))/gi, "$1\n");
+  const formatted = text.split(/\r?\n/).map((line) => line.replace(/\s+$/, "")).filter((line) => line.trim().length > 0).slice(0, 200);
   return formatted.length > 0 ? formatted : ["const result = solve(input);"];
 }
 function evaluatePseudocodeHeuristic(pseudocode) {
   const lines = pseudocode.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0 && !l.startsWith("#") && !l.startsWith("//") && !l.startsWith("/*") && !l.startsWith("*"));
+  const isRecursive2 = lines.some(
+    (l) => /\b(?:dfs|bfs|helper|recur|backtrack|solve|traverse)\s*\(|\bdef\s+(\w+)\b.*:\s*.*\b\1\s*\(/i.test(l)
+  );
+  const isMathBitwiseO1 = lines.some(
+    (l) => /\breturn\b.*(?:[&|^~]|>>|<<|\bpow\b|\bsqrt\b|\bmath\.)/i.test(l) || /\breturn\b/i.test(l) && /[=<>!]=?|[+*/%-]/.test(l) && lines.length <= 4
+  );
   const substantiveTokens = [
     /\b(for|while|loop|iterate|each|in|def|function|func|fn|class|void|int|auto|let|const|var)\b/i,
     /\b(if|elif|else|switch|case|match|when)\b/i,
@@ -251556,6 +252316,20 @@ function evaluatePseudocodeHeuristic(pseudocode) {
     const lower2 = l.toLowerCase();
     return lower2 === "..." || lower2 === "todo" || lower2 === "pass" || lower2 === "continue" || lower2.startsWith("todo:") || lower2.startsWith("fixme:");
   });
+  if (isMathBitwiseO1 && lines.some((l) => /\breturn\b/i.test(l)) && !hasTrivialPlaceholdersOnly) {
+    return {
+      isComplete: true,
+      missing: [],
+      nudge: "Optimal mathematical / bitwise formula detected! Verifying execution steps."
+    };
+  }
+  if (isRecursive2 && lines.some((l) => /\breturn\b/i.test(l)) && lines.some((l) => /\bif\b/i.test(l)) && !hasTrivialPlaceholdersOnly) {
+    return {
+      isComplete: true,
+      missing: [],
+      nudge: "Recursive approach detected! Verifying base cases and branch transitions."
+    };
+  }
   if (lines.length < 2 || totalWords < 5 || matchedTokensCount < 2 || hasTrivialPlaceholdersOnly) {
     const missing = [];
     if (!lines.some((l) => /\b(for|while|loop|iterate|each|def|func)\b/i.test(l))) {
@@ -251574,7 +252348,7 @@ function evaluatePseudocodeHeuristic(pseudocode) {
         "State updates & invariant checks",
         "Result extraction & return statement"
       ],
-      nudge: "Write your pseudocode approach (a complete flow with loops, state updates, and return value) to unlock the interactive step-by-step animation."
+      nudge: "Write your pseudocode approach (a complete flow with loops or recursion, state updates, and return value) to unlock the interactive step-by-step animation."
     };
   }
   return {
@@ -251583,7 +252357,7 @@ function evaluatePseudocodeHeuristic(pseudocode) {
     nudge: "Good job outlining your algorithm! Watch the step-by-step trace across datasets below."
   };
 }
-function isValidMatrixForProblem(matrix, slug, topics = []) {
+function isValidMatrixForProblem(matrix, slug, topics = [], isLongerDataset = false, canonicalRows = 0, canonicalCols = 0) {
   if (!Array.isArray(matrix) || matrix.length < 2) return false;
   if (!matrix.every((r2) => Array.isArray(r2) && r2.length >= 2 && r2.length === matrix[0].length)) {
     return false;
@@ -251591,13 +252365,28 @@ function isValidMatrixForProblem(matrix, slug, topics = []) {
   const isIsland = isIslandOrGridProblem(slug, topics);
   if (isIsland) {
     if (matrix.length < 3 || (matrix[0]?.length ?? 0) < 3) return false;
-    return matrix.every(
+    const isBinary = matrix.every(
       (row) => Array.isArray(row) && row.every((cell) => {
         const n = Number(cell);
         const s2 = String(cell).toUpperCase();
         return n === 0 || n === 1 || n === 2 || s2 === "0" || s2 === "1" || s2 === "X" || s2 === "O";
       })
     );
+    if (!isBinary) return false;
+  }
+  if (isLongerDataset && canonicalRows > 0 && canonicalCols > 0) {
+    const aiCells = matrix.length * matrix[0].length;
+    const canonCells = canonicalRows * canonicalCols;
+    if (aiCells < canonCells || matrix.length < canonicalRows || matrix[0].length < canonicalCols) {
+      return false;
+    }
+  }
+  return true;
+}
+function isValidArrayForProblem(arr, _slug, _topics = [], isLongerDataset = false, canonicalLength = 0) {
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+  if (isLongerDataset && canonicalLength > 0 && arr.length < canonicalLength) {
+    return false;
   }
   return true;
 }
@@ -251666,7 +252455,7 @@ async function processReviewPseudocode(data) {
       id: typeof d?.id === "string" && d.id.trim() ? d.id.trim() : `dataset_${idx + 1}`,
       label: typeof d?.label === "string" && d.label.trim() ? d.label.trim() : `Dataset ${idx + 1}`,
       description: typeof d?.description === "string" ? d.description : void 0,
-      array: Array.isArray(d?.array) ? d.array.map(
+      array: Array.isArray(d?.array) ? d.array.length === 1 && typeof d.array[0] === "string" && d.array[0].length > 1 && isDynamicSlidingWindowProblem(data.slug, data.topics ?? []) ? d.array[0].split("") : d.array.map(
         (x2) => typeof x2 === "number" || typeof x2 === "string" ? x2 : String(x2)
       ).filter((x2) => x2 !== null && x2 !== void 0) : void 0,
       secondaryArray: Array.isArray(d?.secondaryArray) ? d.secondaryArray.map(
@@ -251682,8 +252471,38 @@ async function processReviewPseudocode(data) {
       datasets = canonicalDatasets.map((canon, i2) => {
         const aiD = aiDatasets[i2];
         if (!aiD) return canon;
-        const validMatrix = aiD.matrix && isValidMatrixForProblem(aiD.matrix, data.slug, data.topics ?? []) ? aiD.matrix : canon.matrix;
-        const validArray = validMatrix && canon.matrix ? validMatrix.flat().filter((x2) => typeof x2 === "number") : aiD.array && aiD.array.length > 0 ? aiD.array : canon.array;
+        if (i2 === 0) {
+          return {
+            ...canon,
+            label: aiD.label || canon.label,
+            description: aiD.description || canon.description,
+            array: canon.array,
+            secondaryArray: canon.secondaryArray,
+            matrix: canon.matrix,
+            tree: canon.tree,
+            target: canon.target,
+            k: canon.k
+          };
+        }
+        const isLonger = i2 === 1;
+        const canonRows = canon.matrix?.length ?? 0;
+        const canonCols = canon.matrix?.[0]?.length ?? 0;
+        const canonArrayLength = canon.array?.length ?? 0;
+        const validMatrix = aiD.matrix && isValidMatrixForProblem(
+          aiD.matrix,
+          data.slug,
+          data.topics ?? [],
+          isLonger,
+          canonRows,
+          canonCols
+        ) ? aiD.matrix : canon.matrix;
+        const validArray = validMatrix && canon.matrix ? validMatrix.flat().filter((x2) => typeof x2 === "number") : aiD.array && isValidArrayForProblem(
+          aiD.array,
+          data.slug,
+          data.topics ?? [],
+          isLonger,
+          canonArrayLength
+        ) ? aiD.array : canon.array;
         return {
           ...canon,
           label: aiD.label || canon.label,
@@ -251709,7 +252528,7 @@ async function processReviewPseudocode(data) {
     const preferredShape = fallback2.steps[0]?.type ?? pickShape(data.slug, data.topics ?? []);
     if (vizKeyForRequest) {
       const vizSystem = VISUALIZER_SYSTEM_PROMPT;
-      const matrixExample = activeDataset.matrix && activeDataset.matrix.length > 0 ? activeDataset.matrix : isIslandOrGridProblem(data.slug, data.topics ?? []) ? sampleMatrixFor(data.slug) : void 0;
+      const matrixExample = activeDataset.matrix && activeDataset.matrix.length > 0 ? activeDataset.matrix : isIslandOrGridProblem(data.slug, data.topics ?? []) || isMatrixTransformationProblem(data.slug, data.topics ?? []) ? sampleMatrixFor(data.slug) : void 0;
       const vizUser = buildVisualizerUserPrompt({
         title: data.title,
         statement,
@@ -251870,11 +252689,33 @@ async function processDatasetVisualization(data) {
       visualization_error: "Pseudocode logic is incomplete. Please complete your algorithm (loops, state transitions, and return statement) to simulate execution."
     };
   }
-  const matrixExample = dataset.matrix && isValidMatrixForProblem(dataset.matrix, data.slug, data.topics ?? []) ? dataset.matrix : isIslandOrGridProblem(data.slug, data.topics ?? []) ? sampleMatrixFor(data.slug) : void 0;
+  const isLonger = dataset.category === "longer" || dataset.id === "dataset_2";
+  const canonDatasets = getCanonicalMultiDatasets(data.slug, data.title, data.topics ?? []);
+  const canonMatch = canonDatasets.find((d) => d.id === dataset.id);
+  const canonRows = canonMatch?.matrix?.length ?? 0;
+  const canonCols = canonMatch?.matrix?.[0]?.length ?? 0;
+  const matrixExample = dataset.matrix && isValidMatrixForProblem(
+    dataset.matrix,
+    data.slug,
+    data.topics ?? [],
+    isLonger,
+    canonRows,
+    canonCols
+  ) ? dataset.matrix : isIslandOrGridProblem(data.slug, data.topics ?? []) || isMatrixTransformationProblem(data.slug, data.topics ?? []) ? sampleMatrixFor(data.slug) : void 0;
+  const isDynamicWindow = isDynamicSlidingWindowProblem(data.slug, data.topics ?? []);
+  let candidateArray = dataset.array;
+  if (isDynamicWindow && candidateArray && candidateArray.length === 1 && typeof candidateArray[0] === "string" && candidateArray[0].length > 1) {
+    candidateArray = candidateArray[0].split("");
+  }
+  if (dataset.id === "dataset_1" && canonMatch) {
+    candidateArray = canonMatch.array ?? candidateArray;
+  }
   const sanitizedDataset = {
     ...dataset,
     matrix: matrixExample,
-    array: matrixExample && matrixExample.length > 0 ? matrixExample.flat().filter((x2) => typeof x2 === "number") : dataset.array
+    target: dataset.id === "dataset_1" && canonMatch?.target !== void 0 ? canonMatch.target : dataset.target,
+    k: dataset.id === "dataset_1" && canonMatch?.k !== void 0 ? canonMatch.k : dataset.k,
+    array: matrixExample && matrixExample.length > 0 ? matrixExample.flat().filter((x2) => typeof x2 === "number") : candidateArray
   };
   const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
   const vizKeyForRequest = geminiKey || vizKey || openRouterKey || reviewKey;
@@ -276456,14 +277297,16 @@ app.post("/api/chat", aiLimiter, async (req, res) => {
       }
     }
     let baseSystemInstruction = "";
+    const hasProblemContext = Boolean(context2.problemSlug || context2.problemTitle);
     if (role === "interviewer") {
-      baseSystemInstruction = `You are an elite, patient Senior Technical Interviewer and Socratic DSA Mentor at a top tech company.
+      baseSystemInstruction = hasProblemContext ? `You are an elite, patient Senior Technical Interviewer and Socratic DSA Mentor at a top tech company.
 STRICT SOCRATIC INTERVIEWER LAWS:
-1. NEVER, UNDER ANY CIRCUMSTANCES, GIVE AWAY THE DIRECT CODE SOLUTION OR DIRECT ANSWER.
+1. When discussing the attached problem, NEVER give away the direct full code solution or direct answer immediately.
 2. If the user makes typing errors, syntax slips, off-by-one errors, or logical flaws, NUDGE THEM GENTLY WITHOUT OBVIOUS HINTS, exactly like a compassionate interviewer would.
 3. Ask thought-provoking, diagnostic questions (e.g., "What happens on the final iteration when right == n?", "Notice how you initialize your pointer\u2014what happens if the array is empty?").
 4. If the user asks doubts about a problem or simulation step, explain the invariant or mechanics of the current step clearly, but ALWAYS drive the user to the final conclusion slowly on their own.
-5. If the user asks you to "rate my recent submission" or "analyze my activity", use the provided Firestore submissions history below to provide a balanced, encouraging rating with scores (out of 10) and specific areas of growth.`;
+5. If the user asks you to "rate my recent submission" or "analyze my activity", use the provided Firestore submissions history below to provide a balanced, encouraging rating with scores (out of 10) and specific areas of growth.` : `You are an expert DSA & Software Engineering Coach. The user is in general conversation mode (no problem context attached).
+Provide direct, thorough, comprehensive explanations, full code implementations with clean syntax in Python, C++, Java, or JavaScript, and helpful architectural insights without restricting your answers.`;
     } else if (role === "step_doubts") {
       baseSystemInstruction = `You are a DSA Simulation Step Guide. The user is actively stepping through an algorithm animation/simulation on DSA.viz.
 GUIDELINES:
@@ -276476,7 +277319,8 @@ Provide a clear numerical rating (1-10), analyze Time and Space complexities, hi
     } else if (role === "mistake_analyzer") {
       baseSystemInstruction = `You are an AI Code Diagnostics Expert. You identify common typing errors, syntax slips (semicolons, type mismatch, vector bounds), and logical traps (infinite loop conditions, missing base cases). Explain WHY the mistake occurred and how to spot it systematically in technical interviews.`;
     } else {
-      baseSystemInstruction = customInstruction || "You are the expert DSA mentor and technical coach for DSA.viz.";
+      baseSystemInstruction = customInstruction || `You are an expert DSA & Computer Science Coach for DSA.viz.
+Provide direct, thorough explanations, code implementations in multiple languages, complexity analysis, and intuitive breakdowns to answer any question completely without artificial restrictions.`;
     }
     let problemContextStr = "";
     if (context2.problemSlug || context2.problemTitle) {
@@ -276505,7 +277349,14 @@ ${context2.compilerOutput}
         problemContextStr += ` | Step Variables State: ${JSON.stringify(context2.stepVariables)}`;
       }
     }
+    const mathAndCodeFormattingRules = `
+
+FORMATTING RULES FOR MATHEMATICS & CODE:
+1. Always format mathematical formulas, Big-O notation, and equations using standard clean text and Unicode symbols (e.g., 'O(n log n)', 'O(n^2)', '\u2264', '\u2265', '\u2260', '\xD7', '\xB7', 'mod') instead of raw unescaped LaTeX macros or LaTeX comment percent signs like '\\%'.
+2. When outputting code, always enclose it in standard triple-backtick Markdown blocks with the language tag (e.g., \`\`\`python ... \`\`\` or \`\`\`cpp ... \`\`\`).
+`;
     const fullSystemInstruction = `${baseSystemInstruction}
+${mathAndCodeFormattingRules}
 ${problemContextStr}
 ${userProfileContext}
 ${userSubmissionsContext}`.trim();
@@ -277247,6 +278098,8 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
   }
 });
 async function startServer() {
+  const publicPath = import_path.default.join(process.cwd(), "public");
+  app.use(import_express.default.static(publicPath));
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({

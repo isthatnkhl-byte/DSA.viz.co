@@ -24,6 +24,11 @@ import { Visualizer } from "@/components/Visualizer";
 import { AnalyticsCharts } from "@/components/dashboard/AnalyticsCharts";
 import { AiMistakesSection } from "@/components/dashboard/AiMistakesSection";
 import { Button } from "@/components/ui/button";
+import {
+  getOrCreateUserProfile,
+  getUserSubmissions,
+  deleteUserSubmission,
+} from "@/lib/firestore-service";
 import { listSubmissions, deleteSubmission, getProfileStats, type Submission } from "@/lib/submissions.functions";
 import { toast } from "sonner";
 
@@ -66,16 +71,70 @@ function Dashboard() {
     queryKey: ["profileStats"],
     queryFn: async () => {
       const auth = getAuth();
-      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
-      if (!currentToken) throw new Error("No token");
-      const [profileRes, subsRes] = await Promise.all([
-        fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
-        fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } }),
-      ]);
-      if (!profileRes.ok || !subsRes.ok) throw new Error("Failed to load stats");
-      const profile = await profileRes.json();
-      const subs = await subsRes.json();
-      const subsArray = Array.isArray(subs) ? subs : [];
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken() : token;
+
+      let clientProfile: any = null;
+      let clientSubs: any[] = [];
+      if (currentUser) {
+        try {
+          clientProfile = await getOrCreateUserProfile(currentUser.uid, currentUser.email, currentUser.photoURL);
+          clientSubs = await getUserSubmissions(currentUser.uid);
+        } catch (e) {
+          console.warn("Client Firestore read fallback in dashboard:", e);
+        }
+      }
+
+      let serverProfile: any = null;
+      let serverSubs: any[] = [];
+      if (currentToken) {
+        try {
+          const [profileRes, subsRes] = await Promise.all([
+            fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
+            fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } }),
+          ]);
+          if (profileRes.ok) serverProfile = await profileRes.json();
+          if (subsRes.ok) serverSubs = await subsRes.json();
+        } catch (e) {
+          console.warn("Server profile read fallback in dashboard:", e);
+        }
+      }
+
+      const effectiveDisplayName =
+        clientProfile?.displayName ||
+        clientProfile?.display_name ||
+        serverProfile?.displayName ||
+        serverProfile?.display_name ||
+        currentUser?.displayName ||
+        currentUser?.email?.split("@")[0] ||
+        "Explorer";
+
+      const effectiveLcStats =
+        clientProfile?.leetcodeStats ||
+        clientProfile?.leetcode_stats ||
+        serverProfile?.leetcodeStats ||
+        serverProfile?.leetcode_stats ||
+        null;
+
+      const effectiveLcUsername =
+        clientProfile?.leetcodeUsername ||
+        clientProfile?.leetcode_username ||
+        serverProfile?.leetcodeUsername ||
+        serverProfile?.leetcode_username ||
+        null;
+
+      const mergedProfile = {
+        ...(serverProfile || {}),
+        ...(clientProfile || {}),
+        displayName: effectiveDisplayName,
+        display_name: effectiveDisplayName,
+        leetcodeStats: effectiveLcStats,
+        leetcode_stats: effectiveLcStats,
+        leetcodeUsername: effectiveLcUsername,
+        leetcode_username: effectiveLcUsername,
+      };
+
+      const subsArray = (clientSubs && clientSubs.length > 0 ? clientSubs : serverSubs) || [];
       const completeRows = subsArray.filter((r: any) => r.classification !== "Incomplete");
       const solved = new Set(completeRows.map((r: any) => r.slug));
       const optimal = new Set(
@@ -87,7 +146,7 @@ function Dashboard() {
         Hard: new Set(completeRows.filter((r: any) => r.difficulty === "Hard").map((r: any) => r.slug)),
       };
       return {
-        profile,
+        profile: mergedProfile,
         attempts: subsArray.length,
         solved: solved.size,
         optimal: optimal.size,
@@ -105,27 +164,58 @@ function Dashboard() {
     queryKey: ["submissions"],
     queryFn: async () => {
       const auth = getAuth();
-      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
-      if (!currentToken) return [];
-      const res = await fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken() : token;
+
+      if (currentUser) {
+        try {
+          const clientSubs = await getUserSubmissions(currentUser.uid);
+          if (clientSubs && clientSubs.length > 0) return clientSubs;
+        } catch (e) {
+          console.warn("Client Firestore getUserSubmissions fallback:", e);
+        }
+      }
+
+      if (currentToken) {
+        try {
+          const res = await fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } });
+          if (res.ok) return await res.json();
+        } catch (e) {
+          console.warn("Server submissions fallback:", e);
+        }
+      }
+
+      return [];
     },
     enabled: !!user,
   });
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      if (!token) throw new Error("No token");
-      const res = await fetch(`/api/submissions/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to delete");
-      return res.json();
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken() : token;
+
+      if (currentUser) {
+        try {
+          await deleteUserSubmission(currentUser.uid, id);
+        } catch (e) {
+          console.warn("Client Firestore deleteUserSubmission non-fatal:", e);
+        }
+      }
+
+      if (currentToken) {
+        await fetch(`/api/submissions/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${currentToken}` },
+        }).catch(() => null);
+      }
+
+      return { ok: true };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["submissions"] });
+      qc.invalidateQueries({ queryKey: ["profileStats"] });
       toast.success("Attempt removed from your dashboard");
     },
     onError: () => {

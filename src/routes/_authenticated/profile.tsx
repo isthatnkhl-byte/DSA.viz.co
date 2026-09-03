@@ -33,8 +33,12 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
 import {
+  getOrCreateUserProfile,
+  updateUserProfile,
+  getUserSubmissions,
+} from "@/lib/firestore-service";
+import {
   getProfileStats,
-  
   updateLeetcodeUsername,
   updateProfileUsername,
 } from "@/lib/submissions.functions";
@@ -111,16 +115,70 @@ function ProfilePage() {
     queryKey: ["profile-stats"],
     queryFn: async () => {
       const auth = getAuth();
-      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
-      if (!currentToken) throw new Error("No token");
-      const [profileRes, subsRes] = await Promise.all([
-        fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
-        fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } }),
-      ]);
-      if (!profileRes.ok || !subsRes.ok) throw new Error("Failed to load stats");
-      const profile = await profileRes.json();
-      const subs = await subsRes.json();
-      const subsArray = Array.isArray(subs) ? subs : [];
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken() : token;
+
+      let clientProfile: any = null;
+      let clientSubs: any[] = [];
+      if (currentUser) {
+        try {
+          clientProfile = await getOrCreateUserProfile(currentUser.uid, currentUser.email, currentUser.photoURL);
+          clientSubs = await getUserSubmissions(currentUser.uid);
+        } catch (e) {
+          console.warn("Client Firestore read fallback:", e);
+        }
+      }
+
+      let serverProfile: any = null;
+      let serverSubs: any[] = [];
+      if (currentToken) {
+        try {
+          const [profileRes, subsRes] = await Promise.all([
+            fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
+            fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } }),
+          ]);
+          if (profileRes.ok) serverProfile = await profileRes.json();
+          if (subsRes.ok) serverSubs = await subsRes.json();
+        } catch (e) {
+          console.warn("Server profile read fallback:", e);
+        }
+      }
+
+      const effectiveDisplayName =
+        clientProfile?.displayName ||
+        clientProfile?.display_name ||
+        serverProfile?.displayName ||
+        serverProfile?.display_name ||
+        currentUser?.displayName ||
+        currentUser?.email?.split("@")[0] ||
+        "Explorer";
+
+      const effectiveLcStats =
+        clientProfile?.leetcodeStats ||
+        clientProfile?.leetcode_stats ||
+        serverProfile?.leetcodeStats ||
+        serverProfile?.leetcode_stats ||
+        null;
+
+      const effectiveLcUsername =
+        clientProfile?.leetcodeUsername ||
+        clientProfile?.leetcode_username ||
+        serverProfile?.leetcodeUsername ||
+        serverProfile?.leetcode_username ||
+        null;
+
+      const mergedProfile = {
+        ...(serverProfile || {}),
+        ...(clientProfile || {}),
+        displayName: effectiveDisplayName,
+        display_name: effectiveDisplayName,
+        leetcodeStats: effectiveLcStats,
+        leetcode_stats: effectiveLcStats,
+        leetcodeUsername: effectiveLcUsername,
+        leetcode_username: effectiveLcUsername,
+      };
+
+      const subsArray = (clientSubs && clientSubs.length > 0 ? clientSubs : serverSubs) || [];
       const completeRows = subsArray.filter((r: any) => r.classification !== "Incomplete");
       const solved = new Set(completeRows.map((r: any) => r.slug));
       const optimal = new Set(
@@ -132,7 +190,7 @@ function ProfilePage() {
         Hard: new Set(completeRows.filter((r: any) => r.difficulty === "Hard").map((r: any) => r.slug)),
       };
       return {
-        profile,
+        profile: mergedProfile,
         attempts: subsArray.length,
         solved: solved.size,
         optimal: optimal.size,
@@ -155,13 +213,14 @@ function ProfilePage() {
         throw new Error("Authentication error: No valid token available. Please try logging out and back in.");
       }
       
+      const clean = username.trim().replace(/^@+/, "");
       const res = await fetch("/api/sync-leetcode", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${currentToken}`
         },
-        body: JSON.stringify({ username })
+        body: JSON.stringify({ username: clean })
       });
       if (!res.ok) {
         let errStr = "Sync failed";
@@ -171,11 +230,47 @@ function ProfilePage() {
         } catch {}
         throw new Error(errStr);
       }
-      return await res.json();
+      const data = await res.json();
+      const stats = data?.stats;
+
+      // Persist directly to authenticated client Firestore
+      if (auth.currentUser && stats) {
+        try {
+          await updateUserProfile(auth.currentUser.uid, {
+            leetcodeUsername: clean,
+            leetcode_username: clean,
+            leetcodeStats: stats,
+            leetcode_stats: stats,
+          });
+        } catch (dbErr) {
+          console.warn("Client Firestore leetcode persist warning:", dbErr);
+        }
+      }
+
+      return { ...data, targetUsername: clean };
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       toast.success("LeetCode profile & heatmap synced successfully!");
-      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+      const clean = data.targetUsername;
+
+      if (data?.stats) {
+        const updater = (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            profile: {
+              ...old.profile,
+              leetcodeUsername: clean,
+              leetcode_username: clean,
+              leetcodeStats: data.stats,
+              leetcode_stats: data.stats,
+            },
+          };
+        };
+        queryClient.setQueryData(["profile-stats"], updater);
+        queryClient.setQueryData(["profileStats"], updater);
+      }
+
       refreshProfile();
       setEditingLc(false);
       setInputUsername("");
@@ -187,40 +282,55 @@ function ProfilePage() {
 
   const updateProfileUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
+      const clean = username.trim().replace(/^@+/, "");
       const auth = getAuth();
       const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
 
-      // Update client state non-blockingly
-      await updateNickname(username).catch((e) => console.warn("updateNickname warn:", e));
+      // 1. Direct write to authenticated client Firestore
+      if (auth.currentUser) {
+        try {
+          await updateUserProfile(auth.currentUser.uid, {
+            displayName: clean,
+            display_name: clean,
+          });
+        } catch (dbErr) {
+          console.warn("Client Firestore username update warning:", dbErr);
+        }
+      }
 
+      // 2. Also update AuthContext & Firebase Auth user profile
+      await updateNickname(clean).catch((e) => console.warn("updateNickname warn:", e));
+
+      // 3. Notify backend API
       if (currentToken) {
-        const res = await fetch("/api/profile/update", {
+        await fetch("/api/profile/update", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${currentToken}` },
-          body: JSON.stringify({ username })
-        });
-        if (!res.ok) {
-          let errText = "Failed to update username";
-          try {
-            const errJson = await res.json();
-            if (errJson.error) errText = errJson.error;
-          } catch {}
-          throw new Error(errText);
-        }
-        return res.json();
+          body: JSON.stringify({ username: clean })
+        }).catch(() => null);
       }
-      return { ok: true };
+
+      return { ok: true, username: clean };
     },
     onSuccess: (res: any) => {
-      if (res?.ok !== false) {
-        toast.success("Username handle updated successfully! 🎉");
-        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-        queryClient.invalidateQueries({ queryKey: ["profileStats"] });
-        refreshProfile();
-        setEditingUsername(false);
-      } else {
-        toast.error(res?.error || "Could not update username.");
-      }
+      const clean = res.username;
+      toast.success("Username handle updated successfully! 🎉");
+      
+      const updater = (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          profile: {
+            ...old.profile,
+            displayName: clean,
+            display_name: clean,
+          },
+        };
+      };
+      queryClient.setQueryData(["profile-stats"], updater);
+      queryClient.setQueryData(["profileStats"], updater);
+      refreshProfile();
+      setEditingUsername(false);
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to update username.");

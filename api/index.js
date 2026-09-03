@@ -354687,6 +354687,35 @@ app.set("trust proxy", 1);
 var PORT = 3e3;
 app.use(import_express.default.json({ limit: "2mb" }));
 app.use(import_express.default.urlencoded({ extended: true, limit: "2mb" }));
+app.use((req, _res, next) => {
+  const matchedPath = req.headers["x-matched-path"] || req.headers["x-vercel-original-path"] || req.headers["x-forwarded-uri"];
+  const vpath = req.query?.__vpath || req.query?.__path;
+  if (vpath) {
+    const parts = req.url.split("?");
+    const searchParams = new URLSearchParams(parts[1] || "");
+    searchParams.delete("__vpath");
+    searchParams.delete("__path");
+    const qs2 = searchParams.toString();
+    req.url = `/api${vpath.startsWith("/") ? "" : "/"}${vpath}${qs2 ? `?${qs2}` : ""}`;
+    if (req.query) {
+      delete req.query.__vpath;
+      delete req.query.__path;
+    }
+  } else if (matchedPath && matchedPath !== "/api/index" && matchedPath !== "/api" && matchedPath.startsWith("/api/")) {
+    const qs2 = req.url.split("?")[1];
+    req.url = `${matchedPath}${qs2 ? `?${qs2}` : ""}`;
+  } else if (!req.url.startsWith("/api/") && req.url !== "/api") {
+    req.url = `/api${req.url.startsWith("/") ? "" : "/"}${req.url}`;
+  }
+  next();
+});
+app.all(["/api", "/api/index"], (_req, res) => {
+  res.json({
+    status: "ok",
+    service: "DSA.viz API Serverless Engine",
+    time: (/* @__PURE__ */ new Date()).toISOString()
+  });
+});
 var apiLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
   // 1 minute

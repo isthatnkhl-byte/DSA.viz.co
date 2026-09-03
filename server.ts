@@ -74,6 +74,44 @@ const PORT = 3000;
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
+// Vercel Serverless Function Rewrite Normalization
+app.use((req, _res, next) => {
+  const matchedPath =
+    (req.headers["x-matched-path"] as string) ||
+    (req.headers["x-vercel-original-path"] as string) ||
+    (req.headers["x-forwarded-uri"] as string);
+
+  const vpath = (req.query?.__vpath as string | undefined) || (req.query?.__path as string | undefined);
+
+  if (vpath) {
+    const parts = req.url.split("?");
+    const searchParams = new URLSearchParams(parts[1] || "");
+    searchParams.delete("__vpath");
+    searchParams.delete("__path");
+    const qs = searchParams.toString();
+    req.url = `/api${vpath.startsWith("/") ? "" : "/"}${vpath}${qs ? `?${qs}` : ""}`;
+    if (req.query) {
+      delete req.query.__vpath;
+      delete req.query.__path;
+    }
+  } else if (matchedPath && matchedPath !== "/api/index" && matchedPath !== "/api" && matchedPath.startsWith("/api/")) {
+    const qs = req.url.split("?")[1];
+    req.url = `${matchedPath}${qs ? `?${qs}` : ""}`;
+  } else if (!req.url.startsWith("/api/") && req.url !== "/api") {
+    req.url = `/api${req.url.startsWith("/") ? "" : "/"}${req.url}`;
+  }
+  next();
+});
+
+// Fallback status endpoint for /api and /api/index
+app.all(["/api", "/api/index"], (_req: Request, res: Response) => {
+  res.json({
+    status: "ok",
+    service: "DSA.viz API Serverless Engine",
+    time: new Date().toISOString(),
+  });
+});
+
 // Rate Limiters
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute

@@ -42,6 +42,10 @@ import {
   PhoneOff,
   VideoOff,
   XCircle,
+  Lock,
+  LogOut,
+  AlertOctagon,
+  FileWarning,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
@@ -95,6 +99,8 @@ function LiveInterviewPage() {
   const [callSeconds, setCallSeconds] = useState(0);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isDisqualified, setIsDisqualified] = useState(false);
+  const [isForfeited, setIsForfeited] = useState(false);
+  const [showForfeitModal, setShowForfeitModal] = useState(false);
   const [ratingUpdate, setRatingUpdate] = useState<{
     previousRating: number;
     newRating: number;
@@ -1104,45 +1110,198 @@ STRICT LAWS:
     setProblemIndex(nextIdx);
   };
 
-  // Scorecard Calculations (Out of 10)
+  // Concede / Forfeit interview early
+  const handleConfirmForfeit = useCallback(() => {
+    setShowForfeitModal(false);
+    setIsForfeited(true);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+    speakAloud("Interview session forfeited early by candidate. Proceeding to evaluation debrief.");
+    toast.error("INTERVIEW FORFEITED: Conceded before solving. Penalty applied.", {
+      duration: 5000,
+    });
+    setPhase("scorecard");
+  }, [speakAloud]);
+
+  // Scorecard Calculations (Strict FAANG Hiring Bar out of 10)
   const scorecard = useMemo(() => {
-    // 1. Confidence & Delivery (0 - 10): based on speaking duration, voiced inquiries, and mic cadence
-    const speakingRatio = Math.min(1, speakingSeconds / 40);
-    const questionsVoicedBonus = Math.min(2.0, candidateSpokenUtterances.length * 0.5);
-    const confidenceScore = Math.min(
-      10,
-      Math.max(5.5, Math.round((7.0 + speakingRatio * 2.0 + questionsVoicedBonus) * 10) / 10),
-    );
+    const tiersPassed = completedTiers.length;
+    const refPenalty = referenceSolutionsViewedCount * 3.0; // Severe penalty for opening answers in interview
+    const hintPenalty = hintsUsed * 1.0;
 
-    // 2. Algorithmic Craft (0 - 10): 3 tiers = 10, -0.5 per hint, -1.0 per reference solution view
-    const tierBonus = completedTiers.length === 3 ? 10.0 : completedTiers.length === 2 ? 7.5 : 5.0;
-    const refPenalty = referenceSolutionsViewedCount * 1.0;
-    const craftScore = Math.max(3.5, Math.round((tierBonus - hintsUsed * 0.5 - refPenalty) * 10) / 10);
+    // 1. Delivery & Confidence / Behavioral (0 - 10)
+    // Absolute disqualifier: Complete silence or keeping mic muted throughout
+    let confidenceScore = 0.5;
+    let confidenceVerdict = "SILENT / MUTED (CRITICAL RED FLAG)";
+    let confidenceCritique =
+      "Candidate remained muted or silent for the entire session. In real FAANG rounds (Google L4/L5, Meta E4/E5, Amazon SDE-II), you are evaluated on thinking out loud. Silent coding is an automatic, non-negotiable rejection because interviewers have zero signal on your reasoning.";
 
-    // 3. Proctoring & Integrity (0 - 10): 10.0 base, -1.8 per strike
-    const integrityScore = Math.max(2.0, Math.round((10.0 - strikes * 1.8) * 10) / 10);
+    if (isDisqualified) {
+      confidenceScore = 0.5;
+      confidenceVerdict = "DISQUALIFIED (NO SIGNAL)";
+      confidenceCritique =
+        "Interview was terminated due to compliance violations before behavioral and communication calibration could be concluded.";
+    } else if (speakingSeconds === 0) {
+      confidenceScore = 0.5;
+      confidenceVerdict = "NON-COMMUNICATIVE (0s SPOKEN)";
+      confidenceCritique =
+        "Candidate kept mic muted or spoke 0 seconds. Zero verbal problem walkthrough detected. A silent candidate cannot be recommended for any engineering role.";
+    } else if (speakingSeconds < 25) {
+      confidenceScore = 1.5;
+      confidenceVerdict = "CRITICAL DEFICIT (<25s SPOKEN)";
+      confidenceCritique =
+        `Candidate only vocalized for ${speakingSeconds} seconds. In real technical interviews, you must continuously articulate trade-offs, state transitions, and edge cases aloud.`;
+    } else if (speakingSeconds < 60) {
+      confidenceScore = 3.5;
+      confidenceVerdict = "SUB-STANDARD COMMUNICATION";
+      confidenceCritique =
+        `Candidate spoke for ${speakingSeconds}s with minimal cadence. Failed to maintain an ongoing dialogue or proactively discuss algorithmic bottlenecks.`;
+    } else if (speakingSeconds < 100) {
+      confidenceScore = 6.0;
+      confidenceVerdict = "HESITANT BUT DEVELOPING";
+      confidenceCritique =
+        `Candidate spoke for ${speakingSeconds}s with ${candidateSpokenUtterances.length} inquiry voiced. Basic communication shown, but long silences were observed during coding.`;
+    } else {
+      const inquiryBonus = Math.min(1.5, candidateSpokenUtterances.length * 0.4);
+      const fluencyBonus = Math.min(1.0, (speakingSeconds - 100) / 80);
+      confidenceScore = Math.min(10.0, Math.round((7.5 + inquiryBonus + fluencyBonus) * 10) / 10);
+      confidenceVerdict = "CLEAR & ARTICULATE COMMUNICATOR";
+      confidenceCritique =
+        `Strong verbal walkthrough (${speakingSeconds}s vocalized across ${candidateSpokenUtterances.length} technical inquiries). Candidate effectively talked through invariants and algorithmic choices.`;
+    }
 
-    // Composite Score
-    const composite = Math.round((confidenceScore * 0.35 + craftScore * 0.45 + integrityScore * 0.2) * 10) / 10;
+    // 2. Algorithmic Craft (0 - 10)
+    // Strict requirement: zero tiers validated = 0.0 craft score
+    let craftScore = 0.0;
+    let craftVerdict = "FAILED TO DELIVER (0/3 TIERS)";
+    let craftCritique =
+      "Zero progression tiers passed. You did not submit an executable brute-force or baseline algorithm that satisfies all test cases. In real FAANG interviews, producing no working code is an immediate Strong No Hire.";
 
-    let verdict = "STRONG HIRE";
-    if (composite < 6.5) verdict = "NEEDS PRACTICE";
-    else if (composite < 8.0) verdict = "LEANING HIRE";
-    else if (composite < 9.0) verdict = "HIRE";
+    if (tiersPassed === 0) {
+      craftScore = 0.0;
+      craftVerdict = "FAILED TO DELIVER (0/3 TIERS)";
+      craftCritique =
+        "Zero progression tiers passed. You did not submit an executable brute-force or baseline algorithm that satisfies all test cases. In real FAANG interviews, producing no working code is an immediate Strong No Hire.";
+    } else if (tiersPassed === 1) {
+      const rawCraft = 3.5 - refPenalty - hintPenalty;
+      craftScore = Math.max(0.5, Math.round(rawCraft * 10) / 10);
+      craftVerdict = "SUB-OPTIMAL (BRUTE FORCE ONLY)";
+      craftCritique =
+        "Completed Tier 1 (Brute Force) only. In production, unoptimized quadratic/exponential algorithms trigger Time Limit Exceeded (TLE) under high volume. Failed to optimize to Tier 2 or 3.";
+    } else if (tiersPassed === 2) {
+      const rawCraft = 6.5 - refPenalty - hintPenalty;
+      craftScore = Math.max(1.0, Math.round(rawCraft * 10) / 10);
+      craftVerdict = "PARTIAL PASS (MISSED OPTIMAL TIER)";
+      craftCritique =
+        "Completed Tiers 1 and 2. Demonstrates solid fundamentals, but failed to derive or prove the optimal Tier 3 invariant under time constraints.";
+    } else {
+      const rawCraft = 10.0 - refPenalty - hintPenalty;
+      craftScore = Math.max(2.0, Math.round(rawCraft * 10) / 10);
+      craftVerdict = "OPTIMAL FAANG BENCHMARK";
+      craftCritique =
+        "Successfully navigated all 3 progression tiers from Brute Force up to the optimal asymptotic space/time complexity. Meets Senior engineering standards.";
+    }
+
+    if (referenceSolutionsViewedCount > 0) {
+      craftCritique += ` Academic integrity warning: Consulted canonical reference solution ${referenceSolutionsViewedCount} time(s) (-${refPenalty.toFixed(1)} penalty). In live interviews, consulting answers is strictly prohibited.`;
+    }
+
+    // 3. Proctoring & Integrity (0 - 10)
+    let integrityScore = 10.0;
+    let integrityVerdict = "FLAWLESS COMPLIANCE";
+    let integrityCritique =
+      "Candidate remained fully focused on the interview viewport with 0 tab switches, window blurs, or fullscreen exits.";
+
+    if (isDisqualified) {
+      integrityScore = 0.0;
+      integrityVerdict = "DISQUALIFIED (3 PROCTORING STRIKES)";
+      integrityCritique =
+        "Candidate accumulated 3 proctoring violations (tab switches / window unfocus). Disqualified for compliance review.";
+    } else if (strikes > 0) {
+      integrityScore = Math.max(1.0, Math.round((10.0 - strikes * 2.8) * 10) / 10);
+      integrityVerdict = `${strikes} PROCTORING WARNING${strikes > 1 ? "S" : ""}`;
+      integrityCritique =
+        `${strikes} window blur or tab switch event(s) logged. In remote FAANG screenings, losing focus of the proctored screen risks interview cancellation.`;
+    }
+
+    // Composite Score & Hiring Committee Verdict
+    let composite = 0.0;
+    if (isDisqualified) {
+      composite = 0.5;
+    } else if (isForfeited || tiersPassed === 0) {
+      // Hard cap: If candidate didn't pass any tiers or forfeited, composite is severely capped
+      composite = Math.min(1.5, Math.round((craftScore * 0.5 + confidenceScore * 0.3 + integrityScore * 0.2) * 10) / 10);
+    } else {
+      composite = Math.round((craftScore * 0.5 + confidenceScore * 0.3 + integrityScore * 0.2) * 10) / 10;
+    }
+
+    // Strict FAANG Verdict Calibration
+    let verdict: "STRONG NO HIRE" | "NO HIRE" | "LEANING NO HIRE" | "LEANING HIRE" | "STRONG HIRE" = "STRONG NO HIRE";
+    let committeeConsensus = "REJECT";
+    let levelCalibration = "Sub-L3 / Unqualified";
+
+    if (isDisqualified) {
+      verdict = "STRONG NO HIRE";
+      committeeConsensus = "IMMEDIATE REJECT (INTEGRITY)";
+      levelCalibration = "Disqualified for Proctoring Violation";
+    } else if (isForfeited) {
+      verdict = "STRONG NO HIRE";
+      committeeConsensus = "REJECT (SESSION FORFEITED)";
+      levelCalibration = "Incomplete / Candidate Abandoned";
+    } else if (tiersPassed === 0 || composite < 3.5) {
+      verdict = "STRONG NO HIRE";
+      committeeConsensus = "UNANIMOUS REJECT";
+      levelCalibration = "Sub-L3 / Failed Core Competency";
+    } else if (composite < 5.5) {
+      verdict = "NO HIRE";
+      committeeConsensus = "REJECT (BELOW FAANG BAR)";
+      levelCalibration = "L3 / Junior Borderline (Unresolved Gaps)";
+    } else if (composite < 7.5) {
+      verdict = "LEANING NO HIRE";
+      committeeConsensus = "LEANING REJECT";
+      levelCalibration = "L4 Developing (Sub-optimal Complexity / Communication Gaps)";
+    } else if (composite < 8.8 || tiersPassed < 3) {
+      verdict = "LEANING HIRE";
+      committeeConsensus = "CONDITIONAL HIRE";
+      levelCalibration = "L4 / SDE-2 Qualified (Meets Standard)";
+    } else {
+      verdict = "STRONG HIRE";
+      committeeConsensus = "STRONG HIRE (BAR RAISER)";
+      levelCalibration = "L5 / Senior Benchmark Ready";
+    }
 
     return {
       confidenceScore,
+      confidenceVerdict,
+      confidenceCritique,
       craftScore,
+      craftVerdict,
+      craftCritique,
       integrityScore,
+      integrityVerdict,
+      integrityCritique,
       composite,
       verdict,
+      committeeConsensus,
+      levelCalibration,
+      tiersPassed,
     };
   }, [
+    isDisqualified,
+    isForfeited,
     speakingSeconds,
     candidateSpokenUtterances.length,
     completedTiers.length,
-    hintsUsed,
     referenceSolutionsViewedCount,
+    hintsUsed,
     strikes,
   ]);
 
@@ -1156,12 +1315,14 @@ STRICT LAWS:
     saveInterviewSession({
       problemId: problem.id,
       problemTitle: problem.title,
-      compositeScore: isDisqualified ? 2.5 : scorecard.composite,
+      compositeScore: scorecard.composite,
       confidenceScore: scorecard.confidenceScore,
-      craftScore: isDisqualified ? 2.0 : scorecard.craftScore,
-      integrityScore: isDisqualified ? 0.0 : scorecard.integrityScore,
+      craftScore: scorecard.craftScore,
+      integrityScore: scorecard.integrityScore,
       strikes,
       isDisqualified,
+      isAbandoned: isForfeited,
+      completedTiersCount: completedTiers.length,
       userId: user?.uid,
     })
       .then((res) => {
@@ -1174,7 +1335,7 @@ STRICT LAWS:
       .catch((err) => {
         console.warn("Could not persist interview session:", err);
       });
-  }, [phase, isDisqualified, problem, scorecard, strikes, user]);
+  }, [phase, isDisqualified, isForfeited, problem, scorecard, strikes, completedTiers.length, user]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground select-none">
@@ -1587,6 +1748,17 @@ STRICT LAWS:
                 >
                   <ShieldAlert className="size-3 text-rose-400" />
                   <span>Strikes: {strikes}/3</span>
+                </button>
+
+                {/* Concede / Terminate Early Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowForfeitModal(true)}
+                  className="flex items-center gap-1 rounded-lg border border-rose-500/60 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 px-2 py-1 text-[11px] font-bold transition-colors"
+                  title="Concede / Forfeit Interview Session"
+                >
+                  <LogOut className="size-3 text-rose-400" />
+                  <span>Concede</span>
                 </button>
               </div>
             </div>
@@ -2414,7 +2586,7 @@ STRICT LAWS:
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="font-mono text-xs font-black uppercase tracking-widest text-rose-400">
-                    Proctoring Compliance Violation
+                    Proctoring Compliance Violation (3 Strikes Accumulated)
                   </span>
                   <h1 className="text-3xl font-black text-foreground font-display">
                     Candidate Disqualified
@@ -2425,12 +2597,64 @@ STRICT LAWS:
                 </div>
                 {ratingUpdate && (
                   <div className="inline-flex items-center gap-2 rounded-xl bg-rose-900/60 border border-rose-500/50 px-4 py-1.5 font-mono text-xs font-bold text-rose-200">
-                    <span>Penalty Applied:</span>
+                    <span>Severe Penalty:</span>
                     <span className="text-rose-300 font-black">{ratingUpdate.ratingDelta} pts</span>
                     <span className="opacity-60">•</span>
                     <span>New Rating: {ratingUpdate.newRating} / 100</span>
                   </div>
                 )}
+              </div>
+            ) : isForfeited ? (
+              <div className="flex flex-col items-center gap-3 text-center rounded-2xl border-2 border-rose-500/60 bg-rose-950/30 p-6 backdrop-blur-md shadow-xl">
+                <div className="flex size-14 items-center justify-center rounded-2xl bg-rose-500/20 border border-rose-500/50 text-rose-400 shadow-lg shadow-rose-500/20">
+                  <LogOut className="size-8" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="font-mono text-xs font-black uppercase tracking-widest text-rose-400">
+                    Interview Forfeited by Candidate
+                  </span>
+                  <h1 className="text-3xl font-black text-foreground font-display">
+                    Candidate Conceded Session
+                  </h1>
+                  <p className="text-sm text-rose-200/90 max-w-lg mx-auto font-mono mt-1">
+                    Candidate terminated the session before completing solutions. In real FAANG rounds, walking away early without passing code is an immediate Strong No Hire.
+                  </p>
+                </div>
+                {ratingUpdate && (
+                  <div className="inline-flex items-center gap-2 rounded-xl bg-rose-900/60 border border-rose-500/50 px-4 py-1.5 font-mono text-xs font-bold text-rose-200">
+                    <span>Forfeit Penalty:</span>
+                    <span className="text-rose-300 font-black">{ratingUpdate.ratingDelta} pts</span>
+                    <span className="opacity-60">•</span>
+                    <span>New Rating: {ratingUpdate.newRating} / 100</span>
+                  </div>
+                )}
+              </div>
+            ) : scorecard.tiersPassed === 0 || scorecard.composite < 3.5 ? (
+              <div className="flex flex-col items-center gap-3 text-center rounded-2xl border-2 border-rose-500/60 bg-rose-950/30 p-6 backdrop-blur-md shadow-xl">
+                <div className="flex size-14 items-center justify-center rounded-2xl bg-rose-500/20 border border-rose-500/50 text-rose-400 shadow-lg shadow-rose-500/20">
+                  <XCircle className="size-8" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="font-mono text-xs font-black uppercase tracking-widest text-rose-400">
+                    Technical Assessment Failed
+                  </span>
+                  <h1 className="text-3xl font-black text-foreground font-display">
+                    Zero Solutions Accepted
+                  </h1>
+                  <p className="text-sm text-rose-200/90 max-w-lg mx-auto font-mono mt-1">
+                    Failed to deliver a working algorithm for Tier 1. In FAANG technical screens, failure to implement a working baseline is an automatic Strong No Hire.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+                  <span className="rounded-full bg-rose-950/60 border border-rose-500/50 px-3 py-1 font-mono text-xs font-black text-rose-300">
+                    {scorecard.verdict} ({scorecard.composite} / 10.0)
+                  </span>
+                  {ratingUpdate && (
+                    <span className="rounded-full bg-rose-900/50 border border-rose-500/50 px-3 py-1 font-mono text-xs font-black text-rose-300">
+                      {ratingUpdate.ratingDelta} pts → {ratingUpdate.newRating}/100 Rating
+                    </span>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2 text-center">
@@ -2445,11 +2669,25 @@ STRICT LAWS:
                 </h1>
                 <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
                   <span className="font-mono text-sm text-muted-foreground">Candidate Outcome:</span>
-                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/50 px-3 py-0.5 font-mono text-xs font-black text-emerald-300">
+                  <span
+                    className={`rounded-full px-3 py-0.5 font-mono text-xs font-black border ${
+                      scorecard.composite >= 8.5
+                        ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300"
+                        : scorecard.composite >= 7.0
+                          ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300"
+                          : "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                    }`}
+                  >
                     {scorecard.verdict} ({scorecard.composite} / 10.0)
                   </span>
                   {ratingUpdate && (
-                    <span className="rounded-full bg-primary/20 border border-primary/50 px-3 py-0.5 font-mono text-xs font-black text-primary">
+                    <span
+                      className={`rounded-full px-3 py-0.5 font-mono text-xs font-black border ${
+                        ratingUpdate.ratingDelta >= 0
+                          ? "bg-primary/20 border-primary/50 text-primary"
+                          : "bg-rose-950/50 border-rose-500/50 text-rose-300"
+                      }`}
+                    >
                       {ratingUpdate.ratingDelta >= 0 ? `+${ratingUpdate.ratingDelta}` : ratingUpdate.ratingDelta} pts → {ratingUpdate.newRating}/100 Rating
                     </span>
                   )}
@@ -2460,45 +2698,229 @@ STRICT LAWS:
             {/* Score Grid: 3 Pillars (Delivery, Craft, Integrity) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               {/* Pillar 1: Delivery & Confidence */}
-              <div className="flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-card/75 p-4 backdrop-blur-md">
-                <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  1. Delivery & Confidence
-                </span>
-                <div className="flex items-baseline gap-1">
+              <div
+                className={`flex flex-col gap-1.5 rounded-2xl border p-4 backdrop-blur-md ${
+                  scorecard.confidenceScore <= 3.5
+                    ? "border-rose-500/50 bg-rose-950/25"
+                    : scorecard.confidenceScore < 7.5
+                      ? "border-amber-500/50 bg-amber-950/25"
+                      : "border-border/80 bg-card/75"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    1. Delivery &amp; Confidence
+                  </span>
+                  <span
+                    className={`font-mono text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${
+                      scorecard.confidenceScore <= 3.5
+                        ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
+                        : scorecard.confidenceScore < 7.5
+                          ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
+                          : "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
+                    }`}
+                  >
+                    {scorecard.confidenceVerdict}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1 mt-1">
                   <span className="text-3xl font-black text-foreground font-display">{scorecard.confidenceScore}</span>
                   <span className="font-mono text-xs text-muted-foreground">/ 10</span>
                 </div>
                 <p className="font-mono text-[11px] text-muted-foreground mt-1">
-                  Speech cadence, flow stability, and articulate verbalization under observation.
+                  {speakingSeconds === 0
+                    ? "Zero verbal communication detected. Candidate mic remained muted/silent throughout."
+                    : `${speakingSeconds}s vocalized with ${candidateSpokenUtterances.length} technical queries.`}
                 </p>
               </div>
 
               {/* Pillar 2: Algorithmic Craft */}
-              <div className="flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-card/75 p-4 backdrop-blur-md">
-                <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  2. Algorithmic Craft
-                </span>
-                <div className="flex items-baseline gap-1">
+              <div
+                className={`flex flex-col gap-1.5 rounded-2xl border p-4 backdrop-blur-md ${
+                  scorecard.craftScore === 0.0
+                    ? "border-rose-500/50 bg-rose-950/25"
+                    : scorecard.craftScore < 7.5
+                      ? "border-amber-500/50 bg-amber-950/25"
+                      : "border-border/80 bg-card/75"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    2. Algorithmic Craft
+                  </span>
+                  <span
+                    className={`font-mono text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${
+                      scorecard.craftScore === 0.0
+                        ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
+                        : scorecard.craftScore < 7.5
+                          ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
+                          : "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
+                    }`}
+                  >
+                    {scorecard.craftVerdict}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1 mt-1">
                   <span className="text-3xl font-black text-foreground font-display">{scorecard.craftScore}</span>
                   <span className="font-mono text-xs text-muted-foreground">/ 10</span>
                 </div>
                 <p className="font-mono text-[11px] text-muted-foreground mt-1">
-                  Completed all 3 progression tiers from Brute Force to Optimal with {hintsUsed} hint{hintsUsed === 1 ? "" : "s"} used.
+                  {completedTiers.length === 0
+                    ? "Completed 0 of 3 progression tiers. No working solution submitted."
+                    : completedTiers.length === 1
+                      ? `Completed Tier 1 (Brute Force) only. Failed to optimize (${hintsUsed} hint${hintsUsed === 1 ? "" : "s"} used).`
+                      : completedTiers.length === 2
+                        ? `Completed Tiers 1 & 2. Missed optimal Tier 3 complexity (${hintsUsed} hint${hintsUsed === 1 ? "" : "s"} used).`
+                        : `Completed all 3 progression tiers from Brute Force to Optimal (${hintsUsed} hint${hintsUsed === 1 ? "" : "s"} used).`}
                 </p>
               </div>
 
               {/* Pillar 3: Proctoring & Integrity */}
-              <div className="flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-card/75 p-4 backdrop-blur-md">
-                <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  3. Proctoring & Integrity
-                </span>
-                <div className="flex items-baseline gap-1">
+              <div
+                className={`flex flex-col gap-1.5 rounded-2xl border p-4 backdrop-blur-md ${
+                  scorecard.integrityScore <= 5.0
+                    ? "border-rose-500/50 bg-rose-950/25"
+                    : scorecard.integrityScore < 9.0
+                      ? "border-amber-500/50 bg-amber-950/25"
+                      : "border-border/80 bg-card/75"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    3. Proctoring &amp; Integrity
+                  </span>
+                  <span
+                    className={`font-mono text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${
+                      scorecard.integrityScore <= 5.0
+                        ? "bg-rose-950/60 border-rose-500/50 text-rose-300"
+                        : scorecard.integrityScore < 9.0
+                          ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
+                          : "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
+                    }`}
+                  >
+                    {scorecard.integrityVerdict}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1 mt-1">
                   <span className="text-3xl font-black text-foreground font-display">{scorecard.integrityScore}</span>
                   <span className="font-mono text-xs text-muted-foreground">/ 10</span>
                 </div>
                 <p className="font-mono text-[11px] text-muted-foreground mt-1">
                   {strikes === 0 ? "Flawless compliance. 0 window switches or blurs." : `${strikes} proctoring warning/strike penalty applied.`}
                 </p>
+              </div>
+            </div>
+
+            {/* FAANG HIRING COMMITTEE DEBRIEF & BRUTAL CRITIQUE */}
+            <div className="rounded-2xl border-2 border-rose-500/40 bg-card/90 p-5 backdrop-blur-md shadow-xl flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-8 items-center justify-center rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-400">
+                    <FileWarning className="size-4.5" />
+                  </div>
+                  <div>
+                    <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                      FAANG Hiring Committee Debrief &amp; Unfiltered Critique
+                    </h3>
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      Simulated Staff/Senior Interviewer calibration packet submitted to the hiring bar raiser.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 font-mono text-[10px] font-black border ${
+                      scorecard.committeeConsensus.includes("REJECT")
+                        ? "bg-rose-950/60 border-rose-500/60 text-rose-300"
+                        : scorecard.committeeConsensus.includes("STRONG HIRE")
+                          ? "bg-emerald-950/60 border-emerald-500/60 text-emerald-300"
+                          : "bg-amber-950/60 border-amber-500/60 text-amber-300"
+                    }`}
+                  >
+                    Consensus: {scorecard.committeeConsensus}
+                  </span>
+                  <span className="rounded-full bg-muted/40 border border-border/60 px-2.5 py-1 font-mono text-[10px] text-muted-foreground">
+                    {scorecard.levelCalibration}
+                  </span>
+                </div>
+              </div>
+
+              {/* Unvarnished Packet Notes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 font-mono text-xs">
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5 flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Code2 className="size-3.5 text-primary" /> Technical Problem-Solving Packet
+                  </span>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {scorecard.craftCritique}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5 flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Mic className="size-3.5 text-cyan-400" /> Think-Out-Loud Communication Packet
+                  </span>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {scorecard.confidenceCritique}
+                  </p>
+                </div>
+              </div>
+
+              {/* Identified Red Flags (No Sugarcoating) */}
+              {(speakingSeconds === 0 || completedTiers.length === 0 || referenceSolutionsViewedCount > 0 || strikes > 0 || isDisqualified || isForfeited) && (
+                <div className="rounded-xl border border-rose-500/50 bg-rose-950/20 p-3.5 flex flex-col gap-2 font-mono text-xs">
+                  <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <AlertTriangle className="size-3.5 text-rose-400" /> Critical Red Flags Detected During Observation
+                  </span>
+                  <ul className="flex flex-col gap-1 text-[11px] text-rose-200/90 list-disc list-inside">
+                    {speakingSeconds === 0 && (
+                      <li>
+                        <strong>Microphone Mute / Complete Silence:</strong> Candidate did not verbalize thoughts or explain code. Instant failure at Google/Meta.
+                      </li>
+                    )}
+                    {completedTiers.length === 0 && (
+                      <li>
+                        <strong>No Executable Solution Delivered:</strong> Failed to validate even Tier 1 brute-force test cases.
+                      </li>
+                    )}
+                    {referenceSolutionsViewedCount > 0 && (
+                      <li>
+                        <strong>Reference Answer Manual Consulted ({referenceSolutionsViewedCount}x):</strong> Looked at canonical solutions during live solving (-{ (referenceSolutionsViewedCount * 3).toFixed(1) } pts).
+                      </li>
+                    )}
+                    {strikes > 0 && (
+                      <li>
+                        <strong>Proctoring Window Focus Lost ({strikes}/3):</strong> Tab switching or viewport blur recorded.
+                      </li>
+                    )}
+                    {isForfeited && (
+                      <li>
+                        <strong>Interview Abandonment:</strong> Voluntarily terminated without attempting optimal resolution.
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {/* Prescribed Remediation Drills */}
+              <div className="rounded-xl border border-border/60 bg-muted/15 p-3.5 flex flex-col gap-1.5 font-mono text-xs">
+                <span className="text-[10px] font-bold text-foreground uppercase tracking-wider">
+                  Mandatory Training Drills Before Real FAANG Onsites
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+                  <div className="rounded-lg border border-border/50 bg-background/50 p-2">
+                    <strong className="text-foreground block mb-0.5">1. Verbalize Invariants</strong>
+                    Explain time/space trade-offs out loud before typing a single line of code.
+                  </div>
+                  <div className="rounded-lg border border-border/50 bg-background/50 p-2">
+                    <strong className="text-foreground block mb-0.5">2. Strict Independence</strong>
+                    Never open solutions or hints during practice; build independent derivation stamina.
+                  </div>
+                  <div className="rounded-lg border border-border/50 bg-background/50 p-2">
+                    <strong className="text-foreground block mb-0.5">3. 8-Minute Baseline</strong>
+                    Always write an initial brute-force routine within 8 minutes so you never score zero.
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -2511,7 +2933,7 @@ STRICT LAWS:
                   </div>
                   <div>
                     <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
-                      Candidate Speech Communication & Voice Analysis
+                      Candidate Speech Communication &amp; Voice Analysis
                     </h3>
                     <p className="font-mono text-[10px] text-muted-foreground">
                       Real-time microphone telemetry, verbal question asking, and speech cadence under proctoring.
@@ -2521,18 +2943,22 @@ STRICT LAWS:
                 <div className="flex items-center gap-2">
                   <span
                     className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-black border ${
-                      scorecard.confidenceScore >= 8.5
-                        ? "bg-emerald-950/50 border-emerald-500/50 text-emerald-300"
-                        : scorecard.confidenceScore >= 7.0
-                          ? "bg-cyan-950/50 border-cyan-500/50 text-cyan-300"
-                          : "bg-amber-950/50 border-amber-500/50 text-amber-300"
+                      speakingSeconds === 0
+                        ? "bg-rose-950/60 border-rose-500/60 text-rose-300"
+                        : scorecard.confidenceScore >= 8.5
+                          ? "bg-emerald-950/50 border-emerald-500/50 text-emerald-300"
+                          : scorecard.confidenceScore >= 6.0
+                            ? "bg-cyan-950/50 border-cyan-500/50 text-cyan-300"
+                            : "bg-rose-950/50 border-rose-500/50 text-rose-300"
                     }`}
                   >
-                    {scorecard.confidenceScore >= 8.5
-                      ? "High Speech Confidence"
-                      : scorecard.confidenceScore >= 7.0
-                        ? "Clear & Steady Communicator"
-                        : "Moderate Verbalization"}
+                    {speakingSeconds === 0
+                      ? "Silent / Muted (0.5 / 10)"
+                      : scorecard.confidenceScore >= 8.5
+                        ? "High Speech Confidence"
+                        : scorecard.confidenceScore >= 6.0
+                          ? "Clear & Steady Communicator"
+                          : "Severe Speech Deficit"}
                   </span>
                 </div>
               </div>
@@ -2541,7 +2967,7 @@ STRICT LAWS:
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono text-xs">
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-3 flex flex-col gap-1">
                   <span className="text-[10px] text-muted-foreground uppercase">Speaking Duration</span>
-                  <span className="text-base font-bold text-foreground">{speakingSeconds}s</span>
+                  <span className={`text-base font-bold ${speakingSeconds === 0 ? "text-rose-400" : "text-foreground"}`}>{speakingSeconds}s</span>
                   <span className="text-[9px] text-muted-foreground">Verbal explanation time</span>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-3 flex flex-col gap-1">
@@ -2551,12 +2977,12 @@ STRICT LAWS:
                 </div>
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-3 flex flex-col gap-1">
                   <span className="text-[10px] text-muted-foreground uppercase">Confidence Score</span>
-                  <span className="text-base font-bold text-emerald-400">{scorecard.confidenceScore} / 10</span>
-                  <span className="text-[9px] text-muted-foreground">Cadence & delivery</span>
+                  <span className={`text-base font-bold ${scorecard.confidenceScore <= 3.5 ? "text-rose-400" : "text-emerald-400"}`}>{scorecard.confidenceScore} / 10</span>
+                  <span className="text-[9px] text-muted-foreground">Cadence &amp; delivery</span>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-3 flex flex-col gap-1">
                   <span className="text-[10px] text-muted-foreground uppercase">Reference Consults</span>
-                  <span className="text-base font-bold text-amber-300">{referenceSolutionsViewedCount}</span>
+                  <span className={`text-base font-bold ${referenceSolutionsViewedCount > 0 ? "text-rose-400" : "text-emerald-400"}`}>{referenceSolutionsViewedCount}</span>
                   <span className="text-[9px] text-muted-foreground">Solution views used</span>
                 </div>
               </div>
@@ -2587,7 +3013,7 @@ STRICT LAWS:
                 <div className="flex flex-col gap-2 border-t border-border/60 pt-3 font-mono text-xs">
                   <span className="font-bold text-foreground flex items-center gap-1.5">
                     <Radio className="size-3.5 text-primary" />
-                    Spoken Technical Doubts & Real-Time Interviewer Answers ({candidateSpokenUtterances.length})
+                    Spoken Technical Doubts &amp; Real-Time Interviewer Answers ({candidateSpokenUtterances.length})
                   </span>
                   <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
                     {candidateSpokenUtterances.map((utt, i) => (
@@ -2622,16 +3048,47 @@ STRICT LAWS:
                 {([1, 2, 3] as const).map((tNum) => {
                   const tSpec = problem.tiers[tNum];
                   const duration = tierDurations[tNum] || 0;
+                  const isPassed = completedTiers.includes(tNum);
+                  const isCurrentFailed =
+                    (!isPassed && currentTier === tNum) || (!isPassed && tNum === 1 && completedTiers.length === 0);
+                  const isLocked = !isPassed && !isCurrentFailed;
 
                   return (
-                    <div key={tNum} className="rounded-xl border border-emerald-500/40 bg-emerald-950/20 p-3 flex flex-col gap-1.5">
+                    <div
+                      key={tNum}
+                      className={`rounded-xl border p-3 flex flex-col gap-1.5 transition-all ${
+                        isPassed
+                          ? "border-emerald-500/40 bg-emerald-950/20"
+                          : isCurrentFailed
+                            ? "border-rose-500/50 bg-rose-950/25"
+                            : "border-border/60 bg-muted/10 opacity-50"
+                      }`}
+                    >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-emerald-300">Tier {tNum}: {tSpec.name}</span>
-                        <span className="text-[10px] text-muted-foreground">{duration}s</span>
+                        <span className={`font-bold ${isPassed ? "text-emerald-300" : isCurrentFailed ? "text-rose-300" : "text-muted-foreground"}`}>
+                          Tier {tNum}: {tSpec.name}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">{isPassed ? `${duration}s` : "0s"}</span>
                       </div>
                       <span className="text-[10px] text-muted-foreground">Target: {tSpec.complexityTag}</span>
-                      <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 mt-1">
-                        <CheckCircle2 className="size-3" /> Successfully Validated
+                      <span
+                        className={`text-[10px] font-bold flex items-center gap-1 mt-1 ${
+                          isPassed ? "text-emerald-400" : isCurrentFailed ? "text-rose-400" : "text-muted-foreground"
+                        }`}
+                      >
+                        {isPassed ? (
+                          <>
+                            <CheckCircle2 className="size-3" /> Successfully Validated
+                          </>
+                        ) : isCurrentFailed ? (
+                          <>
+                            <XCircle className="size-3" /> Failed / Not Solved
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="size-3" /> Unreached (Locked)
+                          </>
+                        )}
                       </span>
                     </div>
                   );
@@ -2644,9 +3101,21 @@ STRICT LAWS:
               <Button
                 onClick={() => {
                   setPhase("pre-check");
+                  setIsDisqualified(false);
+                  setIsForfeited(false);
+                  setCompletedTiers([]);
+                  setCurrentTier(1);
+                  setHintsUsed(0);
+                  setReferenceSolutionsViewedCount(0);
+                  setCandidateSpokenUtterances([]);
+                  setSpeakingSeconds(0);
+                  setStrikes(0);
+                  setRatingUpdate(null);
+                  setTestRunResults(null);
+                  hasSavedSessionRef.current = false;
                   handleRandomizeProblem();
                 }}
-                className="font-mono text-xs font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2"
+                className="font-mono text-xs font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2 cursor-pointer"
               >
                 <RotateCcw className="size-4" /> Practice Another Random Question
               </Button>
@@ -2657,6 +3126,45 @@ STRICT LAWS:
               >
                 Return to Dashboard
               </Link>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* FORFEIT / CONCEDE CONFIRMATION MODAL                                    */}
+        {/* ========================================================================= */}
+        {showForfeitModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="relative w-full max-w-md rounded-2xl border-2 border-rose-500/60 bg-card p-6 shadow-2xl flex flex-col gap-4">
+              <div className="flex items-center gap-3 border-b border-border/70 pb-3">
+                <div className="size-10 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertOctagon className="size-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-base">Concede / Forfeit Interview?</h3>
+                  <span className="font-mono text-xs text-rose-400 font-semibold">Strict FAANG Penalty Warning</span>
+                </div>
+              </div>
+              <p className="font-mono text-xs text-muted-foreground leading-relaxed">
+                Are you sure you want to concede this session early? In real technical screens, walking away without delivering working solutions results in an immediate <strong className="text-rose-400">STRONG NO HIRE</strong> and an unhedged <strong className="text-rose-400">-22 pt rating deduction</strong>.
+              </p>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowForfeitModal(false)}
+                  className="font-mono text-xs cursor-pointer"
+                >
+                  Cancel &amp; Continue Coding
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmForfeit}
+                  className="font-mono text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer"
+                >
+                  Confirm Forfeiture
+                </Button>
+              </div>
             </div>
           </div>
         )}

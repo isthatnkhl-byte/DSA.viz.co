@@ -15,7 +15,7 @@ export interface InterviewSessionRecord {
   previousRating: number; // 0 - 100
   newRating: number; // 0 - 100
   ratingDelta: number;
-  status: "PASSED" | "DISQUALIFIED";
+  status: "PASSED" | "FAILED" | "DISQUALIFIED" | "ABANDONED";
 }
 
 const STORAGE_RATING_KEY = "dsa_interview_rating";
@@ -55,7 +55,8 @@ export function getLocalInterviewHistory(): InterviewSessionRecord[] {
 
 /**
  * Saves the outcome of an interview session, calculates rating adjustments,
- * penalizes rating on disqualification (3 strikes), and persists across storage & Firestore.
+ * penalizes rating harshly on disqualification, abandonment, or zero-tier submissions,
+ * and persists across storage & Firestore.
  */
 export async function saveInterviewSession(params: {
   problemId: string;
@@ -66,6 +67,8 @@ export async function saveInterviewSession(params: {
   integrityScore: number;
   strikes: number;
   isDisqualified: boolean;
+  isAbandoned?: boolean;
+  completedTiersCount?: number;
   userId?: string | null;
 }): Promise<{
   previousRating: number;
@@ -76,27 +79,46 @@ export async function saveInterviewSession(params: {
   const previousRating = getLocalInterviewRating();
   let ratingDelta = 0;
 
-  if (params.isDisqualified || params.strikes >= 3) {
-    // 3 strikes / Disqualification penalty: -20 rating points
-    ratingDelta = -20;
-  } else {
-    // Session performance scaled to 100 (e.g. 8.5 / 10 -> 85 / 100)
-    const sessionPerformance = Math.round(params.compositeScore * 10);
-    // Strike deduction: -3 per minor strike before disqualification
-    const strikeDeduction = params.strikes * 3;
-    const adjustedPerformance = Math.max(20, sessionPerformance - strikeDeduction);
+  const isDisqualified = Boolean(params.isDisqualified || params.strikes >= 3);
+  const isAbandoned = Boolean(params.isAbandoned);
+  const completedTiers =
+    params.completedTiersCount ??
+    (params.craftScore >= 8.5 ? 3 : params.craftScore >= 6.0 ? 2 : params.craftScore >= 3.0 ? 1 : 0);
 
-    // Weighted delta adjustment (30% weight towards session performance)
-    const rawDelta = Math.round((adjustedPerformance - previousRating) * 0.35);
-    // Ensure positive reinforcement on strong performance
-    if (adjustedPerformance >= previousRating) {
-      ratingDelta = Math.max(1, rawDelta);
-    } else {
-      ratingDelta = Math.min(-1, rawDelta);
-    }
+  let status: "PASSED" | "FAILED" | "DISQUALIFIED" | "ABANDONED";
+
+  if (isDisqualified) {
+    status = "DISQUALIFIED";
+    ratingDelta = -25;
+  } else if (isAbandoned) {
+    status = "ABANDONED";
+    ratingDelta = -22;
+  } else if (completedTiers === 0 || params.compositeScore < 3.5) {
+    // Zero working code or fatal failure
+    status = "FAILED";
+    ratingDelta = -20;
+  } else if (params.compositeScore < 5.5) {
+    // Deficient performance (No Hire)
+    status = "FAILED";
+    ratingDelta = -14;
+  } else if (params.compositeScore < 7.5) {
+    // Leaning No Hire
+    status = "FAILED";
+    ratingDelta = -8;
+  } else if (params.compositeScore < 8.5 || completedTiers < 3) {
+    // Leaning Hire (Marginal Pass)
+    status = "PASSED";
+    const rawDelta = Math.round((params.compositeScore * 10 - previousRating) * 0.25);
+    ratingDelta = Math.max(1, rawDelta);
+  } else {
+    // Strong Hire (All 3 tiers completed optimal, articulate speech)
+    status = "PASSED";
+    const rawDelta = Math.round((params.compositeScore * 10 - previousRating) * 0.4);
+    ratingDelta = Math.max(3, rawDelta);
   }
 
-  const newRating = Math.min(100, Math.max(15, previousRating + ratingDelta));
+  // Realistic competitive rating scale [0, 100]
+  const newRating = Math.min(100, Math.max(0, previousRating + ratingDelta));
 
   const record: InterviewSessionRecord = {
     id: `interview_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -108,11 +130,11 @@ export async function saveInterviewSession(params: {
     craftScore: params.craftScore,
     integrityScore: params.integrityScore,
     strikes: params.strikes,
-    isDisqualified: params.isDisqualified || params.strikes >= 3,
+    isDisqualified,
     previousRating,
     newRating,
     ratingDelta,
-    status: params.isDisqualified || params.strikes >= 3 ? "DISQUALIFIED" : "PASSED",
+    status,
   };
 
   // 1. Persist to LocalStorage

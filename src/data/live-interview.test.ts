@@ -107,26 +107,59 @@ test("generateLocalSocraticAnswer - refuses to give code and provides accurate S
   assert.ok(returnAnswer.toLowerCase().includes("indices"), "Should specify indices are returned");
 });
 
-test("Interview Rating System - penalizes 3 strikes and rewards strong positive performance", async () => {
+test("Interview Rating System - severely penalizes disqualification, zero tiers, and abandonment", async () => {
   const { saveInterviewSession } = await import("../lib/interview-rating");
 
-  // 1. Test 3-strike disqualification penalty
+  // 1. Test 3-strike disqualification penalty (-25 pts)
   const disqResult = await saveInterviewSession({
     problemId: "two-sum",
     problemTitle: "Two Sum",
-    compositeScore: 4.0,
-    confidenceScore: 5.0,
-    craftScore: 3.5,
-    integrityScore: 2.0,
+    compositeScore: 0.5,
+    confidenceScore: 0.5,
+    craftScore: 0.0,
+    integrityScore: 0.0,
     strikes: 3,
     isDisqualified: true,
   });
 
-  assert.ok(disqResult.ratingDelta < 0, "Rating delta must be negative on 3 strikes disqualification");
+  assert.equal(disqResult.ratingDelta, -25, "Rating delta must be -25 on 3 strikes disqualification");
   assert.equal(disqResult.record.status, "DISQUALIFIED", "Status should be marked DISQUALIFIED");
-  assert.equal(disqResult.newRating, disqResult.previousRating + disqResult.ratingDelta, "New rating must reflect drop");
+  assert.equal(disqResult.newRating, Math.max(0, disqResult.previousRating + disqResult.ratingDelta));
 
-  // 2. Test strong positive performance maintaining / boosting /100 rating
+  // 2. Test candidate concession / early abandonment (-22 pts)
+  const forfeitResult = await saveInterviewSession({
+    problemId: "two-sum",
+    problemTitle: "Two Sum",
+    compositeScore: 1.0,
+    confidenceScore: 0.5,
+    craftScore: 0.0,
+    integrityScore: 8.0,
+    strikes: 0,
+    isDisqualified: false,
+    isAbandoned: true,
+    completedTiersCount: 0,
+  });
+
+  assert.equal(forfeitResult.ratingDelta, -22, "Rating delta must be -22 on early abandonment");
+  assert.equal(forfeitResult.record.status, "ABANDONED", "Status should be marked ABANDONED");
+
+  // 3. Test zero tiers completed / unsubmitted code (-20 pts)
+  const zeroTiersResult = await saveInterviewSession({
+    problemId: "two-sum",
+    problemTitle: "Two Sum",
+    compositeScore: 1.2,
+    confidenceScore: 0.5,
+    craftScore: 0.0,
+    integrityScore: 10.0,
+    strikes: 0,
+    isDisqualified: false,
+    completedTiersCount: 0,
+  });
+
+  assert.equal(zeroTiersResult.ratingDelta, -20, "Rating delta must be -20 when zero tiers are completed");
+  assert.equal(zeroTiersResult.record.status, "FAILED", "Status should be marked FAILED");
+
+  // 4. Test strong positive performance maintaining / boosting /100 rating
   const passResult = await saveInterviewSession({
     problemId: "two-sum",
     problemTitle: "Two Sum",
@@ -136,9 +169,10 @@ test("Interview Rating System - penalizes 3 strikes and rewards strong positive 
     integrityScore: 10.0,
     strikes: 0,
     isDisqualified: false,
+    completedTiersCount: 3,
   });
 
-  assert.ok(passResult.ratingDelta >= 1, "Strong positive interview should boost / maintain rating");
+  assert.ok(passResult.ratingDelta >= 3, "Strong positive interview should boost rating significantly");
   assert.equal(passResult.record.status, "PASSED", "Status should be PASSED");
   assert.ok(passResult.newRating <= 100, "Rating must be capped at 100");
 });

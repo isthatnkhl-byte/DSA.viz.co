@@ -10,6 +10,7 @@ import { processReviewPseudocode, processDatasetVisualization } from './src/lib/
 import { processPlaygroundReview } from './src/lib/playground.functions';
 import { runSecureCpp } from './src/lib/compiler/index';
 import { evaluateInterviewSubmission } from './src/lib/server-interview-evaluator';
+import { generateLocalSocraticAnswer, LIVE_INTERVIEW_PROBLEMS } from './src/data/live-interview-problems';
 import { fetchLeetCodeStats } from './src/lib/leetcode-service';
 import { statementForSlug } from './src/lib/statements';
 import localStatementsJson from './src/data/statements.json';
@@ -1336,6 +1337,97 @@ app.post("/api/interview/execute", apiLimiter, async (req: Request, res: Respons
       compilerError: err?.message || "Internal execution failure",
     });
   }
+});
+
+// Live Interview Socratic Question Answering Endpoint
+const interviewChatSchema = z.object({
+  question: z.string().min(1),
+  problemTitle: z.string().default("DSA Technical Interview"),
+  problemSlug: z.string().default("two-sum"),
+  difficulty: z.string().default("Medium"),
+  category: z.string().default("Algorithms"),
+  currentTier: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(1),
+  tierName: z.string().default("Brute Force"),
+  tierComplexity: z.string().default("O(N^2)"),
+  tierObjective: z.string().default(""),
+  constraints: z.array(z.string()).default([]),
+  userCode: z.string().optional(),
+});
+
+app.post("/api/interview/chat", aiLimiter, async (req: Request, res: Response) => {
+  const parsed = interviewChatSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid interview chat payload", details: parsed.error.format() });
+  }
+
+  const {
+    question,
+    problemTitle,
+    problemSlug,
+    difficulty,
+    category,
+    currentTier,
+    tierName,
+    tierComplexity,
+    tierObjective,
+    constraints,
+    userCode,
+  } = parsed.data;
+
+  const systemInstruction = `You are a real, highly experienced Senior/Staff Technical Interviewer at a FAANG company (Google/Meta/Apple) conducting a live DSA coding assessment on "${problemTitle}" (${difficulty}, ${category}).
+Active Tier: Tier ${currentTier} (${tierName}, Target: ${tierComplexity}).
+Tier Objective: ${tierObjective || "Solve the problem within specified constraints"}.
+Constraints: ${constraints.join("; ") || "Standard constraints apply"}.
+${userCode ? `Candidate Code in Editor:\n\`\`\`\n${userCode.slice(0, 1000)}\n\`\`\`` : ""}
+
+INTERVIEWER LAWS:
+1. Speak naturally, directly, and conversationally in 1 to 3 concise spoken sentences.
+2. Directly answer candidate questions about inputs, types, return formats, duplicates, negative numbers, edge cases, data structures, or trade-offs.
+3. NEVER recite robotic phrases like "Good question now solve tier 1 brute force". Actually engage with the technical point they asked.
+4. Do NOT write full solution code for them, but provide clear, Socratic guidance and technical clarity.`;
+
+  let replyText = "";
+  try {
+    const ai = getGeminiClient();
+    const candidateModels = ["gemini-3.1-flash-lite", "gemini-2.0-flash", "gemini-flash-latest", "gemini-3.8-flash"];
+
+    for (const model of candidateModels) {
+      try {
+        const resp = await ai.models.generateContent({
+          model,
+          contents: [{ role: "user", parts: [{ text: question }] }],
+          config: {
+            systemInstruction,
+            temperature: 0.55,
+          },
+        });
+        if (resp.text && resp.text.trim().length > 5) {
+          replyText = resp.text.trim();
+          break;
+        }
+      } catch {
+        // Try next candidate model
+      }
+    }
+  } catch {
+    // API client exception or unconfigured key
+  }
+
+  if (!replyText) {
+    const matchedProblem =
+      LIVE_INTERVIEW_PROBLEMS.find(
+        (p) => p.slug === problemSlug || p.id === problemSlug || p.title.toLowerCase() === problemTitle.toLowerCase()
+      ) || LIVE_INTERVIEW_PROBLEMS[0]!;
+
+    replyText = generateLocalSocraticAnswer(question.toLowerCase().trim(), matchedProblem, currentTier);
+  }
+
+  return res.json({
+    answer: replyText,
+    content: replyText,
+    role: "interviewer",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // GitHub OAuth Lifecycle

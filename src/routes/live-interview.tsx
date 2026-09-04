@@ -58,6 +58,13 @@ import {
   type LiveInterviewProblem,
   type ProblemTier,
 } from "@/data/live-interview-problems";
+import {
+  type VoiceProfileId,
+  type VoiceProfile,
+  VOICE_PROFILES,
+  cleanTextForHumanSpeech,
+  findBestVoice,
+} from "@/lib/interview-speech";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/live-interview")({
@@ -138,6 +145,71 @@ function LiveInterviewPage() {
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [dialogueLog, setDialogueLog] = useState<DialogueEntry[]>([]);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceProfile, setSelectedVoiceProfile] = useState<VoiceProfileId>("alex-male");
+
+  // Real-time browser voice synchronization
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    const syncVoices = () => {
+      const v = window.speechSynthesis.getVoices();
+      if (v && v.length > 0) {
+        setAvailableVoices(v);
+      }
+    };
+
+    syncVoices();
+    window.speechSynthesis.onvoiceschanged = syncVoices;
+
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, []);
+
+  // Quick voice audition for candidate pre-check
+  const testVoiceProfile = useCallback(
+    (profileId: VoiceProfileId) => {
+      if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        const testPhrase =
+          profileId === "alex-male"
+            ? "Hello! I'm Alex. Let's analyze your algorithmic approach and time complexity today."
+            : profileId === "sarah-female"
+            ? "Hi there! I'm Sarah. I'll be your interviewer today. Focus on edge cases and optimal data structures."
+            : profileId === "david-british"
+            ? "Good day! I'm David. Walk me through your thoughts and invariant reasoning as you code."
+            : "Hello! System voice check complete. We are ready to begin your technical interview.";
+
+        const utterance = new SpeechSynthesisUtterance(testPhrase);
+        const currentVoices = availableVoices.length > 0 ? availableVoices : window.speechSynthesis.getVoices();
+        const bestVoice = findBestVoice(currentVoices, profileId);
+        if (bestVoice) utterance.voice = bestVoice;
+
+        if (profileId === "alex-male") {
+          utterance.rate = 1.02;
+          utterance.pitch = 0.98;
+        } else if (profileId === "sarah-female") {
+          utterance.rate = 1.02;
+          utterance.pitch = 1.02;
+        } else if (profileId === "david-british") {
+          utterance.rate = 0.98;
+          utterance.pitch = 0.97;
+        } else {
+          utterance.rate = 1.0;
+          utterance.pitch = 1.0;
+        }
+
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn("Test voice error:", err);
+      }
+    },
+    [availableVoices],
+  );
 
   // Spoken Voice Questions & Audio Inquiry State
   const [candidateSpeechTranscript, setCandidateSpeechTranscript] = useState("");
@@ -278,12 +350,12 @@ function LiveInterviewPage() {
     }
   }, [code, language, currentTier, problem]);
 
-  // Voice Synthesizer Helper
+  // Voice Synthesizer Helper with Natural Voicepack Tuning
   const speakAloud = useCallback(
     (text: string) => {
       if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
 
-      // Add to dialogue log
+      // Add to dialogue log (preserves markdown in UI transcript)
       const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       setDialogueLog((prev) => [...prev, { speaker: "interviewer", text, timestamp: timeStr }]);
 
@@ -291,16 +363,28 @@ function LiveInterviewPage() {
 
       try {
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.98;
-        utterance.pitch = 0.95;
+        const spokenText = cleanTextForHumanSpeech(text);
+        const utterance = new SpeechSynthesisUtterance(spokenText);
 
-        // Try selecting an English voice
-        const voices = window.speechSynthesis.getVoices();
-        const naturalVoice =
-          voices.find((v) => v.lang.startsWith("en") && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Samantha") || v.name.includes("Daniel"))) ||
-          voices.find((v) => v.lang.startsWith("en"));
-        if (naturalVoice) utterance.voice = naturalVoice;
+        // Select natural human voicepack
+        const currentVoices = availableVoices.length > 0 ? availableVoices : window.speechSynthesis.getVoices();
+        const bestVoice = findBestVoice(currentVoices, selectedVoiceProfile);
+        if (bestVoice) utterance.voice = bestVoice;
+
+        // Custom pitch & rate profile for human cadence
+        if (selectedVoiceProfile === "alex-male") {
+          utterance.rate = 1.02;
+          utterance.pitch = 0.98;
+        } else if (selectedVoiceProfile === "sarah-female") {
+          utterance.rate = 1.02;
+          utterance.pitch = 1.02;
+        } else if (selectedVoiceProfile === "david-british") {
+          utterance.rate = 0.98;
+          utterance.pitch = 0.97;
+        } else {
+          utterance.rate = 1.0;
+          utterance.pitch = 1.0;
+        }
 
         utterance.onstart = () => {
           isAiSpeakingRef.current = true;
@@ -343,7 +427,7 @@ function LiveInterviewPage() {
         console.warn("Speech synthesis error:", err);
       }
     },
-    [isAiMuted, phase],
+    [isAiMuted, phase, availableVoices, selectedVoiceProfile],
   );
 
   // High-Precision Real-Time Time-Domain RMS and Multi-Band Frequency Audio Monitoring
@@ -652,49 +736,58 @@ function LiveInterviewPage() {
             ...prev,
           ]);
         } else {
-          // 2. Call backend /api/chat with strict Socratic interviewer instructions
+          // 2. Call backend /api/interview/chat with candidate code, constraints, and active tier context
           let aiResponseText = "";
           try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-            const res = await fetch("/api/chat", {
+            const res = await fetch("/api/interview/chat", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               signal: controller.signal,
               body: JSON.stringify({
-                messages: [{ role: "user", content: q }],
-                role: "interviewer",
-                context: {
-                  problemTitle: problem.title,
-                  problemSlug: problem.slug,
-                  difficulty: problem.difficulty,
-                  category: problem.category,
-                  constraints: problem.constraints,
-                  currentTier,
-                  tierName: problem.tiers[currentTier].name,
-                  tierComplexity: problem.tiers[currentTier].complexityTag,
-                  tierObjective: problem.tiers[currentTier].objective,
-                },
-                systemInstruction: `You are an elite, strict Socratic Technical Interviewer at a tier-1 company. The candidate is speaking to you over their microphone during a live coding interview on problem: "${problem.title}".
-Active Tier: Tier ${currentTier} (${problem.tiers[currentTier].name}, Target: ${problem.tiers[currentTier].complexityTag}).
-Tier Objective: ${problem.tiers[currentTier].objective}.
-Problem Constraints: ${problem.constraints.join("; ")}.
-
-STRICT LAWS:
-1. Limit your spoken answer to 1 to 3 concise, natural sentences.
-2. Answer candidate doubts about inputs, types, return format, edge cases, and algorithmic direction in real time.
-3. NEVER GIVE AWAY THE CODE OR DIRECT SOLUTION. Do not write the full code for them.
-4. STRICT CONTEXT: Only discuss this DSA problem, its constraints, or the candidate's algorithmic reasoning. If they ask about unrelated topics, politely redirect them back to the problem immediately.
-5. If they ask for a hint, provide a gentle Socratic nudge without spoiling the algorithm.`,
+                question: q,
+                problemTitle: problem.title,
+                problemSlug: problem.slug,
+                difficulty: problem.difficulty,
+                category: problem.category,
+                currentTier,
+                tierName: problem.tiers[currentTier].name,
+                tierComplexity: problem.tiers[currentTier].complexityTag,
+                tierObjective: problem.tiers[currentTier].objective,
+                constraints: problem.constraints,
+                userCode: code,
               }),
             });
 
             clearTimeout(timeoutId);
             if (res.ok) {
               const data = await res.json();
-              if (data && data.content) {
-                aiResponseText = data.content.trim();
+              const reply = data?.content || data?.answer;
+              if (reply) {
+                aiResponseText = reply.trim();
+              }
+            } else {
+              // Fallback to /api/chat if dedicated endpoint returns non-OK
+              const fallbackRes = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  messages: [{ role: "user", content: q }],
+                  role: "interviewer",
+                  context: {
+                    problemTitle: problem.title,
+                    currentTier,
+                    objective: problem.tiers[currentTier].objective,
+                  },
+                }),
+              });
+              if (fallbackRes.ok) {
+                const fbData = await fallbackRes.json();
+                if (fbData && fbData.content) {
+                  aiResponseText = fbData.content.trim();
+                }
               }
             }
           } catch {
@@ -704,7 +797,7 @@ STRICT LAWS:
           if (aiResponseText && aiResponseText.length > 10) {
             socraticAnswer = aiResponseText;
           } else {
-            // Local Socratic Intelligence Engine (Instant 0ms Fallback)
+            // Local Socratic Intelligence Engine (Instant 0ms Problem-Aware Fallback)
             socraticAnswer = generateLocalSocraticAnswer(lowerQ, problem, currentTier);
           }
         }
@@ -720,7 +813,7 @@ STRICT LAWS:
         setIsProcessingQuestion(false);
       }
     },
-    [problem, currentTier, lastCandidateQuestion, speakAloud],
+    [problem, currentTier, lastCandidateQuestion, speakAloud, code],
   );
 
   // Web Speech Recognition: Real-time Audio Listener
@@ -1584,6 +1677,68 @@ STRICT LAWS:
               </div>
             </div>
 
+            {/* Interviewer Persona & Human Voicepack Selection */}
+            <div className="rounded-xl border border-border/80 bg-card/60 p-4 backdrop-blur-sm flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="size-4 text-cyan-400" />
+                  <span className="font-mono text-xs font-bold text-foreground">
+                    Interviewer Persona & Human Voicepack
+                  </span>
+                </div>
+                <span className="rounded-full bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 font-mono text-[9px] font-bold text-cyan-300">
+                  Neural Natural Audio
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {VOICE_PROFILES.filter((p) => p.id !== "system-natural").map((profile) => {
+                  const isSelected = selectedVoiceProfile === profile.id;
+                  return (
+                    <div
+                      key={profile.id}
+                      onClick={() => setSelectedVoiceProfile(profile.id)}
+                      className={`cursor-pointer rounded-lg border p-3 transition-all flex flex-col justify-between gap-2 text-left ${
+                        isSelected
+                          ? "border-cyan-500/80 bg-cyan-950/40 text-cyan-100 ring-1 ring-cyan-500/50 shadow-sm"
+                          : "border-border/60 bg-card/40 hover:border-border hover:bg-muted/30 text-foreground"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{profile.avatar}</span>
+                          <div>
+                            <div className="font-bold text-xs flex items-center gap-1">
+                              {profile.name}
+                              {isSelected && <Check className="size-3 text-cyan-400" />}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono">{profile.role}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-snug">{profile.description}</p>
+                      <div className="flex items-center justify-between pt-1 border-t border-border/40">
+                        <span className="text-[9px] font-mono text-cyan-400/80">{profile.tag}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedVoiceProfile(profile.id);
+                            testVoiceProfile(profile.id);
+                          }}
+                          className="flex items-center gap-1 rounded border border-cyan-500/40 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-300 px-2 py-0.5 text-[10px] font-mono transition-colors"
+                          title="Test Audition Spoken Voice"
+                        >
+                          <Volume2 className="size-2.5" />
+                          <span>Audition</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Problem Selection Preview (Can re-roll before starting) */}
             <div className="rounded-xl border border-border/80 bg-card/60 p-4 backdrop-blur-sm flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
@@ -1723,6 +1878,22 @@ STRICT LAWS:
                 >
                   {isAiMuted ? <VolumeX className="size-3.5 text-rose-400" /> : <Volume2 className="size-3.5" />}
                 </button>
+
+                {/* Voicepack Selector */}
+                <div className="flex items-center gap-1 rounded-lg border border-border/60 bg-card/60 px-2 py-1 text-xs">
+                  <span className="text-muted-foreground font-mono text-[10px] hidden lg:inline">Voice:</span>
+                  <select
+                    value={selectedVoiceProfile}
+                    onChange={(e) => setSelectedVoiceProfile(e.target.value as VoiceProfileId)}
+                    className="bg-transparent text-[11px] font-medium text-foreground focus:outline-hidden cursor-pointer"
+                    title="Switch AI Interviewer Voicepack"
+                  >
+                    <option value="alex-male" className="bg-background text-foreground">👨‍💻 Alex (US Male)</option>
+                    <option value="sarah-female" className="bg-background text-foreground">👩‍💻 Sarah (US Female)</option>
+                    <option value="david-british" className="bg-background text-foreground">👨‍💼 David (UK Male)</option>
+                    <option value="system-natural" className="bg-background text-foreground">🎙️ System Natural</option>
+                  </select>
+                </div>
 
                 {/* Transcript Drawer Toggle */}
                 <button

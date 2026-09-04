@@ -243,4 +243,72 @@ test("Server Interview Evaluator - validates VM execution for JS/TS submissions"
   assert.equal(result.passedCount, twoSum.tiers[3].testCases.length);
 });
 
+test("cleanTextForHumanSpeech - phoneticizes Big-O notation, code operators, and strips markdown syntax", async () => {
+  const { cleanTextForHumanSpeech } = await import("../lib/interview-speech");
+
+  // 1. Big-O notations converted to natural spoken English
+  assert.equal(cleanTextForHumanSpeech("Target is O(1) space."), "Target is O of 1 space.");
+  assert.equal(cleanTextForHumanSpeech("We need O(N) time."), "We need O of N time.");
+  assert.equal(cleanTextForHumanSpeech("Brute force has O(N^2) complexity."), "Brute force has O of N squared complexity.");
+  assert.equal(cleanTextForHumanSpeech("Better solution uses O(N log N)."), "Better solution uses O of N log N.");
+  assert.equal(cleanTextForHumanSpeech("Unicode exponents O(N²) time."), "Unicode exponents O of N squared time.");
+
+  // 2. Markdown formatting stripped
+  const mdInput = "Consider **hash map** for lookup: `nums[i] === target`.\n- Point 1\n- Point 2";
+  const cleaned = cleanTextForHumanSpeech(mdInput);
+  assert.ok(!cleaned.includes("**"), "Markdown asterisks must be stripped");
+  assert.ok(!cleaned.includes("`"), "Backticks must be stripped");
+  assert.ok(!cleaned.includes("- Point"), "List hyphens must be stripped");
+  assert.ok(cleaned.includes("hash map for lookup"), "Content must be preserved");
+  assert.ok(cleaned.includes("equals"), "Operators must be phoneticized");
+});
+
+test("findBestVoice - ranks high-quality neural voices by gender and accent persona", async () => {
+  const { findBestVoice } = await import("../lib/interview-speech");
+
+  const mockVoices = [
+    { name: "eSpeak", lang: "en-US" },
+    { name: "Microsoft Guy Online (Natural) - English (United States)", lang: "en-US" },
+    { name: "Microsoft Jenny Online (Natural) - English (United States)", lang: "en-US" },
+    { name: "Microsoft Ryan Online (Natural) - English (United Kingdom)", lang: "en-GB" },
+    { name: "Google US English", lang: "en-US" },
+  ];
+
+  const alexVoice = findBestVoice(mockVoices, "alex-male");
+  assert.ok(alexVoice?.name.includes("Guy"), "Alex should match natural US male voice");
+
+  const sarahVoice = findBestVoice(mockVoices, "sarah-female");
+  assert.ok(sarahVoice?.name.includes("Jenny"), "Sarah should match natural US female voice");
+
+  const davidVoice = findBestVoice(mockVoices, "david-british");
+  assert.ok(davidVoice?.name.includes("Ryan"), "David should match natural UK voice");
+});
+
+test("generateLocalSocraticAnswer - dynamically addresses diverse technical inquiries without repetitive canned phrases", () => {
+  const twoSum = LIVE_INTERVIEW_PROBLEMS.find((p) => p.id === "two-sum")!;
+
+  const testInquiries = [
+    "how many loops do I need to solve this",
+    "can I use recursion here",
+    "can I modify the input array in place",
+    "are there duplicate numbers in the array",
+    "can I trade memory for faster speed",
+    "can I write a helper function",
+    "what if there are negative numbers",
+    "how do I validate my logic before writing code",
+    "what should I return if no pair is found",
+  ];
+
+  for (const q of testInquiries) {
+    const answer = generateLocalSocraticAnswer(q, twoSum, 1);
+    assert.ok(answer && answer.length > 20, `Answer for "${q}" must be non-empty`);
+    // Crucial check: the old hardcoded canned repetition must NEVER appear
+    assert.ok(
+      !answer.includes("Good question. For Tier 1, solve brute force"),
+      `Inquiry "${q}" must not produce robotic canned phrase`
+    );
+  }
+});
+
+
 

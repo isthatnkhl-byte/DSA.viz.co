@@ -579,7 +579,7 @@ export function generateLocalSocraticAnswer(
 ): string {
   const tier = problem.tiers[currentTier];
 
-  // Refuse to give code or direct answers
+  // 1. Refuse to give code or direct answers
   if (
     /give me the code|write the code|show me the code|give me solution|give me answer|write it for me|implement it for me|code for/i.test(
       lowerQ,
@@ -588,7 +588,7 @@ export function generateLocalSocraticAnswer(
     return "As your interviewer, I want to see how you structure the thought process yourself. Write the implementation step by step, and walk me through your logic.";
   }
 
-  // Asking if input is sorted
+  // 2. Asking if input is sorted or about element ordering
   if (/sorted|order|ascending|descending/i.test(lowerQ)) {
     if (problem.id === "two-sum") {
       return "No, the array is unsorted. You should assume the input integers appear in arbitrary unsorted order.";
@@ -605,8 +605,8 @@ export function generateLocalSocraticAnswer(
     return "The input order is preserved as given in the problem statement.";
   }
 
-  // Asking about negative values or 0
-  if (/negative|zero|values below zero|can numbers be negative/i.test(lowerQ)) {
+  // 3. Asking about negative values, zero, or numeric boundaries
+  if (/negative|zero|values below zero|can numbers be negative|minimum value|maximum value/i.test(lowerQ)) {
     if (problem.id === "two-sum") {
       return "Yes, elements in the array as well as the target can be negative, between -10^9 and 10^9.";
     }
@@ -622,26 +622,29 @@ export function generateLocalSocraticAnswer(
     return "Please check the problem constraints listed on the left panel for value bounds.";
   }
 
-  // Asking about duplicates
-  if (/duplicate|duplicates|same number|repeated/i.test(lowerQ)) {
+  // 4. Asking about duplicates
+  if (/duplicate|duplicates|same number|repeated|identical/i.test(lowerQ)) {
     if (problem.id === "two-sum") {
       return "The array can contain duplicate values, but the problem guarantees there is exactly one unique valid solution pair.";
+    }
+    if (problem.id === "container-with-most-water") {
+      return "Heights can have duplicate values. If both walls have equal height, moving either wall inward is valid.";
     }
     return "Duplicate values may occur in the input. Ensure your logic handles identical values properly.";
   }
 
-  // Asking about space or memory limits
-  if (/space|memory|extra memory|auxiliary/i.test(lowerQ)) {
+  // 5. Asking about space or memory limits
+  if (/space|memory|extra memory|auxiliary|o\(1\)\s*space/i.test(lowerQ)) {
     return `For Tier ${currentTier}, our target complexity is ${tier.complexityTag}. Notice the trade-off between runtime and auxiliary space.`;
   }
 
-  // Asking about time complexity / big O
-  if (/time complexity|runtime|target complexity|big o|o\(n\)|o\(n\^2\)/i.test(lowerQ)) {
+  // 6. Asking about time complexity / Big-O
+  if (/time complexity|runtime|target complexity|big o|o\(n\)|o\(n\^2\)|o\(n log n\)/i.test(lowerQ)) {
     return `For Tier ${currentTier} (${tier.name}), the target complexity is ${tier.complexityTag}. Aim for ${tier.objective}`;
   }
 
-  // Asking about return value / output format
-  if (/what should i return|what to return|return value|indices or values|output format|return format/i.test(lowerQ)) {
+  // 7. Asking about return value / output format
+  if (/what should i return|what to return|return value|indices or values|output format|return format|what type/i.test(lowerQ)) {
     if (problem.id === "two-sum") {
       return "You should return the indices of the two elements as a list or array [i, j], not the values themselves.";
     }
@@ -657,7 +660,7 @@ export function generateLocalSocraticAnswer(
     return "Please check the problem examples and description for the exact expected return type.";
   }
 
-  // Asking about edge cases / empty arrays / 0 bounds
+  // 8. Asking about edge cases / empty arrays / bounds
   if (/edge case|edge cases|empty array|empty input|null|zero length|size zero|single element/i.test(lowerQ)) {
     if (problem.id === "two-sum") {
       return "The constraints guarantee at least 2 elements and exactly one valid solution pair exists, so empty arrays won't occur.";
@@ -674,22 +677,22 @@ export function generateLocalSocraticAnswer(
     return "Always check if minimum input size is met and whether strictly monotonic sequences require default return values.";
   }
 
-  // Asking for a hint or stuck
+  // 9. Asking for a hint or being stuck
   if (/hint|stuck|clue|help|where do i start|how to start/i.test(lowerQ)) {
     return tier.socraticHints[0] || `Consider the target complexity: ${tier.complexityTag}. What work is redundant?`;
   }
 
-  // Asking about problem explanation / what is the question asking
+  // 10. Asking about problem description / explanation
   if (/explain the problem|explain problem|what does this mean|what is the question|understand the problem/i.test(lowerQ)) {
     return `In ${problem.title}, our goal is: ${problem.description.split("\n")[0]} For Tier ${currentTier}, your objective is to ${tier.objective}`;
   }
 
-  // Asking about optimization or how to improve
+  // 11. Asking about how to optimize or improve
   if (/how to optimize|how to improve|how to make it faster|bottleneck|next tier/i.test(lowerQ)) {
     return `To improve from this approach: ${tier.nextPrompt}`;
   }
 
-  // Asking about sorting
+  // 12. Asking about sorting the input
   if (/can i sort|should i sort|sort the array|sorting/i.test(lowerQ)) {
     if (problem.id === "two-sum") {
       return "Sorting takes O(N log N) time, but be careful: sorting changes element positions unless you store the original indices.";
@@ -703,7 +706,7 @@ export function generateLocalSocraticAnswer(
     return "Sorting may disrupt the original positional ordering required by the problem. Consider whether an auxiliary lookup or two pointers is better.";
   }
 
-  // Asking about hash map / dictionary
+  // 13. Asking about hash maps / dictionaries
   if (/hash map|hashmap|dictionary|hash table|dict/i.test(lowerQ)) {
     if (currentTier === 1) {
       return "A hash map is a great optimization, but for Tier 1 let's write the direct brute force nested scan first to establish baseline correctness.";
@@ -711,7 +714,7 @@ export function generateLocalSocraticAnswer(
     return "A hash map is an excellent direction! For each element, what complement value are you looking up, and what should you store as the value?";
   }
 
-  // Asking about two pointers
+  // 14. Asking about two pointers
   if (/two pointer|two pointers|pointers/i.test(lowerQ)) {
     if (problem.id === "two-sum") {
       return "Two pointers works well when the array is sorted. If you sort it first, what would the time complexity be?";
@@ -722,7 +725,7 @@ export function generateLocalSocraticAnswer(
     return "Two pointers can be very effective. How do your pointer movements guarantee that no optimal candidates are missed?";
   }
 
-  // Asking about stack
+  // 15. Asking about stacks / monotonic stack
   if (/stack|monotonic/i.test(lowerQ)) {
     if (problem.id === "daily-temperatures") {
       return "A monotonic stack is the optimal technique here. What invariant should you maintain in the stack: increasing or decreasing temperatures?";
@@ -730,7 +733,7 @@ export function generateLocalSocraticAnswer(
     return "A stack helps maintain a history of unresolved items. How would you maintain its invariant?";
   }
 
-  // Asking about multiple solutions
+  // 16. Asking about multiple solutions / guarantee
   if (/multiple solutions|more than one answer|multiple answers/i.test(lowerQ)) {
     if (problem.id === "two-sum") {
       return "The problem statement explicitly guarantees that exactly one valid answer exists.";
@@ -738,6 +741,80 @@ export function generateLocalSocraticAnswer(
     return "Return any valid answer or the maximum value as defined in the problem specification.";
   }
 
-  // General fallback
-  return `Good question. For Tier ${currentTier}, ${tier.objective}. What data structure or loop condition helps you achieve that?`;
+  // 17. Asking about nested loops / iterations / for loop mechanics
+  if (/nested loop|loops|for loop|while loop|iteration|iterating/i.test(lowerQ)) {
+    if (problem.id === "two-sum") {
+      return "In a nested loop approach, your outer loop picks the first element at index i, and your inner loop scans starting from i + 1 to avoid pairing an element with itself.";
+    }
+    if (problem.id === "container-with-most-water") {
+      return "Checking every possible pair of lines takes nested loops, computing the area as min(height[i], height[j]) multiplied by (j - i).";
+    }
+    if (problem.id === "best-time-to-buy-and-sell-stock") {
+      return "Iterating with nested loops compares every buy day i with every future sell day j where j > i.";
+    }
+    return "Notice how the indices interact in your loops: ensure the inner loop starts after the outer loop to prevent checking redundant pairs.";
+  }
+
+  // 18. Asking about in-place modification vs auxiliary arrays
+  if (/in place|in-place|modify input|new array|auxiliary array|extra array/i.test(lowerQ)) {
+    return "Unless the problem specifically demands in-place mutations, producing a clean return array or using auxiliary storage within the tier's space bound is completely acceptable.";
+  }
+
+  // 19. Asking about recursion or dynamic programming
+  if (/recursion|recursive|dp|dynamic programming|memoization/i.test(lowerQ)) {
+    return "Think about whether this problem has overlapping subproblems. If a single linear pass or pointer technique suffices, recursion may add unnecessary stack overhead.";
+  }
+
+  // 20. Asking about why an approach works or theoretical intuition
+  if (/why does|why do we|how does this work|intuition|logic behind/i.test(lowerQ)) {
+    if (problem.id === "container-with-most-water") {
+      return "The intuition is that the container width strictly decreases as you move inward. To ever find a larger area with smaller width, you MUST find a taller line, which is why you always discard the shorter wall.";
+    }
+    if (problem.id === "best-time-to-buy-and-sell-stock") {
+      return "You can only sell in the future, so tracking the minimum price seen so far allows you to calculate the maximum possible profit on any given day.";
+    }
+    if (problem.id === "two-sum") {
+      return "Instead of searching forward for every possible partner, storing seen values in a lookup table lets you check in constant time whether the required complement was already encountered.";
+    }
+    return "Look at the invariant: each step eliminates elements that are mathematically guaranteed to never be part of a better solution.";
+  }
+
+  // 21. Asking if an approach is right or seeking validation
+  if (/is this good|is this right|does this make sense|am i on the right track|what do you think/i.test(lowerQ)) {
+    return `Your line of thought is reasonable. Walk through how you would translate that into code and trace an example test case.`;
+  }
+
+  // 22. Asking about helper functions or language specifics
+  if (/helper function|can i write helper|syntax|library|builtin/i.test(lowerQ)) {
+    return "Standard language built-ins and private helper functions within the Solution class are fully supported and encouraged if they keep your code modular.";
+  }
+
+  // 23. Asking about what to do next
+  if (/what next|what should i do|next step|where do i go from here/i.test(lowerQ)) {
+    return `Start by defining your variables and main loop structure for ${tier.name}. Once your loop is in place, write the condition that checks each candidate.`;
+  }
+
+  // 24. Context-aware conversational fallback (no static repetition)
+  const conversationalIntros = [
+    "That's a relevant technical question.",
+    "Good consideration for this problem.",
+    "That touches on a key part of the algorithm.",
+    "Interesting point.",
+  ];
+  const intro = conversationalIntros[Math.abs(lowerQ.length) % conversationalIntros.length];
+
+  if (problem.id === "two-sum") {
+    return `${intro} For Two Sum, focus on the relation: target minus nums[i] equals complement. What structure helps you match that efficiently?`;
+  }
+  if (problem.id === "container-with-most-water") {
+    return `${intro} The area is bounded by the minimum of the two heights times the distance between them. Consider how to maximize that product systematically.`;
+  }
+  if (problem.id === "best-time-to-buy-and-sell-stock") {
+    return `${intro} Remember you cannot sell before you buy. Think about maintaining the lowest purchase price as you scan through the days.`;
+  }
+  if (problem.id === "daily-temperatures") {
+    return `${intro} Focus on how unresolved cooler days wait for a warmer day to appear ahead of them.`;
+  }
+
+  return `${intro} Consider how your data structure preserves the problem invariants while keeping runtime within ${tier.complexityTag}.`;
 }

@@ -194,7 +194,62 @@ export type VizType =
   | "trie"
   | "matrix"
   | "dp"
-  | "bit" | "math";
+  | "bit"
+  | "math"
+  | "recursion-tree"
+  | "intervals";
+
+export interface CallStackFrame {
+  id: string;
+  name: string;
+  functionName?: string;
+  depth: number;
+  args: Record<string, any>;
+  status: "active" | "base_case" | "backtracking" | "pruned" | "returned" | "memo_hit";
+  returnValue?: any;
+  pruneReason?: string;
+  isMemoHit?: boolean;
+}
+
+export interface RecursionTreeNode {
+  id: string;
+  parentId: string | null;
+  label: string;
+  depth: number;
+  state: "running" | "success" | "pruned" | "backtracked" | "memo_hit";
+  decision?: string;
+  returnValue?: any;
+  pruneReason?: string;
+  isMemoHit?: boolean;
+}
+
+export interface IntervalItem {
+  id: string;
+  start: number;
+  end: number;
+  label?: string;
+  status?: "unprocessed" | "comparing" | "active" | "merged" | "finalized" | "conflict";
+  lane?: number;
+}
+
+export interface Sightline {
+  fromIdx: number;
+  toIdx: number;
+  resolved: boolean;
+  type?: "next-greater" | "next-smaller";
+  fromIndex?: number;
+  toIndex?: number;
+  resolvedValue?: number | string;
+}
+
+export interface HeapSwap {
+  parentIdx: number;
+  childIdx: number;
+  reason: string;
+  direction: "up" | "down" | "sift-up" | "sift-down";
+  fromIndex?: number;
+  toIndex?: number;
+}
 
 export type ShiftInfo = {
   from?: string | null;
@@ -264,6 +319,21 @@ export type VizStep = {
   islandCells?: (string | [number, number])[] | null;
   /** Variable tracker state */
   variables?: Record<string, any> | null;
+  /** Recursion / Backtracking call stack & tree */
+  callStack?: CallStackFrame[] | null;
+  recursionTree?: RecursionTreeNode[] | null;
+  activeFrameId?: string | null;
+  /** Live Memoization Cache */
+  memoTable?: Record<string, any> | null;
+  memoHitKey?: string | null;
+  /** 1D Timeline Intervals */
+  intervals?: IntervalItem[] | null;
+  sweepLine?: number | null;
+  /** Monotonic Stack enhancements */
+  stackInvariant?: "increasing" | "decreasing" | null;
+  sightlines?: Sightline[] | null;
+  /** Binary Heap Sift-Up / Down swap */
+  heapSwap?: HeapSwap | null;
 };
 
 /** Structured test dataset specification for multi-dataset algorithmic walkthroughs */
@@ -7039,6 +7109,39 @@ export function getProblemDatasets(slug: string, topics: string[] = []): Problem
     ];
   }
 
+  // 15. Recursion & Decision Tree Backtracking / Memoization
+  if (sig.category === "recursion-backtracking" || (sig.category as string) === "recursion-memoization" || primaryType === "recursion-tree") {
+    return [
+      {
+        name: "tree",
+        label: "Recursion & Decision Tree",
+        type: "recursion-tree",
+        role: "primary",
+        description: "Visualizes the state-space decision tree and branch choices.",
+      },
+      {
+        name: "stack",
+        label: "Call Stack Frames",
+        type: "stack",
+        role: "auxiliary",
+        description: "LIFO stack frames with arguments and return states.",
+      },
+    ];
+  }
+
+  // 16. 1D Intervals & Sweep-Line
+  if (sig.category === "intervals" || primaryType === "intervals") {
+    return [
+      {
+        name: "intervals",
+        label: "1D Interval Timeline",
+        type: "intervals",
+        role: "primary",
+        description: "1D continuous timeline with sweep-line laser and lane compaction.",
+      },
+    ];
+  }
+
   // Default Single Structure with clean contextual labels
   let defaultLabel = "Input Array";
   let defaultName = "array";
@@ -7060,6 +7163,12 @@ export function getProblemDatasets(slug: string, topics: string[] = []): Problem
   } else if (primaryType === "matrix") {
     defaultLabel = "Grid Matrix";
     defaultName = "matrix";
+  } else if (primaryType === "intervals") {
+    defaultLabel = "1D Interval Timeline";
+    defaultName = "intervals";
+  } else if (primaryType === "recursion-tree") {
+    defaultLabel = "Recursion & Decision Tree";
+    defaultName = "tree";
   }
 
   return [
@@ -7087,6 +7196,11 @@ export const VALID_VIZ_TYPES = [
   "set",
   "trie",
   "matrix",
+  "dp",
+  "bit",
+  "math",
+  "recursion-tree",
+  "intervals",
 ] as const;
 
 const VALID_VIZ_TYPE_SET = new Set<VizType>(VALID_VIZ_TYPES);

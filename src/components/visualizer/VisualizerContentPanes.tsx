@@ -62,7 +62,7 @@ export function VisualizerContentPanes({
             }`}
           >
             <Eye className="size-3.5" />
-            <span>Primary ({type.toUpperCase()})</span>
+            <span>Primary ({type.replace(/-/g, " ").toUpperCase()})</span>
           </button>
 
           {(hasAuxMapInTrace || hasAuxSetInTrace) && (
@@ -179,7 +179,7 @@ export function VisualizerContentPanes({
         {layoutMode === "grid" && hasMultipleDatasets && multiDatasetEnabled && (
           <div className="flex items-center gap-2 px-1 text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
             <span className="size-2 rounded-full bg-primary shadow-xs shadow-primary" />
-            <span>Primary Data Structure ({type.toUpperCase()})</span>
+            <span>Primary Data Structure ({type.replace(/-/g, " ").toUpperCase()})</span>
           </div>
         )}
         {primaryBody}

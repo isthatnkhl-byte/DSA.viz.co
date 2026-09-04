@@ -10,6 +10,10 @@ import { ArrayVisualizer } from "./visualizer/ArrayVisualizer";
 import { HashMapVisualizer } from "./visualizer/HashMapVisualizer";
 import { DpTableVisualizer } from "./visualizer/DpTableVisualizer";
 import { BitVisualizer } from "./visualizer/BitVisualizer";
+import { RecursionVisualizer } from "./visualizer/RecursionVisualizer";
+import { BinaryHeapVisualizer } from "./visualizer/BinaryHeapVisualizer";
+import { MonotonicStackVisualizer } from "./visualizer/MonotonicStackVisualizer";
+import { IntervalVisualizer } from "./visualizer/IntervalVisualizer";
 import { StepDiffInspector } from "./visualizer/StepDiffInspector";
 import { VariableWatchTable } from "./visualizer/VariableWatchTable";
 import { KeyboardShortcutsModal } from "./visualizer/KeyboardShortcutsModal";
@@ -185,6 +189,10 @@ export const Visualizer = memo(function Visualizer({
     if (current.type) return current.type;
     const stepWithType = safeSteps.find((s) => s.type);
     if (stepWithType?.type) return stepWithType.type;
+    if (current.callStack && current.callStack.length > 0) return "recursion-tree";
+    if (current.intervals && current.intervals.length > 0) return "intervals";
+    if (safeSteps.some((s) => s.callStack && s.callStack.length > 0)) return "recursion-tree";
+    if (safeSteps.some((s) => s.intervals && s.intervals.length > 0)) return "intervals";
     if (current.matrix && current.matrix.length > 0) return "matrix";
     if (current.tree && current.tree.length > 0) return "tree";
     if (current.stack && current.stack.length > 0) return "stack";
@@ -272,7 +280,9 @@ export const Visualizer = memo(function Visualizer({
             type === "queue" ||
             type === "hashmap" ||
             type === "heap" ||
-            type === "tree"),
+            type === "tree" ||
+            type === "recursion-tree" ||
+            type === "intervals"),
       ),
     [safeSteps, type],
   );
@@ -353,7 +363,8 @@ export const Visualizer = memo(function Visualizer({
       const queueLen = Array.isArray(s.queue) ? s.queue.length : 0;
       const mapLen = s.map ? Object.keys(s.map).length : 0;
       const visitedLen = Array.isArray(s.visited) ? s.visited.length : 0;
-      const currentMem = Math.max(stackLen, queueLen, mapLen, visitedLen);
+      const callStackLen = Array.isArray(s.callStack) ? s.callStack.length : 0;
+      const currentMem = Math.max(stackLen, queueLen, mapLen, visitedLen, callStackLen);
       if (currentMem > peak) peak = currentMem;
     }
     return peak;
@@ -362,6 +373,8 @@ export const Visualizer = memo(function Visualizer({
   const estimatedBigO = useMemo(() => {
     if (type === "bst") return "O(log N)";
     if (type === "heap" || (safeSteps.length > 10 && cells.length > 5 && isMathMode)) return "O(N log N)";
+    if (type === "recursion-tree") return "O(2ⁿ / N!)";
+    if (type === "intervals") return "O(N log N)";
     if (type === "matrix" || type === "dp") return "O(M × N)";
     if (type === "graph") return "O(V + E)";
     if (type === "tree") return "O(N)";
@@ -447,37 +460,175 @@ export const Visualizer = memo(function Visualizer({
         operation={current.desc}
       />
     );
-  } else if (type === "stack" || type === "queue" || type === "deque") {
-    const items = safeArray(
-      type === "stack" ? current.stack : type === "queue" ? current.queue : current.deque,
-    );
-    const secondaryItems =
-      type === "stack"
-        ? current.secondaryStack
-        : type === "queue"
-          ? current.secondaryQueue
-          : undefined;
+  } else if (type === "recursion-tree") {
+    const stackSize = current.callStack?.length ?? 0;
+    const treeNodes = current.recursionTree?.length ?? 0;
+    const activeFrame = current.callStack?.[current.callStack.length - 1];
+    const depth = activeFrame?.depth ?? 0;
+    const returnVal =
+      activeFrame?.returnValue !== undefined && activeFrame?.returnValue !== null
+        ? String(activeFrame.returnValue)
+        : current.current !== null && current.current !== undefined
+          ? String(current.current)
+          : "—";
+
+    const prunedCount = current.recursionTree?.filter((n) => n.state === "pruned").length ?? 0;
+    const memoHits = current.recursionTree?.filter((n) => n.state === "memo_hit" || n.isMemoHit).length ?? 0;
+    const hasMemo = Boolean(current.memoTable && Object.keys(current.memoTable).length > 0);
 
     readouts = [
-      { label: secondaryItems ? "Primary Size" : "Size", value: items.length },
-      { label: "Current", value: current.current ?? null, highlight: true },
-      { label: secondaryItems ? "Sec. Size" : "Processed", value: secondaryItems ? secondaryItems.length : visited.length },
       {
-        label: type === "stack" ? "Top Element" : "Front Element",
-        value: type === "stack" ? (items[items.length - 1] ?? null) : (items[0] ?? null),
+        label: "Active Frame",
+        value: activeFrame
+          ? `${activeFrame.functionName || activeFrame.name}(${Object.entries(activeFrame.args ?? {})
+              .map(([k, v]) => `${k}=${v}`)
+              .join(", ")})`
+          : "idle",
+        highlight: true,
+      },
+      { label: "Call Depth", value: depth },
+      { label: hasMemo ? "Memo Cache" : "Pruned Cuts", value: hasMemo ? `${Object.keys(current.memoTable ?? {}).length} entries` : prunedCount, highlight: prunedCount > 0 || hasMemo },
+      { label: memoHits > 0 ? "⚡ Memo Hits" : "Tree States", value: memoHits > 0 ? `${memoHits} O(1)` : treeNodes, highlight: memoHits > 0 },
+    ];
+    primaryBody = (
+      <RecursionVisualizer
+        callStack={current.callStack}
+        recursionTree={current.recursionTree}
+        activeFrameId={current.activeFrameId}
+        currentValue={current.current}
+        explanation={current.desc}
+        memoTable={current.memoTable}
+        memoHitKey={current.memoHitKey}
+      />
+    );
+  } else if (type === "intervals") {
+    const rawIntervals =
+      current.intervals ??
+      (Array.isArray(current.matrix)
+        ? current.matrix.map((row, idx) => ({
+            id: `iv_${idx}`,
+            start: Number(row[0] ?? 0),
+            end: Number(row[1] ?? 0),
+            label: `[${row[0]}, ${row[1]}]`,
+            status: "unprocessed" as const,
+          }))
+        : []);
+    const activeCount = rawIntervals.filter(
+      (iv) => iv.status === "active" || iv.status === "comparing",
+    ).length;
+    readouts = [
+      { label: "Intervals Count", value: rawIntervals.length },
+      {
+        label: "Sweep-Line Pos",
+        value: current.sweepLine !== undefined ? current.sweepLine : (current.left ?? "—"),
+        highlight: true,
+      },
+      { label: "Active Overlaps", value: activeCount },
+      {
+        label: "Merged / Result",
+        value:
+          current.wSum !== null && current.wSum !== undefined
+            ? `${current.wSum} non-overlapping`
+            : current.current !== null && current.current !== undefined
+              ? String(current.current)
+              : "—",
+        highlight: true,
       },
     ];
     primaryBody = (
-      <StackQueueVisualizer
-        items={items}
-        secondaryItems={secondaryItems}
-        label1={current.datasetLabels?.primary ?? (secondaryItems ? "In-Stack (Input)" : "Primary Buffer")}
-        label2={current.datasetLabels?.secondaryArray ?? (secondaryItems ? "Out-Stack (Output)" : "Secondary Buffer")}
-        current={current.current ?? null}
-        visited={visited}
-        type={type}
+      <IntervalVisualizer
+        intervals={rawIntervals}
+        sweepLine={current.sweepLine}
+        explanation={current.desc}
       />
     );
+  } else if (type === "stack" || type === "queue" || type === "deque") {
+    const isMonotonic = Boolean(
+      current.stackInvariant ||
+        (current.sightlines && current.sightlines.length > 0) ||
+        safeSteps.some((s) => s.stackInvariant || (s.sightlines && s.sightlines.length > 0)),
+    );
+
+    if (type === "stack" && isMonotonic) {
+      const stackItems = safeArray(current.stack);
+      const currIdx = typeof current.left === "number" ? current.left : null;
+      readouts = [
+        {
+          label: "Stack Invariant",
+          value: current.stackInvariant ? `Monotonic ${current.stackInvariant}` : "Monotonic",
+          highlight: true,
+        },
+        {
+          label: "Sightlines Resolved",
+          value: current.sightlines?.length ?? 0,
+        },
+        {
+          label: "Current Target",
+          value:
+            current.current !== null && current.current !== undefined
+              ? String(current.current)
+              : currIdx !== null
+                ? `idx ${currIdx}`
+                : "—",
+          highlight: true,
+        },
+        {
+          label: "Top Element",
+          value: stackItems.length > 0 ? stackItems[stackItems.length - 1] : "Empty",
+        },
+      ];
+      primaryBody = (
+        <MonotonicStackVisualizer
+          array={current.array ?? cells}
+          stack={current.stack}
+          currentIndex={currIdx}
+          currentValue={current.current}
+          stackInvariant={current.stackInvariant}
+          sightlines={current.sightlines}
+          explanation={current.desc}
+        />
+      );
+    } else {
+      const items = safeArray(
+        type === "stack" ? current.stack : type === "queue" ? current.queue : current.deque,
+      );
+      const secondaryItems =
+        type === "stack"
+          ? current.secondaryStack
+          : type === "queue"
+            ? current.secondaryQueue
+            : undefined;
+
+      readouts = [
+        { label: secondaryItems ? "Primary Size" : "Size", value: items.length },
+        { label: "Current", value: current.current ?? null, highlight: true },
+        {
+          label: secondaryItems ? "Sec. Size" : "Processed",
+          value: secondaryItems ? secondaryItems.length : visited.length,
+        },
+        {
+          label: type === "stack" ? "Top Element" : "Front Element",
+          value: type === "stack" ? (items[items.length - 1] ?? null) : (items[0] ?? null),
+        },
+      ];
+      primaryBody = (
+        <StackQueueVisualizer
+          items={items}
+          secondaryItems={secondaryItems}
+          label1={
+            current.datasetLabels?.primary ??
+            (secondaryItems ? "In-Stack (Input)" : "Primary Buffer")
+          }
+          label2={
+            current.datasetLabels?.secondaryArray ??
+            (secondaryItems ? "Out-Stack (Output)" : "Secondary Buffer")
+          }
+          current={current.current ?? null}
+          visited={visited}
+          type={type}
+        />
+      );
+    }
   } else if (type === "linkedlist") {
     const list = safeArray(current.list ?? cells);
     readouts = [
@@ -496,8 +647,34 @@ export const Visualizer = memo(function Visualizer({
         activePointers={current.activePointers}
       />
     );
+  } else if (type === "heap") {
+    const rawHeap = current.tree ?? current.array ?? cells;
+    const heapArr = safeTreeArray(rawHeap);
+    const activeIdx =
+      typeof current.left === "number"
+        ? current.left
+        : typeof current.current === "number"
+          ? current.current
+          : null;
+    const swapDesc = current.heapSwap
+      ? `${current.heapSwap.direction}: [${current.heapSwap.fromIndex}] ↔ [${current.heapSwap.toIndex}]`
+      : "Balanced";
 
-  } else if (type === "tree" || type === "bst" || type === "heap" || type === "trie") {
+    readouts = [
+      { label: "Heap Size", value: heapArr.filter((x) => x !== null && x !== undefined).length },
+      { label: "Active Index", value: activeIdx !== null ? `i = ${activeIdx}` : "—", highlight: true },
+      { label: "Swap Operation", value: swapDesc, highlight: Boolean(current.heapSwap) },
+      { label: "Peak (Root)", value: heapArr[0] ?? "—", highlight: true },
+    ];
+    primaryBody = (
+      <BinaryHeapVisualizer
+        heap={heapArr}
+        heapSwap={current.heapSwap}
+        activeIndex={activeIdx}
+        explanation={current.desc}
+      />
+    );
+  } else if (type === "tree" || type === "bst" || type === "trie") {
     const fullTreeAcrossSteps = safeSteps.find(
       (s) =>
         Array.isArray(s.tree) &&

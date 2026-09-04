@@ -8,6 +8,7 @@ import {
   Sparkles,
   Layers,
   Code2,
+  Video,
   Menu,
   X,
   BookOpen,
@@ -126,6 +127,20 @@ export function SiteHeader() {
           >
             <Code2 className="size-3.5 text-emerald-400 shrink-0" />
             <span>Compiler</span>
+          </Link>
+
+          <Link
+            to="/live-interview"
+            activeProps={{
+              className: "bg-rose-500/15 text-rose-400 font-bold shadow-xs",
+            }}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+          >
+            <Video className="size-3.5 text-rose-400 shrink-0" />
+            <span>Live Interview</span>
+            <span className="hidden xl:inline-flex items-center rounded-full bg-rose-500/20 border border-rose-500/30 px-1.5 py-0.2 text-[8px] font-extrabold uppercase tracking-wider text-rose-300">
+              PROCTORED
+            </span>
           </Link>
 
           <Link
@@ -395,6 +410,33 @@ export function SiteHeader() {
                       </p>
                     </div>
                     <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all mt-1" />
+                  </Link>
+
+                  <Link
+                    to="/live-interview"
+                    onClick={() => setNavDrawerOpen(false)}
+                    activeProps={{
+                      className: "border-rose-500/60 bg-rose-950/20 shadow-sm",
+                    }}
+                    className="group flex items-start gap-3 rounded-2xl border border-border/70 bg-card/60 p-3 hover:border-rose-500/50 hover:bg-secondary transition-all active:scale-[0.99] sm:col-span-2"
+                  >
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-400 group-hover:scale-105 transition-transform">
+                      <Video className="size-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-foreground group-hover:text-rose-400 transition-colors">
+                          Live Interview Practice
+                        </span>
+                        <span className="rounded-full bg-rose-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-rose-400">
+                          PROCTORED AI
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                        Silent typing observer, spoken audio AI interviewer, camera/mic proctoring & 3-tier scoring.
+                      </p>
+                    </div>
+                    <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-rose-400 group-hover:translate-x-0.5 transition-all mt-1" />
                   </Link>
                 </div>
               </div>

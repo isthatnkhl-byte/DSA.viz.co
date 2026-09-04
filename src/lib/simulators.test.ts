@@ -130,8 +130,9 @@ test("simulateProblemWithDataset - merge-intervals consolidation and overlap sim
   assert.ok(result.steps.length > 0);
   const finalStep = result.steps[result.steps.length - 1];
   assert.ok(finalStep);
-  assert.equal(finalStep.type, "matrix");
+  assert.equal(finalStep.type, "intervals");
   assert.equal(finalStep.wSum, 3, "Consolidated into 3 non-overlapping intervals");
+  assert.equal(finalStep.intervals?.length, 3);
   assert.deepEqual(finalStep.matrix, [
     [1, 6],
     [8, 10],
@@ -491,5 +492,119 @@ test("bruteForcePairSum - animates nested loop with i and j pointer labels", () 
   assert.equal(matchStep.left, 0);
   assert.equal(matchStep.right, 1);
 });
+
+test("simulateProblemWithDataset - subsets recursion-backtracking with call stack and recursion tree", () => {
+  const result = simulateProblemWithDataset(
+    "subsets",
+    "Subsets",
+    ["Array", "Backtracking"],
+    { id: "test_subsets", label: "Test Subsets", array: [1, 2], category: "standard" },
+  );
+
+  assert.ok(result.steps.length > 0);
+  assert.equal(result.steps[0]?.type, "recursion-tree");
+  const stepWithFrames = result.steps.find((s) => (s.callStack?.length ?? 0) > 0);
+  assert.ok(stepWithFrames, "Has callStack frames");
+  assert.ok(stepWithFrames?.callStack?.[0]?.functionName, "Call stack frame has function name");
+
+  const stepWithTree = result.steps.find((s) => (s.recursionTree?.length ?? 0) > 1);
+  assert.ok(stepWithTree, "Has recursionTree nodes");
+  assert.ok(stepWithTree?.recursionTree?.[0]?.id, "Tree node has id");
+});
+
+test("simulateProblemWithDataset - kth-largest min-heap generates heapSwap operations during sift", () => {
+  const result = simulateProblemWithDataset(
+    "kth-largest-element-in-an-array",
+    "Kth Largest Element in an Array",
+    ["Array", "Divide and Conquer", "Sorting", "Heap (Priority Queue)", "Quickselect"],
+    { id: "test_heap", label: "Test Heap", array: [3, 2, 1, 5, 6, 4], target: 2, category: "standard" },
+  );
+
+  assert.ok(result.steps.length > 0);
+  assert.equal(result.steps[0]?.type, "heap");
+  const swapStep = result.steps.find((s) => s.heapSwap !== undefined);
+  assert.ok(swapStep, "Generates heapSwap step during insertion/sift");
+  assert.ok(swapStep?.heapSwap?.direction === "sift-up" || swapStep?.heapSwap?.direction === "sift-down");
+});
+
+test("simulateProblemWithDataset - daily-temperatures monotonic stack generates sightlines and invariant", () => {
+  const result = simulateProblemWithDataset(
+    "daily-temperatures",
+    "Daily Temperatures",
+    ["Array", "Stack", "Monotonic Stack"],
+    { id: "test_temps", label: "Test Temperatures", array: [73, 74, 75, 71, 69, 72, 76, 73], category: "standard" },
+  );
+
+  assert.ok(result.steps.length > 0);
+  assert.equal(result.steps[0]?.type, "stack");
+  const stepWithSightline = result.steps.find((s) => (s.sightlines?.length ?? 0) > 0);
+  assert.ok(stepWithSightline, "Emits optical sightlines for resolved elements");
+  assert.equal(stepWithSightline?.stackInvariant, "decreasing");
+});
+
+test("simulateProblemWithDataset - combination-sum generates visual pruning effect and aborted frames", () => {
+  const result = simulateProblemWithDataset(
+    "combination-sum",
+    "Combination Sum",
+    ["Array", "Backtracking"],
+    { id: "test_combo", label: "Test Combo", array: [2, 3, 6, 7], target: 7, category: "standard" },
+  );
+
+  assert.ok(result.steps.length > 0);
+  assert.equal(result.steps[0]?.type, "recursion-tree");
+
+  // Verify pruned tree nodes with reasons
+  const stepWithPruneNode = result.steps.find((s) =>
+    s.recursionTree?.some((n) => n.state === "pruned" && n.pruneReason !== undefined),
+  );
+  assert.ok(stepWithPruneNode, "Generates tree node with state: 'pruned' and pruneReason");
+  const prunedNode = stepWithPruneNode?.recursionTree?.find((n) => n.state === "pruned");
+  assert.ok(prunedNode?.pruneReason?.includes("> remain"), "Pruned node explains constraint boundary violation");
+
+  // Verify call stack frame synchronization with pruned status
+  const stepWithPrunedFrame = result.steps.find((s) =>
+    s.callStack?.some((f) => f.status === "pruned" && f.pruneReason !== undefined),
+  );
+  assert.ok(stepWithPrunedFrame, "Active call stack frame displays pruned status and alert constraint");
+});
+
+test("simulateProblemWithDataset - fibonacci-number memoization generates memoTable, cache hits, and O(1) bypass", () => {
+  const result = simulateProblemWithDataset(
+    "fibonacci-number",
+    "Fibonacci Number",
+    ["Math", "Dynamic Programming", "Recursion", "Memoization"],
+    { id: "test_fib", label: "Test Fib", array: [4], target: 4, category: "standard" },
+  );
+
+  assert.ok(result.steps.length > 0);
+
+  // If invoked via recursion-memoization, verify memoization features
+  const memoSim = simulateProblemWithDataset(
+    "top-down-recursion-fibonacci",
+    "Fibonacci Memoization",
+    ["Memoization"],
+    { id: "test_memo", label: "Test Memo", array: [4], target: 4, category: "standard" },
+  );
+
+  assert.equal(memoSim.steps[0]?.type, "recursion-tree");
+
+  // Verify memo table population
+  const stepWithMemo = memoSim.steps.find((s) => s.memoTable && Object.keys(s.memoTable).length > 0);
+  assert.ok(stepWithMemo, "Memo table tracks resolved subproblems dynamically");
+
+  // Verify O(1) cache hit node and branch
+  const cacheHitStep = memoSim.steps.find((s) =>
+    s.recursionTree?.some((n) => n.state === "memo_hit" || n.isMemoHit === true),
+  );
+  assert.ok(cacheHitStep, "Emits tree node marked as memo_hit / isMemoHit");
+  assert.ok(cacheHitStep?.memoHitKey, "Emits memoHitKey pointing to cached subproblem");
+
+  // Verify call stack frame displays memo_hit status
+  const hitFrameStep = memoSim.steps.find((s) =>
+    s.callStack?.some((f) => f.status === "memo_hit" && f.isMemoHit === true),
+  );
+  assert.ok(hitFrameStep, "Call stack frame registers O(1) cache hit");
+});
+
 
 

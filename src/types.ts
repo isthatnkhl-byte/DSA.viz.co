@@ -1,6 +1,26 @@
-import type { VizStep, VizType, ShiftInfo, TestDataset } from "./lib/problems";
+import type {
+  VizStep,
+  VizType,
+  ShiftInfo,
+  TestDataset,
+  CallStackFrame,
+  RecursionTreeNode,
+  IntervalItem,
+  Sightline,
+  HeapSwap,
+} from "./lib/problems";
 
-export type { VizStep, VizType, ShiftInfo, TestDataset };
+export type {
+  VizStep,
+  VizType,
+  ShiftInfo,
+  TestDataset,
+  CallStackFrame,
+  RecursionTreeNode,
+  IntervalItem,
+  Sightline,
+  HeapSwap,
+};
 
 export interface ProblemSummary {
   slug: string;

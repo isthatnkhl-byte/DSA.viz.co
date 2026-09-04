@@ -90,6 +90,13 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * "map": { "key": value } (Hash table / frequency dictionary / complement map)
      * "list": [elements] (Linked list nodes)
      * "set": [elements] (Unique visited set)
+     * "callStack": [{ "id": string, "functionName": string, "depth": number, "args": { [key: string]: any }, "returnValue"?: any, "status": "active" | "returning" | "unwinding" }] (LIFO recursion frames)
+     * "recursionTree": [{ "id": string, "parentId": string | null, "label": string, "depth": number, "state": "running" | "success" | "backtracked" | "pruned", "decision"?: string }] (State-space tree nodes)
+     * "heapSwap": { "fromIndex": number, "toIndex": number, "direction": "sift-up" | "sift-down" } (Animated heap swap)
+     * "stackInvariant": "increasing" | "decreasing" (Monotonic stack invariant condition)
+     * "sightlines": [{ "fromIndex": number, "toIndex": number, "resolvedValue": number | string, "type": "next-greater" | "next-smaller" }] (Optical ray-cast sightlines)
+     * "intervals": [{ "id": string, "start": number, "end": number, "label": string, "status": "unprocessed" | "comparing" | "active" | "merged" | "finalized" }] (1D timeline intervals)
+     * "sweepLine": number (Current time playhead / laser position on continuous 1D timeline)
 
 7) 2D GRID, ISLANDS & AREA TRAVERSALS (Max Area of Island, Number of Islands, Flood Fill, Rotting Oranges):
    - Set "type": "matrix".
@@ -173,13 +180,14 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * "map": { [prefix_sum]: count } frequency dictionary of all prefix sums encountered so far (including initial { 0: 1 }).
      * In "desc", explicitly state: "Running sum = S. Checking if (S - target) = Remainder exists in map. Found M matches so far."
 
-10f) MONOTONIC STACK (Daily Temperatures, Next Greater Element, Online Stock Span):
+10f) GEOMETRIC MONOTONIC STACK (Daily Temperatures, Next Greater Element, Online Stock Span, Largest Rectangle in Histogram):
    - Set "type": "stack".
-   - In every step:
-     * "current": current incoming value or index.
-     * "stack": array of active elements or indices currently in stack in strictly monotonic order.
-     * When incoming element violates monotonic property, emit a step for each popped element with "shiftInfo": { "from": "stack", "to": "array", "action": "pop", "reason": "..." }, showing the answer resolved for the popped element.
-     * Then emit a step pushing the incoming element onto "stack".
+   - "stackInvariant": "decreasing" (for Next Greater Element) or "increasing" (for Next Smaller Element).
+   - "stack": array of active elements or indices currently in stack in strictly monotonic order.
+   - When resolving elements:
+     * Emit "sightlines": [{ "fromIndex": poppedIdx, "toIndex": currentIdx, "resolvedValue": nums[currentIdx], "type": "next-greater" }]
+     * Show the popping of violated elements and optical sightline connection to the current resolver.
+   - Then emit a step pushing the incoming element onto "stack".
 
 10g) BINARY SEARCH (Binary Search, Search in Rotated Sorted Array, Find Peak Element):
    - Set "type": "array".
@@ -189,6 +197,26 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * "current": middle element index (mid = floor((low + high) / 2)).
      * "pointer_labels": { "left": "low", "right": "high", "current": "mid" }.
      * In "desc", state: "nums[mid] (X) vs target (Y). Search space reduced: discard half and set new bounds."
+
+10h) DUAL-VIEW BINARY HEAP & PRIORITY QUEUE (Kth Largest, Top K Frequent, Merge K Sorted Lists, Find Median from Data Stream):
+   - Set "type": "heap".
+   - "tree": Complete binary heap level-order array representation [root, left, right, left.left, ...] satisfying the heap invariant.
+   - During sift-up (insertion) or sift-down (extract/replace root):
+     * For every swap between parent and child, emit "heapSwap": { "fromIndex": childIdx, "toIndex": parentIdx, "direction": "sift-up" } (or "sift-down").
+     * In "desc", explicitly reference the heap indexing arithmetic: parent = floor((i-1)/2), left_child = 2i+1, right_child = 2i+2.
+
+10i) RECURSION TREE & DYNAMIC CALL STACK (Subsets, Permutations, Combination Sum, N-Queens, Sudoku Solver, Palindrome Partitioning):
+   - Set "type": "recursion-tree".
+   - "callStack": Dynamic LIFO array of active frames with function name, arguments, depth, and return value.
+   - "recursionTree": Array of state-space tree nodes representing the decision path and branching choices.
+   - Step through state-space expansion, base condition checks, leaf solutions, and backtracking stack unwinding.
+
+10j) 1D INTERVAL TIMELINE & SWEEP-LINE LASER (Merge Intervals, Insert Interval, Non-Overlapping Intervals, Meeting Rooms):
+   - Set "type": "intervals".
+   - "intervals": Array of structured interval items with id, start, end, label, and status.
+   - "sweepLine": Current continuous coordinate / timestamp of the vertical sweep-line laser.
+   - "wSum": Count of consolidated non-overlapping intervals.
+   - Animate the sweep line advancing, boundary comparison, overlap detection, and interval expansion/merging.
 
 11) ARRAY / STRING ALGORITHMS:
    - For standard array/string problems, set "type": "array".

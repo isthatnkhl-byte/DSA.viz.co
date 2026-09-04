@@ -17,6 +17,8 @@ export type ProblemCategory =
   | "dp-2d"
   | "dp-1d"
   | "intervals"
+  | "recursion-backtracking"
+  | "recursion-memoization"
   | "prefix-sum"
   | "bit-manipulation"
   | "sorting"
@@ -232,6 +234,36 @@ export function classifyProblem(
     };
   }
 
+  // 6b. RECURSION & STATE-SPACE BACKTRACKING
+  if (
+    /subsets|permutations|combination-sum|combinations|n-queens|sudoku-solver|palindrome-partitioning|letter-combinations-of-a-phone-number|restore-ip-addresses|matchsticks-to-square|beautiful-arrangement/.test(
+      s,
+    ) ||
+    (hasTopic("backtracking") && !hasTopic("matrix") && !/word-search-ii/.test(s))
+  ) {
+    return {
+      category: "recursion-backtracking",
+      primaryVizType: "recursion-tree",
+      pattern: "recursion-backtracking",
+      isMultiEntity: false,
+      algorithmName: "State-Space Backtracking & Recursion Tree Exploration",
+    };
+  }
+
+  // 6c. RECURSION WITH MEMOIZATION (Top-Down DP)
+  if (
+    /fibonacci-memo|climbing-stairs-memo|recursion-memo|top-down-recursion/.test(s) ||
+    (hasTopic("memoization") && !hasTopic("bottom-up", "tabulation"))
+  ) {
+    return {
+      category: "recursion-memoization",
+      primaryVizType: "recursion-tree",
+      pattern: "recursion-memoization",
+      isMultiEntity: false,
+      algorithmName: "Top-Down Recursion with Memoization (O(1) Cache Bypass)",
+    };
+  }
+
   // 7. TRIE / PREFIX TREES
   if (
     /implement-trie|trie|prefix-tree|word-dictionary|replace-words|longest-word-in-dictionary|word-search-ii/.test(
@@ -380,7 +412,7 @@ export function classifyProblem(
   ) {
     return {
       category: "intervals",
-      primaryVizType: "matrix",
+      primaryVizType: "intervals",
       pattern: "intervals",
       isMultiEntity: false,
       algorithmName: "Interval Sorting & Sweep-Line Merging",

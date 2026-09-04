@@ -15,6 +15,11 @@ import {
   type TestDataset,
   type VizStep,
   type VizType,
+  type CallStackFrame,
+  type RecursionTreeNode,
+  type IntervalItem,
+  type Sightline,
+  type HeapSwap,
 } from "./problems";
 import { classifyProblem } from "./problemClassifier";
 
@@ -58,6 +63,8 @@ export type Pattern =
   | "bit-manipulation"
   | "trie-insert"
   | "queue-simulation"
+  | "recursion-backtracking"
+  | "recursion-memoization"
   | "array-scan";
 
 /** Pick the algorithmic family for a problem from its slug, title and LeetCode topics. */
@@ -1347,8 +1354,9 @@ function monotonicStack(input: (number | string)[]): VizBundle {
       current: null,
       visited: [],
       line: 0,
+      stackInvariant: "decreasing",
       activeDataset: "stack",
-      desc: "Initialize empty monotonic stack to find next greater element.",
+      desc: "Initialize empty monotonic decreasing stack to find next greater elements.",
     },
   ];
   safeNums.forEach((x, i) => {
@@ -1360,11 +1368,13 @@ function monotonicStack(input: (number | string)[]): VizBundle {
       current: x,
       visited: safeNums.slice(0, i),
       line: 1,
+      stackInvariant: "decreasing",
       activeDataset: "stack",
-      desc: `Read nums[${i}] = ${x}. Inspect monotonic stack.`,
+      desc: `Read nums[${i}] = ${x}. Inspect monotonic decreasing invariant.`,
     });
     while (stack.length && safeNums[stack[stack.length - 1]!]! < x) {
       const j = stack.pop()!;
+      const sightline: Sightline = { fromIdx: i, toIdx: j, resolved: true };
       steps.push({
         type: "stack",
         array: safeNums,
@@ -1373,14 +1383,16 @@ function monotonicStack(input: (number | string)[]): VizBundle {
         current: x,
         visited: safeNums.slice(0, i + 1),
         line: 3,
+        stackInvariant: "decreasing",
+        sightlines: [sightline],
         activeDataset: "stack",
         shiftInfo: {
           from: "stack",
           to: "array",
           action: "pop",
-          reason: `Popped ${safeNums[j]} because ${x} is next greater`,
+          reason: `Popped ${safeNums[j]} because ${x} is next greater element (distance: ${i - j})`,
         },
-        desc: `Pop ${safeNums[j]} at index ${j} — next greater element is ${x}.`,
+        desc: `Sightline resolved: nums[${i}] (${x}) > nums[${j}] (${safeNums[j]}). Pop idx ${j} — distance Δi = ${i - j}.`,
       });
     }
     stack.push(i);
@@ -1392,6 +1404,7 @@ function monotonicStack(input: (number | string)[]): VizBundle {
       current: x,
       visited: safeNums.slice(0, i + 1),
       line: 4,
+      stackInvariant: "decreasing",
       activeDataset: "stack",
       shiftInfo: {
         from: "array",
@@ -1409,6 +1422,7 @@ function monotonicStack(input: (number | string)[]): VizBundle {
     current: null,
     visited: safeNums,
     line: 5,
+    stackInvariant: "decreasing",
     activeDataset: "stack",
     desc: `Scan complete. Remaining indices in stack [${stack.map((k) => safeNums[k]!).join(", ")}] have no greater element to their right.`,
   });
@@ -3701,8 +3715,9 @@ function heapTopK(
   ];
 
   nums.forEach((x, i) => {
+    // 1. Insert at end of heap array
     heap.push(x);
-    heap.sort((a, b) => a - b);
+    let childIdx = heap.length - 1;
 
     steps.push({
       type: "heap",
@@ -3715,32 +3730,123 @@ function heapTopK(
       wSum: heap.length,
       shiftInfo: {
         from: `num: ${x}`,
-        to: "heap",
+        to: `heap[${childIdx}]`,
         action: "push",
-        reason: `Pushed ${x} into min-heap.`,
+        reason: `Pushed ${x} to index ${childIdx} of min-heap.`,
       },
-      desc: `Step ${i + 1}: Push ${x} into min-heap -> heap = [${heap.join(", ")}].`,
+      desc: `Step ${i + 1}: Inserted ${x} at heap index ${childIdx}. Check heap invariant against parent.`,
     });
 
+    // Sift-Up (Bubble-Up)
+    while (childIdx > 0) {
+      const parentIdx = Math.floor((childIdx - 1) / 2);
+      if (heap[childIdx]! < heap[parentIdx]!) {
+        const cVal = heap[childIdx]!;
+        const pVal = heap[parentIdx]!;
+        const swapObj: HeapSwap = {
+          parentIdx,
+          childIdx,
+          fromIndex: childIdx,
+          toIndex: parentIdx,
+          reason: `Min-heap violation: Child ${cVal} < Parent ${pVal} → SWAP(${parentIdx}, ${childIdx})`,
+          direction: "sift-up",
+        };
+        steps.push({
+          type: "heap",
+          array: nums,
+          left: i,
+          tree: [...heap],
+          current: cVal,
+          visited: nums.slice(0, i + 1),
+          heapSwap: swapObj,
+          line: 2,
+          wSum: heap.length,
+          desc: `Sift-Up: Child [${childIdx}] (${cVal}) < Parent [${parentIdx}] (${pVal}) violates min-heap! Swap positions.`,
+        });
+
+        // Perform swap
+        [heap[parentIdx], heap[childIdx]] = [heap[childIdx]!, heap[parentIdx]!];
+        childIdx = parentIdx;
+
+        steps.push({
+          type: "heap",
+          array: nums,
+          left: i,
+          tree: [...heap],
+          current: cVal,
+          visited: nums.slice(0, i + 1),
+          line: 2,
+          wSum: heap.length,
+          desc: `Swapped! ${cVal} moved up to index ${childIdx}. Heap: [${heap.join(", ")}].`,
+        });
+      } else {
+        break;
+      }
+    }
+
+    // If heap size exceeds k: Sift-Down eviction
     if (heap.length > k) {
-      const popped = heap.shift()!;
+      const minVal = heap[0]!;
+      const lastVal = heap.pop()!;
+      heap[0] = lastVal;
+
       steps.push({
         type: "heap",
         array: nums,
         left: i,
         tree: [...heap],
-        current: popped,
+        current: minVal,
         visited: nums.slice(0, i + 1),
         line: 3,
         wSum: heap.length,
-        shiftInfo: {
-          from: `heap: ${popped}`,
-          to: "discard",
-          action: "pop",
-          reason: `Heap size exceeded k (${k}). Evicted smallest element ${popped}.`,
-        },
-        desc: `Heap size > ${k}: Evicted smallest element ${popped}. Min-heap retained top ${k}: [${heap.join(", ")}].`,
+        desc: `Heap size > ${k}: Evicted root [0] (${minVal}). Replaced with last element ${lastVal} and sift-down.`,
       });
+
+      // Sift-Down (Bubble-Down) from root
+      let pIdx = 0;
+      while (true) {
+        let smallest = pIdx;
+        const leftIdx = 2 * pIdx + 1;
+        const rightIdx = 2 * pIdx + 2;
+
+        if (leftIdx < heap.length && heap[leftIdx]! < heap[smallest]!) {
+          smallest = leftIdx;
+        }
+        if (rightIdx < heap.length && heap[rightIdx]! < heap[smallest]!) {
+          smallest = rightIdx;
+        }
+
+        if (smallest !== pIdx) {
+          const pV = heap[pIdx]!;
+          const cV = heap[smallest]!;
+          const swapObj: HeapSwap = {
+            parentIdx: pIdx,
+            childIdx: smallest,
+            fromIndex: pIdx,
+            toIndex: smallest,
+            reason: `Min-heap violation: Parent ${pV} > Child ${cV} → SWAP(${pIdx}, ${smallest})`,
+            direction: "sift-down",
+          };
+
+          steps.push({
+            type: "heap",
+            array: nums,
+            left: i,
+            tree: [...heap],
+            current: cV,
+            visited: nums.slice(0, i + 1),
+            heapSwap: swapObj,
+            line: 3,
+            wSum: heap.length,
+            desc: `Sift-Down: Parent [${pIdx}] (${pV}) > Child [${smallest}] (${cV}). Swap to restore invariant.`,
+          });
+
+          [heap[pIdx], heap[smallest]] = [heap[smallest]!, heap[pIdx]!];
+          pIdx = smallest;
+        } else {
+          break;
+        }
+      }
     }
   });
 
@@ -4409,9 +4515,29 @@ function intervalMergeSim(
 
   const formatIntervals = (ivs: number[][]) => ivs.map((iv) => `[${iv[0]},${iv[1]}]`).join(", ");
 
+  const buildIntervalItems = (activeIdx?: number, isOverlap?: boolean): IntervalItem[] => {
+    return intervals.map((iv, idx) => {
+      let status: IntervalItem["status"] = "unprocessed";
+      if (idx === 0 || idx < (activeIdx ?? 0)) {
+        status = "merged";
+      }
+      if (idx === activeIdx) {
+        status = isOverlap ? "conflict" : "active";
+      }
+      return {
+        start: iv[0]!,
+        end: iv[1]!,
+        id: `iv-${idx}`,
+        status,
+      };
+    });
+  };
+
   const steps: VizStep[] = [
     {
-      type: "matrix",
+      type: "intervals",
+      intervals: buildIntervalItems(0),
+      sweepLine: intervals[0]![0],
       matrix: intervals.map((iv) => [...iv]),
       cols: 2,
       left: 0,
@@ -4429,7 +4555,9 @@ function intervalMergeSim(
     const isOverlap = curr[0]! <= prev[1]!;
 
     steps.push({
-      type: "matrix",
+      type: "intervals",
+      intervals: buildIntervalItems(i, isOverlap),
+      sweepLine: curr[0]!,
       matrix: intervals.map((iv) => [...iv]),
       cols: 2,
       left: i,
@@ -4444,7 +4572,9 @@ function intervalMergeSim(
     if (isOverlap) {
       prev[1] = Math.max(prev[1]!, curr[1]!);
       steps.push({
-        type: "matrix",
+        type: "intervals",
+        intervals: buildIntervalItems(i, true),
+        sweepLine: curr[1]!,
         matrix: intervals.map((iv) => [...iv]),
         cols: 2,
         left: i,
@@ -4464,7 +4594,9 @@ function intervalMergeSim(
     } else {
       merged.push([...curr]);
       steps.push({
-        type: "matrix",
+        type: "intervals",
+        intervals: buildIntervalItems(i, false),
+        sweepLine: curr[0]!,
         matrix: intervals.map((iv) => [...iv]),
         cols: 2,
         left: i,
@@ -4484,8 +4616,17 @@ function intervalMergeSim(
     }
   }
 
+  const finalItems: IntervalItem[] = merged.map((m, idx) => ({
+    start: m[0]!,
+    end: m[1]!,
+    id: `merged-${idx}`,
+    status: "merged",
+  }));
+
   steps.push({
-    type: "matrix",
+    type: "intervals",
+    intervals: finalItems,
+    sweepLine: merged[merged.length - 1]?.[1] ?? 0,
     matrix: merged.map((m) => [...m]),
     cols: 2,
     left: 0,
@@ -4494,8 +4635,7 @@ function intervalMergeSim(
     visited: merged.map((m) => `[${m[0]},${m[1]}]`),
     line: 8,
     wSum: merged.length,
-    mSum: merged.length,
-    desc: `Merge Intervals Complete! Consolidated into ${merged.length} non-overlapping intervals: [${formatIntervals(merged)}].`,
+    desc: `Sweep-Line Interval Consolidation Complete! Merged into ${merged.length} disjoint interval spans: [${formatIntervals(merged)}].`,
   });
 
   return { code, array: intervals.flat(), steps: cap(steps) };
@@ -5369,6 +5509,632 @@ function arrayScan(input: (number | string)[]): VizBundle {
   return { code, array: items, steps: cap(steps) };
 }
 
+export function recursionMemoizationSim(
+  input: (number | string)[],
+  slug = "fibonacci-number",
+  _title = "",
+  dataset?: TestDataset,
+): VizBundle {
+  const isClimb = slug.includes("climb");
+  const funcName = isClimb ? "climb" : "fib";
+
+  let targetVal = 4;
+  if (typeof dataset?.target === "number") {
+    targetVal = dataset.target;
+  } else if (input.length > 0 && !isNaN(Number(input[0]))) {
+    targetVal = Number(input[0]);
+  }
+  const safeN = Math.min(Math.max(Math.round(targetVal), 3), 5);
+
+  const code = isClimb
+    ? [
+        "memo = {}",
+        "def climb(n):",
+        "    if n <= 2: return n",
+        "    if n in memo: return memo[n]  # ⚡ O(1) Cache Hit",
+        "    memo[n] = climb(n - 1) + climb(n - 2)",
+        "    return memo[n]",
+        `climb(${safeN})`,
+      ]
+    : [
+        "memo = {}",
+        "def fib(n):",
+        "    if n <= 1: return n",
+        "    if n in memo: return memo[n]  # ⚡ O(1) Cache Hit",
+        "    memo[n] = fib(n - 1) + fib(n - 2)",
+        "    return memo[n]",
+        `fib(${safeN})`,
+      ];
+
+  const steps: VizStep[] = [];
+  const callStack: CallStackFrame[] = [];
+  const recursionTree: RecursionTreeNode[] = [];
+  const memoTable: Record<string, number> = {};
+
+  let frameSeq = 0;
+  let nodeSeq = 0;
+
+  const rootNode: RecursionTreeNode = {
+    id: "node_0",
+    parentId: null,
+    label: `${funcName}(${safeN})`,
+    depth: 0,
+    state: "running",
+  };
+  recursionTree.push(rootNode);
+
+  steps.push({
+    type: "recursion-tree",
+    array: [safeN],
+    callStack: [],
+    recursionTree: [...recursionTree],
+    activeFrameId: null,
+    memoTable: { ...memoTable },
+    memoHitKey: null,
+    line: 0,
+    desc: `Initialize top-down memoized recursion for ${funcName}(${safeN}) with empty memo cache.`,
+  });
+
+  function solve(n: number, parentNodeId: string, depth: number, decisionBranch: string): number {
+    if (steps.length >= 65) return 0;
+    const memoKey = `${funcName}(${n})`;
+    frameSeq++;
+    const frameId = `frame_${frameSeq}`;
+
+    // 1. Cache Hit check (⚡ O(1) Subtree Bypass)
+    if (memoKey in memoTable) {
+      const cachedVal = memoTable[memoKey]!;
+      nodeSeq++;
+      const hitNodeId = `node_${nodeSeq}`;
+      const hitNode: RecursionTreeNode = {
+        id: hitNodeId,
+        parentId: parentNodeId,
+        label: `${funcName}(${n})`,
+        depth,
+        state: "memo_hit",
+        isMemoHit: true,
+        decision: decisionBranch,
+        returnValue: cachedVal,
+      };
+      recursionTree.push(hitNode);
+
+      const hitFrame: CallStackFrame = {
+        id: frameId,
+        name: `${funcName}(${n})`,
+        functionName: funcName,
+        depth,
+        args: { n },
+        status: "memo_hit",
+        isMemoHit: true,
+        returnValue: cachedVal,
+      };
+      callStack.push(hitFrame);
+
+      steps.push({
+        type: "recursion-tree",
+        array: [safeN],
+        callStack: [...callStack],
+        recursionTree: [...recursionTree],
+        activeFrameId: frameId,
+        memoTable: { ...memoTable },
+        memoHitKey: memoKey,
+        current: cachedVal,
+        line: 3,
+        desc: `⚡ MEMO HIT: ${memoKey} found in cache (= ${cachedVal}). Subtree exploration bypassed in O(1)!`,
+      });
+
+      callStack.pop();
+      return cachedVal;
+    }
+
+    // 2. Cache Miss - explore
+    let currentNodeId = parentNodeId;
+    if (depth > 0) {
+      nodeSeq++;
+      currentNodeId = `node_${nodeSeq}`;
+      const childNode: RecursionTreeNode = {
+        id: currentNodeId,
+        parentId: parentNodeId,
+        label: `${funcName}(${n})`,
+        depth,
+        state: "running",
+        decision: decisionBranch,
+      };
+      recursionTree.push(childNode);
+    }
+
+    const frame: CallStackFrame = {
+      id: frameId,
+      name: `${funcName}(${n})`,
+      functionName: funcName,
+      depth,
+      args: { n },
+      status: "active",
+    };
+    callStack.push(frame);
+
+    steps.push({
+      type: "recursion-tree",
+      array: [safeN],
+      callStack: [...callStack],
+      recursionTree: [...recursionTree],
+      activeFrameId: frameId,
+      memoTable: { ...memoTable },
+      memoHitKey: null,
+      line: 1,
+      desc: `Call ${funcName}(${n}): Not yet cached. Expanding decision branches.`,
+    });
+
+    // Base cases
+    const isBase = isClimb ? n <= 2 : n <= 1;
+    if (isBase) {
+      const baseVal = n;
+      frame.status = "base_case";
+      frame.returnValue = baseVal;
+      const tNode = recursionTree.find((nd) => nd.id === currentNodeId);
+      if (tNode) {
+        tNode.state = "success";
+        tNode.returnValue = baseVal;
+      }
+
+      steps.push({
+        type: "recursion-tree",
+        array: [safeN],
+        callStack: [...callStack],
+        recursionTree: [...recursionTree],
+        activeFrameId: frameId,
+        memoTable: { ...memoTable },
+        memoHitKey: null,
+        current: baseVal,
+        line: 2,
+        desc: `Base case reached: ${funcName}(${n}) = ${baseVal}. Returning directly.`,
+      });
+
+      callStack.pop();
+      return baseVal;
+    }
+
+    // Branch 1: n - 1
+    const leftVal = solve(n - 1, currentNodeId, depth + 1, "n-1");
+    // Branch 2: n - 2
+    const rightVal = solve(n - 2, currentNodeId, depth + 1, "n-2");
+    const totalVal = leftVal + rightVal;
+
+    // Cache the result
+    memoTable[memoKey] = totalVal;
+
+    frame.status = "returned";
+    frame.returnValue = totalVal;
+    const tNode = recursionTree.find((nd) => nd.id === currentNodeId);
+    if (tNode) {
+      tNode.state = "success";
+      tNode.returnValue = totalVal;
+    }
+
+    steps.push({
+      type: "recursion-tree",
+      array: [safeN],
+      callStack: [...callStack],
+      recursionTree: [...recursionTree],
+      activeFrameId: frameId,
+      memoTable: { ...memoTable },
+      memoHitKey: memoKey,
+      current: totalVal,
+      line: 4,
+      desc: `Memoize Result: Stored ${memoKey} = ${leftVal} + ${rightVal} = ${totalVal} in cache table.`,
+    });
+
+    callStack.pop();
+    return totalVal;
+  }
+
+  const finalResult = solve(safeN, "node_0", 0, "");
+  rootNode.state = "success";
+  rootNode.returnValue = finalResult;
+
+  steps.push({
+    type: "recursion-tree",
+    array: [safeN],
+    callStack: [],
+    recursionTree: [...recursionTree],
+    activeFrameId: null,
+    memoTable: { ...memoTable },
+    memoHitKey: null,
+    current: finalResult,
+    line: 6,
+    desc: `Memoized Recursion Complete! ${funcName}(${safeN}) = ${finalResult}. Evaluated in O(N) operations via memoization table.`,
+  });
+
+  return { code, array: [safeN], steps: cap(steps) };
+}
+
+export function recursionBacktrackingSim(
+  input: (number | string)[],
+  slug = "subsets",
+  _title = "",
+  _dataset?: TestDataset,
+): VizBundle {
+  if (slug.includes("fibonacci") || slug.includes("climb") || slug.includes("memo")) {
+    return recursionMemoizationSim(input, slug, _title, _dataset);
+  }
+
+  const isTargetConstrained =
+    slug.includes("combination") ||
+    slug.includes("partition") ||
+    _dataset?.target !== undefined;
+
+  if (isTargetConstrained) {
+    const rawNums = input.length > 0 ? input.slice(0, 5) : [2, 3, 6, 7];
+    const nums = rawNums.map(Number).filter((n) => !isNaN(n) && n > 0);
+    const candidates = nums.length > 0 ? [...nums].sort((a, b) => a - b) : [2, 3, 6, 7];
+    const target =
+      typeof _dataset?.target === "number"
+        ? _dataset.target
+        : typeof _dataset?.target === "string"
+          ? parseFloat(_dataset.target) || 7
+          : 7;
+
+    const code = [
+      "result = []",
+      "def backtrack(remain, path, start):",
+      "    if remain == 0:",
+      "        result.append(list(path))",
+      "        return",
+      "    for i in range(start, len(candidates)):",
+      "        if candidates[i] > remain:  # ✂ Prune: exceeds target",
+      "            continue",
+      "        path.append(candidates[i])",
+      "        backtrack(remain - candidates[i], path, i)",
+      "        path.pop()",
+      `backtrack(${target}, [], 0)`,
+      "return result",
+    ];
+
+    const steps: VizStep[] = [];
+    const callStack: CallStackFrame[] = [];
+    const recursionTree: RecursionTreeNode[] = [];
+    const resultCombos: string[] = [];
+
+    let frameSeq = 0;
+    let nodeSeq = 0;
+
+    const rootNode: RecursionTreeNode = {
+      id: "node_0",
+      parentId: null,
+      label: `rem=${target}`,
+      depth: 0,
+      state: "running",
+    };
+    recursionTree.push(rootNode);
+
+    steps.push({
+      type: "recursion-tree",
+      array: candidates,
+      callStack: [],
+      recursionTree: [...recursionTree],
+      activeFrameId: null,
+      line: 0,
+      wSum: 0,
+      mSum: target,
+      desc: `Initialize combination sum backtracking for target = ${target}, candidates = [${candidates.join(", ")}].`,
+    });
+
+    function backtrack(remain: number, path: number[], start: number, parentNodeId: string, depth: number) {
+      if (steps.length >= 65) return;
+
+      frameSeq++;
+      const frameId = `frame_${frameSeq}`;
+      const frame: CallStackFrame = {
+        id: frameId,
+        name: `backtrack(rem=${remain})`,
+        functionName: "backtrack",
+        depth,
+        args: { remain, path: `[${path.join(", ")}]` },
+        status: remain === 0 ? "base_case" : "active",
+      };
+      callStack.push(frame);
+
+      if (remain === 0) {
+        const comboStr = `[${path.join(", ")}]`;
+        resultCombos.push(comboStr);
+        const node = recursionTree.find((n) => n.id === parentNodeId);
+        if (node) node.state = "success";
+
+        steps.push({
+          type: "recursion-tree",
+          array: candidates,
+          callStack: [...callStack],
+          recursionTree: [...recursionTree],
+          activeFrameId: frameId,
+          wSum: resultCombos.length,
+          mSum: target,
+          current: comboStr,
+          line: 2,
+          desc: `Goal reached! Found valid combination: ${comboStr} (total found: ${resultCombos.length}).`,
+        });
+
+        callStack.pop();
+        return;
+      }
+
+      steps.push({
+        type: "recursion-tree",
+        array: candidates,
+        callStack: [...callStack],
+        recursionTree: [...recursionTree],
+        activeFrameId: frameId,
+        line: 1,
+        wSum: resultCombos.length,
+        mSum: target,
+        desc: `State: remain = ${remain}, current path = [${path.join(", ")}]. Evaluating candidates.`,
+      });
+
+      for (let i = start; i < candidates.length; i++) {
+        if (steps.length >= 65) break;
+        const val = candidates[i]!;
+
+        if (val > remain) {
+          // Visual Pruning Effect!
+          nodeSeq++;
+          const pruneNodeId = `node_${nodeSeq}`;
+          const pruneNode: RecursionTreeNode = {
+            id: pruneNodeId,
+            parentId: parentNodeId,
+            label: `+${val} (rem: ${remain - val})`,
+            depth: depth + 1,
+            state: "pruned",
+            decision: `+${val}`,
+            pruneReason: `${val} > remain (${remain})`,
+          };
+          recursionTree.push(pruneNode);
+
+          frameSeq++;
+          const abortFrameId = `frame_${frameSeq}`;
+          const abortFrame: CallStackFrame = {
+            id: abortFrameId,
+            name: `backtrack(rem=${remain - val})`,
+            functionName: "backtrack",
+            depth: depth + 1,
+            args: { remain: remain - val, candidate: val },
+            status: "pruned",
+            pruneReason: `${val} > remain (${remain})`,
+          };
+          callStack.push(abortFrame);
+
+          steps.push({
+            type: "recursion-tree",
+            array: candidates,
+            callStack: [...callStack],
+            recursionTree: [...recursionTree],
+            activeFrameId: abortFrameId,
+            left: i,
+            wSum: resultCombos.length,
+            mSum: target,
+            line: 6,
+            desc: `✂ PRUNED: Candidate ${val} exceeds remaining target ${remain}. Constraint violated; subtree pruned.`,
+          });
+
+          callStack.pop();
+          break; // Candidates are sorted ascending; subsequent candidates will also violate constraint
+        }
+
+        // Valid branch
+        nodeSeq++;
+        const childNodeId = `node_${nodeSeq}`;
+        const nextPath = [...path, val];
+        const childNode: RecursionTreeNode = {
+          id: childNodeId,
+          parentId: parentNodeId,
+          label: `rem=${remain - val}`,
+          depth: depth + 1,
+          state: "running",
+          decision: `+${val}`,
+        };
+        recursionTree.push(childNode);
+
+        steps.push({
+          type: "recursion-tree",
+          array: candidates,
+          callStack: [...callStack],
+          recursionTree: [...recursionTree],
+          activeFrameId: frameId,
+          left: i,
+          current: val,
+          line: 8,
+          wSum: resultCombos.length,
+          mSum: target,
+          desc: `Decision: Pick candidate ${val} (new remain = ${remain - val}). Exploring child decisions.`,
+        });
+
+        backtrack(remain - val, nextPath, i, childNodeId, depth + 1);
+
+        if (childNode.state !== "success" && childNode.state !== "pruned") {
+          childNode.state = "backtracked";
+        }
+
+        steps.push({
+          type: "recursion-tree",
+          array: candidates,
+          callStack: [...callStack],
+          recursionTree: [...recursionTree],
+          activeFrameId: frameId,
+          left: i,
+          line: 10,
+          wSum: resultCombos.length,
+          mSum: target,
+          desc: `Backtrack: Pop candidate ${val} from path. Restoring remaining target = ${remain}.`,
+        });
+      }
+
+      const top = callStack.pop();
+      if (top) top.status = "returned";
+    }
+
+    backtrack(target, [], 0, "node_0", 0);
+    rootNode.state = "success";
+
+    steps.push({
+      type: "recursion-tree",
+      array: candidates,
+      callStack: [],
+      recursionTree: [...recursionTree],
+      activeFrameId: null,
+      line: 12,
+      wSum: resultCombos.length,
+      mSum: target,
+      desc: `Combination Sum Complete! Explored ${recursionTree.length} states, finding ${resultCombos.length} valid combinations with constraint pruning.`,
+    });
+
+    return { code, array: candidates, steps: cap(steps) };
+  }
+
+  const rawNums = input.length > 0 ? input.slice(0, 4) : [1, 2, 3];
+  const nums = rawNums.map(Number).filter((n) => !isNaN(n));
+  const safeNums = nums.length > 0 ? nums : [1, 2, 3];
+
+  const code = [
+    "result = []",
+    "def backtrack(start, path):",
+    "    result.append(list(path))",
+    "    for i in range(start, len(nums)):",
+    "        path.append(nums[i])",
+    "        backtrack(i + 1, path)",
+    "        path.pop()",
+    "backtrack(0, [])",
+    "return result",
+  ];
+
+  const steps: VizStep[] = [];
+  const callStack: CallStackFrame[] = [];
+  const recursionTree: RecursionTreeNode[] = [];
+  const resultSets: string[] = [];
+
+  let frameSeq = 0;
+  let nodeSeq = 0;
+
+  // Root tree node
+  const rootNode: RecursionTreeNode = {
+    id: "node_0",
+    parentId: null,
+    label: "[]",
+    depth: 0,
+    state: "running",
+  };
+  recursionTree.push(rootNode);
+
+  steps.push({
+    type: "recursion-tree",
+    array: safeNums,
+    callStack: [],
+    recursionTree: [...recursionTree],
+    activeFrameId: null,
+    line: 0,
+    wSum: 0,
+    desc: `Initialize backtracking state-space exploration for nums = [${safeNums.join(", ")}].`,
+  });
+
+  function backtrack(start: number, path: number[], parentNodeId: string, depth: number) {
+    if (steps.length >= 65) return;
+
+    frameSeq++;
+    const frameId = `frame_${frameSeq}`;
+    const frame: CallStackFrame = {
+      id: frameId,
+      name: `backtrack(start=${start})`,
+      functionName: "backtrack",
+      depth,
+      args: { start, path: `[${path.join(", ")}]` },
+      status: "active",
+    };
+    callStack.push(frame);
+
+    const pathStr = `[${path.join(", ")}]`;
+    resultSets.push(pathStr);
+
+    steps.push({
+      type: "recursion-tree",
+      array: safeNums,
+      callStack: [...callStack],
+      recursionTree: [...recursionTree],
+      activeFrameId: frameId,
+      line: 2,
+      wSum: resultSets.length,
+      current: pathStr,
+      desc: `State reached: path = ${pathStr}. Add to subsets solution (total: ${resultSets.length}).`,
+    });
+
+    for (let i = start; i < safeNums.length; i++) {
+      if (steps.length >= 65) break;
+      const val = safeNums[i]!;
+
+      // Branch node in recursion tree
+      nodeSeq++;
+      const childNodeId = `node_${nodeSeq}`;
+      const nextPath = [...path, val];
+      const childNode: RecursionTreeNode = {
+        id: childNodeId,
+        parentId: parentNodeId,
+        label: `[${nextPath.join(",")}]`,
+        depth: depth + 1,
+        state: "running",
+        decision: `+${val}`,
+      };
+      recursionTree.push(childNode);
+
+      steps.push({
+        type: "recursion-tree",
+        array: safeNums,
+        callStack: [...callStack],
+        recursionTree: [...recursionTree],
+        activeFrameId: frameId,
+        left: i,
+        current: val,
+        line: 4,
+        wSum: resultSets.length,
+        desc: `Decision: Include nums[${i}] = ${val} into path -> path = [${nextPath.join(", ")}].`,
+      });
+
+      backtrack(i + 1, nextPath, childNodeId, depth + 1);
+
+      // Backtrack step
+      childNode.state = "backtracked";
+      steps.push({
+        type: "recursion-tree",
+        array: safeNums,
+        callStack: [...callStack],
+        recursionTree: [...recursionTree],
+        activeFrameId: frameId,
+        left: i,
+        line: 6,
+        wSum: resultSets.length,
+        desc: `Backtrack: Pop ${val} from path to explore sibling decisions.`,
+      });
+    }
+
+    // Unwind call frame
+    const top = callStack.pop();
+    if (top) {
+      top.status = "returned";
+    }
+  }
+
+  backtrack(0, [], "node_0", 0);
+
+  rootNode.state = "success";
+  steps.push({
+    type: "recursion-tree",
+    array: safeNums,
+    callStack: [],
+    recursionTree: [...recursionTree],
+    activeFrameId: null,
+    line: 8,
+    wSum: resultSets.length,
+    desc: `Backtracking Complete! Explored ${recursionTree.length} states, generating ${resultSets.length} unique subsets.`,
+  });
+
+  return { code, array: safeNums, steps: cap(steps) };
+}
+
 /** Build a real, problem-appropriate walkthrough for any problem and dataset in the bank. */
 export function simulateProblemWithDataset(
   slug: string,
@@ -5467,6 +6233,10 @@ export function simulateProblemWithDataset(
       return lruCacheSim(dataset);
     case "queue-simulation":
       return queueSimulation(input, slug, dataset);
+    case "recursion-backtracking":
+      return recursionBacktrackingSim(safeInput, slug, title, dataset);
+    case "recursion-memoization":
+      return recursionMemoizationSim(safeInput, slug, title, dataset);
     default:
       return arrayScan(input);
   }
@@ -5565,6 +6335,11 @@ export function simulateCustomInput(
       return dp1d(numInput);
     case "bit":
       return bitManipulation(safeInput);
+    case "recursion-tree":
+      if (t.includes("memo") || t.includes("fib") || t.includes("climb")) {
+        return recursionMemoizationSim(safeInput, "fibonacci-number", title);
+      }
+      return recursionBacktrackingSim(safeInput, "combination-sum", title);
     case "array":
     default:
       if (typeof target === "number" || typeof target === "string") {

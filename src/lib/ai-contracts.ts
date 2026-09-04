@@ -17,6 +17,9 @@ export const VALID_VIZ_TYPES = [
   "matrix",
   "dp",
   "bit",
+  "math",
+  "recursion-tree",
+  "intervals",
 ] as const;
 
 export type VizContractType = (typeof VALID_VIZ_TYPES)[number];
@@ -309,6 +312,12 @@ export function hasMeaningfulTraversal(steps: VizStep[] | undefined | null): boo
       predecessor: step.predecessor ?? null,
       cols: step.cols ?? null,
       line: step.line ?? null,
+      callStack: step.callStack ?? null,
+      recursionTree: step.recursionTree ?? null,
+      intervals: step.intervals ?? null,
+      sweepLine: step.sweepLine ?? null,
+      heapSwap: step.heapSwap ?? null,
+      sightlines: step.sightlines ?? null,
     }),
   );
 
@@ -358,6 +367,16 @@ export interface RawVizStep {
   activeDataset?: unknown;
   shiftInfo?: unknown;
   datasetLabels?: unknown;
+  callStack?: unknown;
+  recursionTree?: unknown;
+  activeFrameId?: unknown;
+  intervals?: unknown;
+  sweepLine?: unknown;
+  stackInvariant?: unknown;
+  sightlines?: unknown;
+  heapSwap?: unknown;
+  memoTable?: unknown;
+  memoHitKey?: unknown;
 }
 
 export interface RawVizPayload {
@@ -1097,6 +1116,10 @@ export function validateAndNormalizeVizPayload(
   let runningQueue: (number | string)[] | null = null;
   let runningSecondaryQueue: (number | string)[] | null = null;
   let runningDeque: (number | string)[] | null = null;
+  let runningCallStack: any[] | null = null;
+  let runningRecursionTree: any[] | null = null;
+  let runningIntervals: any[] | null = null;
+  let runningMemoTable: Record<string, any> | null = null;
 
   const initialSteps: VizStep[] = rawSteps
     .filter((step: unknown): step is RawVizStep => !!step && typeof step === "object")
@@ -1250,6 +1273,49 @@ export function validateAndNormalizeVizPayload(
       } else if (type === "deque" && !runningDeque) {
         auxDeque = [];
       }
+
+      // Call Stack handling with forward persistence for recursion
+      let auxCallStack: any[] | null = null;
+      if (Array.isArray(step.callStack)) {
+        auxCallStack = step.callStack;
+        runningCallStack = auxCallStack;
+      } else if (runningCallStack && step.callStack === undefined) {
+        auxCallStack = [...runningCallStack];
+      }
+
+      // Recursion Tree handling with forward persistence
+      let auxRecursionTree: any[] | null = null;
+      if (Array.isArray(step.recursionTree)) {
+        auxRecursionTree = step.recursionTree;
+        runningRecursionTree = auxRecursionTree;
+      } else if (runningRecursionTree && step.recursionTree === undefined) {
+        auxRecursionTree = [...runningRecursionTree];
+      }
+
+      // Intervals handling with forward persistence
+      let auxIntervals: any[] | null = null;
+      if (Array.isArray(step.intervals)) {
+        auxIntervals = step.intervals;
+        runningIntervals = auxIntervals;
+      } else if (runningIntervals && step.intervals === undefined) {
+        auxIntervals = [...runningIntervals];
+      }
+
+      const auxSightlines = Array.isArray(step.sightlines) ? step.sightlines : null;
+      const auxHeapSwap = step.heapSwap && typeof step.heapSwap === "object" ? step.heapSwap : null;
+      const auxStackInvariant = step.stackInvariant ?? null;
+      const auxSweepLine = typeof step.sweepLine === "number" ? step.sweepLine : null;
+      const auxActiveFrameId = typeof step.activeFrameId === "string" ? step.activeFrameId : null;
+
+      // Memoization table handling with forward persistence
+      let auxMemoTable: Record<string, any> | null = null;
+      if (step.memoTable && typeof step.memoTable === "object") {
+        auxMemoTable = step.memoTable as Record<string, any>;
+        runningMemoTable = auxMemoTable;
+      } else if (runningMemoTable && step.memoTable === undefined) {
+        auxMemoTable = { ...runningMemoTable };
+      }
+      const auxMemoHitKey = typeof step.memoHitKey === "string" ? step.memoHitKey : null;
 
       let auxTree = Array.isArray(step.tree)
         ? sanitizeTreeArray(step.tree)
@@ -1581,6 +1647,16 @@ export function validateAndNormalizeVizPayload(
         prevIdx: typeof rawStepItem.prevIdx === "number" ? rawStepItem.prevIdx : null,
         predecessor: step.predecessor ?? null,
         visited: sanitizeScalarArray(step.visited ?? []),
+        ...(auxCallStack ? { callStack: auxCallStack } : {}),
+        ...(auxRecursionTree ? { recursionTree: auxRecursionTree } : {}),
+        ...(auxActiveFrameId ? { activeFrameId: auxActiveFrameId } : {}),
+        ...(auxIntervals ? { intervals: auxIntervals } : {}),
+        ...(auxSweepLine !== null ? { sweepLine: auxSweepLine } : {}),
+        ...(auxStackInvariant ? { stackInvariant: auxStackInvariant } : {}),
+        ...(auxSightlines ? { sightlines: auxSightlines } : {}),
+        ...(auxHeapSwap ? { heapSwap: auxHeapSwap } : {}),
+        ...(auxMemoTable ? { memoTable: auxMemoTable } : {}),
+        ...(auxMemoHitKey ? { memoHitKey: auxMemoHitKey } : {}),
       } as VizStep;
     })
     .slice(0, 100);

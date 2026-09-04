@@ -10,7 +10,7 @@ export async function getSubmissions(userId: string) {
       .get();
 
     if (snapshot && snapshot.docs) {
-      const dbSubs = snapshot.docs.map(doc => {
+      const dbSubs = snapshot.docs.map((doc: any) => {
         const r = doc.data();
         return {
           id: doc.id,

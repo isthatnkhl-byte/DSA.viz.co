@@ -473,6 +473,106 @@ export function getRandomInterviewProblem(excludeId?: string): LiveInterviewProb
     : LIVE_INTERVIEW_PROBLEMS;
   const pool = eligible.length > 0 ? eligible : LIVE_INTERVIEW_PROBLEMS;
   const randomIndex = Math.floor(Math.random() * pool.length);
-  return pool[randomIndex] ?? LIVE_INTERVIEW_PROBLEMS[0];
+  return (pool[randomIndex] ?? LIVE_INTERVIEW_PROBLEMS[0])!;
 }
+
+export function generateLocalSocraticAnswer(
+  lowerQ: string,
+  problem: LiveInterviewProblem,
+  currentTier: 1 | 2 | 3,
+): string {
+  const tier = problem.tiers[currentTier];
+
+  // Asking for the code or direct solution
+  if (
+    /what is the answer|what's the answer|give me the code|write the code|write the solution|solve it for me|show me the answer|tell me the code|give me code|give code/i.test(
+      lowerQ,
+    )
+  ) {
+    return `In this interview, I'd like you to write the implementation. Think about the invariant for Tier ${currentTier}: what data structure or traversal helps eliminate redundant checks?`;
+  }
+
+  // Asking about sorted order
+  if (/sorted|in order|ascending|descending/i.test(lowerQ)) {
+    if (problem.id === "two-sum") {
+      return "The input array is unsorted, and elements appear in arbitrary order. Keep that in mind when choosing your search approach.";
+    }
+    if (problem.id === "container-with-most-water") {
+      return "The vertical lines are given in arbitrary heights along the x-axis, not in sorted order.";
+    }
+    if (problem.id === "best-time-to-buy-and-sell-stock") {
+      return "The prices array is in chronological day order. You must buy before you can sell.";
+    }
+    if (problem.id === "daily-temperatures") {
+      return "Temperatures are indexed chronologically by day. You need to look ahead for the next warmer day.";
+    }
+    return "The input is not sorted unless explicitly specified in the problem statement.";
+  }
+
+  // Asking about negative values
+  if (/negative|less than zero|below zero/i.test(lowerQ)) {
+    if (problem.id === "two-sum") {
+      return "Yes, elements in the array as well as the target can be negative, between -10^9 and 10^9.";
+    }
+    if (problem.id === "container-with-most-water") {
+      return "Heights are non-negative, ranging from 0 to 10,000.";
+    }
+    if (problem.id === "best-time-to-buy-and-sell-stock") {
+      return "Stock prices are non-negative integers.";
+    }
+    if (problem.id === "daily-temperatures") {
+      return "Temperatures are positive integers between 30 and 100.";
+    }
+    return "Please check the problem constraints listed on the left panel for value bounds.";
+  }
+
+  // Asking about duplicates
+  if (/duplicate|duplicates|same number|repeated/i.test(lowerQ)) {
+    if (problem.id === "two-sum") {
+      return "The array can contain duplicate values, but the problem guarantees there is exactly one unique valid solution pair.";
+    }
+    return "Duplicate values may occur in the input. Ensure your logic handles identical values properly.";
+  }
+
+  // Asking about space or memory limits
+  if (/space|memory|extra memory|auxiliary/i.test(lowerQ)) {
+    return `For Tier ${currentTier}, our target complexity is ${tier.complexityTag}. Notice the trade-off between runtime and auxiliary space.`;
+  }
+
+  // Asking for a hint or stuck
+  if (/hint|stuck|clue|help|where do i start|how to start/i.test(lowerQ)) {
+    return tier.socraticHints[0] || `Consider the target complexity: ${tier.complexityTag}. What work is redundant?`;
+  }
+
+  // Asking about hash map / dictionary
+  if (/hash map|hashmap|dictionary|hash table|dict/i.test(lowerQ)) {
+    if (currentTier === 1) {
+      return "A hash map is a great optimization, but for Tier 1 let's write the direct brute force nested scan first to establish baseline correctness.";
+    }
+    return "A hash map is an excellent direction! For each element, what complement value are you looking up, and what should you store as the value?";
+  }
+
+  // Asking about two pointers
+  if (/two pointer|two pointers|pointers/i.test(lowerQ)) {
+    if (problem.id === "two-sum") {
+      return "Two pointers works well when the array is sorted. If you sort it first, what would the time complexity be?";
+    }
+    if (problem.id === "container-with-most-water") {
+      return "Two pointers is the canonical approach! What condition dictates whether you advance the left pointer or the right pointer?";
+    }
+    return "Two pointers can be very effective. How do your pointer movements guarantee that no optimal candidates are missed?";
+  }
+
+  // Asking about stack
+  if (/stack|monotonic/i.test(lowerQ)) {
+    if (problem.id === "daily-temperatures") {
+      return "A monotonic stack is the optimal technique here. What invariant should you maintain in the stack: increasing or decreasing temperatures?";
+    }
+    return "A stack helps maintain a history of unresolved items. How would you maintain its invariant?";
+  }
+
+  // General fallback
+  return `Good question. For Tier ${currentTier}, ${tier.objective}. What data structure or loop condition helps you achieve that?`;
+}
+
 

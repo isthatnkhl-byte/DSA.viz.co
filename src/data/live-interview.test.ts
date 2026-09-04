@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   LIVE_INTERVIEW_PROBLEMS,
   getRandomInterviewProblem,
+  generateLocalSocraticAnswer,
   type ProblemTier,
 } from "./live-interview-problems";
 
@@ -60,3 +61,30 @@ test("getRandomInterviewProblem - returns valid problem and supports exclusion",
   assert.ok(p2, "Should return another problem");
   assert.notEqual(p2.id, p1.id, "Should not return excluded problem when alternatives exist");
 });
+
+test("generateLocalSocraticAnswer - refuses to give code and provides accurate Socratic guidance", () => {
+  const twoSum = LIVE_INTERVIEW_PROBLEMS.find((p) => p.id === "two-sum")!;
+
+  // 1. Candidate begs for code / answer -> Interviewer refuses code
+  const codeBegAnswer = generateLocalSocraticAnswer("can you give me the code for optimal", twoSum, 3);
+  assert.ok(codeBegAnswer.toLowerCase().includes("write the implementation"), "Should refuse to give code");
+  assert.ok(!codeBegAnswer.includes("def twoSum"), "Must never leak solution code");
+
+  // 2. Candidate asks if array is sorted -> Accurately clarifies unsorted
+  const sortedAnswer = generateLocalSocraticAnswer("are the numbers sorted", twoSum, 1);
+  assert.ok(sortedAnswer.toLowerCase().includes("unsorted"), "Should clarify that array is unsorted");
+
+  // 3. Candidate asks if negative values allowed -> Accurately confirms bounds
+  const negativeAnswer = generateLocalSocraticAnswer("can values be negative", twoSum, 1);
+  assert.ok(negativeAnswer.toLowerCase().includes("negative"), "Should address negative numbers");
+
+  // 4. Candidate asks for hint -> Returns Socratic hint
+  const hintAnswer = generateLocalSocraticAnswer("can i have a hint please", twoSum, 1);
+  assert.ok(hintAnswer.length > 10, "Should return helpful hint");
+  assert.equal(hintAnswer, twoSum.tiers[1].socraticHints[0], "Should match tier 1 socratic hint");
+
+  // 5. Candidate asks about space limit -> Quotes tier complexity
+  const spaceAnswer = generateLocalSocraticAnswer("what is the memory limit", twoSum, 2);
+  assert.ok(spaceAnswer.includes(twoSum.tiers[2].complexityTag), "Should mention tier complexity tag");
+});
+

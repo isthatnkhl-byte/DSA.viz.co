@@ -36,11 +36,13 @@ import {
   AlertCircle,
   Info,
   Radio,
+  Send,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import {
   LIVE_INTERVIEW_PROBLEMS,
+  generateLocalSocraticAnswer,
   type LiveInterviewProblem,
   type ProblemTier,
 } from "@/data/live-interview-problems";
@@ -104,6 +106,13 @@ function LiveInterviewPage() {
   const [dialogueLog, setDialogueLog] = useState<DialogueEntry[]>([]);
   const [showTranscript, setShowTranscript] = useState(false);
 
+  // Spoken Voice Questions & Audio Inquiry State
+  const [candidateSpeechTranscript, setCandidateSpeechTranscript] = useState("");
+  const [typedQuestion, setTypedQuestion] = useState("");
+  const [isProcessingQuestion, setIsProcessingQuestion] = useState(false);
+  const [lastCandidateQuestion, setLastCandidateQuestion] = useState<string | null>(null);
+  const [lastInterviewerAnswer, setLastInterviewerAnswer] = useState<string | null>(null);
+
   // Proctoring & Anti-Cheat Monitor State
   const [strikes, setStrikes] = useState<number>(0);
   const [proctoringLog, setProctoringLog] = useState<ProctoringLogEntry[]>([]);
@@ -129,6 +138,24 @@ function LiveInterviewPage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const isAiSpeakingRef = useRef<boolean>(false);
+  const isProcessingQuestionRef = useRef<boolean>(false);
+
+  // Ensure AudioContext is resumed upon any user interaction
+  useEffect(() => {
+    const resumeAudio = () => {
+      if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+        audioContextRef.current.resume().catch(() => {});
+      }
+    };
+    window.addEventListener("pointerdown", resumeAudio);
+    window.addEventListener("keydown", resumeAudio);
+    return () => {
+      window.removeEventListener("pointerdown", resumeAudio);
+      window.removeEventListener("keydown", resumeAudio);
+    };
+  }, []);
 
   // Update starter code when problem or language or tier changes
   useEffect(() => {
@@ -163,9 +190,33 @@ function LiveInterviewPage() {
           voices.find((v) => v.lang.startsWith("en"));
         if (naturalVoice) utterance.voice = naturalVoice;
 
-        utterance.onstart = () => setIsAiSpeaking(true);
-        utterance.onend = () => setIsAiSpeaking(false);
-        utterance.onerror = () => setIsAiSpeaking(false);
+        utterance.onstart = () => {
+          isAiSpeakingRef.current = true;
+          setIsAiSpeaking(true);
+          if (recognitionRef.current) {
+            try {
+              recognitionRef.current.stop();
+            } catch {}
+          }
+        };
+
+        utterance.onend = () => {
+          isAiSpeakingRef.current = false;
+          setIsAiSpeaking(false);
+          // Resume speech recognition after speech synthesis finishes
+          setTimeout(() => {
+            if (phase === "in-session" && recognitionRef.current) {
+              try {
+                recognitionRef.current.start();
+              } catch {}
+            }
+          }, 400);
+        };
+
+        utterance.onerror = () => {
+          isAiSpeakingRef.current = false;
+          setIsAiSpeaking(false);
+        };
 
         speechUtteranceRef.current = utterance;
         window.speechSynthesis.speak(utterance);
@@ -173,8 +224,70 @@ function LiveInterviewPage() {
         console.warn("Speech synthesis error:", err);
       }
     },
-    [isAiMuted],
+    [isAiMuted, phase],
   );
+
+  // High-Precision Time-Domain RMS Audio Monitoring (Never stays 0)
+  const setupAudioMonitoring = useCallback((stream: MediaStream) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+
+      const audioCtx = new AudioCtx();
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
+
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.3;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      audioContextRef.current = audioCtx;
+      analyserRef.current = analyser;
+
+      const timeDomainData = new Uint8Array(analyser.fftSize);
+
+      const checkVolume = () => {
+        if (!analyserRef.current) return;
+        if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+          audioContextRef.current.resume().catch(() => {});
+        }
+
+        analyserRef.current.getByteTimeDomainData(timeDomainData);
+        let sumSquares = 0;
+        for (let i = 0; i < timeDomainData.length; i++) {
+          const val = timeDomainData[i] ?? 128;
+          const norm = (val - 128) / 128;
+          sumSquares += norm * norm;
+        }
+        const rms = Math.sqrt(sumSquares / timeDomainData.length);
+        // Instant response: typical conversational speech RMS is 0.02 - 0.3
+        const normalized = Math.min(100, Math.round(rms * 400));
+        setAudioLevel(normalized);
+
+        // Track candidate speaking duration (volume > 8 counts as active voice)
+        if (normalized > 8) {
+          setSpeakingSeconds((s) => s + 0.05);
+        }
+
+        animFrameRef.current = requestAnimationFrame(checkVolume);
+      };
+
+      animFrameRef.current = requestAnimationFrame(checkVolume);
+    } catch (err) {
+      console.warn("Audio monitoring setup error:", err);
+    }
+  }, []);
 
   // Hardware Camera & Mic Access
   const requestMediaPermissions = async () => {
@@ -186,7 +299,19 @@ function LiveInterviewPage() {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: false,
+          autoGainControl: true,
+        },
+      });
+
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        throw new Error("No physical microphone track detected. Please connect or enable your microphone.");
+      }
+      audioTracks.forEach((track) => {
+        track.enabled = true;
       });
 
       setMediaStream(stream);
@@ -198,41 +323,7 @@ function LiveInterviewPage() {
         videoRef.current.play().catch(() => {});
       }
 
-      // Initialize AudioContext & AnalyserNode for volume tracking & visualizer
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        const audioCtx = new AudioCtx();
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 64;
-        const source = audioCtx.createMediaStreamSource(stream);
-        source.connect(analyser);
-
-        audioContextRef.current = audioCtx;
-        analyserRef.current = analyser;
-
-        // Start volume measurement loop
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        const checkVolume = () => {
-          if (!analyserRef.current) return;
-          analyserRef.current.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i]!;
-          }
-          const average = sum / dataArray.length;
-          const normalized = Math.min(100, Math.round((average / 128) * 100));
-          setAudioLevel(normalized);
-
-          // Track candidate speaking duration (volume > 15 counts as speech)
-          if (normalized > 15) {
-            setSpeakingSeconds((s) => s + 0.1);
-          }
-
-          animFrameRef.current = requestAnimationFrame(checkVolume);
-        };
-        animFrameRef.current = requestAnimationFrame(checkVolume);
-      }
-
+      setupAudioMonitoring(stream);
       toast.success("Camera & Microphone hardware connected successfully!");
     } catch (err: any) {
       console.error("Camera/Mic permission failed:", err);
@@ -242,6 +333,205 @@ function LiveInterviewPage() {
       toast.error("Camera or Microphone permission was denied.");
     }
   };
+
+  // Socratic Voice & Text Question Handler (Strict Non-Giveaway & In-Context Enforcement)
+  const handleCandidateVoiceQuestion = useCallback(
+    async (rawQuestion: string) => {
+      const q = rawQuestion.trim();
+      if (!q || isProcessingQuestionRef.current || isAiSpeakingRef.current) return;
+
+      if (q.length < 4 || q.toLowerCase() === lastCandidateQuestion?.toLowerCase()) {
+        return;
+      }
+
+      isProcessingQuestionRef.current = true;
+      setIsProcessingQuestion(true);
+      setLastCandidateQuestion(q);
+      setCandidateSpeechTranscript("");
+
+      const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      setDialogueLog((prev) => [...prev, { speaker: "candidate", text: q, timestamp: timeStr }]);
+
+      // Temporarily pause recognition while processing
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+
+      try {
+        const lowerQ = q.toLowerCase();
+
+        // 1. Strict Out-of-Context Detection
+        const isOutOfContext = (
+          /weather|rain|sunny|forecast|cricket|football|soccer|super bowl|messi|ronaldo|nba|movie|song|music|singer|president|election|politics|crypto|bitcoin|tell me a joke|are you single|dating|restaurant|lunch|dinner|game of thrones|minecraft|fortnite/i.test(
+            lowerQ,
+          ) && !/temperature|array|integer|number|price/i.test(lowerQ)
+        );
+
+        let socraticAnswer = "";
+
+        if (isOutOfContext) {
+          socraticAnswer = `Let's stay focused on our technical interview today. What approach are you planning to take for ${problem.title}?`;
+          setProctoringLog((prev) => [
+            {
+              timestamp: timeStr,
+              type: "warning",
+              message: `Off-topic spoken inquiry detected: "${q.slice(0, 45)}..."`,
+            },
+            ...prev,
+          ]);
+        } else {
+          // 2. Call backend /api/chat with strict Socratic interviewer instructions
+          let aiResponseText = "";
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2600);
+
+            const res = await fetch("/api/chat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal: controller.signal,
+              body: JSON.stringify({
+                messages: [{ role: "user", content: q }],
+                role: "interviewer",
+                context: {
+                  problemTitle: problem.title,
+                  problemSlug: problem.slug,
+                  difficulty: problem.difficulty,
+                  category: problem.category,
+                  constraints: problem.constraints,
+                  currentTier,
+                  tierName: problem.tiers[currentTier].name,
+                  tierComplexity: problem.tiers[currentTier].complexityTag,
+                  tierObjective: problem.tiers[currentTier].objective,
+                },
+                systemInstruction: `You are an elite, strict Socratic Technical Interviewer at a tier-1 company. The candidate is speaking to you over their microphone during a live coding interview on problem: "${problem.title}".
+Active Tier: Tier ${currentTier} (${problem.tiers[currentTier].name}, Target: ${problem.tiers[currentTier].complexityTag}).
+Tier Objective: ${problem.tiers[currentTier].objective}.
+Problem Constraints: ${problem.constraints.join("; ")}.
+
+STRICT LAWS:
+1. Limit your spoken answer to 1 to 3 concise, natural sentences.
+2. NEVER GIVE AWAY THE CODE OR DIRECT SOLUTION. Do not write code for them.
+3. STRICT CONTEXT: Only discuss this DSA problem, its constraints, or the candidate's algorithmic reasoning. If they ask about unrelated topics, politely redirect them back to the problem immediately.
+4. If they ask about constraints or inputs, answer accurately based on the problem specification.
+5. If they ask for a hint, provide a gentle Socratic nudge without spoiling the algorithm.`,
+              }),
+            });
+
+            clearTimeout(timeoutId);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.content) {
+                aiResponseText = data.content.trim();
+              }
+            }
+          } catch {
+            // Offline or timeout fallback
+          }
+
+          if (aiResponseText && aiResponseText.length > 10) {
+            socraticAnswer = aiResponseText;
+          } else {
+            // Local Socratic Intelligence Engine (Instant 0ms Fallback)
+            socraticAnswer = generateLocalSocraticAnswer(lowerQ, problem, currentTier);
+          }
+        }
+
+        setLastInterviewerAnswer(socraticAnswer);
+        speakAloud(socraticAnswer);
+      } finally {
+        isProcessingQuestionRef.current = false;
+        setIsProcessingQuestion(false);
+      }
+    },
+    [problem, currentTier, lastCandidateQuestion, speakAloud],
+  );
+
+  // Web Speech Recognition: Real-time Audio Listener
+  useEffect(() => {
+    if (phase !== "in-session") {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+        recognitionRef.current = null;
+      }
+      return;
+    }
+
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) return;
+
+    let recognition: any;
+    try {
+      recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      recognition.maxAlternatives = 1;
+      recognitionRef.current = recognition;
+    } catch {
+      return;
+    }
+
+    let speechTimer: any = null;
+
+    recognition.onresult = (event: any) => {
+      if (isAiSpeakingRef.current || isProcessingQuestionRef.current) return;
+
+      let interim = "";
+      let final = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+
+      const spoken = (final || interim).trim();
+      if (spoken) {
+        setCandidateSpeechTranscript(spoken);
+
+        clearTimeout(speechTimer);
+        speechTimer = setTimeout(() => {
+          if (!isAiSpeakingRef.current && !isProcessingQuestionRef.current) {
+            handleCandidateVoiceQuestion(spoken);
+          }
+        }, 1400);
+      }
+    };
+
+    recognition.onerror = (e: any) => {
+      if (e.error !== "no-speech") {
+        console.warn("Speech recognition notice:", e.error);
+      }
+    };
+
+    recognition.onend = () => {
+      if (phase === "in-session" && !isAiSpeakingRef.current && recognitionRef.current) {
+        try {
+          recognition.start();
+        } catch {}
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch {}
+
+    return () => {
+      clearTimeout(speechTimer);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+        recognitionRef.current = null;
+      }
+    };
+  }, [phase, handleCandidateVoiceQuestion]);
 
   // Sync floating video in in-session phase
   useEffect(() => {
@@ -349,6 +639,13 @@ function LiveInterviewPage() {
     if (!hasCamMicPermission) {
       toast.error("Please grant camera and microphone access to enter the proctored interview.");
       return;
+    }
+
+    if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+      await audioContextRef.current.resume().catch(() => {});
+    }
+    if (mediaStream && (!audioContextRef.current || audioContextRef.current.state === "closed")) {
+      setupAudioMonitoring(mediaStream);
     }
 
     // Try full screen
@@ -571,22 +868,38 @@ function LiveInterviewPage() {
                   <div className="flex flex-col gap-1.5 rounded-xl border border-border/60 bg-card/60 p-3">
                     <div className="flex items-center justify-between text-xs font-mono">
                       <span className="flex items-center gap-1.5 font-bold text-foreground">
-                        <Mic className="size-3.5 text-primary" /> Microphone Sensitivity
+                        <Mic className={`size-3.5 ${audioLevel > 15 ? "text-emerald-400 animate-pulse" : "text-primary"}`} /> Microphone Sensitivity
                       </span>
-                      <span className="text-muted-foreground">{audioLevel}%</span>
+                      <span className={`font-bold ${audioLevel > 15 ? "text-emerald-400" : "text-muted-foreground"}`}>{audioLevel}%</span>
                     </div>
                     {/* Audio Level Meter */}
                     <div className="h-2 w-full rounded-full bg-muted/60 overflow-hidden border border-border/50">
                       <div
                         className={`h-full transition-all duration-75 ${
-                          audioLevel > 50 ? "bg-emerald-400" : audioLevel > 15 ? "bg-primary" : "bg-muted-foreground/40"
+                          audioLevel > 50 ? "bg-emerald-400" : audioLevel > 15 ? "bg-cyan-400" : "bg-muted-foreground/40"
                         }`}
                         style={{ width: `${Math.max(5, audioLevel)}%` }}
                       />
                     </div>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      Speak into your microphone to verify audio pickup
-                    </span>
+                    <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground">
+                      <span>Speak into your microphone to verify audio pickup</span>
+                      {hasCamMicPermission && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+                              audioContextRef.current.resume().catch(() => {});
+                            }
+                            if (mediaStream) {
+                              setupAudioMonitoring(mediaStream);
+                            }
+                          }}
+                          className="text-primary hover:underline cursor-pointer"
+                        >
+                          Tap to wake audio
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Rules Checklist */}
@@ -910,6 +1223,142 @@ function LiveInterviewPage() {
 
               {/* RIGHT COLUMN: Code Editor, Silent Observer Stats & Submission Controls */}
               <div className="lg:col-span-7 flex flex-col gap-3">
+                {/* Real-Time Microphone Listener & Spoken Inquiry Dock */}
+                <div className="rounded-xl border border-cyan-500/40 bg-card/85 p-3 backdrop-blur-md shadow-sm flex flex-col gap-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex size-2.5">
+                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${audioLevel > 15 ? "bg-emerald-400" : "bg-cyan-400"} opacity-75`} />
+                        <span className={`relative inline-flex rounded-full size-2.5 ${audioLevel > 15 ? "bg-emerald-500" : "bg-cyan-500"}`} />
+                      </span>
+                      <span className="font-mono text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <Mic className="size-3.5 text-cyan-400" />
+                        <span>Live Mic Channel:</span>
+                        <span className="text-cyan-300 font-semibold">
+                          {isAiSpeaking ? "AI Interviewer Speaking..." : audioLevel > 15 ? "Candidate Speaking..." : "Listening to your Mic"}
+                        </span>
+                      </span>
+                    </div>
+
+                    {/* Mic Sensitivity Gauge & Status */}
+                    <div className="flex items-center gap-2 font-mono text-[11px]">
+                      <span className="text-muted-foreground">Mic Volume:</span>
+                      <div className="w-20 h-2 rounded-full bg-black/50 overflow-hidden border border-border/70">
+                        <div
+                          className={`h-full transition-all duration-75 ${
+                            audioLevel > 50 ? "bg-emerald-400" : audioLevel > 15 ? "bg-cyan-400" : "bg-muted-foreground/40"
+                          }`}
+                          style={{ width: `${Math.max(4, audioLevel)}%` }}
+                        />
+                      </div>
+                      <span className={`font-bold ${audioLevel > 15 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                        {audioLevel}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Real-Time Candidate Spoken Speech Recognition Banner */}
+                  {candidateSpeechTranscript && (
+                    <div className="rounded-lg bg-cyan-950/40 border border-cyan-500/50 px-3 py-2 text-xs font-mono flex items-center justify-between gap-2 animate-in fade-in">
+                      <div className="flex items-center gap-2 text-cyan-200">
+                        <Radio className="size-3.5 text-cyan-400 animate-pulse shrink-0" />
+                        <span>
+                          <strong>Hearing you:</strong> &ldquo;{candidateSpeechTranscript}&rdquo;
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleCandidateVoiceQuestion(candidateSpeechTranscript)}
+                        disabled={isProcessingQuestion || isAiSpeaking}
+                        className="h-6 px-2 text-[10px] font-mono bg-cyan-600 hover:bg-cyan-500 text-white"
+                      >
+                        Ask Now
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Last Spoken Q&A Exchange Toast */}
+                  {lastInterviewerAnswer && !candidateSpeechTranscript && (
+                    <div className="rounded-lg bg-card/90 border border-border/70 p-2.5 text-xs font-mono flex flex-col gap-1">
+                      {lastCandidateQuestion && (
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                          <span className="text-primary font-bold">You asked:</span> &ldquo;{lastCandidateQuestion}&rdquo;
+                        </div>
+                      )}
+                      <div className="text-xs text-foreground flex items-start gap-1.5">
+                        <Volume2 className="size-3.5 text-cyan-400 shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-cyan-300">Interviewer:</strong> {lastInterviewerAnswer}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Socratic Question Chips */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-muted-foreground">Quick Inquiries:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCandidateVoiceQuestion("Are the input numbers sorted?")}
+                      className="rounded-md border border-border/70 bg-secondary/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground hover:border-cyan-500/50 transition-colors cursor-pointer"
+                    >
+                      ❓ Are numbers sorted?
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCandidateVoiceQuestion("Can input values or target be negative?")}
+                      className="rounded-md border border-border/70 bg-secondary/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground hover:border-cyan-500/50 transition-colors cursor-pointer"
+                    >
+                      ❓ Can values be negative?
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCandidateVoiceQuestion("Can I use extra memory for this tier?")}
+                      className="rounded-md border border-border/70 bg-secondary/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground hover:border-cyan-500/50 transition-colors cursor-pointer"
+                    >
+                      ❓ What is space limit?
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCandidateVoiceQuestion("Can you give me a Socratic hint? I am stuck.")}
+                      className="rounded-md border border-amber-500/40 bg-amber-950/20 px-2 py-0.5 font-mono text-[10px] text-amber-300 hover:text-amber-200 hover:border-amber-500/80 transition-colors cursor-pointer"
+                    >
+                      💡 Give me a hint
+                    </button>
+                  </div>
+
+                  {/* Voice / Text Question Input Row */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (typedQuestion.trim()) {
+                        handleCandidateVoiceQuestion(typedQuestion.trim());
+                        setTypedQuestion("");
+                      }
+                    }}
+                    className="flex items-center gap-1.5 pt-0.5"
+                  >
+                    <div className="relative flex-1">
+                      <Mic className={`absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 ${audioLevel > 15 ? "text-emerald-400" : "text-muted-foreground"}`} />
+                      <input
+                        type="text"
+                        value={typedQuestion}
+                        onChange={(e) => setTypedQuestion(e.target.value)}
+                        placeholder="Speak into your mic anytime, or type a question to the interviewer..."
+                        className="w-full rounded-lg border border-border/70 bg-background/80 pl-8 pr-3 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={!typedQuestion.trim() || isProcessingQuestion || isAiSpeaking}
+                      size="sm"
+                      className="h-8 px-3 font-mono text-xs font-bold gap-1 bg-cyan-600 hover:bg-cyan-500 text-white shrink-0"
+                    >
+                      <Send className="size-3" /> Ask
+                    </Button>
+                  </form>
+                </div>
+
                 {/* Editor Header: Language selector + Silent Observer telemetry */}
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/80 bg-card/75 p-2.5 backdrop-blur-sm font-mono text-xs">
                   {/* Language Pills */}
@@ -1007,7 +1456,17 @@ function LiveInterviewPage() {
 
             {/* FLOATING WEBCAM & AUDIO METER VIEWPORT (BOTTOM-RIGHT) */}
             <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-1.5 select-none pointer-events-auto">
-              <div className="relative size-36 sm:size-44 rounded-xl border-2 border-emerald-500/80 bg-black overflow-hidden shadow-2xl shadow-black/80 ring-2 ring-emerald-500/30">
+              {/* Live Candidate Speech Popover if speaking */}
+              {candidateSpeechTranscript && (
+                <div className="max-w-[200px] rounded-lg bg-card/95 border border-cyan-500/60 p-2 shadow-xl font-mono text-[10px] text-cyan-200 animate-in fade-in slide-in-from-bottom-2 backdrop-blur-md">
+                  <div className="flex items-center gap-1 font-bold text-cyan-400 mb-0.5">
+                    <Radio className="size-3 animate-pulse" /> Hearing Voice:
+                  </div>
+                  <p className="line-clamp-2 italic">&ldquo;{candidateSpeechTranscript}&rdquo;</p>
+                </div>
+              )}
+
+              <div className="relative size-36 sm:size-48 rounded-xl border-2 border-emerald-500/80 bg-black overflow-hidden shadow-2xl shadow-black/80 ring-2 ring-emerald-500/30">
                 <video
                   ref={floatingVideoRef}
                   autoPlay
@@ -1021,14 +1480,38 @@ function LiveInterviewPage() {
                   REC • PROCTOR
                 </div>
 
-                {/* Live Mic Level Bar */}
-                <div className="absolute bottom-2 left-2 right-2 h-1.5 rounded-full bg-black/70 overflow-hidden border border-white/20">
-                  <div
-                    className={`h-full transition-all duration-75 ${
-                      audioLevel > 50 ? "bg-emerald-400" : audioLevel > 15 ? "bg-cyan-400" : "bg-slate-500"
-                    }`}
-                    style={{ width: `${Math.max(5, audioLevel)}%` }}
-                  />
+                {/* Candidate Voice Activity Badge */}
+                {audioLevel > 15 && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-emerald-950/90 px-1.5 py-0.5 font-mono text-[8px] font-bold text-emerald-300 border border-emerald-500/50 animate-pulse">
+                    <Mic className="size-2.5 text-emerald-400" />
+                    SPEAKING
+                  </div>
+                )}
+
+                {/* AI Speaking Waveform Badge */}
+                {isAiSpeaking && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-cyan-950/90 px-1.5 py-0.5 font-mono text-[8px] font-bold text-cyan-300 border border-cyan-500/50 animate-pulse">
+                    <Volume2 className="size-2.5 text-cyan-400" />
+                    AI TALKING
+                  </div>
+                )}
+
+                {/* Live Mic Level Bar with % readout */}
+                <div className="absolute bottom-2 left-2 right-2 flex flex-col gap-0.5 bg-black/75 p-1 rounded-md border border-white/10 backdrop-blur-xs">
+                  <div className="flex items-center justify-between text-[8px] font-mono text-white/90 px-0.5 drop-shadow">
+                    <span className="flex items-center gap-1">
+                      <Mic className="size-2.5 text-emerald-400" /> MIC
+                    </span>
+                    <span className={`font-bold ${audioLevel > 15 ? "text-emerald-400" : "text-white/80"}`}>{audioLevel}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-black/80 overflow-hidden border border-white/20">
+                    <div
+                      className={`h-full transition-all duration-75 ${
+                        audioLevel > 50 ? "bg-emerald-400" : audioLevel > 15 ? "bg-cyan-400" : "bg-slate-500"
+                      }`}
+                      style={{ width: `${Math.max(5, audioLevel)}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

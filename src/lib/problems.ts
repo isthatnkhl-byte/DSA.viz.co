@@ -6360,7 +6360,38 @@ export function getCanonicalMultiDatasets(
   let baseSecondaryArray: (number | string)[] | undefined;
   let baseDescription: string | undefined;
 
-  const customD1 = isParentheses ? undefined : CUSTOM_DATASETS[slug]?.[0];
+  const isGenericDummyDataset = (d: TestDataset | undefined): boolean => {
+    if (!d || !d.array) return false;
+    const arr = d.array;
+    if (
+      arr.length === 5 &&
+      arr[0] === 1 &&
+      arr[1] === 5 &&
+      arr[2] === 3 &&
+      arr[3] === 4 &&
+      arr[4] === 2 &&
+      d.target === 3
+    ) {
+      return true;
+    }
+    if (
+      arr.length === 7 &&
+      arr[0] === 4 &&
+      arr[1] === 2 &&
+      arr[2] === 6 &&
+      arr[3] === 1 &&
+      arr[4] === 3 &&
+      arr[5] === 5 &&
+      arr[6] === 7 &&
+      d.target === 3
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const rawCustomD1 = isParentheses ? undefined : CUSTOM_DATASETS[slug]?.[0];
+  const customD1 = isGenericDummyDataset(rawCustomD1) ? undefined : rawCustomD1;
   if (customD1) {
     if (customD1.array && customD1.array.length > 0) baseArray = customD1.array;
     if (customD1.secondaryArray && customD1.secondaryArray.length > 0) baseSecondaryArray = customD1.secondaryArray;

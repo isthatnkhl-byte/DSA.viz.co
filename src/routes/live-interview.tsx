@@ -1652,6 +1652,14 @@ function LiveInterviewPage() {
                 </div>
               )}
 
+              {/* Privacy Guarantee Notice */}
+              <div className="rounded-lg bg-emerald-950/20 border border-emerald-500/30 p-2.5 text-[11px] font-mono text-emerald-300 flex items-start gap-2">
+                <ShieldCheck className="size-4 shrink-0 text-emerald-400 mt-0.5" />
+                <span>
+                  <strong>Privacy Guarantee:</strong> Camera and audio streams are processed strictly within your browser in real time. Video and voice data are never recorded, transmitted, or stored on any server.
+                </span>
+              </div>
+
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                 {!hasCamMicPermission ? (

@@ -33,4 +33,13 @@ dist-ssr
 .env
 *.map
 
+# Scratch and database query scripts
+query_*.js
+query_*.ts
+test-compile*.js
+test-strat*.ts
+test-user.ts
+test-leetcode.ts
+*.zip
+
 

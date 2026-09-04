@@ -6,7 +6,7 @@
       "rules": [
         {
           "allow": "read",
-          "condition": "request.auth != null"
+          "condition": "request.auth != null && request.auth.uid == userId"
         },
         {
           "allow": "write",
@@ -94,6 +94,54 @@
           }
         },
         "required": ["problemSlug", "createdAt"]
+      }
+    },
+    {
+      "name": "ai_reports",
+      "path": "users/{userId}/ai_reports/{reportId}",
+      "rules": [
+        {
+          "allow": "read",
+          "condition": "request.auth != null && request.auth.uid == userId"
+        },
+        {
+          "allow": "write",
+          "condition": "request.auth != null && request.auth.uid == userId"
+        }
+      ],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "totalSubmissions": { "type": "number" },
+          "reportData": { "type": "object" },
+          "createdAt": { "type": "string" }
+        },
+        "required": ["title", "createdAt"]
+      }
+    },
+    {
+      "name": "chat_sessions",
+      "path": "users/{userId}/chat_sessions/{sessionId}",
+      "rules": [
+        {
+          "allow": "read",
+          "condition": "request.auth != null && request.auth.uid == userId"
+        },
+        {
+          "allow": "write",
+          "condition": "request.auth != null && request.auth.uid == userId"
+        }
+      ],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "messages": { "type": "array" },
+          "createdAt": { "type": "string" },
+          "updatedAt": { "type": "string" }
+        },
+        "required": ["title", "messages"]
       }
     }
   ]

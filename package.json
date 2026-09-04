@@ -8,7 +8,7 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --external:vite --alias:@tanstack/react-start=./src/lib/react-start-shim.ts --alias:@tanstack/react-start/server=./src/lib/react-start-shim.ts --alias:@=./src --sourcemap --outfile=api/server.cjs && cp api/server.cjs dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
-    "test": "tsx --test src/lib/formatMath.test.ts src/middleware/auth.test.ts src/lib/ai-contracts.test.ts src/lib/simulators.test.ts src/lib/simulators.edge.test.ts src/lib/problems.test.ts src/lib/compiler.test.ts src/lib/openrouter.server.test.ts src/data/live-interview.test.ts test/system-pipeline.test.ts test/playback-orchestrator.test.ts",
+    "test": "tsx --test src/lib/formatMath.test.ts src/middleware/auth.test.ts src/lib/ai-contracts.test.ts src/lib/simulators.test.ts src/lib/simulators.edge.test.ts src/lib/problems.test.ts src/lib/compiler.test.ts src/lib/openrouter.server.test.ts src/data/live-interview.test.ts test/system-pipeline.test.ts test/playback-orchestrator.test.ts test/dataset-pipeline.test.ts",
     "lint": "tsc --noEmit",
     "format": "prettier --write ."
   },

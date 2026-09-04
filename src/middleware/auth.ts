@@ -21,20 +21,11 @@ export const requireAuth = async (
     return res.status(401).json({ error: 'Unauthorized: Missing token' }); 
   }
 
-  // Explicitly gated mock auth strictly for offline automated integration test suites or guest dev mode
+  // Explicitly gated mock auth strictly for offline automated integration test suites
   if (process.env.NODE_ENV === 'test' && req.headers['x-test-mock-user-id']) {
     req.user = {
       uid: String(req.headers['x-test-mock-user-id']),
       email: String(req.headers['x-test-mock-email'] || 'test@example.com'),
-    } as unknown as DecodedIdToken;
-    return next();
-  }
-
-  if (token.startsWith('mock-guest-token') || token.startsWith('guest-token') || token === 'guest-developer') {
-    req.user = {
-      uid: 'guest-developer',
-      email: 'guest@dsaviz.local',
-      name: 'Guest Developer',
     } as unknown as DecodedIdToken;
     return next();
   }

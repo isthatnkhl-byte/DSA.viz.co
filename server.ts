@@ -28,6 +28,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 
+let devEphemeralKey: Buffer | null = null;
 const getEncryptionKey = (): Buffer => {
   const encKey = process.env.ENCRYPTION_KEY;
   if (encKey && encKey.length >= 32) {
@@ -36,9 +37,11 @@ const getEncryptionKey = (): Buffer => {
   if (process.env.NODE_ENV === "production") {
     throw new Error("FATAL CONFIGURATION ERROR: ENCRYPTION_KEY (at least 32 characters) must be configured in production.");
   }
-  console.warn("⚠️ [Security Notice]: ENCRYPTION_KEY is not configured. Deriving local development encryption key.");
-  const secret = process.env.GITHUB_CLIENT_SECRET || "dev_insecure_local_encryption_fallback_32";
-  return crypto.scryptSync(secret, "dsaviz_salt", 32);
+  if (!devEphemeralKey) {
+    console.warn("⚠️ [Security Notice]: ENCRYPTION_KEY is not configured. Generating cryptographically random ephemeral key for this runtime session.");
+    devEphemeralKey = crypto.randomBytes(32);
+  }
+  return devEphemeralKey;
 };
 
 function encryptToken(text: string): string {
@@ -69,8 +72,22 @@ function decryptToken(text: string): string | null {
 }
 
 const app = express();
+app.disable("x-powered-by");
 app.set("trust proxy", 1);
 const PORT = 3000;
+
+// Security: HTTP Response Hardening Headers
+app.use((_req, res, next) => {
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
+  res.setHeader("Content-Security-Policy", "frame-ancestors 'none';");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+  }
+  next();
+});
 
 // Security: Constrain global JSON & urlencoded payload sizes to 2MB
 app.use(express.json({ limit: "2mb" }));
@@ -154,9 +171,7 @@ const cleanEnv = (val?: string | null): string => {
 function getGeminiClient(): GoogleGenAI {
   const apiKey = cleanEnv(
     process.env.GEMINI_API_KEY ||
-    process.env.VITE_GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY
+    process.env.GOOGLE_API_KEY
   );
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable is missing.");
@@ -333,27 +348,25 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-// Debug endpoint to check environment variables
+// Debug endpoint to check environment variables (Gated)
 app.get("/api/debug/env", (_req: Request, res: Response) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Not found" });
+  }
   const gemini = !!cleanEnv(
     process.env.GEMINI_API_KEY ||
-    process.env.VITE_GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY
+    process.env.GOOGLE_API_KEY
   );
   const openrouter = !!cleanEnv(
     process.env.OPENROUTER_API_KEY ||
-    process.env.VITE_OPENROUTER_API_KEY ||
     process.env.OPEN_ROUTER_API_KEY ||
-    process.env.VITE_OPEN_ROUTER_API_KEY ||
-    process.env.Openrouterapi ||
-    process.env.VITE_Openrouterapi
+    process.env.Openrouterapi
   );
   res.json({
     gemini,
     openrouter,
-    github: !!(process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID),
-    firebase: !!(process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID),
+    github: !!process.env.GITHUB_CLIENT_ID,
+    firebase: !!(process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID),
     nodeEnv: process.env.NODE_ENV,
   });
 });
@@ -832,7 +845,7 @@ Return a strictly valid JSON object matching this schema:
 });
 
 // API: Rate Submission Endpoint
-app.post("/api/rate-submission", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/rate-submission", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       code = "",
@@ -908,7 +921,7 @@ Return a strictly valid JSON object matching this schema:
 });
 
 // API: Generate Common Mistakes & Diagnostics Report from Profile
-app.post("/api/generate-mistakes-report", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/generate-mistakes-report", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     let userId: string | null = null;
     const authHeader = req.headers.authorization;
@@ -1078,7 +1091,7 @@ app.post("/api/chat-sessions", requireAuth, async (req: any, res: Response) => {
 });
 
 // API: High-Quality Image Generation
-app.post("/api/generate-image", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/generate-image", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       prompt,
@@ -1303,7 +1316,7 @@ const interviewExecuteSchema = z.object({
   ),
 });
 
-app.post("/api/interview/execute", apiLimiter, async (req: Request, res: Response) => {
+app.post("/api/interview/execute", compilerLimiter, async (req: Request, res: Response) => {
   const parsed = interviewExecuteSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({

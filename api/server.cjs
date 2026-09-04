@@ -154837,14 +154837,6 @@ var requireAuth = async (req, res, next) => {
     };
     return next();
   }
-  if (token.startsWith("mock-guest-token") || token.startsWith("guest-token") || token === "guest-developer") {
-    req.user = {
-      uid: "guest-developer",
-      email: "guest@dsaviz.local",
-      name: "Guest Developer"
-    };
-    return next();
-  }
   try {
     const decodedToken = await adminAuth.verifyIdToken(token);
     req.user = decodedToken;
@@ -208059,10 +208051,10 @@ var clean2 = (val) => {
 function getAiConfig() {
   const env3 = typeof process !== "undefined" && process?.env ? process.env : {};
   const geminiKey = clean2(
-    env3["GEMINI_API_KEY"] || env3["VITE_GEMINI_API_KEY"] || env3["GOOGLE_API_KEY"] || env3["VITE_GOOGLE_API_KEY"] || ""
+    env3["GEMINI_API_KEY"] || env3["GOOGLE_API_KEY"] || ""
   );
   const openRouterKey = clean2(
-    env3["OPENROUTER_API_KEY"] || env3["VITE_OPENROUTER_API_KEY"] || env3["OPEN_ROUTER_API_KEY"] || env3["VITE_OPEN_ROUTER_API_KEY"] || env3["Openrouterapi"] || env3["VITE_Openrouterapi"] || ""
+    env3["OPENROUTER_API_KEY"] || env3["OPEN_ROUTER_API_KEY"] || env3["Openrouterapi"] || ""
   );
   const reviewKey = geminiKey || openRouterKey;
   const vizKey = geminiKey || openRouterKey;
@@ -246252,7 +246244,19 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
   let baseTarget;
   let baseSecondaryArray;
   let baseDescription;
-  const customD1 = isParentheses ? void 0 : CUSTOM_DATASETS[slug]?.[0];
+  const isGenericDummyDataset = (d) => {
+    if (!d || !d.array) return false;
+    const arr = d.array;
+    if (arr.length === 5 && arr[0] === 1 && arr[1] === 5 && arr[2] === 3 && arr[3] === 4 && arr[4] === 2 && d.target === 3) {
+      return true;
+    }
+    if (arr.length === 7 && arr[0] === 4 && arr[1] === 2 && arr[2] === 6 && arr[3] === 1 && arr[4] === 3 && arr[5] === 5 && arr[6] === 7 && d.target === 3) {
+      return true;
+    }
+    return false;
+  };
+  const rawCustomD1 = isParentheses ? void 0 : CUSTOM_DATASETS[slug]?.[0];
+  const customD1 = isGenericDummyDataset(rawCustomD1) ? void 0 : rawCustomD1;
   if (customD1) {
     if (customD1.array && customD1.array.length > 0) baseArray = customD1.array;
     if (customD1.secondaryArray && customD1.secondaryArray.length > 0) baseSecondaryArray = customD1.secondaryArray;
@@ -252152,19 +252156,33 @@ CRITICAL EVALUATION RULES:
      * Set "praise": 2-3 sentences highlighting genuine strong decisions in their pseudocode and structure management.
      * Set "nudge": If Brute Force or Better, hint at how to optimize further (e.g. using auxiliary structures). If Optimal, provide a tricky edge case or follow-up question.
      * Set "review": A structured markdown review under 200 words evaluating algorithm structure, invariants, time/space complexity justification, and dry-run correctness.
-     * MANDATORY DATASET TRIPLE GENERATION: Always generate exactly 3 curated test datasets:
-       - MANDATORY CANONICAL PRESERVATION FOR DATASET 1: Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case") MUST strictly preserve the exact canonical Example 1 from the problem statement (e.g., for Two Sum, nums=[2,7,11,15] and target=9; for Set Matrix Zeroes, matrix=[[1,1,1],[1,0,1],[1,1,1]]). Never invent or substitute a different array or target for Dataset 1.
-       - MANDATORY DATASET SIZE ENFORCEMENT: 
-         * For Arrays: Standard must be 6-10 elements. Longer must be 15-25 elements. Edge must be 10-15 elements.
-         * For Trees (represented as arrays): Standard must have 7-15 nodes (depth 3-4). Longer must be very deep/wide with 15-31 nodes (depth 4-5). Edge must be highly unbalanced or large (10-15 nodes).
-         * For Grids/Matrices (Transformation, Islands, etc): Standard must be the canonical 3\xD73 or 3\xD74 matrix. Longer (dataset_2) MUST be guaranteed 5\xD76 or 6\xD76, strictly larger than Dataset 1. NEVER generate a 2\xD72 or smaller matrix for Dataset 2. Edge (dataset_3) must be 3\xD75 or test boundaries.
-         * For Strings: Standard must be 10-15 chars, Longer must be 20-40 chars.
-         * For Sliding Window / Substrings: Standard must be canonical Example 1. If operating on characters, provide an array of individual single-character strings (e.g. ["a", "b", "c", ...]). Longer (dataset_2) must be 15-25 characters with repeated character clusters to induce multiple window expansions and contractions. For numeric sliding windows, provide integer parameter "k".
-         * For In-Place Pointers (Move Zeroes, Remove Duplicates, Sort Colors): Standard must be canonical Example 1. Longer (dataset_2) must be 14-20 elements with multiple scattered target elements (e.g. multiple adjacent/trailing zeroes or runs of 3-4 duplicates) so slow (write) and fast (read) pointers diverge significantly.
-         * For Prefix Sum & Complement Hash Map (Subarray Sum Equals K, Contiguous Array): Standard must be canonical Example 1 and target k. Longer (dataset_2) must be 12-18 elements with mixed positive, negative, and zero values with multiple valid subarrays summing to target k.
-       - Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case"): Exact canonical problem example 1.
-       - Dataset 2 (id="dataset_2", label="Dataset 2: Longer & Complex Trace \u26A1"): A significantly longer, extended dataset adhering to the large sizes above to produce an extensive full execution trace.
-       - Dataset 3 (id="dataset_3", label="Dataset 3: Edge & Boundary Case"): Extreme constraint testing (negatives, duplicates, single paths) but maintaining the large edge sizes above.
+     * MANDATORY DATASET TRIPLE GENERATION: Always generate exactly 3 curated test datasets tailored specifically to this problem's data structure:
+       - MANDATORY CANONICAL PRESERVATION FOR DATASET 1: Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case", category="standard") MUST strictly preserve the exact canonical Example 1 from the problem statement (e.g., for Two Sum, nums=[2,7,11,15] and target=9; for Set Matrix Zeroes, matrix=[[1,1,1],[1,0,1],[1,1,1]]). Never invent or substitute a different array or target for Dataset 1.
+       - MANDATORY DATASET SIZE & STRUCTURE ENFORCEMENT: 
+         * For 2D Grids / Matrices (Transformation, Islands, Graph Grid, Matrix Search):
+           - Must provide "matrix": [[...], [...], ...] and matching flattened "array".
+           - Dataset 1 (Standard Case): The canonical LeetCode Example 1 matrix (e.g., 3\xD73 or 3\xD74).
+           - Dataset 2 (Longer & Complex Trace \u26A1): MUST BE A SUBSTANTIALLY LARGER MATRIX OF AT LEAST 5\xD76 or 6\xD76 (strictly larger than Dataset 1) with multiple target elements (multiple zeroes, multiple islands, or dispersed values). This is strictly required so that the visualizer generates extended execution steps, providing the user ample time to understand the algorithm traversing larger 2D data. NEVER produce a 2\xD72, 3\xD73, or shrunken matrix for Dataset 2!
+           - Dataset 3 (Edge & Boundary Case): Boundary matrix (e.g. 3\xD75, edge/corner values, all zeroes, or disconnected components).
+         * For 1D Arrays:
+           - Dataset 1 (Standard Case): Exact canonical LeetCode Example 1.
+           - Dataset 2 (Longer & Complex Trace \u26A1): Must be 15\u201325 elements (substantially longer than Dataset 1) so the visualizer generates 25\u201340+ steps, giving the user ample time to observe sustained pointer movement, partitions, or iterations.
+           - Dataset 3 (Edge & Boundary Case): Boundary conditions (negatives, duplicates, single items, zeroes, alternating signs, or extreme values).
+         * For Trees (represented as BFS level-order arrays with nulls):
+           - Dataset 1 (Standard Case): Exact canonical Example 1 tree.
+           - Dataset 2 (Longer & Complex Trace \u26A1): Deep/wide tree with 15\u201331 nodes (depth 4\u20135) for extended multi-level traversal.
+           - Dataset 3 (Edge & Boundary Case): Skewed, unbalanced, or single-path tree.
+         * For Strings & Sliding Windows:
+           - Dataset 1 (Standard Case): Canonical Example 1 (as character array ["a", "b", ...] or string).
+           - Dataset 2 (Longer & Complex Trace \u26A1): 20\u201335 characters with repeated character clusters to induce multiple window expansions and contractions.
+           - Dataset 3 (Edge & Boundary Case): Homogeneous string, single character, or minimal length.
+         * For Problems with Target or Parameter 'k':
+           - Explicitly provide "target" or "k" on each of the 3 datasets matching the problem logic.
+         * For Dual Sequence / Two Array Problems:
+           - Include "array" (sequence 1) and "secondaryArray" (sequence 2).
+       - Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case", category="standard"): Exact canonical problem example 1.
+       - Dataset 2 (id="dataset_2", label="Dataset 2: Longer & Complex Trace \u26A1", category="longer"): A significantly longer, extended dataset adhering to the large sizes above to produce an extensive full execution trace.
+       - Dataset 3 (id="dataset_3", label="Dataset 3: Edge & Boundary Case", category="edge"): Extreme constraint testing (negatives, duplicates, single paths, tight boundaries).
 
 4. OUTPUT FORMAT:
 Respond ONLY with a valid JSON object in this exact schema with no surrounding markdown or extra text:
@@ -252183,26 +252201,30 @@ Respond ONLY with a valid JSON object in this exact schema with no surrounding m
     {
       "id": "dataset_1",
       "label": "Dataset 1: Standard Case",
-      "description": "Baseline canonical test input from the problem statement.",
-      "array": [10, 20, 30, 40, 50],
-      "target": 50
+      "category": "standard",
+      "description": "Baseline canonical test input from LeetCode Example 1.",
+      "array": [2, 7, 11, 15],
+      "target": 9
     },
     {
       "id": "dataset_2",
       "label": "Dataset 2: Longer & Complex Trace \u26A1",
-      "description": "Longer extended sequence for in-depth execution traversal.",
-      "array": [5, 12, 18, 23, 29, 34, 41, 48, 55, 62, 70, 77, 85, 92, 100],
-      "target": 100
+      "category": "longer",
+      "description": "Significantly longer dataset (Array: 15-25 elements, Matrix: 5x6 or 6x6) producing extended visualizer steps for deep algorithmic understanding.",
+      "array": [2, 4, 7, 11, 15, 18, 22, 27, 33, 40, 48, 55, 63, 72, 85, 99],
+      "target": 55
     },
     {
       "id": "dataset_3",
       "label": "Dataset 3: Edge & Boundary Case",
-      "description": "Edge case with negative values, duplicates, and extended length.",
-      "array": [-25, -10, 0, 0, 15, 15, 50, 99],
+      "category": "edge",
+      "description": "Boundary condition testing negative numbers, duplicates, or extreme values.",
+      "array": [-15, -5, 0, 2, 2, 7, 14, 20],
       "target": 0
     }
   ]
-}`;
+}
+NOTE: If the problem operates on a 2D matrix/grid, include "matrix": [[...], [...]] on each dataset, with Dataset 2 guaranteed to be 5x6 or 6x6. If operating on a tree, include "tree": [...]. If operating on dual inputs, include "secondaryArray": [...].`;
 function buildReviewUserPrompt({
   title,
   difficulty: difficulty2,
@@ -252225,10 +252247,15 @@ ${pseudocode}
 
 TASK:
 1. CRITICAL: Check if the candidate's pseudocode is logically complete (has end-to-end working logic for Brute Force, Better, or Optimal) or if it is incomplete / missing key parts / solving the wrong problem. DO NOT hallucinate or assume missing logic. If it is half-written, it is Incomplete.
-2. Evaluate multi-dataset handling (if applicable) and pointer/transition correctness.
-3. If incomplete, set is_complete to false, classification to "Incomplete", list missing_elements, and explain what more to add in nudge.
-4. If complete, set is_complete to true, classify as "Optimal", "Better", or "Brute Force", and analyze the exact time/space complexity.
-5. Output the required JSON object.`;
+2. MANDATORY DATASET TRIPLE GENERATION: Generate exactly 3 variable datasets tailored specifically to this problem in "test_datasets":
+   - Dataset 1 (id="dataset_1", category="standard", label="Dataset 1: Standard Case"): The exact canonical famous LeetCode Example 1 from the problem statement.
+   - Dataset 2 (id="dataset_2", category="longer", label="Dataset 2: Longer & Complex Trace \u26A1"): A dataset that is usually longer and significantly larger (for arrays: 15\u201325 elements; for matrices: at least 5\xD76 or 6\xD76; for strings: 20\u201335 chars; for trees: 15\u201331 nodes) so that the visualizer generates longer steps and gives the learner more time to understand the algorithm as it moves through larger data.
+   - Dataset 3 (id="dataset_3", category="edge", label="Dataset 3: Edge & Boundary Case"): Boundary condition case testing edge limits, negatives, duplicates, single items, or extreme constraints.
+   - Match the problem's data structure: provide "matrix" for 2D grids, "tree" for binary trees, "secondaryArray" for dual inputs, and "target" / "k" if required.
+3. Evaluate multi-dataset handling (if applicable) and pointer/transition correctness.
+4. If incomplete, set is_complete to false, classification to "Incomplete", list missing_elements, and explain what more to add in nudge.
+5. If complete, set is_complete to true, classify as "Optimal", "Better", or "Brute Force", and analyze the exact time/space complexity.
+6. Output the required JSON object.`;
 }
 
 // src/lib/prompts/visualizer.prompt.ts
@@ -252308,6 +252335,7 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
 5) COMPLETE END-TO-END TRAVERSAL (MANDATORY):
    - You MUST simulate the algorithm completely from the first initialization line to the final return/termination statement.
    - NEVER STOP HALFWAY, truncate, or end early. Traverse EVERY element, pointer step, node, or grid cell until the entire test input dataset has been completely processed according to the pseudocode.
+   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15\u201325 elements or 5\xD76 / 6\xD76 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
    - Generate all necessary execution steps (from initial state, loop progression, all iterations, to final return) to provide a complete, unbroken visual walkthrough.
    - The final step MUST highlight the termination condition, the final return value, or the completed data structure state.
 
@@ -253160,6 +253188,34 @@ function isValidArrayForProblem(arr, _slug, _topics = [], isLongerDataset = fals
   }
   return true;
 }
+function expandMatrixToSize(matrix, targetRows, targetCols) {
+  if (!Array.isArray(matrix) || matrix.length === 0 || !Array.isArray(matrix[0]) || matrix[0].length === 0) {
+    return matrix;
+  }
+  const origR = matrix.length;
+  const origC = matrix[0].length;
+  const newR = Math.max(origR, targetRows);
+  const newC = Math.max(origC, targetCols);
+  return Array.from(
+    { length: newR },
+    (_, r2) => Array.from({ length: newC }, (_2, c) => matrix[r2 % origR][c % origC])
+  );
+}
+function expandArrayToLength(arr, targetLength) {
+  if (!Array.isArray(arr) || arr.length === 0 || arr.length >= targetLength) return arr;
+  if (typeof arr[0] === "number") {
+    const last = Number(arr[arr.length - 1] ?? 0);
+    const step = 2;
+    const needed = targetLength - arr.length;
+    const extra = Array.from({ length: needed }, (_, i2) => last + (i2 + 1) * step);
+    return [...arr, ...extra];
+  }
+  const result = [...arr];
+  while (result.length < targetLength) {
+    result.push(...arr);
+  }
+  return result.slice(0, targetLength);
+}
 async function processReviewPseudocode(data) {
   const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
   const reviewKeyForRequest = geminiKey || reviewKey || openRouterKey;
@@ -253227,7 +253283,7 @@ async function processReviewPseudocode(data) {
       description: typeof d?.description === "string" ? d.description : void 0,
       array: Array.isArray(d?.array) ? d.array.length === 1 && typeof d.array[0] === "string" && d.array[0].length > 1 && isDynamicSlidingWindowProblem(data.slug, data.topics ?? []) ? d.array[0].split("") : d.array.map(
         (x2) => typeof x2 === "number" || typeof x2 === "string" ? x2 : String(x2)
-      ).filter((x2) => x2 !== null && x2 !== void 0) : void 0,
+      ).filter((x2) => x2 !== null && x2 !== void 0) : Array.isArray(d?.matrix) ? d.matrix.flat().filter((x2) => x2 !== null && x2 !== void 0 && (typeof x2 === "number" || typeof x2 === "string")) : void 0,
       secondaryArray: Array.isArray(d?.secondaryArray) ? d.secondaryArray.map(
         (x2) => typeof x2 === "number" || typeof x2 === "string" ? x2 : String(x2)
       ).filter((x2) => x2 !== null && x2 !== void 0) : void 0,
@@ -253238,53 +253294,107 @@ async function processReviewPseudocode(data) {
       category: d?.category ?? (idx === 1 ? "longer" : idx === 2 ? "edge" : "standard")
     }));
     if (aiDatasets.length > 0) {
-      datasets = canonicalDatasets.map((canon, i2) => {
-        const aiD = aiDatasets[i2];
-        if (!aiD) return canon;
-        if (i2 === 0) {
-          return {
-            ...canon,
-            label: aiD.label || canon.label,
-            description: aiD.description || canon.description,
-            array: canon.array,
-            secondaryArray: canon.secondaryArray,
-            matrix: canon.matrix,
-            tree: canon.tree,
-            target: canon.target,
-            k: canon.k
-          };
+      const d1Canon = canonicalDatasets[0];
+      const d1Ai = aiDatasets[0];
+      let d1Matrix = d1Canon.matrix;
+      if (d1Ai?.matrix && isValidMatrixForProblem(d1Ai.matrix, data.slug, data.topics ?? [], false)) {
+        d1Matrix = d1Ai.matrix;
+      }
+      let d1Array = d1Canon.array;
+      if (d1Matrix && (d1Canon.matrix || d1Ai?.matrix)) {
+        d1Array = d1Matrix.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string");
+      } else if (d1Ai?.array && isValidArrayForProblem(d1Ai.array, data.slug, data.topics ?? [], false)) {
+        d1Array = d1Ai.array;
+      }
+      const d1 = {
+        id: "dataset_1",
+        label: d1Ai?.label || d1Canon.label || "Dataset 1: Standard Case",
+        description: d1Ai?.description || d1Canon.description,
+        category: "standard",
+        array: d1Array,
+        secondaryArray: d1Ai?.secondaryArray && d1Ai.secondaryArray.length > 0 ? d1Ai.secondaryArray : d1Canon.secondaryArray,
+        matrix: d1Matrix,
+        tree: d1Ai?.tree && d1Ai.tree.length > 0 ? d1Ai.tree : d1Canon.tree,
+        target: d1Ai?.target !== void 0 ? d1Ai.target : d1Canon.target,
+        k: d1Ai?.k !== void 0 ? d1Ai.k : d1Canon.k
+      };
+      const d2Canon = canonicalDatasets[1] ?? {
+        id: "dataset_2",
+        label: "Dataset 2: Longer & Complex Trace \u26A1",
+        category: "longer",
+        description: "Longer extended sequence for in-depth execution traversal."
+      };
+      const d2Ai = aiDatasets[1];
+      let d2Matrix = d2Canon.matrix;
+      if (d2Ai?.matrix && isValidMatrixForProblem(d2Ai.matrix, data.slug, data.topics ?? [], false)) {
+        const minRows = Math.max(5, (d1.matrix?.length ?? 3) + 1);
+        const minCols = Math.max(6, (d1.matrix?.[0]?.length ?? 3) + 1);
+        if (d2Ai.matrix.length < minRows || (d2Ai.matrix[0]?.length ?? 0) < minCols) {
+          d2Matrix = expandMatrixToSize(d2Ai.matrix, minRows, minCols);
+        } else {
+          d2Matrix = d2Ai.matrix;
         }
-        const isLonger = i2 === 1;
-        const canonRows = canon.matrix?.length ?? 0;
-        const canonCols = canon.matrix?.[0]?.length ?? 0;
-        const canonArrayLength = canon.array?.length ?? 0;
-        const validMatrix = aiD.matrix && isValidMatrixForProblem(
-          aiD.matrix,
-          data.slug,
-          data.topics ?? [],
-          isLonger,
-          canonRows,
-          canonCols
-        ) ? aiD.matrix : canon.matrix;
-        const validArray = validMatrix && canon.matrix ? validMatrix.flat().filter((x2) => typeof x2 === "number") : aiD.array && isValidArrayForProblem(
-          aiD.array,
-          data.slug,
-          data.topics ?? [],
-          isLonger,
-          canonArrayLength
-        ) ? aiD.array : canon.array;
-        return {
-          ...canon,
-          label: aiD.label || canon.label,
-          description: aiD.description || canon.description,
-          array: validArray,
-          secondaryArray: aiD.secondaryArray && aiD.secondaryArray.length > 0 ? aiD.secondaryArray : canon.secondaryArray,
-          matrix: validMatrix,
-          tree: aiD.tree && aiD.tree.length > 0 ? aiD.tree : canon.tree,
-          target: aiD.target !== void 0 ? aiD.target : canon.target,
-          k: aiD.k !== void 0 ? aiD.k : canon.k
-        };
-      });
+      } else if (d1.matrix && !d2Matrix) {
+        const minRows = Math.max(5, d1.matrix.length + 2);
+        const minCols = Math.max(6, (d1.matrix[0]?.length ?? 3) + 2);
+        d2Matrix = expandMatrixToSize(d1.matrix, minRows, minCols);
+      }
+      let d2Array = d2Canon.array;
+      if (d2Matrix && (d1.matrix || d2Canon.matrix)) {
+        d2Array = d2Matrix.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string");
+      } else if (d2Ai?.array && isValidArrayForProblem(d2Ai.array, data.slug, data.topics ?? [], false)) {
+        const targetLen = Math.max(15, (d1.array?.length ?? 8) + 6);
+        if (d2Ai.array.length < targetLen) {
+          d2Array = expandArrayToLength(d2Ai.array, targetLen);
+        } else {
+          d2Array = d2Ai.array;
+        }
+      } else if (d1.array && !d2Array) {
+        const targetLen = Math.max(15, d1.array.length + 8);
+        d2Array = expandArrayToLength(d1.array, targetLen);
+      }
+      const d2 = {
+        id: "dataset_2",
+        label: d2Ai?.label || d2Canon.label || "Dataset 2: Longer & Complex Trace \u26A1",
+        description: d2Ai?.description || d2Canon.description || "Longer extended sequence producing longer steps and more time to understand algorithm flow.",
+        category: "longer",
+        array: d2Array,
+        secondaryArray: d2Ai?.secondaryArray && d2Ai.secondaryArray.length > 0 ? d2Ai.secondaryArray : d2Canon.secondaryArray,
+        matrix: d2Matrix,
+        tree: d2Ai?.tree && d2Ai.tree.length > 0 ? d2Ai.tree : d2Canon.tree,
+        target: d2Ai?.target !== void 0 ? d2Ai.target : d2Canon.target,
+        k: d2Ai?.k !== void 0 ? d2Ai.k : d2Canon.k
+      };
+      const d3Canon = canonicalDatasets[2] ?? {
+        id: "dataset_3",
+        label: "Dataset 3: Edge & Boundary Case",
+        category: "edge",
+        description: "Boundary condition testing edge cases, duplicates, negative numbers, or tight constraints."
+      };
+      const d3Ai = aiDatasets[2];
+      let d3Matrix = d3Canon.matrix;
+      if (d3Ai?.matrix && isValidMatrixForProblem(d3Ai.matrix, data.slug, data.topics ?? [], false)) {
+        d3Matrix = d3Ai.matrix;
+      }
+      let d3Array = d3Canon.array;
+      if (d3Matrix && (d1.matrix || d3Canon.matrix)) {
+        d3Array = d3Matrix.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string");
+      } else if (d3Ai?.array && isValidArrayForProblem(d3Ai.array, data.slug, data.topics ?? [], false)) {
+        d3Array = d3Ai.array;
+      }
+      const d3 = {
+        id: "dataset_3",
+        label: d3Ai?.label || d3Canon.label || "Dataset 3: Edge & Boundary Case",
+        description: d3Ai?.description || d3Canon.description,
+        category: "edge",
+        array: d3Array,
+        secondaryArray: d3Ai?.secondaryArray && d3Ai.secondaryArray.length > 0 ? d3Ai.secondaryArray : d3Canon.secondaryArray,
+        matrix: d3Matrix,
+        tree: d3Ai?.tree && d3Ai.tree.length > 0 ? d3Ai.tree : d3Canon.tree,
+        target: d3Ai?.target !== void 0 ? d3Ai.target : d3Canon.target,
+        k: d3Ai?.k !== void 0 ? d3Ai.k : d3Canon.k
+      };
+      datasets = [d1, d2, d3];
     }
   }
   const activeDataset = datasets[0] ?? canonicalDatasets[0];
@@ -253477,15 +253587,12 @@ async function processDatasetVisualization(data) {
   if (isDynamicWindow && candidateArray && candidateArray.length === 1 && typeof candidateArray[0] === "string" && candidateArray[0].length > 1) {
     candidateArray = candidateArray[0].split("");
   }
-  if (dataset.id === "dataset_1" && canonMatch) {
-    candidateArray = canonMatch.array ?? candidateArray;
-  }
   const sanitizedDataset = {
     ...dataset,
     matrix: matrixExample,
-    target: dataset.id === "dataset_1" && canonMatch?.target !== void 0 ? canonMatch.target : dataset.target,
-    k: dataset.id === "dataset_1" && canonMatch?.k !== void 0 ? canonMatch.k : dataset.k,
-    array: matrixExample && matrixExample.length > 0 ? matrixExample.flat().filter((x2) => typeof x2 === "number") : candidateArray
+    target: dataset.target !== void 0 ? dataset.target : canonMatch?.target,
+    k: dataset.k !== void 0 ? dataset.k : canonMatch?.k,
+    array: matrixExample && matrixExample.length > 0 ? matrixExample.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string") : candidateArray ?? canonMatch?.array
   };
   const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
   const vizKeyForRequest = geminiKey || vizKey || openRouterKey || reviewKey;
@@ -254170,9 +254277,6 @@ async function runSecureCpp(code, stdin = "") {
   return result;
 }
 
-// src/lib/server-interview-evaluator.ts
-var import_vm = __toESM(require("vm"), 1);
-
 // src/lib/interview-runner.ts
 function stripTypeScriptTypes(tsCode) {
   return tsCode.replace(/(?:interface|type)\s+[A-Za-z0-9_]+\s*(=|\{)[^;}]*[;}]/g, "").replace(/\):\s*[A-Za-z0-9_<>\[\]|\s]+\s*\{/g, ") {").replace(/(\w+)\s*:\s*[A-Za-z0-9_<>\[\]|]+(\s*[,)])/g, "$1$2").replace(/(\w+)\s*:\s*[A-Za-z0-9_<>\[\]|]+(\s*=)/g, "$1$2").replace(/new\s+(Map|Set)<[^>]+>\(\)/g, "new $1()").replace(/\s+as\s+[A-Za-z0-9_<>\[\]]+/g, "").replace(/(\w|\)|\])!(?!=)/g, "$1").trim();
@@ -254334,93 +254438,132 @@ except Exception as globalErr:
 print("__DSA_VIZ_RESULTS__" + json.dumps(results))
 `;
 }
+function buildJsHarness(userCode, slug, functionName, testCases) {
+  return `
+${userCode}
+
+const testCases = ${JSON.stringify(testCases)};
+const results = [];
+
+try {
+    if (typeof Solution === "undefined") {
+        throw new Error("Class 'Solution' is missing from code.");
+    }
+    const sol = new Solution();
+    if (typeof sol["${functionName}"] !== "function") {
+        throw new Error("Method '${functionName}' is not defined in class Solution.");
+    }
+    for (let idx = 0; idx < testCases.length; idx++) {
+        const tc = testCases[idx];
+        const inp = tc.input;
+        const exp = tc.expected;
+        const desc = tc.description || "";
+        try {
+            const clonedInput = JSON.parse(JSON.stringify(inp));
+            const actual = sol["${functionName}"](...clonedInput);
+            let passed = false;
+            if ("${slug}" === "two-sum" && Array.isArray(actual) && Array.isArray(exp)) {
+                passed = actual.slice().sort().join(",") === exp.slice().sort().join(",");
+            } else if (typeof actual === "object" && actual !== null && typeof exp === "object" && exp !== null) {
+                passed = JSON.stringify(actual) === JSON.stringify(exp);
+            } else {
+                passed = actual === exp;
+            }
+            results.push({
+                index: idx + 1,
+                passed: Boolean(passed),
+                input: inp,
+                expected: exp,
+                actual,
+                runtimeMs: 2,
+                description: desc
+            });
+        } catch (err) {
+            results.push({
+                index: idx + 1,
+                passed: false,
+                input: inp,
+                expected: exp,
+                actual: null,
+                runtimeMs: 0,
+                error: err && err.message ? err.message : String(err),
+                description: desc
+            });
+        }
+    }
+} catch (globalErr) {
+    results.push({
+        index: 1,
+        passed: false,
+        input: [],
+        expected: "valid execution",
+        actual: null,
+        runtimeMs: 0,
+        error: "Compilation or instantiation error: " + (globalErr && globalErr.message ? globalErr.message : String(globalErr)),
+        description: "Initialization"
+    });
+}
+
+console.log("__DSA_VIZ_RESULTS__" + JSON.stringify(results));
+`;
+}
 async function evaluateInterviewSubmission(options) {
   const { language, code, problemSlug: problemSlug2, functionName, testCases } = options;
   if (language === "javascript" || language === "typescript") {
     const jsCode = language === "typescript" ? stripTypeScriptTypes(code) : code;
+    const harness = buildJsHarness(jsCode, problemSlug2, functionName, testCases);
     try {
-      const sandboxContext = import_vm.default.createContext({
-        Map,
-        Set,
-        Array,
-        Object,
-        Math,
-        Number,
-        String,
-        JSON,
-        testCases
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9e3);
+      const res = await fetch("https://wandbox.org/api/compile.json", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DSA.viz/1.0"
+        },
+        body: JSON.stringify({
+          code: harness,
+          compiler: "nodejs-20.17.0"
+        }),
+        signal: controller.signal
       });
-      const runnerScript = `
-${jsCode}
-if (typeof Solution === "undefined") {
-    throw new Error("Class 'Solution' is missing from code.");
-}
-const sol = new Solution();
-if (typeof sol["${functionName}"] !== "function") {
-    throw new Error("Method '${functionName}' is not defined in class Solution.");
-}
-const results = testCases.map((tc, idx) => {
-    try {
-        const clonedInput = JSON.parse(JSON.stringify(tc.input));
-        const actual = sol["${functionName}"](...clonedInput);
-        let passed = false;
-        if ("${problemSlug2}" === "two-sum" && Array.isArray(actual) && Array.isArray(tc.expected)) {
-            passed = actual.slice().sort().join(",") === tc.expected.slice().sort().join(",");
-        } else if (typeof actual === "object" && typeof tc.expected === "object") {
-            passed = JSON.stringify(actual) === JSON.stringify(tc.expected);
-        } else {
-            passed = actual === tc.expected;
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const wandboxData = await res.json();
+        const stdout = wandboxData.program_output || "";
+        const stderr = wandboxData.program_error || wandboxData.compiler_error || "";
+        if (stdout.includes("__DSA_VIZ_RESULTS__")) {
+          const jsonStr = stdout.split("__DSA_VIZ_RESULTS__")[1]?.trim() || "[]";
+          const results = JSON.parse(jsonStr);
+          const passedCount = results.filter((r2) => r2.passed).length;
+          return {
+            allPassed: passedCount === results.length,
+            totalCount: results.length,
+            passedCount,
+            results
+          };
         }
-        return {
-            index: idx + 1,
-            passed,
-            input: tc.input,
-            expected: tc.expected,
-            actual,
-            runtimeMs: 2,
-            description: tc.description || ""
-        };
-    } catch (err) {
-        return {
-            index: idx + 1,
-            passed: false,
-            input: tc.input,
-            expected: tc.expected,
-            actual: null,
-            runtimeMs: 0,
-            error: err.message,
-            description: tc.description || ""
-        };
-    }
-});
-results;
-`;
-      const script = new import_vm.default.Script(runnerScript);
-      const results = script.runInContext(sandboxContext, { timeout: 2e3 });
-      const passedCount = results.filter((r2) => r2.passed).length;
-      return {
-        allPassed: passedCount === results.length,
-        totalCount: results.length,
-        passedCount,
-        results
-      };
-    } catch (vmErr) {
-      return {
-        allPassed: false,
-        totalCount: testCases.length,
-        passedCount: 0,
-        results: testCases.map((tc, idx) => ({
-          index: idx + 1,
-          passed: false,
-          input: tc.input,
-          expected: tc.expected,
-          actual: null,
-          runtimeMs: 0,
-          error: vmErr.message || "Runtime exception",
-          description: tc.description || ""
-        })),
-        compilerError: vmErr.message || "Compilation or Runtime error"
-      };
+        if (stderr) {
+          return {
+            allPassed: false,
+            totalCount: testCases.length,
+            passedCount: 0,
+            results: testCases.map((tc, idx) => ({
+              index: idx + 1,
+              passed: false,
+              input: tc.input,
+              expected: tc.expected,
+              actual: null,
+              runtimeMs: 0,
+              error: stderr.split("\n").slice(-3).join(" "),
+              description: tc.description || ""
+            })),
+            compilerError: stderr
+          };
+        }
+      }
+    } catch (wandboxErr) {
+      console.warn("Wandbox Node.js execution warning:", wandboxErr);
     }
   }
   if (language === "python") {
@@ -278639,6 +278782,7 @@ var DAY = 24 * HOUR;
 // server.ts
 var import_dotenv = __toESM(require_main(), 1);
 import_dotenv.default.config();
+var devEphemeralKey = null;
 var getEncryptionKey = () => {
   const encKey = process.env.ENCRYPTION_KEY;
   if (encKey && encKey.length >= 32) {
@@ -278647,9 +278791,11 @@ var getEncryptionKey = () => {
   if (process.env.NODE_ENV === "production") {
     throw new Error("FATAL CONFIGURATION ERROR: ENCRYPTION_KEY (at least 32 characters) must be configured in production.");
   }
-  console.warn("\u26A0\uFE0F [Security Notice]: ENCRYPTION_KEY is not configured. Deriving local development encryption key.");
-  const secret = process.env.GITHUB_CLIENT_SECRET || "dev_insecure_local_encryption_fallback_32";
-  return import_crypto.default.scryptSync(secret, "dsaviz_salt", 32);
+  if (!devEphemeralKey) {
+    console.warn("\u26A0\uFE0F [Security Notice]: ENCRYPTION_KEY is not configured. Generating cryptographically random ephemeral key for this runtime session.");
+    devEphemeralKey = import_crypto.default.randomBytes(32);
+  }
+  return devEphemeralKey;
 };
 function encryptToken(text) {
   const iv = import_crypto.default.randomBytes(16);
@@ -278677,8 +278823,20 @@ function decryptToken(text) {
   }
 }
 var app = (0, import_express.default)();
+app.disable("x-powered-by");
 app.set("trust proxy", 1);
 var PORT = 3e3;
+app.use((_req, res, next) => {
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
+  res.setHeader("Content-Security-Policy", "frame-ancestors 'none';");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+  }
+  next();
+});
 app.use(import_express.default.json({ limit: "2mb" }));
 app.use(import_express.default.urlencoded({ extended: true, limit: "2mb" }));
 var API_ENDPOINTS = [
@@ -278746,7 +278904,7 @@ var cleanEnv = (val) => {
 };
 function getGeminiClient() {
   const apiKey = cleanEnv(
-    process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GOOGLE_API_KEY
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
   );
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable is missing.");
@@ -278893,17 +279051,20 @@ app.get("/api/health", (_req, res) => {
   });
 });
 app.get("/api/debug/env", (_req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Not found" });
+  }
   const gemini = !!cleanEnv(
-    process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GOOGLE_API_KEY
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
   );
   const openrouter = !!cleanEnv(
-    process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || process.env.VITE_OPEN_ROUTER_API_KEY || process.env.Openrouterapi || process.env.VITE_Openrouterapi
+    process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || process.env.Openrouterapi
   );
   res.json({
     gemini,
     openrouter,
-    github: !!(process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID),
-    firebase: !!(process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID),
+    github: !!process.env.GITHUB_CLIENT_ID,
+    firebase: !!(process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID),
     nodeEnv: process.env.NODE_ENV
   });
 });
@@ -279319,7 +279480,7 @@ Return a strictly valid JSON object matching this schema:
     return res.json(offlineResult);
   }
 });
-app.post("/api/rate-submission", aiLimiter, async (req, res) => {
+app.post("/api/rate-submission", requireAuth, aiLimiter, async (req, res) => {
   try {
     const {
       code = "",
@@ -279385,7 +279546,7 @@ Return a strictly valid JSON object matching this schema:
     return res.status(500).json({ error: "Failed to rate submission." });
   }
 });
-app.post("/api/generate-mistakes-report", aiLimiter, async (req, res) => {
+app.post("/api/generate-mistakes-report", requireAuth, aiLimiter, async (req, res) => {
   try {
     let userId = null;
     const authHeader = req.headers.authorization;
@@ -279533,7 +279694,7 @@ app.post("/api/chat-sessions", requireAuth, async (req, res) => {
     res.status(500).json({ error: error61?.message || "Failed to save chat session" });
   }
 });
-app.post("/api/generate-image", aiLimiter, async (req, res) => {
+app.post("/api/generate-image", requireAuth, aiLimiter, async (req, res) => {
   try {
     const {
       prompt,
@@ -279731,7 +279892,7 @@ var interviewExecuteSchema = external_exports.object({
     })
   )
 });
-app.post("/api/interview/execute", apiLimiter, async (req, res) => {
+app.post("/api/interview/execute", compilerLimiter, async (req, res) => {
   const parsed = interviewExecuteSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({

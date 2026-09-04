@@ -1,4 +1,3 @@
-import vm from "vm";
 import { runSecureCpp } from "./compiler/index";
 import { stripTypeScriptTypes, areOutputsEqual, type TestCaseResult, type InterviewRunOutput } from "./interview-runner";
 
@@ -178,101 +177,147 @@ print("__DSA_VIZ_RESULTS__" + json.dumps(results))
 }
 
 /**
+ * Builds an isolated JavaScript test harness for remote sandboxed execution.
+ */
+function buildJsHarness(userCode: string, slug: string, functionName: string, testCases: any[]): string {
+  return `
+${userCode}
+
+const testCases = ${JSON.stringify(testCases)};
+const results = [];
+
+try {
+    if (typeof Solution === "undefined") {
+        throw new Error("Class 'Solution' is missing from code.");
+    }
+    const sol = new Solution();
+    if (typeof sol["${functionName}"] !== "function") {
+        throw new Error("Method '${functionName}' is not defined in class Solution.");
+    }
+    for (let idx = 0; idx < testCases.length; idx++) {
+        const tc = testCases[idx];
+        const inp = tc.input;
+        const exp = tc.expected;
+        const desc = tc.description || "";
+        try {
+            const clonedInput = JSON.parse(JSON.stringify(inp));
+            const actual = sol["${functionName}"](...clonedInput);
+            let passed = false;
+            if ("${slug}" === "two-sum" && Array.isArray(actual) && Array.isArray(exp)) {
+                passed = actual.slice().sort().join(",") === exp.slice().sort().join(",");
+            } else if (typeof actual === "object" && actual !== null && typeof exp === "object" && exp !== null) {
+                passed = JSON.stringify(actual) === JSON.stringify(exp);
+            } else {
+                passed = actual === exp;
+            }
+            results.push({
+                index: idx + 1,
+                passed: Boolean(passed),
+                input: inp,
+                expected: exp,
+                actual,
+                runtimeMs: 2,
+                description: desc
+            });
+        } catch (err) {
+            results.push({
+                index: idx + 1,
+                passed: false,
+                input: inp,
+                expected: exp,
+                actual: null,
+                runtimeMs: 0,
+                error: err && err.message ? err.message : String(err),
+                description: desc
+            });
+        }
+    }
+} catch (globalErr) {
+    results.push({
+        index: 1,
+        passed: false,
+        input: [],
+        expected: "valid execution",
+        actual: null,
+        runtimeMs: 0,
+        error: "Compilation or instantiation error: " + (globalErr && globalErr.message ? globalErr.message : String(globalErr)),
+        description: "Initialization"
+    });
+}
+
+console.log("__DSA_VIZ_RESULTS__" + JSON.stringify(results));
+`;
+}
+
+/**
  * Evaluates DSA interview submission against test cases across supported languages.
  */
 export async function evaluateInterviewSubmission(options: EvaluatorOptions): Promise<InterviewRunOutput> {
   const { language, code, problemSlug, functionName, testCases } = options;
 
-  // 1. JavaScript & TypeScript Execution via safe Node VM
+  // 1. JavaScript & TypeScript Execution via isolated remote Wandbox sandbox
   if (language === "javascript" || language === "typescript") {
     const jsCode = language === "typescript" ? stripTypeScriptTypes(code) : code;
+    const harness = buildJsHarness(jsCode, problemSlug, functionName, testCases);
 
     try {
-      const sandboxContext = vm.createContext({
-        Map,
-        Set,
-        Array,
-        Object,
-        Math,
-        Number,
-        String,
-        JSON,
-        testCases,
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+      const res = await fetch("https://wandbox.org/api/compile.json", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DSA.viz/1.0",
+        },
+        body: JSON.stringify({
+          code: harness,
+          compiler: "nodejs-20.17.0",
+        }),
+        signal: controller.signal,
       });
 
-      const runnerScript = `
-${jsCode}
-if (typeof Solution === "undefined") {
-    throw new Error("Class 'Solution' is missing from code.");
-}
-const sol = new Solution();
-if (typeof sol["${functionName}"] !== "function") {
-    throw new Error("Method '${functionName}' is not defined in class Solution.");
-}
-const results = testCases.map((tc, idx) => {
-    try {
-        const clonedInput = JSON.parse(JSON.stringify(tc.input));
-        const actual = sol["${functionName}"](...clonedInput);
-        let passed = false;
-        if ("${problemSlug}" === "two-sum" && Array.isArray(actual) && Array.isArray(tc.expected)) {
-            passed = actual.slice().sort().join(",") === tc.expected.slice().sort().join(",");
-        } else if (typeof actual === "object" && typeof tc.expected === "object") {
-            passed = JSON.stringify(actual) === JSON.stringify(tc.expected);
-        } else {
-            passed = actual === tc.expected;
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const wandboxData = (await res.json()) as any;
+        const stdout = wandboxData.program_output || "";
+        const stderr = wandboxData.program_error || wandboxData.compiler_error || "";
+
+        if (stdout.includes("__DSA_VIZ_RESULTS__")) {
+          const jsonStr = stdout.split("__DSA_VIZ_RESULTS__")[1]?.trim() || "[]";
+          const results = JSON.parse(jsonStr) as TestCaseResult[];
+          const passedCount = results.filter((r) => r.passed).length;
+
+          return {
+            allPassed: passedCount === results.length,
+            totalCount: results.length,
+            passedCount,
+            results,
+          };
         }
-        return {
-            index: idx + 1,
-            passed,
-            input: tc.input,
-            expected: tc.expected,
-            actual,
-            runtimeMs: 2,
-            description: tc.description || ""
-        };
-    } catch (err) {
-        return {
-            index: idx + 1,
-            passed: false,
-            input: tc.input,
-            expected: tc.expected,
-            actual: null,
-            runtimeMs: 0,
-            error: err.message,
-            description: tc.description || ""
-        };
-    }
-});
-results;
-`;
 
-      const script = new vm.Script(runnerScript);
-      const results = script.runInContext(sandboxContext, { timeout: 2000 }) as TestCaseResult[];
-      const passedCount = results.filter((r) => r.passed).length;
-
-      return {
-        allPassed: passedCount === results.length,
-        totalCount: results.length,
-        passedCount,
-        results,
-      };
-    } catch (vmErr: any) {
-      return {
-        allPassed: false,
-        totalCount: testCases.length,
-        passedCount: 0,
-        results: testCases.map((tc, idx) => ({
-          index: idx + 1,
-          passed: false,
-          input: tc.input,
-          expected: tc.expected,
-          actual: null,
-          runtimeMs: 0,
-          error: vmErr.message || "Runtime exception",
-          description: tc.description || "",
-        })),
-        compilerError: vmErr.message || "Compilation or Runtime error",
-      };
+        if (stderr) {
+          return {
+            allPassed: false,
+            totalCount: testCases.length,
+            passedCount: 0,
+            results: testCases.map((tc, idx) => ({
+              index: idx + 1,
+              passed: false,
+              input: tc.input,
+              expected: tc.expected,
+              actual: null,
+              runtimeMs: 0,
+              error: stderr.split("\n").slice(-3).join(" "),
+              description: tc.description || "",
+            })),
+            compilerError: stderr,
+          };
+        }
+      }
+    } catch (wandboxErr) {
+      console.warn("Wandbox Node.js execution warning:", wandboxErr);
     }
   }
 

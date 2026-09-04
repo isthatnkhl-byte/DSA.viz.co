@@ -74,6 +74,7 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
 5) COMPLETE END-TO-END TRAVERSAL (MANDATORY):
    - You MUST simulate the algorithm completely from the first initialization line to the final return/termination statement.
    - NEVER STOP HALFWAY, truncate, or end early. Traverse EVERY element, pointer step, node, or grid cell until the entire test input dataset has been completely processed according to the pseudocode.
+   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15–25 elements or 5×6 / 6×6 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
    - Generate all necessary execution steps (from initial state, loop progression, all iterations, to final return) to provide a complete, unbroken visual walkthrough.
    - The final step MUST highlight the termination condition, the final return value, or the completed data structure state.
 

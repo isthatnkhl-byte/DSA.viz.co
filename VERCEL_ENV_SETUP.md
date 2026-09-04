@@ -11,25 +11,26 @@ API calls are not working on Vercel because environment variables are not proper
 3. Go to **Settings** → **Environment Variables**
 4. Add the following variables with their values from your `.env` file:
 
-| Variable Name | Alternative / Alias | Scope |
+### 🔒 Server Secrets (NEVER prefix with VITE_ to prevent public browser bundle leakage)
+| Variable Name | Description | Scope |
 |---|---|---|
-| `GEMINI_API_KEY` | `VITE_GEMINI_API_KEY` / `GOOGLE_API_KEY` | Production, Preview, Development |
-| `OPENROUTER_API_KEY` | `VITE_OPENROUTER_API_KEY` | Production, Preview, Development |
-| `GITHUB_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` | Production, Preview, Development |
-| `GITHUB_CLIENT_SECRET` | `VITE_GITHUB_CLIENT_SECRET` | Production, Preview, Development |
-| `ENCRYPTION_KEY` | `VITE_ENCRYPTION_KEY` | Production, Preview, Development |
-| `VITE_FIREBASE_API_KEY` | `FIREBASE_API_KEY` | Production, Preview, Development |
-| `VITE_FIREBASE_AUTH_DOMAIN` | `FIREBASE_AUTH_DOMAIN` | Production, Preview, Development |
-| `VITE_FIREBASE_PROJECT_ID` | `FIREBASE_PROJECT_ID` | Production, Preview, Development |
-| `VITE_FIREBASE_STORAGE_BUCKET` | `FIREBASE_STORAGE_BUCKET` | Production, Preview, Development |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `FIREBASE_MESSAGING_SENDER_ID` | Production, Preview, Development |
-| `VITE_FIREBASE_APP_ID` | `FIREBASE_APP_ID` | Production, Preview, Development |
+| `GEMINI_API_KEY` | Google Gemini AI API Key | Production, Preview, Development |
+| `OPENROUTER_API_KEY` | OpenRouter AI Multi-Model Key | Production, Preview, Development |
+| `GITHUB_CLIENT_ID` | GitHub OAuth Client ID | Production, Preview, Development |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth Client Secret | Production, Preview, Development |
+| `ENCRYPTION_KEY` | AES-256 Token Encryption Key (≥ 32 chars) | Production, Preview, Development |
 
-### Step 2: Compatibility Pattern
-The codebase has been configured to **automatically resolve both naming conventions**:
-- If you entered `VITE_GEMINI_API_KEY`, both the Vite build and the serverless Express engine will recognize it.
-- If you entered `GEMINI_API_KEY`, the serverless backend will automatically recognize it.
-- To ensure 100% coverage across both SSR, Serverless functions, and Client-side fallbacks on Vercel, you can add both (or simply set `VITE_GEMINI_API_KEY` and `VITE_OPENROUTER_API_KEY`).
+### 🌐 Public Client Variables (Exposed to browser bundle)
+| Variable Name | Description | Scope |
+|---|---|---|
+| `VITE_FIREBASE_API_KEY` | Firebase Client API Key | Production, Preview, Development |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase Auth Domain | Production, Preview, Development |
+| `VITE_FIREBASE_PROJECT_ID` | Firebase Project ID | Production, Preview, Development |
+| `VITE_FIREBASE_STORAGE_BUCKET` | Firebase Storage Bucket | Production, Preview, Development |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase Messaging Sender ID | Production, Preview, Development |
+| `VITE_FIREBASE_APP_ID` | Firebase Web App ID | Production, Preview, Development |
+
+> ⚠️ **CRITICAL SECURITY RULE:** Never add the `VITE_` prefix to server secrets (`GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GITHUB_CLIENT_SECRET`, `ENCRYPTION_KEY`). Vite embeds all `VITE_*` variables into client-side JS bundles, which exposes them to any visitor viewing browser DevTools.
 
 ### Step 3: Redeploy on Vercel
 After adding or modifying environment variables in Vercel:

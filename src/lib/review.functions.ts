@@ -244,6 +244,43 @@ function isValidArrayForProblem(
   return true;
 }
 
+export function expandMatrixToSize(
+  matrix: (number | string)[][],
+  targetRows: number,
+  targetCols: number,
+): (number | string)[][] {
+  if (!Array.isArray(matrix) || matrix.length === 0 || !Array.isArray(matrix[0]) || matrix[0].length === 0) {
+    return matrix;
+  }
+  const origR = matrix.length;
+  const origC = matrix[0].length;
+  const newR = Math.max(origR, targetRows);
+  const newC = Math.max(origC, targetCols);
+  return Array.from({ length: newR }, (_, r) =>
+    Array.from({ length: newC }, (_, c) => matrix[r % origR]![c % origC]!),
+  );
+}
+
+export function expandArrayToLength(
+  arr: (number | string)[],
+  targetLength: number,
+): (number | string)[] {
+  if (!Array.isArray(arr) || arr.length === 0 || arr.length >= targetLength) return arr;
+  if (typeof arr[0] === "number") {
+    const last = Number(arr[arr.length - 1] ?? 0);
+    const step = 2;
+    const needed = targetLength - arr.length;
+    const extra = Array.from({ length: needed }, (_, i) => last + (i + 1) * step);
+    return [...arr, ...extra];
+  }
+  // For strings / characters
+  const result: (number | string)[] = [...arr];
+  while (result.length < targetLength) {
+    result.push(...arr);
+  }
+  return result.slice(0, targetLength);
+}
+
 export async function processReviewPseudocode(data: z.infer<typeof Input>): Promise<ReviewResult> {
     const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
     const reviewKeyForRequest = geminiKey || reviewKey || openRouterKey;
@@ -348,7 +385,9 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
                       typeof x === "number" || typeof x === "string" ? x : String(x),
                     )
                     .filter((x: any) => x !== null && x !== undefined)
-            : undefined,
+            : Array.isArray(d?.matrix)
+              ? d.matrix.flat().filter((x: any) => x !== null && x !== undefined && (typeof x === "number" || typeof x === "string"))
+              : undefined,
           secondaryArray: Array.isArray(d?.secondaryArray)
             ? d.secondaryArray
                 .map((x: any) =>
@@ -367,70 +406,134 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
         }));
 
       if (aiDatasets.length > 0) {
-        datasets = canonicalDatasets.map((canon, i) => {
-          const aiD = aiDatasets[i];
-          if (!aiD) return canon;
+        // Dataset 1: Standard Case (preserves canonical if AI did not provide valid input)
+        const d1Canon = canonicalDatasets[0]!;
+        const d1Ai = aiDatasets[0];
 
-          // CRITICAL: Dataset 1 (Standard Case, i === 0) strictly preserves canonical problem input and target
-          if (i === 0) {
-            return {
-              ...canon,
-              label: aiD.label || canon.label,
-              description: aiD.description || canon.description,
-              array: canon.array,
-              secondaryArray: canon.secondaryArray,
-              matrix: canon.matrix,
-              tree: canon.tree,
-              target: canon.target,
-              k: canon.k,
-            };
+        let d1Matrix = d1Canon.matrix;
+        if (d1Ai?.matrix && isValidMatrixForProblem(d1Ai.matrix, data.slug, data.topics ?? [], false)) {
+          d1Matrix = d1Ai.matrix;
+        }
+
+        let d1Array = d1Canon.array;
+        if (d1Matrix && (d1Canon.matrix || d1Ai?.matrix)) {
+          d1Array = d1Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string");
+        } else if (d1Ai?.array && isValidArrayForProblem(d1Ai.array, data.slug, data.topics ?? [], false)) {
+          d1Array = d1Ai.array;
+        }
+
+        const d1: TestDataset = {
+          id: "dataset_1",
+          label: d1Ai?.label || d1Canon.label || "Dataset 1: Standard Case",
+          description: d1Ai?.description || d1Canon.description,
+          category: "standard",
+          array: d1Array,
+          secondaryArray:
+            d1Ai?.secondaryArray && d1Ai.secondaryArray.length > 0
+              ? d1Ai.secondaryArray
+              : d1Canon.secondaryArray,
+          matrix: d1Matrix,
+          tree: d1Ai?.tree && d1Ai.tree.length > 0 ? d1Ai.tree : d1Canon.tree,
+          target: d1Ai?.target !== undefined ? d1Ai.target : d1Canon.target,
+          k: d1Ai?.k !== undefined ? d1Ai.k : d1Canon.k,
+        };
+
+        // Dataset 2: Longer & Complex Trace (enforces strictly larger dimensions for longer visualization duration)
+        const d2Canon = canonicalDatasets[1] ?? {
+          id: "dataset_2",
+          label: "Dataset 2: Longer & Complex Trace ⚡",
+          category: "longer" as const,
+          description: "Longer extended sequence for in-depth execution traversal.",
+        };
+        const d2Ai = aiDatasets[1];
+
+        let d2Matrix = d2Canon.matrix;
+        if (d2Ai?.matrix && isValidMatrixForProblem(d2Ai.matrix, data.slug, data.topics ?? [], false)) {
+          const minRows = Math.max(5, (d1.matrix?.length ?? 3) + 1);
+          const minCols = Math.max(6, (d1.matrix?.[0]?.length ?? 3) + 1);
+          if (d2Ai.matrix.length < minRows || (d2Ai.matrix[0]?.length ?? 0) < minCols) {
+            d2Matrix = expandMatrixToSize(d2Ai.matrix, minRows, minCols);
+          } else {
+            d2Matrix = d2Ai.matrix;
           }
+        } else if (d1.matrix && !d2Matrix) {
+          const minRows = Math.max(5, d1.matrix.length + 2);
+          const minCols = Math.max(6, (d1.matrix[0]?.length ?? 3) + 2);
+          d2Matrix = expandMatrixToSize(d1.matrix, minRows, minCols);
+        }
 
-          const isLonger = i === 1;
-          const canonRows = canon.matrix?.length ?? 0;
-          const canonCols = canon.matrix?.[0]?.length ?? 0;
-          const canonArrayLength = canon.array?.length ?? 0;
-          const validMatrix =
-            aiD.matrix &&
-            isValidMatrixForProblem(
-              aiD.matrix,
-              data.slug,
-              data.topics ?? [],
-              isLonger,
-              canonRows,
-              canonCols,
-            )
-              ? aiD.matrix
-              : canon.matrix;
-          const validArray =
-            validMatrix && canon.matrix
-              ? validMatrix.flat().filter((x: any): x is number => typeof x === "number")
-              : aiD.array &&
-                isValidArrayForProblem(
-                  aiD.array,
-                  data.slug,
-                  data.topics ?? [],
-                  isLonger,
-                  canonArrayLength,
-                )
-                ? aiD.array
-                : canon.array;
+        let d2Array = d2Canon.array;
+        if (d2Matrix && (d1.matrix || d2Canon.matrix)) {
+          d2Array = d2Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string");
+        } else if (d2Ai?.array && isValidArrayForProblem(d2Ai.array, data.slug, data.topics ?? [], false)) {
+          const targetLen = Math.max(15, (d1.array?.length ?? 8) + 6);
+          if (d2Ai.array.length < targetLen) {
+            d2Array = expandArrayToLength(d2Ai.array, targetLen);
+          } else {
+            d2Array = d2Ai.array;
+          }
+        } else if (d1.array && !d2Array) {
+          const targetLen = Math.max(15, d1.array.length + 8);
+          d2Array = expandArrayToLength(d1.array, targetLen);
+        }
 
-          return {
-            ...canon,
-            label: aiD.label || canon.label,
-            description: aiD.description || canon.description,
-            array: validArray,
-            secondaryArray:
-              aiD.secondaryArray && aiD.secondaryArray.length > 0
-                ? aiD.secondaryArray
-                : canon.secondaryArray,
-            matrix: validMatrix,
-            tree: aiD.tree && aiD.tree.length > 0 ? aiD.tree : canon.tree,
-            target: aiD.target !== undefined ? aiD.target : canon.target,
-            k: aiD.k !== undefined ? aiD.k : canon.k,
-          };
-        });
+        const d2: TestDataset = {
+          id: "dataset_2",
+          label: d2Ai?.label || d2Canon.label || "Dataset 2: Longer & Complex Trace ⚡",
+          description:
+            d2Ai?.description ||
+            d2Canon.description ||
+            "Longer extended sequence producing longer steps and more time to understand algorithm flow.",
+          category: "longer",
+          array: d2Array,
+          secondaryArray:
+            d2Ai?.secondaryArray && d2Ai.secondaryArray.length > 0
+              ? d2Ai.secondaryArray
+              : d2Canon.secondaryArray,
+          matrix: d2Matrix,
+          tree: d2Ai?.tree && d2Ai.tree.length > 0 ? d2Ai.tree : d2Canon.tree,
+          target: d2Ai?.target !== undefined ? d2Ai.target : d2Canon.target,
+          k: d2Ai?.k !== undefined ? d2Ai.k : d2Canon.k,
+        };
+
+        // Dataset 3: Edge & Boundary Case
+        const d3Canon = canonicalDatasets[2] ?? {
+          id: "dataset_3",
+          label: "Dataset 3: Edge & Boundary Case",
+          category: "edge" as const,
+          description: "Boundary condition testing edge cases, duplicates, negative numbers, or tight constraints.",
+        };
+        const d3Ai = aiDatasets[2];
+
+        let d3Matrix = d3Canon.matrix;
+        if (d3Ai?.matrix && isValidMatrixForProblem(d3Ai.matrix, data.slug, data.topics ?? [], false)) {
+          d3Matrix = d3Ai.matrix;
+        }
+
+        let d3Array = d3Canon.array;
+        if (d3Matrix && (d1.matrix || d3Canon.matrix)) {
+          d3Array = d3Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string");
+        } else if (d3Ai?.array && isValidArrayForProblem(d3Ai.array, data.slug, data.topics ?? [], false)) {
+          d3Array = d3Ai.array;
+        }
+
+        const d3: TestDataset = {
+          id: "dataset_3",
+          label: d3Ai?.label || d3Canon.label || "Dataset 3: Edge & Boundary Case",
+          description: d3Ai?.description || d3Canon.description,
+          category: "edge",
+          array: d3Array,
+          secondaryArray:
+            d3Ai?.secondaryArray && d3Ai.secondaryArray.length > 0
+              ? d3Ai.secondaryArray
+              : d3Canon.secondaryArray,
+          matrix: d3Matrix,
+          tree: d3Ai?.tree && d3Ai.tree.length > 0 ? d3Ai.tree : d3Canon.tree,
+          target: d3Ai?.target !== undefined ? d3Ai.target : d3Canon.target,
+          k: d3Ai?.k !== undefined ? d3Ai.k : d3Canon.k,
+        };
+
+        datasets = [d1, d2, d3];
       }
     }
 
@@ -717,20 +820,15 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
     candidateArray = candidateArray[0].split("");
   }
 
-  // If Dataset 1, strictly preserve canonical array and target
-  if (dataset.id === "dataset_1" && canonMatch) {
-    candidateArray = canonMatch.array ?? candidateArray;
-  }
-
   const sanitizedDataset: TestDataset = {
     ...dataset,
     matrix: matrixExample,
-    target: dataset.id === "dataset_1" && canonMatch?.target !== undefined ? canonMatch.target : dataset.target,
-    k: dataset.id === "dataset_1" && canonMatch?.k !== undefined ? canonMatch.k : dataset.k,
+    target: dataset.target !== undefined ? dataset.target : canonMatch?.target,
+    k: dataset.k !== undefined ? dataset.k : canonMatch?.k,
     array:
       matrixExample && matrixExample.length > 0
-        ? matrixExample.flat().filter((x: any): x is number => typeof x === "number")
-        : candidateArray,
+        ? matrixExample.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
+        : (candidateArray ?? canonMatch?.array),
   };
 
   const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();

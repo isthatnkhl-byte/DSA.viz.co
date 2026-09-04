@@ -35,10 +35,21 @@ test("LIVE_INTERVIEW_PROBLEMS - contains high-signal interview problems", () => 
       assert.ok(tier.interviewerPraise, `${p.id} ${tierKey} must have interviewer praise`);
       assert.ok(tier.nextPrompt, `${p.id} ${tierKey} must have next prompt`);
 
-      // Starter code for all 3 languages
+      // Starter code for all 4 languages (clean LeetCode-style class Solution scaffold with no comments)
       assert.ok(tier.starterCode.python?.length > 10, `${p.id} ${tierKey} must have python starter`);
+      assert.ok(tier.starterCode.cpp?.length > 10, `${p.id} ${tierKey} must have cpp starter`);
       assert.ok(tier.starterCode.javascript?.length > 10, `${p.id} ${tierKey} must have javascript starter`);
       assert.ok(tier.starterCode.typescript?.length > 10, `${p.id} ${tierKey} must have typescript starter`);
+      assert.ok(tier.starterCode.python.includes("class Solution:"), `${p.id} ${tierKey} python starter must have class Solution:`);
+      assert.ok(tier.starterCode.python.includes("pass"), `${p.id} ${tierKey} python starter must have pass`);
+      assert.ok(tier.starterCode.cpp.includes("class Solution"), `${p.id} ${tierKey} cpp starter must have class Solution`);
+      assert.ok(tier.starterCode.cpp.includes("#include"), `${p.id} ${tierKey} cpp starter must include headers`);
+
+      // Reference solution exists for study/guidance across all 4 languages
+      assert.ok(tier.referenceSolution.python?.length > 20, `${p.id} ${tierKey} must have python reference solution`);
+      assert.ok(tier.referenceSolution.cpp?.length > 20, `${p.id} ${tierKey} must have cpp reference solution`);
+      assert.ok(tier.referenceSolution.javascript?.length > 20, `${p.id} ${tierKey} must have javascript reference solution`);
+      assert.ok(tier.referenceSolution.typescript?.length > 20, `${p.id} ${tierKey} must have typescript reference solution`);
 
       // Test cases
       assert.ok(tier.testCases.length >= 2, `${p.id} ${tierKey} must have at least 2 test cases`);
@@ -86,5 +97,116 @@ test("generateLocalSocraticAnswer - refuses to give code and provides accurate S
   // 5. Candidate asks about space limit -> Quotes tier complexity
   const spaceAnswer = generateLocalSocraticAnswer("what is the memory limit", twoSum, 2);
   assert.ok(spaceAnswer.includes(twoSum.tiers[2].complexityTag), "Should mention tier complexity tag");
+
+  // 6. Candidate asks about edge cases / empty arrays -> Accurately addresses edge cases
+  const edgeAnswer = generateLocalSocraticAnswer("are there edge cases like empty array", twoSum, 1);
+  assert.ok(edgeAnswer.toLowerCase().includes("guarantee") || edgeAnswer.toLowerCase().includes("constraints"), "Should clarify input constraints");
+
+  // 7. Candidate asks what should be returned -> Clarifies return type
+  const returnAnswer = generateLocalSocraticAnswer("what should i return indices or values", twoSum, 1);
+  assert.ok(returnAnswer.toLowerCase().includes("indices"), "Should specify indices are returned");
 });
+
+test("Interview Rating System - penalizes 3 strikes and rewards strong positive performance", async () => {
+  const { saveInterviewSession } = await import("../lib/interview-rating");
+
+  // 1. Test 3-strike disqualification penalty
+  const disqResult = await saveInterviewSession({
+    problemId: "two-sum",
+    problemTitle: "Two Sum",
+    compositeScore: 4.0,
+    confidenceScore: 5.0,
+    craftScore: 3.5,
+    integrityScore: 2.0,
+    strikes: 3,
+    isDisqualified: true,
+  });
+
+  assert.ok(disqResult.ratingDelta < 0, "Rating delta must be negative on 3 strikes disqualification");
+  assert.equal(disqResult.record.status, "DISQUALIFIED", "Status should be marked DISQUALIFIED");
+  assert.equal(disqResult.newRating, disqResult.previousRating + disqResult.ratingDelta, "New rating must reflect drop");
+
+  // 2. Test strong positive performance maintaining / boosting /100 rating
+  const passResult = await saveInterviewSession({
+    problemId: "two-sum",
+    problemTitle: "Two Sum",
+    compositeScore: 9.5,
+    confidenceScore: 9.0,
+    craftScore: 10.0,
+    integrityScore: 10.0,
+    strikes: 0,
+    isDisqualified: false,
+  });
+
+  assert.ok(passResult.ratingDelta >= 1, "Strong positive interview should boost / maintain rating");
+  assert.equal(passResult.record.status, "PASSED", "Status should be PASSED");
+  assert.ok(passResult.newRating <= 100, "Rating must be capped at 100");
+});
+
+test("Interview Runner - executes JS and TS code against live problem test cases", async () => {
+  const { runClientJsTs, stripTypeScriptTypes, areOutputsEqual } = await import("../lib/interview-runner");
+  const twoSum = LIVE_INTERVIEW_PROBLEMS.find((p) => p.id === "two-sum")!;
+
+  // 1. Test stripTypeScriptTypes
+  const tsCode = `class Solution { twoSum(nums: number[], target: number): number[] { return [0, 1]; } }`;
+  const stripped = stripTypeScriptTypes(tsCode);
+  assert.ok(!stripped.includes("number[]"), "Types should be stripped");
+  assert.ok(stripped.includes("return [0, 1]"), "Code body should remain");
+
+  // 2. Test areOutputsEqual for Two Sum (order-agnostic index pairs)
+  assert.ok(areOutputsEqual("two-sum", [0, 1], [0, 1]), "Matching pairs should pass");
+  assert.ok(areOutputsEqual("two-sum", [1, 0], [0, 1]), "Reversed index pairs should pass for Two Sum");
+  assert.ok(!areOutputsEqual("two-sum", [0, 2], [0, 1]), "Diverging pairs should fail");
+
+  // 3. Test valid JavaScript solution execution on Tier 1
+  const validJsCode = twoSum.tiers[1].referenceSolution.javascript;
+  const jsRun = runClientJsTs({
+    code: validJsCode,
+    language: "javascript",
+    problem: twoSum,
+    tier: twoSum.tiers[1],
+  });
+  assert.ok(jsRun.allPassed, "Valid JS reference solution must pass all test cases");
+  assert.equal(jsRun.passedCount, twoSum.tiers[1].testCases.length);
+
+  // 4. Test valid TypeScript solution execution on Tier 3 (optimal Hash Map)
+  const validTsCode = twoSum.tiers[3].referenceSolution.typescript;
+  const tsRun = runClientJsTs({
+    code: validTsCode,
+    language: "typescript",
+    problem: twoSum,
+    tier: twoSum.tiers[3],
+  });
+  assert.ok(tsRun.allPassed, "Valid TS reference solution must pass all test cases");
+  assert.equal(tsRun.passedCount, twoSum.tiers[3].testCases.length);
+
+  // 5. Test incomplete / incorrect code rejection
+  const invalidCode = `class Solution { twoSum(nums, target) { return [99, 99]; } }`;
+  const failRun = runClientJsTs({
+    code: invalidCode,
+    language: "javascript",
+    problem: twoSum,
+    tier: twoSum.tiers[1],
+  });
+  assert.equal(failRun.allPassed, false, "Incorrect solution must be rejected");
+  assert.ok(failRun.results.some((r) => !r.passed), "At least one test case must fail");
+});
+
+test("Server Interview Evaluator - validates VM execution for JS/TS submissions", async () => {
+  const { evaluateInterviewSubmission } = await import("../lib/server-interview-evaluator");
+  const twoSum = LIVE_INTERVIEW_PROBLEMS.find((p) => p.id === "two-sum")!;
+
+  const result = await evaluateInterviewSubmission({
+    language: "typescript",
+    code: twoSum.tiers[3].referenceSolution.typescript,
+    problemSlug: twoSum.slug,
+    functionName: twoSum.functionSignature.name,
+    currentTier: 3,
+    testCases: twoSum.tiers[3].testCases,
+  });
+
+  assert.ok(result.allPassed, "Server evaluator should pass valid TS two-sum optimal solution");
+  assert.equal(result.passedCount, twoSum.tiers[3].testCases.length);
+});
+
 

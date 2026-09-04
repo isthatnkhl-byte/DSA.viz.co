@@ -9,6 +9,7 @@ import { saveAiReport, getUserAiReports, saveChatSession, getUserChatSessions, l
 import { processReviewPseudocode, processDatasetVisualization } from './src/lib/review.functions';
 import { processPlaygroundReview } from './src/lib/playground.functions';
 import { runSecureCpp } from './src/lib/compiler/index';
+import { evaluateInterviewSubmission } from './src/lib/server-interview-evaluator';
 import { fetchLeetCodeStats } from './src/lib/leetcode-service';
 import { statementForSlug } from './src/lib/statements';
 import localStatementsJson from './src/data/statements.json';
@@ -90,6 +91,7 @@ const API_ENDPOINTS = [
   "/generate-mistakes-report",
   "/user-reports",
   "/compiler",
+  "/interview",
   "/github",
   "/health",
   "/debug",
@@ -1281,6 +1283,58 @@ app.post("/api/compiler/execute", compilerLimiter, async (req: Request, res: Res
     });
   } finally {
     inFlightCompilations = Math.max(0, inFlightCompilations - 1);
+  }
+});
+
+// Live Interview Code Execution Endpoint (Python, C++, JS, TS)
+const interviewExecuteSchema = z.object({
+  language: z.enum(["python", "cpp", "javascript", "typescript"]),
+  code: z.string().min(1),
+  problemSlug: z.string().min(1),
+  functionName: z.string().min(1),
+  currentTier: z.number().default(1),
+  testCases: z.array(
+    z.object({
+      input: z.array(z.any()),
+      expected: z.any(),
+      description: z.string().optional(),
+    })
+  ),
+});
+
+app.post("/api/interview/execute", apiLimiter, async (req: Request, res: Response) => {
+  const parsed = interviewExecuteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      allPassed: false,
+      totalCount: 0,
+      passedCount: 0,
+      results: [],
+      compilerError: "Invalid execution payload: " + JSON.stringify(parsed.error.format()),
+    });
+  }
+
+  try {
+    const result = await evaluateInterviewSubmission(parsed.data);
+    return res.json(result);
+  } catch (err: any) {
+    console.error("Error in /api/interview/execute:", err);
+    return res.status(500).json({
+      allPassed: false,
+      totalCount: parsed.data.testCases.length,
+      passedCount: 0,
+      results: parsed.data.testCases.map((tc, idx) => ({
+        index: idx + 1,
+        passed: false,
+        input: tc.input,
+        expected: tc.expected,
+        actual: null,
+        runtimeMs: 0,
+        error: err?.message || "Execution exception",
+        description: tc.description || "",
+      })),
+      compilerError: err?.message || "Internal execution failure",
+    });
   }
 });
 

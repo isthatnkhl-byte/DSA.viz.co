@@ -37,9 +37,17 @@ import {
   Info,
   Radio,
   Send,
+  Copy,
+  Lightbulb,
+  PhoneOff,
+  VideoOff,
+  XCircle,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { saveInterviewSession, getLocalInterviewRating } from "@/lib/interview-rating";
+import { runInterviewTests, type TestCaseResult } from "@/lib/interview-runner";
 import {
   LIVE_INTERVIEW_PROBLEMS,
   generateLocalSocraticAnswer,
@@ -63,7 +71,7 @@ export const Route = createFileRoute("/live-interview")({
 });
 
 type InterviewPhase = "pre-check" | "in-session" | "scorecard";
-type ProgrammingLang = "python" | "javascript" | "typescript";
+type ProgrammingLang = "python" | "cpp" | "javascript" | "typescript";
 
 interface ProctoringLogEntry {
   timestamp: string;
@@ -78,8 +86,26 @@ interface DialogueEntry {
 }
 
 function LiveInterviewPage() {
+  const { user } = useAuth();
+
   // Current Interview Flow Phase
   const [phase, setPhase] = useState<InterviewPhase>("pre-check");
+
+  // Call Telemetry & Controls
+  const [callSeconds, setCallSeconds] = useState(0);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isDisqualified, setIsDisqualified] = useState(false);
+  const [ratingUpdate, setRatingUpdate] = useState<{
+    previousRating: number;
+    newRating: number;
+    ratingDelta: number;
+  } | null>(null);
+
+  // Testcase & Output Diff Solving Panel
+  const [activeConsoleTab, setActiveConsoleTab] = useState<"testcases" | "diff" | "inquiry">("testcases");
+  const [selectedTestCaseIndex, setSelectedTestCaseIndex] = useState(0);
+  const [isRunningTests, setIsRunningTests] = useState(false);
+  const [testRunResults, setTestRunResults] = useState<TestCaseResult[] | null>(null);
 
   // Selected Problem
   const [problemIndex, setProblemIndex] = useState(0);
@@ -98,6 +124,7 @@ function LiveInterviewPage() {
   const [hasCamMicPermission, setHasCamMicPermission] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState<number>(0);
+  const [audioBars, setAudioBars] = useState<number[]>([12, 18, 14, 25, 20, 15, 22, 30, 18, 12, 15, 10]);
   const [isMuted, setIsMuted] = useState(false); // Candidate mic mute
 
   // Spoken AI Interviewer State
@@ -112,6 +139,17 @@ function LiveInterviewPage() {
   const [isProcessingQuestion, setIsProcessingQuestion] = useState(false);
   const [lastCandidateQuestion, setLastCandidateQuestion] = useState<string | null>(null);
   const [lastInterviewerAnswer, setLastInterviewerAnswer] = useState<string | null>(null);
+
+  // Spoken Speech Recording & Confident Speech Telemetry
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [candidateSpokenUtterances, setCandidateSpokenUtterances] = useState<
+    Array<{ text: string; time: string; answer?: string }>
+  >([]);
+
+  // Reference Solution Modal & Consultation Tracking
+  const [showReferenceSolutionModal, setShowReferenceSolutionModal] = useState(false);
+  const [referenceSolutionsViewedCount, setReferenceSolutionsViewedCount] = useState(0);
+  const [copiedReference, setCopiedReference] = useState(false);
 
   // Proctoring & Anti-Cheat Monitor State
   const [strikes, setStrikes] = useState<number>(0);
@@ -141,6 +179,15 @@ function LiveInterviewPage() {
   const recognitionRef = useRef<any>(null);
   const isAiSpeakingRef = useRef<boolean>(false);
   const isProcessingQuestionRef = useRef<boolean>(false);
+  const isRecognitionRunningRef = useRef<boolean>(false);
+  const isMutedRef = useRef<boolean>(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  // Sync mute ref
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
   // Ensure AudioContext is resumed upon any user interaction
   useEffect(() => {
@@ -165,6 +212,65 @@ function LiveInterviewPage() {
       setCode(problem.tiers[currentTier].starterCode[language]);
     }
   }, [problemIndex, language, currentTier, phase]);
+
+  // Active Call Timer
+  useEffect(() => {
+    if (phase !== "in-session") return;
+    const interval = setInterval(() => {
+      setCallSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [phase]);
+
+  // Candidate Video Toggle
+  const handleToggleVideo = useCallback(() => {
+    setIsVideoOff((prev) => {
+      const next = !prev;
+      if (mediaStream) {
+        mediaStream.getVideoTracks().forEach((track) => {
+          track.enabled = !next;
+        });
+      }
+      toast.info(next ? "Camera turned off." : "Camera turned on.", { duration: 2000 });
+      return next;
+    });
+  }, [mediaStream]);
+
+  // Formatted Call Duration String (MM:SS)
+  const formattedCallDuration = useMemo(() => {
+    const mins = Math.floor(callSeconds / 60);
+    const secs = callSeconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }, [callSeconds]);
+
+  // Run Code against Current Tier Test Cases with Output Diff
+  const handleRunTests = useCallback(async () => {
+    setIsRunningTests(true);
+    setValidationError(null);
+
+    try {
+      const runOutput = await runInterviewTests({
+        code,
+        language,
+        problem,
+        currentTier,
+      });
+
+      setTestRunResults(runOutput.results);
+      if (runOutput.allPassed) {
+        toast.success(`All ${runOutput.totalCount} test cases passed! (Runtime: ${runOutput.results[0]?.runtimeMs || 2}ms)`);
+        setActiveConsoleTab("testcases");
+      } else {
+        const failed = runOutput.results.find((r) => !r.passed);
+        toast.error(`Test case failed: ${failed?.error || "Output did not match expected"}`);
+        setActiveConsoleTab("diff");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to execute tests.");
+    } finally {
+      setIsRunningTests(false);
+    }
+  }, [code, language, currentTier, problem]);
 
   // Voice Synthesizer Helper
   const speakAloud = useCallback(
@@ -193,10 +299,11 @@ function LiveInterviewPage() {
         utterance.onstart = () => {
           isAiSpeakingRef.current = true;
           setIsAiSpeaking(true);
-          if (recognitionRef.current) {
+          if (recognitionRef.current && isRecognitionRunningRef.current) {
             try {
               recognitionRef.current.stop();
             } catch {}
+            isRecognitionRunningRef.current = false;
           }
         };
 
@@ -205,12 +312,18 @@ function LiveInterviewPage() {
           setIsAiSpeaking(false);
           // Resume speech recognition after speech synthesis finishes
           setTimeout(() => {
-            if (phase === "in-session" && recognitionRef.current) {
+            if (
+              phase === "in-session" &&
+              !isMutedRef.current &&
+              recognitionRef.current &&
+              !isRecognitionRunningRef.current
+            ) {
               try {
                 recognitionRef.current.start();
+                isRecognitionRunningRef.current = true;
               } catch {}
             }
-          }, 400);
+          }, 350);
         };
 
         utterance.onerror = () => {
@@ -227,7 +340,7 @@ function LiveInterviewPage() {
     [isAiMuted, phase],
   );
 
-  // High-Precision Time-Domain RMS Audio Monitoring (Never stays 0)
+  // High-Precision Real-Time Time-Domain RMS and Multi-Band Frequency Audio Monitoring
   const setupAudioMonitoring = useCallback((stream: MediaStream) => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -256,11 +369,20 @@ function LiveInterviewPage() {
       analyserRef.current = analyser;
 
       const timeDomainData = new Uint8Array(analyser.fftSize);
+      const freqData = new Uint8Array(analyser.frequencyBinCount);
 
       const checkVolume = () => {
         if (!analyserRef.current) return;
         if (audioContextRef.current && audioContextRef.current.state === "suspended") {
           audioContextRef.current.resume().catch(() => {});
+        }
+
+        // If candidate has muted their mic, zero out levels and bars immediately
+        if (isMutedRef.current) {
+          setAudioLevel(0);
+          setAudioBars([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+          animFrameRef.current = requestAnimationFrame(checkVolume);
+          return;
         }
 
         analyserRef.current.getByteTimeDomainData(timeDomainData);
@@ -271,12 +393,25 @@ function LiveInterviewPage() {
           sumSquares += norm * norm;
         }
         const rms = Math.sqrt(sumSquares / timeDomainData.length);
-        // Instant response: typical conversational speech RMS is 0.02 - 0.3
+        // Instant conversational speech RMS normalized to 0-100%
         const normalized = Math.min(100, Math.round(rms * 400));
         setAudioLevel(normalized);
 
-        // Track candidate speaking duration (volume > 8 counts as active voice)
-        if (normalized > 8) {
+        // Real-time 12-band frequency spectrum for dynamic equalizer visualization
+        analyserRef.current.getByteFrequencyData(freqData);
+        const barCount = 12;
+        const step = Math.max(1, Math.floor(freqData.length / barCount));
+        const bars: number[] = [];
+        for (let b = 0; b < barCount; b++) {
+          const val = freqData[b * step] || 0;
+          // Scale smoothly between 8% and 100%
+          const pct = Math.min(100, Math.max(8, Math.round((val / 255) * 100)));
+          bars.push(pct);
+        }
+        setAudioBars(bars);
+
+        // Track candidate speaking duration (volume > 12 counts as active voice)
+        if (normalized > 12) {
           setSpeakingSeconds((s) => s + 0.05);
         }
 
@@ -311,13 +446,13 @@ function LiveInterviewPage() {
         throw new Error("No physical microphone track detected. Please connect or enable your microphone.");
       }
       audioTracks.forEach((track) => {
-        track.enabled = true;
+        track.enabled = !isMutedRef.current;
       });
 
       setMediaStream(stream);
       setHasCamMicPermission(true);
 
-      // Attach stream to preview video
+      // Attach stream to preview video immediately
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play().catch(() => {});
@@ -334,13 +469,142 @@ function LiveInterviewPage() {
     }
   };
 
-  // Socratic Voice & Text Question Handler (Strict Non-Giveaway & In-Context Enforcement)
+  // Candidate Mic Mute / Unmute Toggle Handler
+  const handleToggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      isMutedRef.current = next;
+
+      if (mediaStream) {
+        mediaStream.getAudioTracks().forEach((track) => {
+          track.enabled = !next;
+        });
+      }
+
+      if (next) {
+        toast.info("Microphone Muted. The interviewer cannot hear you.", { duration: 2500 });
+        if (recognitionRef.current && isRecognitionRunningRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch {}
+          isRecognitionRunningRef.current = false;
+        }
+      } else {
+        toast.success("Microphone Unmuted! The interviewer is actively listening to your speech.", {
+          duration: 2500,
+        });
+        if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+          audioContextRef.current.resume().catch(() => {});
+        }
+        if (
+          phase === "in-session" &&
+          recognitionRef.current &&
+          !isAiSpeakingRef.current &&
+          !isRecognitionRunningRef.current
+        ) {
+          try {
+            recognitionRef.current.start();
+            isRecognitionRunningRef.current = true;
+          } catch {}
+        }
+      }
+      return next;
+    });
+  }, [mediaStream, phase]);
+
+  // Auto-connect hardware if browser already granted permission
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
+
+    if (navigator.mediaDevices.enumerateDevices) {
+      navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => {
+          const hasLabeledDevices = devices.some(
+            (d) => (d.kind === "videoinput" || d.kind === "audioinput") && d.label.length > 0,
+          );
+          if (hasLabeledDevices && phase === "pre-check" && !hasCamMicPermission) {
+            requestMediaPermissions().catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
+  }, [phase, hasCamMicPermission]);
+
+  // Synchronize preview video element in pre-check phase
+  useEffect(() => {
+    if (phase === "pre-check" && videoRef.current && mediaStream) {
+      videoRef.current.srcObject = mediaStream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [phase, mediaStream, hasCamMicPermission]);
+
+  // Synchronize floating video in in-session phase
+  useEffect(() => {
+    if (phase === "in-session" && floatingVideoRef.current && mediaStream) {
+      floatingVideoRef.current.srcObject = mediaStream;
+      floatingVideoRef.current.play().catch(() => {});
+    }
+  }, [phase, mediaStream]);
+
+  // MediaRecorder: Record candidate voice throughout the live interview session for confidence evaluation
+  useEffect(() => {
+    if (phase !== "in-session" || !mediaStream) return;
+
+    try {
+      const audioTracks = mediaStream.getAudioTracks();
+      if (audioTracks.length === 0) return;
+
+      audioChunksRef.current = [];
+      const mimeTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+      const supportedMime = mimeTypes.find((m) => {
+        try {
+          return typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(m);
+        } catch {
+          return false;
+        }
+      }) || "";
+
+      const options = supportedMime ? { mimeType: supportedMime } : undefined;
+      const recorder = new MediaRecorder(mediaStream, options);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        if (audioChunksRef.current.length > 0) {
+          const mime = supportedMime || "audio/webm";
+          const audioBlob = new Blob(audioChunksRef.current, { type: mime });
+          const url = URL.createObjectURL(audioBlob);
+          setRecordedAudioUrl(url);
+        }
+      };
+
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+    } catch (err) {
+      console.warn("MediaRecorder initialization notice:", err);
+    }
+
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch {}
+      }
+    };
+  }, [phase, mediaStream]);
+
+  // Socratic Voice & Text Question Handler (Real-Time Inquiries & Socratic Doubts)
   const handleCandidateVoiceQuestion = useCallback(
     async (rawQuestion: string) => {
       const q = rawQuestion.trim();
       if (!q || isProcessingQuestionRef.current || isAiSpeakingRef.current) return;
 
-      if (q.length < 4 || q.toLowerCase() === lastCandidateQuestion?.toLowerCase()) {
+      if (q.length < 3 || q.toLowerCase() === lastCandidateQuestion?.toLowerCase()) {
         return;
       }
 
@@ -352,22 +616,22 @@ function LiveInterviewPage() {
       const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       setDialogueLog((prev) => [...prev, { speaker: "candidate", text: q, timestamp: timeStr }]);
 
-      // Temporarily pause recognition while processing
-      if (recognitionRef.current) {
+      // Temporarily pause recognition while processing response
+      if (recognitionRef.current && isRecognitionRunningRef.current) {
         try {
           recognitionRef.current.stop();
         } catch {}
+        isRecognitionRunningRef.current = false;
       }
 
       try {
         const lowerQ = q.toLowerCase();
 
         // 1. Strict Out-of-Context Detection
-        const isOutOfContext = (
+        const isOutOfContext =
           /weather|rain|sunny|forecast|cricket|football|soccer|super bowl|messi|ronaldo|nba|movie|song|music|singer|president|election|politics|crypto|bitcoin|tell me a joke|are you single|dating|restaurant|lunch|dinner|game of thrones|minecraft|fortnite/i.test(
             lowerQ,
-          ) && !/temperature|array|integer|number|price/i.test(lowerQ)
-        );
+          ) && !/temperature|array|integer|number|price/i.test(lowerQ);
 
         let socraticAnswer = "";
 
@@ -386,7 +650,7 @@ function LiveInterviewPage() {
           let aiResponseText = "";
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2600);
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
 
             const res = await fetch("/api/chat", {
               method: "POST",
@@ -413,9 +677,9 @@ Problem Constraints: ${problem.constraints.join("; ")}.
 
 STRICT LAWS:
 1. Limit your spoken answer to 1 to 3 concise, natural sentences.
-2. NEVER GIVE AWAY THE CODE OR DIRECT SOLUTION. Do not write code for them.
-3. STRICT CONTEXT: Only discuss this DSA problem, its constraints, or the candidate's algorithmic reasoning. If they ask about unrelated topics, politely redirect them back to the problem immediately.
-4. If they ask about constraints or inputs, answer accurately based on the problem specification.
+2. Answer candidate doubts about inputs, types, return format, edge cases, and algorithmic direction in real time.
+3. NEVER GIVE AWAY THE CODE OR DIRECT SOLUTION. Do not write the full code for them.
+4. STRICT CONTEXT: Only discuss this DSA problem, its constraints, or the candidate's algorithmic reasoning. If they ask about unrelated topics, politely redirect them back to the problem immediately.
 5. If they ask for a hint, provide a gentle Socratic nudge without spoiling the algorithm.`,
               }),
             });
@@ -440,6 +704,10 @@ STRICT LAWS:
         }
 
         setLastInterviewerAnswer(socraticAnswer);
+        setCandidateSpokenUtterances((prev) => [
+          ...prev,
+          { text: q, time: timeStr, answer: socraticAnswer },
+        ]);
         speakAloud(socraticAnswer);
       } finally {
         isProcessingQuestionRef.current = false;
@@ -451,12 +719,12 @@ STRICT LAWS:
 
   // Web Speech Recognition: Real-time Audio Listener
   useEffect(() => {
-    if (phase !== "in-session") {
-      if (recognitionRef.current) {
+    if (phase !== "in-session" || isMuted) {
+      if (recognitionRef.current && isRecognitionRunningRef.current) {
         try {
           recognitionRef.current.stop();
         } catch {}
-        recognitionRef.current = null;
+        isRecognitionRunningRef.current = false;
       }
       return;
     }
@@ -478,8 +746,12 @@ STRICT LAWS:
 
     let speechTimer: any = null;
 
+    recognition.onstart = () => {
+      isRecognitionRunningRef.current = true;
+    };
+
     recognition.onresult = (event: any) => {
-      if (isAiSpeakingRef.current || isProcessingQuestionRef.current) return;
+      if (isAiSpeakingRef.current || isProcessingQuestionRef.current || isMutedRef.current) return;
 
       let interim = "";
       let final = "";
@@ -497,10 +769,10 @@ STRICT LAWS:
 
         clearTimeout(speechTimer);
         speechTimer = setTimeout(() => {
-          if (!isAiSpeakingRef.current && !isProcessingQuestionRef.current) {
+          if (!isAiSpeakingRef.current && !isProcessingQuestionRef.current && !isMutedRef.current) {
             handleCandidateVoiceQuestion(spoken);
           }
-        }, 1400);
+        }, 1200);
       }
     };
 
@@ -508,18 +780,35 @@ STRICT LAWS:
       if (e.error !== "no-speech") {
         console.warn("Speech recognition notice:", e.error);
       }
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        isRecognitionRunningRef.current = false;
+      }
     };
 
     recognition.onend = () => {
-      if (phase === "in-session" && !isAiSpeakingRef.current && recognitionRef.current) {
-        try {
-          recognition.start();
-        } catch {}
+      isRecognitionRunningRef.current = false;
+      // Restart cleanly with debounce if unmuted and in session
+      if (phase === "in-session" && !isAiSpeakingRef.current && !isMutedRef.current && recognitionRef.current) {
+        setTimeout(() => {
+          if (
+            phase === "in-session" &&
+            !isAiSpeakingRef.current &&
+            !isMutedRef.current &&
+            !isRecognitionRunningRef.current &&
+            recognitionRef.current
+          ) {
+            try {
+              recognitionRef.current.start();
+              isRecognitionRunningRef.current = true;
+            } catch {}
+          }
+        }, 250);
       }
     };
 
     try {
       recognition.start();
+      isRecognitionRunningRef.current = true;
     } catch {}
 
     return () => {
@@ -528,10 +817,11 @@ STRICT LAWS:
         try {
           recognitionRef.current.stop();
         } catch {}
+        isRecognitionRunningRef.current = false;
         recognitionRef.current = null;
       }
     };
-  }, [phase, handleCandidateVoiceQuestion]);
+  }, [phase, isMuted, handleCandidateVoiceQuestion]);
 
   // Sync floating video in in-session phase
   useEffect(() => {
@@ -568,6 +858,26 @@ STRICT LAWS:
       if (type === "strike") {
         setStrikes((s) => {
           const nextStrikes = s + 1;
+          if (nextStrikes >= 3) {
+            setIsDisqualified(true);
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+              try {
+                mediaRecorderRef.current.stop();
+              } catch {}
+            }
+            if (recognitionRef.current) {
+              try {
+                recognitionRef.current.stop();
+              } catch {}
+            }
+            speakAloud("Attention. You have accumulated 3 proctoring strikes. The interview has been terminated for compliance review.");
+            toast.error("SESSION TERMINATED: 3 proctoring strikes reached. Disqualification recorded.", {
+              duration: 6000,
+            });
+            setPhase("scorecard");
+            return nextStrikes;
+          }
+
           speakAloud(`Warning. Tab switch or window blur detected. Strike ${nextStrikes} of 3.`);
           toast.error(`PROCTORING ALERT: Strike ${nextStrikes}/3. Please remain on this screen.`, {
             duration: 4000,
@@ -659,6 +969,10 @@ STRICT LAWS:
     }
 
     const now = Date.now();
+    hasSavedSessionRef.current = false;
+    setRatingUpdate(null);
+    setIsDisqualified(false);
+    setTestRunResults(null);
     setSessionStartTime(now);
     setTierStartTimes({ 1: now });
     setCurrentTier(1);
@@ -680,27 +994,34 @@ STRICT LAWS:
   };
 
   // Submit Current Tier Solution
-  const handleSubmitTier = () => {
+  const handleSubmitTier = async () => {
     setIsEvaluating(true);
     setValidationError(null);
 
-    const activeTierSpec = problem.tiers[currentTier];
+    try {
+      const runOutput = await runInterviewTests({
+        code,
+        language,
+        problem,
+        currentTier,
+      });
 
-    setTimeout(() => {
-      setIsEvaluating(false);
+      setTestRunResults(runOutput.results);
 
-      // Simple heuristic evaluation: check if code is non-trivial and has expected patterns
-      const trimmed = code.trim();
-      const lineCount = trimmed.split("\n").length;
-
-      if (lineCount < 3 || trimmed.length < 25) {
-        const errorMsg = "Solution appears incomplete. Please provide a functional implementation.";
+      if (!runOutput.allPassed) {
+        const failed = runOutput.results.find((r) => !r.passed);
+        const errorMsg = failed?.error
+          ? `Test case ${failed.index} failed: ${failed.error}`
+          : `Test case ${failed?.index || 1} did not produce expected output. Please check the Execution Diff panel below.`;
         setValidationError(errorMsg);
-        speakAloud("I noticed your solution is incomplete. Take your time to write out the logic before submitting.");
+        setActiveConsoleTab("diff");
+        speakAloud("I noticed your solution didn't pass all test cases. Please inspect the output difference before submitting.");
+        toast.error("Submission rejected: All test cases must pass.");
         return;
       }
 
       // Check if it's Tier 1, 2, or 3
+      const activeTierSpec = problem.tiers[currentTier];
       const now = Date.now();
       const startTime = tierStartTimes[currentTier] || now;
       const duration = Math.round((now - startTime) / 1000);
@@ -709,28 +1030,40 @@ STRICT LAWS:
       if (currentTier === 1) {
         // Completed Tier 1 -> Move to Tier 2
         setCompletedTiers((prev) => [...prev, 1]);
-        toast.success("Tier 1: Brute Force Accepted!");
+        toast.success("Tier 1: Brute Force Accepted! All test cases passed.");
         speakAloud(activeTierSpec.interviewerPraise + " " + activeTierSpec.nextPrompt);
         setCurrentTier(2);
         setTierStartTimes((prev) => ({ ...prev, 2: Date.now() }));
+        setTestRunResults(null);
       } else if (currentTier === 2) {
         // Completed Tier 2 -> Move to Tier 3
         setCompletedTiers((prev) => [...prev, 2]);
-        toast.success("Tier 2: Better Approach Accepted!");
+        toast.success("Tier 2: Better Approach Accepted! All test cases passed.");
         speakAloud(activeTierSpec.interviewerPraise + " " + activeTierSpec.nextPrompt);
         setCurrentTier(3);
         setTierStartTimes((prev) => ({ ...prev, 3: Date.now() }));
+        setTestRunResults(null);
       } else if (currentTier === 3) {
-        // Completed Tier 3 -> Move to Final Scorecard!
+        // Completed Tier 3 -> Stop audio recording & Move to Final Scorecard!
         setCompletedTiers((prev) => [...prev, 3]);
-        toast.success("Tier 3: Optimal Solution Accepted! Interview Completed!");
+        toast.success("Tier 3: Optimal Solution Accepted! Technical Interview Passed!");
         speakAloud(activeTierSpec.interviewerPraise + " " + activeTierSpec.nextPrompt);
 
         setTimeout(() => {
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+            try {
+              mediaRecorderRef.current.stop();
+            } catch {}
+          }
           setPhase("scorecard");
         }, 1800);
       }
-    }, 900);
+    } catch (err: any) {
+      setValidationError(err?.message || "Execution verification error occurred.");
+      toast.error(err?.message || "Evaluation error.");
+    } finally {
+      setIsEvaluating(false);
+    }
   };
 
   // Request a subtle hint
@@ -741,6 +1074,30 @@ STRICT LAWS:
     speakAloud(`Here is a thought: ${selectedHint}`);
   };
 
+  // Reset editor to starter skeleton
+  const handleResetSkeleton = useCallback(() => {
+    setCode(problem.tiers[currentTier].starterCode[language]);
+    toast.info(`Editor reset to Tier ${currentTier} starter skeleton.`, { duration: 2500 });
+  }, [problem, currentTier, language]);
+
+  // Open reference solution modal
+  const handleOpenReferenceSolution = useCallback(() => {
+    setShowReferenceSolutionModal(true);
+    setReferenceSolutionsViewedCount((prev) => prev + 1);
+    toast.info("Viewing reference solution noted in evaluation log.", { duration: 2500 });
+  }, []);
+
+  // Copy reference solution to clipboard
+  const handleCopyReference = useCallback(() => {
+    const refCode = problem.tiers[currentTier].referenceSolution?.[language];
+    if (refCode) {
+      navigator.clipboard.writeText(refCode);
+      setCopiedReference(true);
+      toast.success("Reference solution copied to clipboard!");
+      setTimeout(() => setCopiedReference(false), 2000);
+    }
+  }, [problem, currentTier, language]);
+
   // Re-roll question in pre-check
   const handleRandomizeProblem = () => {
     const nextIdx = (problemIndex + 1) % LIVE_INTERVIEW_PROBLEMS.length;
@@ -749,19 +1106,24 @@ STRICT LAWS:
 
   // Scorecard Calculations (Out of 10)
   const scorecard = useMemo(() => {
-    // 1. Confidence & Delivery (0 - 10): based on speaking duration and volume
-    const speakingRatio = Math.min(1, speakingSeconds / 45);
-    const confidenceScore = Math.min(10, Math.max(5.5, Math.round((7.0 + speakingRatio * 2.8) * 10) / 10));
+    // 1. Confidence & Delivery (0 - 10): based on speaking duration, voiced inquiries, and mic cadence
+    const speakingRatio = Math.min(1, speakingSeconds / 40);
+    const questionsVoicedBonus = Math.min(2.0, candidateSpokenUtterances.length * 0.5);
+    const confidenceScore = Math.min(
+      10,
+      Math.max(5.5, Math.round((7.0 + speakingRatio * 2.0 + questionsVoicedBonus) * 10) / 10),
+    );
 
-    // 2. Algorithmic Craft (0 - 10): 3 tiers = 10, -0.5 per hint
+    // 2. Algorithmic Craft (0 - 10): 3 tiers = 10, -0.5 per hint, -1.0 per reference solution view
     const tierBonus = completedTiers.length === 3 ? 10.0 : completedTiers.length === 2 ? 7.5 : 5.0;
-    const craftScore = Math.max(4.0, Math.round((tierBonus - hintsUsed * 0.5) * 10) / 10);
+    const refPenalty = referenceSolutionsViewedCount * 1.0;
+    const craftScore = Math.max(3.5, Math.round((tierBonus - hintsUsed * 0.5 - refPenalty) * 10) / 10);
 
     // 3. Proctoring & Integrity (0 - 10): 10.0 base, -1.8 per strike
     const integrityScore = Math.max(2.0, Math.round((10.0 - strikes * 1.8) * 10) / 10);
 
     // Composite Score
-    const composite = Math.round(((confidenceScore * 0.35 + craftScore * 0.45 + integrityScore * 0.2) * 10)) / 10;
+    const composite = Math.round((confidenceScore * 0.35 + craftScore * 0.45 + integrityScore * 0.2) * 10) / 10;
 
     let verdict = "STRONG HIRE";
     if (composite < 6.5) verdict = "NEEDS PRACTICE";
@@ -775,7 +1137,44 @@ STRICT LAWS:
       composite,
       verdict,
     };
-  }, [speakingSeconds, completedTiers.length, hintsUsed, strikes]);
+  }, [
+    speakingSeconds,
+    candidateSpokenUtterances.length,
+    completedTiers.length,
+    hintsUsed,
+    referenceSolutionsViewedCount,
+    strikes,
+  ]);
+
+  const hasSavedSessionRef = useRef(false);
+
+  // Automatically persist interview outcome and calculate rating delta on scorecard
+  useEffect(() => {
+    if (phase !== "scorecard" || hasSavedSessionRef.current) return;
+    hasSavedSessionRef.current = true;
+
+    saveInterviewSession({
+      problemId: problem.id,
+      problemTitle: problem.title,
+      compositeScore: isDisqualified ? 2.5 : scorecard.composite,
+      confidenceScore: scorecard.confidenceScore,
+      craftScore: isDisqualified ? 2.0 : scorecard.craftScore,
+      integrityScore: isDisqualified ? 0.0 : scorecard.integrityScore,
+      strikes,
+      isDisqualified,
+      userId: user?.uid,
+    })
+      .then((res) => {
+        setRatingUpdate({
+          previousRating: res.previousRating,
+          newRating: res.newRating,
+          ratingDelta: res.ratingDelta,
+        });
+      })
+      .catch((err) => {
+        console.warn("Could not persist interview session:", err);
+      });
+  }, [phase, isDisqualified, problem, scorecard, strikes, user]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground select-none">
@@ -838,66 +1237,134 @@ STRICT LAWS:
               )}
 
               {/* Live Webcam & Audio Visualizer Feed */}
+              {/* Live Webcam & Real-Time Audio Visualizer Feed */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                {/* Video Feed Box */}
-                <div className="relative flex aspect-video w-full flex-col items-center justify-center rounded-xl border border-border/80 bg-black/60 overflow-hidden shadow-inner">
+                {/* Real-time Video Feed Box */}
+                <div className="relative flex aspect-video w-full flex-col items-center justify-center rounded-xl border border-border/80 bg-black/80 overflow-hidden shadow-inner ring-1 ring-border/50">
                   {hasCamMicPermission ? (
                     <>
                       <video
-                        ref={videoRef}
+                        ref={(el) => {
+                          videoRef.current = el;
+                          if (el && mediaStream) {
+                            el.srcObject = mediaStream;
+                            el.play().catch(() => {});
+                          }
+                        }}
                         autoPlay
                         playsInline
                         muted
                         className="h-full w-full object-cover -scale-x-100"
                       />
-                      <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded-md bg-black/70 px-2 py-0.5 font-mono text-[9px] font-bold text-emerald-400 border border-emerald-500/40 backdrop-blur-xs">
+                      <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded-md bg-black/75 px-2 py-0.5 font-mono text-[9px] font-bold text-emerald-400 border border-emerald-500/40 backdrop-blur-xs shadow-xs">
                         <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        LIVE CAM 640x480
+                        LIVE CAM 640x480 (PROCTORED)
+                      </div>
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-black/75 px-2 py-0.5 font-mono text-[9px] font-semibold text-emerald-300 border border-emerald-500/30 backdrop-blur-xs">
+                        <Check className="size-3 text-emerald-400" />
+                        <span>Camera Stream Verified</span>
                       </div>
                     </>
                   ) : (
                     <div className="flex flex-col items-center gap-2 text-center p-4 text-muted-foreground font-mono text-xs">
-                      <Video className="size-8 text-muted-foreground/60" />
-                      <span>Webcam feed will display here once allowed</span>
+                      <div className="size-12 rounded-full bg-muted/20 border border-border/60 flex items-center justify-center text-primary/70 mb-1">
+                        <Video className="size-6" />
+                      </div>
+                      <span className="font-bold text-foreground">Webcam Preview Gated</span>
+                      <span className="text-[11px] text-muted-foreground max-w-[220px]">
+                        Grant camera & microphone access below to activate your live hardware preview.
+                      </span>
                     </div>
                   )}
                 </div>
 
-                {/* Microphone Level & System Checklist */}
+                {/* Real-time Microphone Equalizer & System Checklist */}
                 <div className="flex flex-col gap-3 justify-center">
-                  <div className="flex flex-col gap-1.5 rounded-xl border border-border/60 bg-card/60 p-3">
+                  <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-card/75 p-3.5 shadow-sm backdrop-blur-sm">
+                    {/* Header & Numerical Gauge */}
                     <div className="flex items-center justify-between text-xs font-mono">
                       <span className="flex items-center gap-1.5 font-bold text-foreground">
-                        <Mic className={`size-3.5 ${audioLevel > 15 ? "text-emerald-400 animate-pulse" : "text-primary"}`} /> Microphone Sensitivity
+                        {isMuted ? (
+                          <MicOff className="size-3.5 text-rose-400" />
+                        ) : (
+                          <Mic
+                            className={`size-3.5 ${
+                              audioLevel > 12 ? "text-emerald-400 animate-pulse" : "text-cyan-400"
+                            }`}
+                          />
+                        )}
+                        <span>Microphone Input</span>
                       </span>
-                      <span className={`font-bold ${audioLevel > 15 ? "text-emerald-400" : "text-muted-foreground"}`}>{audioLevel}%</span>
-                    </div>
-                    {/* Audio Level Meter */}
-                    <div className="h-2 w-full rounded-full bg-muted/60 overflow-hidden border border-border/50">
-                      <div
-                        className={`h-full transition-all duration-75 ${
-                          audioLevel > 50 ? "bg-emerald-400" : audioLevel > 15 ? "bg-cyan-400" : "bg-muted-foreground/40"
-                        }`}
-                        style={{ width: `${Math.max(5, audioLevel)}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground">
-                      <span>Speak into your microphone to verify audio pickup</span>
-                      {hasCamMicPermission && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (audioContextRef.current && audioContextRef.current.state === "suspended") {
-                              audioContextRef.current.resume().catch(() => {});
-                            }
-                            if (mediaStream) {
-                              setupAudioMonitoring(mediaStream);
-                            }
-                          }}
-                          className="text-primary hover:underline cursor-pointer"
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`font-mono text-xs font-bold ${
+                            isMuted
+                              ? "text-rose-400"
+                              : audioLevel > 12
+                                ? "text-emerald-400"
+                                : "text-muted-foreground"
+                          }`}
                         >
-                          Tap to wake audio
-                        </button>
+                          {isMuted ? "MUTED" : `${audioLevel}%`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Real-time Multi-Band Audio Equalizer (Reacts directly to user speech) */}
+                    <div className="flex items-end gap-1 h-10 px-2.5 py-1 bg-black/60 rounded-lg border border-border/70 overflow-hidden">
+                      {audioBars.map((barHeight, idx) => (
+                        <div
+                          key={idx}
+                          className="flex-1 rounded-t-sm transition-all duration-75"
+                          style={{
+                            height: `${isMuted ? 6 : Math.max(8, barHeight)}%`,
+                            backgroundColor: isMuted
+                              ? "#f43f5e"
+                              : barHeight > 50
+                                ? "#10b981"
+                                : barHeight > 18
+                                  ? "#06b6d4"
+                                  : "#475569",
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Audio Status Pill & Controls */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] pt-0.5">
+                      <div>
+                        {isMuted ? (
+                          <span className="text-rose-400 font-bold flex items-center gap-1">
+                            <MicOff className="size-3" /> Mic muted — click unmute to speak
+                          </span>
+                        ) : audioLevel > 12 ? (
+                          <span className="text-emerald-400 font-bold flex items-center gap-1 animate-pulse">
+                            <span className="size-2 rounded-full bg-emerald-400" /> Sound detected! Mic picking up voice
+                          </span>
+                        ) : hasCamMicPermission ? (
+                          <span className="text-cyan-300 font-medium flex items-center gap-1">
+                            <Radio className="size-3 animate-pulse" /> Live mic active. Speak to test level.
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Mic gated until permission granted</span>
+                        )}
+                      </div>
+
+                      {hasCamMicPermission && (
+                        <div className="flex items-center gap-1.5 ml-auto">
+                          <button
+                            type="button"
+                            onClick={handleToggleMute}
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                              isMuted
+                                ? "border-rose-500/70 bg-rose-950/60 text-rose-200 hover:bg-rose-900/80"
+                                : "border-emerald-500/60 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/60"
+                            }`}
+                          >
+                            {isMuted ? <Mic className="size-2.5" /> : <MicOff className="size-2.5" />}
+                            <span>{isMuted ? "Unmute Mic" : "Mute Mic"}</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -905,12 +1372,16 @@ STRICT LAWS:
                   {/* Rules Checklist */}
                   <div className="flex flex-col gap-1.5 font-mono text-xs text-muted-foreground">
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className={`size-3.5 ${hasCamMicPermission ? "text-emerald-400" : "text-muted-foreground/40"}`} />
-                      <span>Camera & Microphone permission granted</span>
+                      <CheckCircle2
+                        className={`size-3.5 ${
+                          hasCamMicPermission ? "text-emerald-400" : "text-muted-foreground/40"
+                        }`}
+                      />
+                      <span>Camera & Microphone verified and streaming</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="size-3.5 text-emerald-400" />
-                      <span>Full screen locked during interview session</span>
+                      <span>Full screen proctor lock active during challenge</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="size-3.5 text-emerald-400" />
@@ -1045,6 +1516,31 @@ STRICT LAWS:
 
               {/* Interviewer Audio Status & Controls */}
               <div className="flex items-center gap-2 font-mono text-xs">
+                {/* Candidate Mic Live / Unmute Toggle */}
+                <button
+                  type="button"
+                  onClick={handleToggleMute}
+                  title={isMuted ? "Microphone is muted. Click to unmute and speak." : "Microphone is live. Click to mute."}
+                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-bold transition-all ${
+                    isMuted
+                      ? "border-rose-500/70 bg-rose-950/60 text-rose-300 ring-1 ring-rose-500/50 hover:bg-rose-900/60"
+                      : audioLevel > 15
+                        ? "border-emerald-500/80 bg-emerald-950/60 text-emerald-200 ring-1 ring-emerald-500/50 animate-pulse"
+                        : "border-cyan-500/60 bg-cyan-950/40 text-cyan-200 hover:bg-cyan-900/40"
+                  }`}
+                >
+                  {isMuted ? (
+                    <>
+                      <MicOff className="size-3.5 text-rose-400" />
+                      <span>Unmute Mic</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className={`size-3.5 ${audioLevel > 15 ? "text-emerald-400" : "text-cyan-400"}`} />
+                      <span>{audioLevel > 15 ? "Candidate Speaking..." : "Mic Live"}</span>
+                    </>
+                  )}
+                </button>
                 {/* Spoken AI Speaker Ring */}
                 <div
                   className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-bold transition-all ${
@@ -1228,32 +1724,91 @@ STRICT LAWS:
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2">
                     <div className="flex items-center gap-2">
                       <span className="relative flex size-2.5">
-                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${audioLevel > 15 ? "bg-emerald-400" : "bg-cyan-400"} opacity-75`} />
-                        <span className={`relative inline-flex rounded-full size-2.5 ${audioLevel > 15 ? "bg-emerald-500" : "bg-cyan-500"}`} />
+                        <span
+                          className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
+                            isMuted ? "bg-rose-400" : audioLevel > 15 ? "bg-emerald-400" : "bg-cyan-400"
+                          } opacity-75`}
+                        />
+                        <span
+                          className={`relative inline-flex rounded-full size-2.5 ${
+                            isMuted ? "bg-rose-500" : audioLevel > 15 ? "bg-emerald-500" : "bg-cyan-500"
+                          }`}
+                        />
                       </span>
                       <span className="font-mono text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <Mic className="size-3.5 text-cyan-400" />
+                        {isMuted ? (
+                          <MicOff className="size-3.5 text-rose-400" />
+                        ) : (
+                          <Mic className={`size-3.5 ${audioLevel > 15 ? "text-emerald-400" : "text-cyan-400"}`} />
+                        )}
                         <span>Live Mic Channel:</span>
-                        <span className="text-cyan-300 font-semibold">
-                          {isAiSpeaking ? "AI Interviewer Speaking..." : audioLevel > 15 ? "Candidate Speaking..." : "Listening to your Mic"}
+                        <span
+                          className={`font-semibold ${
+                            isMuted
+                              ? "text-rose-400 font-bold"
+                              : isAiSpeaking
+                                ? "text-cyan-300"
+                                : audioLevel > 15
+                                  ? "text-emerald-400 font-bold"
+                                  : "text-cyan-300"
+                          }`}
+                        >
+                          {isMuted
+                            ? "Microphone Muted"
+                            : isAiSpeaking
+                              ? "AI Interviewer Speaking..."
+                              : audioLevel > 15
+                                ? "Candidate Speaking... (Recording audio)"
+                                : "Live Mic Active (Listening)"}
                         </span>
                       </span>
                     </div>
 
-                    {/* Mic Sensitivity Gauge & Status */}
-                    <div className="flex items-center gap-2 font-mono text-[11px]">
-                      <span className="text-muted-foreground">Mic Volume:</span>
-                      <div className="w-20 h-2 rounded-full bg-black/50 overflow-hidden border border-border/70">
-                        <div
-                          className={`h-full transition-all duration-75 ${
-                            audioLevel > 50 ? "bg-emerald-400" : audioLevel > 15 ? "bg-cyan-400" : "bg-muted-foreground/40"
-                          }`}
-                          style={{ width: `${Math.max(4, audioLevel)}%` }}
-                        />
+                    <div className="flex items-center gap-2.5">
+                      {/* Unmute / Mute Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={handleToggleMute}
+                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-bold transition-all shadow-xs cursor-pointer ${
+                          isMuted
+                            ? "border-rose-500/70 bg-rose-950/70 text-rose-200 ring-1 ring-rose-500/50 hover:bg-rose-900/80"
+                            : "border-border/70 bg-secondary/70 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        {isMuted ? (
+                          <>
+                            <MicOff className="size-3 text-rose-400" />
+                            <span>Unmute Mic</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="size-3 text-emerald-400" />
+                            <span>Mute Mic</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Mic Sensitivity Gauge & Status */}
+                      <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                        <span className="text-muted-foreground">Volume:</span>
+                        <div className="w-16 h-2 rounded-full bg-black/50 overflow-hidden border border-border/70">
+                          <div
+                            className={`h-full transition-all duration-75 ${
+                              isMuted
+                                ? "bg-rose-500/30"
+                                : audioLevel > 50
+                                  ? "bg-emerald-400"
+                                  : audioLevel > 15
+                                    ? "bg-cyan-400"
+                                    : "bg-muted-foreground/40"
+                            }`}
+                            style={{ width: `${isMuted ? 0 : Math.max(4, audioLevel)}%` }}
+                          />
+                        </div>
+                        <span className={`font-bold ${isMuted ? "text-rose-400" : audioLevel > 15 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                          {isMuted ? "Muted" : `${audioLevel}%`}
+                        </span>
                       </div>
-                      <span className={`font-bold ${audioLevel > 15 ? "text-emerald-400" : "text-muted-foreground"}`}>
-                        {audioLevel}%
-                      </span>
                     </div>
                   </div>
 
@@ -1313,6 +1868,20 @@ STRICT LAWS:
                     </button>
                     <button
                       type="button"
+                      onClick={() => handleCandidateVoiceQuestion("What should I return as the output format?")}
+                      className="rounded-md border border-border/70 bg-secondary/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground hover:border-cyan-500/50 transition-colors cursor-pointer"
+                    >
+                      ❓ What should I return?
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCandidateVoiceQuestion("What edge cases should I consider?")}
+                      className="rounded-md border border-border/70 bg-secondary/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground hover:border-cyan-500/50 transition-colors cursor-pointer"
+                    >
+                      ❓ What are edge cases?
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleCandidateVoiceQuestion("Can I use extra memory for this tier?")}
                       className="rounded-md border border-border/70 bg-secondary/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground hover:border-cyan-500/50 transition-colors cursor-pointer"
                     >
@@ -1323,7 +1892,7 @@ STRICT LAWS:
                       onClick={() => handleCandidateVoiceQuestion("Can you give me a Socratic hint? I am stuck.")}
                       className="rounded-md border border-amber-500/40 bg-amber-950/20 px-2 py-0.5 font-mono text-[10px] text-amber-300 hover:text-amber-200 hover:border-amber-500/80 transition-colors cursor-pointer"
                     >
-                      💡 Give me a hint
+                      💡 Request Socratic hint
                     </button>
                   </div>
 
@@ -1359,24 +1928,56 @@ STRICT LAWS:
                   </form>
                 </div>
 
-                {/* Editor Header: Language selector + Silent Observer telemetry */}
+                {/* Editor Header: Language selector + Reset Skeleton + Reference Solution + Silent Observer telemetry */}
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/80 bg-card/75 p-2.5 backdrop-blur-sm font-mono text-xs">
-                  {/* Language Pills */}
-                  <div className="flex items-center gap-1">
-                    {(["python", "javascript", "typescript"] as const).map((lang) => (
-                      <button
-                        key={lang}
-                        type="button"
-                        onClick={() => setLanguage(lang)}
-                        className={`rounded-md px-2.5 py-1 text-xs font-bold transition-all ${
-                          language === lang
-                            ? "bg-primary text-primary-foreground shadow-xs"
-                            : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                        }`}
-                      >
-                        {lang === "python" ? "Python 3" : lang === "javascript" ? "JavaScript" : "TypeScript"}
-                      </button>
-                    ))}
+                  {/* Language Pills & Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      {(["python", "cpp", "javascript", "typescript"] as const).map((lang) => (
+                        <button
+                          key={lang}
+                          type="button"
+                          onClick={() => setLanguage(lang)}
+                          className={`rounded-md px-2.5 py-1 text-xs font-bold transition-all ${
+                            language === lang
+                              ? "bg-primary text-primary-foreground shadow-xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                          }`}
+                        >
+                          {lang === "python"
+                            ? "Python 3"
+                            : lang === "cpp"
+                              ? "C++ 20"
+                              : lang === "javascript"
+                                ? "JavaScript"
+                                : "TypeScript"}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="h-4 w-px bg-border/80 hidden sm:block" />
+
+                    {/* Reset Starter Skeleton Button */}
+                    <button
+                      type="button"
+                      onClick={handleResetSkeleton}
+                      title="Reset code editor to starter clean skeleton"
+                      className="flex items-center gap-1 rounded-md border border-border/70 bg-card/90 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="size-3" />
+                      <span>Reset Skeleton</span>
+                    </button>
+
+                    {/* Reference Solution Button */}
+                    <button
+                      type="button"
+                      onClick={handleOpenReferenceSolution}
+                      title="View canonical reference solution for current tier"
+                      className="flex items-center gap-1 rounded-md border border-amber-500/50 bg-amber-950/20 px-2 py-1 text-[11px] font-bold text-amber-300 hover:text-amber-200 hover:border-amber-500/80 transition-colors cursor-pointer"
+                    >
+                      <Lightbulb className="size-3 text-amber-400" />
+                      <span>Reference Solution (Tier {currentTier})</span>
+                    </button>
                   </div>
 
                   {/* Silent Observer Metrics */}
@@ -1415,6 +2016,233 @@ STRICT LAWS:
                   />
                 </div>
 
+                {/* Interactive Test Runner Console (Test Cases, Execution Diff, Output) */}
+                <div className="flex flex-col rounded-xl border border-border/80 bg-card/85 backdrop-blur-md overflow-hidden shadow-sm">
+                  {/* Console Tabs & Actions Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-card/90 px-3 py-2">
+                    <div className="flex items-center gap-1.5 font-mono text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setActiveConsoleTab("testcases")}
+                        className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-bold transition-colors cursor-pointer ${
+                          activeConsoleTab === "testcases"
+                            ? "bg-primary text-primary-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        <FileCode2 className="size-3.5" />
+                        <span>Test Cases ({problem.tiers[currentTier].testCases.length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveConsoleTab("diff")}
+                        className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-bold transition-colors cursor-pointer ${
+                          activeConsoleTab === "diff"
+                            ? "bg-primary text-primary-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        <Terminal className="size-3.5" />
+                        <span>Run Output & Diff</span>
+                        {testRunResults && (
+                          <span
+                            className={`rounded px-1 text-[9px] font-black ${
+                              testRunResults.every((r) => r.passed)
+                                ? "bg-emerald-500/20 text-emerald-300"
+                                : "bg-rose-500/20 text-rose-300"
+                            }`}
+                          >
+                            {testRunResults.filter((r) => r.passed).length}/{testRunResults.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        onClick={handleRunTests}
+                        disabled={isRunningTests || isEvaluating}
+                        size="sm"
+                        className="h-7 px-3 font-mono text-xs font-bold gap-1.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border cursor-pointer shadow-xs"
+                      >
+                        {isRunningTests ? (
+                          <>
+                            <span className="size-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                            <span>Running...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="size-3 text-primary fill-primary" />
+                            <span>Run Code</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Console Body */}
+                  <div className="p-3 font-mono text-xs">
+                    {/* Tab 1: Test Cases */}
+                    {activeConsoleTab === "testcases" && (
+                      <div className="flex flex-col gap-3">
+                        {/* Test case pills */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {problem.tiers[currentTier].testCases.map((tc, idx) => {
+                            const res = testRunResults?.find((r) => r.index === idx + 1);
+                            const isSelected = selectedTestCaseIndex === idx;
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setSelectedTestCaseIndex(idx)}
+                                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "border-primary bg-primary/15 text-primary shadow-xs"
+                                    : "border-border/60 bg-muted/20 text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                {res ? (
+                                  res.passed ? (
+                                    <CheckCircle2 className="size-3 text-emerald-400" />
+                                  ) : (
+                                    <XCircle className="size-3 text-rose-400" />
+                                  )
+                                ) : (
+                                  <span className="size-1.5 rounded-full bg-muted-foreground" />
+                                )}
+                                <span>Case {idx + 1}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Selected Test Case Detail */}
+                        {(() => {
+                          const currentCase =
+                            problem.tiers[currentTier].testCases[selectedTestCaseIndex] ||
+                            problem.tiers[currentTier].testCases[0]!;
+                          const runRes = testRunResults?.find((r) => r.index === selectedTestCaseIndex + 1);
+                          return (
+                            <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-[#0d1117] p-3 text-slate-200">
+                              <div className="flex items-center justify-between text-[11px] text-muted-foreground border-b border-border/40 pb-1.5">
+                                <span className="font-bold text-foreground">
+                                  Case {selectedTestCaseIndex + 1}: {currentCase.description}
+                                </span>
+                                {runRes && (
+                                  <span
+                                    className={`font-bold px-1.5 py-0.2 rounded text-[10px] ${
+                                      runRes.passed
+                                        ? "bg-emerald-950/70 text-emerald-400 border border-emerald-500/40"
+                                        : "bg-rose-950/70 text-rose-400 border border-rose-500/40"
+                                    }`}
+                                  >
+                                    {runRes.passed ? `Passed (${runRes.runtimeMs}ms)` : "Failed"}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-muted-foreground text-[11px]">Input Parameters:</span>
+                                  <pre className="rounded bg-black/50 p-2 overflow-x-auto text-cyan-300 font-mono text-[11px] border border-border/40">
+                                    {JSON.stringify(currentCase.input, null, 2)}
+                                  </pre>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-muted-foreground text-[11px]">Expected Return:</span>
+                                  <pre className="rounded bg-black/50 p-2 overflow-x-auto text-emerald-300 font-mono text-[11px] border border-border/40">
+                                    {JSON.stringify(currentCase.expected, null, 2)}
+                                  </pre>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {/* Tab 2: Diff / Output */}
+                    {activeConsoleTab === "diff" && (
+                      <div className="flex flex-col gap-3">
+                        {testRunResults ? (
+                          <div className="flex flex-col gap-2.5">
+                            {/* Summary strip */}
+                            <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                              <span className="font-bold flex items-center gap-1.5">
+                                {testRunResults.every((r) => r.passed) ? (
+                                  <CheckCircle2 className="size-4 text-emerald-400" />
+                                ) : (
+                                  <AlertCircle className="size-4 text-rose-400" />
+                                )}
+                                <span>
+                                  {testRunResults.every((r) => r.passed)
+                                    ? `All ${testRunResults.length} test cases passed successfully!`
+                                    : `${testRunResults.filter((r) => r.passed).length} of ${testRunResults.length} test cases passed.`}
+                                </span>
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                Total Runtime: {testRunResults.reduce((sum, r) => sum + (r.runtimeMs || 0), 0)}ms
+                              </span>
+                            </div>
+
+                            {/* Detailed Results List */}
+                            <div className="flex flex-col gap-2 max-h-56 overflow-y-auto">
+                              {testRunResults.map((res) => (
+                                <div
+                                  key={res.index}
+                                  className={`flex flex-col gap-1 rounded-lg border p-2.5 ${
+                                    res.passed
+                                      ? "border-emerald-500/40 bg-emerald-950/15"
+                                      : "border-rose-500/40 bg-rose-950/20"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-bold flex items-center gap-1.5">
+                                      {res.passed ? (
+                                        <Check className="size-3 text-emerald-400" />
+                                      ) : (
+                                        <X className="size-3 text-rose-400" />
+                                      )}
+                                      <span>Test Case {res.index}: {res.description}</span>
+                                    </span>
+                                    <span className="text-muted-foreground">{res.runtimeMs}ms</span>
+                                  </div>
+
+                                  {res.error ? (
+                                    <div className="text-[11px] text-rose-300 bg-rose-950/40 p-1.5 rounded border border-rose-500/30 mt-1">
+                                      <strong>Error:</strong> {res.error}
+                                    </div>
+                                  ) : (
+                                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 font-mono">
+                                      <div>
+                                        <span className="text-muted-foreground">Expected:</span>{" "}
+                                        <span className="text-emerald-300">{JSON.stringify(res.expected)}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">Actual:</span>{" "}
+                                        <span className={res.passed ? "text-emerald-300" : "text-rose-300 font-bold"}>
+                                          {JSON.stringify(res.actual)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground gap-2">
+                            <Terminal className="size-6 opacity-40" />
+                            <span>Click <strong>&ldquo;Run Code&rdquo;</strong> to execute your algorithm against Tier {currentTier} test cases.</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {validationError && (
                   <div className="rounded-lg bg-rose-950/40 border border-rose-500/50 p-2.5 font-mono text-xs text-rose-200 flex items-center gap-2">
                     <AlertTriangle className="size-4 shrink-0 text-rose-400" />
@@ -1422,34 +2250,56 @@ STRICT LAWS:
                   </div>
                 )}
 
-                {/* Bottom Actions: Submit Tier Solution + Socratic Hint Request */}
+                {/* Bottom Actions: Run Code + Submit Tier Solution + Socratic Hint Request */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                   <button
                     type="button"
                     onClick={handleRequestHint}
-                    className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-card/80 hover:bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground hover:text-foreground transition-colors shadow-xs"
+                    className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-card/80 hover:bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground hover:text-foreground transition-colors shadow-xs cursor-pointer"
                   >
                     <HelpCircle className="size-3.5 text-amber-400" />
                     <span>Request Socratic Hint ({hintsUsed} used)</span>
                   </button>
 
-                  <Button
-                    onClick={handleSubmitTier}
-                    disabled={isEvaluating}
-                    className="font-mono text-xs font-bold gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/40 disabled:opacity-50"
-                  >
-                    {isEvaluating ? (
-                      <>
-                        <span className="size-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                        Evaluating Solution...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="size-4" />
-                        Submit Solution for Tier {currentTier} ({problem.tiers[currentTier].name})
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      onClick={handleRunTests}
+                      disabled={isRunningTests || isEvaluating}
+                      variant="outline"
+                      className="font-mono text-xs font-bold gap-1.5 border-border cursor-pointer shadow-xs"
+                    >
+                      {isRunningTests ? (
+                        <>
+                          <span className="size-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                          <span>Running...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="size-3 text-primary fill-primary" />
+                          <span>Run Code</span>
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      onClick={handleSubmitTier}
+                      disabled={isEvaluating || isRunningTests}
+                      className="font-mono text-xs font-bold gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/40 disabled:opacity-50 cursor-pointer"
+                    >
+                      {isEvaluating ? (
+                        <>
+                          <span className="size-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                          <span>Validating Solution...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="size-4" />
+                          <span>Submit Solution for Tier {currentTier} ({problem.tiers[currentTier].name})</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1480,36 +2330,69 @@ STRICT LAWS:
                   REC • PROCTOR
                 </div>
 
-                {/* Candidate Voice Activity Badge */}
-                {audioLevel > 15 && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-emerald-950/90 px-1.5 py-0.5 font-mono text-[8px] font-bold text-emerald-300 border border-emerald-500/50 animate-pulse">
-                    <Mic className="size-2.5 text-emerald-400" />
-                    SPEAKING
-                  </div>
-                )}
+                {/* Candidate Mic / Activity Controls (Top Right) */}
+                <div className="absolute top-2 right-2 flex items-center gap-1">
+                  {isAiSpeaking && (
+                    <div className="flex items-center gap-1 rounded bg-cyan-950/90 px-1.5 py-0.5 font-mono text-[8px] font-bold text-cyan-300 border border-cyan-500/50 animate-pulse">
+                      <Volume2 className="size-2.5 text-cyan-400" />
+                      AI TALKING
+                    </div>
+                  )}
 
-                {/* AI Speaking Waveform Badge */}
-                {isAiSpeaking && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-cyan-950/90 px-1.5 py-0.5 font-mono text-[8px] font-bold text-cyan-300 border border-cyan-500/50 animate-pulse">
-                    <Volume2 className="size-2.5 text-cyan-400" />
-                    AI TALKING
-                  </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={handleToggleMute}
+                    title={isMuted ? "Click to Unmute Microphone" : "Click to Mute Microphone"}
+                    className={`flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[8px] font-bold border transition-colors shadow-md cursor-pointer ${
+                      isMuted
+                        ? "bg-rose-950/95 text-rose-300 border-rose-500/70 hover:bg-rose-900"
+                        : audioLevel > 15
+                          ? "bg-emerald-950/90 text-emerald-300 border-emerald-500/70 animate-pulse"
+                          : "bg-black/80 text-cyan-300 border-cyan-500/40 hover:bg-black/95"
+                    }`}
+                  >
+                    {isMuted ? (
+                      <>
+                        <MicOff className="size-2.5 text-rose-400" />
+                        <span>UNMUTE</span>
+                      </>
+                    ) : audioLevel > 15 ? (
+                      <>
+                        <Mic className="size-2.5 text-emerald-400" />
+                        <span>TALKING</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="size-2.5 text-cyan-400" />
+                        <span>MUTE</span>
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 {/* Live Mic Level Bar with % readout */}
-                <div className="absolute bottom-2 left-2 right-2 flex flex-col gap-0.5 bg-black/75 p-1 rounded-md border border-white/10 backdrop-blur-xs">
+                <div className="absolute bottom-2 left-2 right-2 flex flex-col gap-0.5 bg-black/80 p-1 rounded-md border border-white/10 backdrop-blur-xs">
                   <div className="flex items-center justify-between text-[8px] font-mono text-white/90 px-0.5 drop-shadow">
                     <span className="flex items-center gap-1">
-                      <Mic className="size-2.5 text-emerald-400" /> MIC
+                      {isMuted ? <MicOff className="size-2.5 text-rose-400" /> : <Mic className="size-2.5 text-emerald-400" />}
+                      <span>MIC</span>
                     </span>
-                    <span className={`font-bold ${audioLevel > 15 ? "text-emerald-400" : "text-white/80"}`}>{audioLevel}%</span>
+                    <span className={`font-bold ${isMuted ? "text-rose-400" : audioLevel > 15 ? "text-emerald-400" : "text-white/80"}`}>
+                      {isMuted ? "MUTED" : `${audioLevel}%`}
+                    </span>
                   </div>
                   <div className="h-1.5 rounded-full bg-black/80 overflow-hidden border border-white/20">
                     <div
                       className={`h-full transition-all duration-75 ${
-                        audioLevel > 50 ? "bg-emerald-400" : audioLevel > 15 ? "bg-cyan-400" : "bg-slate-500"
+                        isMuted
+                          ? "bg-rose-500/20"
+                          : audioLevel > 50
+                            ? "bg-emerald-400"
+                            : audioLevel > 15
+                              ? "bg-cyan-400"
+                              : "bg-slate-500"
                       }`}
-                      style={{ width: `${Math.max(5, audioLevel)}%` }}
+                      style={{ width: `${isMuted ? 0 : Math.max(5, audioLevel)}%` }}
                     />
                   </div>
                 </div>
@@ -1524,23 +2407,55 @@ STRICT LAWS:
         {phase === "scorecard" && (
           <div className="flex flex-col gap-6 max-w-3xl mx-auto w-full py-6">
             {/* Header Badge & Verdict */}
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shadow-lg shadow-emerald-500/20">
-                <Award className="size-7" />
+            {isDisqualified ? (
+              <div className="flex flex-col items-center gap-3 text-center rounded-2xl border-2 border-rose-500/60 bg-rose-950/30 p-6 backdrop-blur-md shadow-xl">
+                <div className="flex size-14 items-center justify-center rounded-2xl bg-rose-500/20 border border-rose-500/50 text-rose-400 shadow-lg shadow-rose-500/20">
+                  <ShieldAlert className="size-8" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="font-mono text-xs font-black uppercase tracking-widest text-rose-400">
+                    Proctoring Compliance Violation
+                  </span>
+                  <h1 className="text-3xl font-black text-foreground font-display">
+                    Candidate Disqualified
+                  </h1>
+                  <p className="text-sm text-rose-200/90 max-w-lg mx-auto font-mono mt-1">
+                    The live interview was terminated due to accumulating 3 proctoring strikes (tab switching, window blur, or exiting fullscreen). A compliance penalty has been logged.
+                  </p>
+                </div>
+                {ratingUpdate && (
+                  <div className="inline-flex items-center gap-2 rounded-xl bg-rose-900/60 border border-rose-500/50 px-4 py-1.5 font-mono text-xs font-bold text-rose-200">
+                    <span>Penalty Applied:</span>
+                    <span className="text-rose-300 font-black">{ratingUpdate.ratingDelta} pts</span>
+                    <span className="opacity-60">•</span>
+                    <span>New Rating: {ratingUpdate.newRating} / 100</span>
+                  </div>
+                )}
               </div>
-              <span className="font-mono text-xs font-extrabold uppercase tracking-widest text-emerald-400">
-                Technical Interview Complete
-              </span>
-              <h1 className="text-3xl font-black text-foreground font-display">
-                Executive Interview Performance Scorecard
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="font-mono text-sm text-muted-foreground">Candidate Outcome:</span>
-                <span className="rounded-full bg-emerald-500/20 border border-emerald-500/50 px-3 py-0.5 font-mono text-xs font-black text-emerald-300">
-                  {scorecard.verdict} ({scorecard.composite} / 10.0)
+            ) : (
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shadow-lg shadow-emerald-500/20">
+                  <Award className="size-7" />
+                </div>
+                <span className="font-mono text-xs font-extrabold uppercase tracking-widest text-emerald-400">
+                  Technical Interview Complete
                 </span>
+                <h1 className="text-3xl font-black text-foreground font-display">
+                  Executive Interview Performance Scorecard
+                </h1>
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+                  <span className="font-mono text-sm text-muted-foreground">Candidate Outcome:</span>
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/50 px-3 py-0.5 font-mono text-xs font-black text-emerald-300">
+                    {scorecard.verdict} ({scorecard.composite} / 10.0)
+                  </span>
+                  {ratingUpdate && (
+                    <span className="rounded-full bg-primary/20 border border-primary/50 px-3 py-0.5 font-mono text-xs font-black text-primary">
+                      {ratingUpdate.ratingDelta >= 0 ? `+${ratingUpdate.ratingDelta}` : ratingUpdate.ratingDelta} pts → {ratingUpdate.newRating}/100 Rating
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Score Grid: 3 Pillars (Delivery, Craft, Integrity) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
@@ -1585,6 +2500,116 @@ STRICT LAWS:
                   {strikes === 0 ? "Flawless compliance. 0 window switches or blurs." : `${strikes} proctoring warning/strike penalty applied.`}
                 </p>
               </div>
+            </div>
+
+            {/* Candidate Speech Communication & Voice Confidence Breakdown */}
+            <div className="rounded-2xl border border-border/80 bg-card/75 p-5 backdrop-blur-md flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-7 items-center justify-center rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                    <Mic className="size-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                      Candidate Speech Communication & Voice Analysis
+                    </h3>
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      Real-time microphone telemetry, verbal question asking, and speech cadence under proctoring.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-black border ${
+                      scorecard.confidenceScore >= 8.5
+                        ? "bg-emerald-950/50 border-emerald-500/50 text-emerald-300"
+                        : scorecard.confidenceScore >= 7.0
+                          ? "bg-cyan-950/50 border-cyan-500/50 text-cyan-300"
+                          : "bg-amber-950/50 border-amber-500/50 text-amber-300"
+                    }`}
+                  >
+                    {scorecard.confidenceScore >= 8.5
+                      ? "High Speech Confidence"
+                      : scorecard.confidenceScore >= 7.0
+                        ? "Clear & Steady Communicator"
+                        : "Moderate Verbalization"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Voice Telemetry Metrics Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono text-xs">
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3 flex flex-col gap-1">
+                  <span className="text-[10px] text-muted-foreground uppercase">Speaking Duration</span>
+                  <span className="text-base font-bold text-foreground">{speakingSeconds}s</span>
+                  <span className="text-[9px] text-muted-foreground">Verbal explanation time</span>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3 flex flex-col gap-1">
+                  <span className="text-[10px] text-muted-foreground uppercase">Inquiries Voiced</span>
+                  <span className="text-base font-bold text-cyan-300">{candidateSpokenUtterances.length}</span>
+                  <span className="text-[9px] text-muted-foreground">Technical doubts asked</span>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3 flex flex-col gap-1">
+                  <span className="text-[10px] text-muted-foreground uppercase">Confidence Score</span>
+                  <span className="text-base font-bold text-emerald-400">{scorecard.confidenceScore} / 10</span>
+                  <span className="text-[9px] text-muted-foreground">Cadence & delivery</span>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3 flex flex-col gap-1">
+                  <span className="text-[10px] text-muted-foreground uppercase">Reference Consults</span>
+                  <span className="text-base font-bold text-amber-300">{referenceSolutionsViewedCount}</span>
+                  <span className="text-[9px] text-muted-foreground">Solution views used</span>
+                </div>
+              </div>
+
+              {/* Audio Recording Replay Player */}
+              {recordedAudioUrl ? (
+                <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/20 p-3.5 flex flex-col gap-2">
+                  <div className="flex items-center justify-between font-mono text-xs">
+                    <span className="font-bold text-cyan-200 flex items-center gap-1.5">
+                      <Volume2 className="size-4 text-cyan-400" /> Session Candidate Audio Recording Replay
+                    </span>
+                    <span className="text-[10px] text-cyan-400/80 font-mono">Recorded Live via Mic</span>
+                  </div>
+                  <audio controls src={recordedAudioUrl} className="w-full h-9 rounded-md outline-none" />
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    Your microphone audio was recorded during the interview session to evaluate speech cadence, thought articulation, and verbal problem walkthroughs.
+                  </span>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border/60 bg-muted/15 p-3 font-mono text-xs text-muted-foreground flex items-center gap-2">
+                  <Info className="size-4 text-muted-foreground shrink-0" />
+                  <span>No recorded audio stream available for this session (candidate microphone was muted or recorder did not capture audio).</span>
+                </div>
+              )}
+
+              {/* Spoken Doubts & Real-Time Answers Transcript */}
+              {candidateSpokenUtterances.length > 0 && (
+                <div className="flex flex-col gap-2 border-t border-border/60 pt-3 font-mono text-xs">
+                  <span className="font-bold text-foreground flex items-center gap-1.5">
+                    <Radio className="size-3.5 text-primary" />
+                    Spoken Technical Doubts & Real-Time Interviewer Answers ({candidateSpokenUtterances.length})
+                  </span>
+                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+                    {candidateSpokenUtterances.map((utt, i) => (
+                      <div key={i} className="rounded-lg border border-border/60 bg-card/60 p-2.5 flex flex-col gap-1">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                          <span className="font-bold text-primary">Inquiry #{i + 1}</span>
+                          <span>{utt.time}</span>
+                        </div>
+                        <p className="text-foreground italic font-sans">&ldquo;{utt.text}&rdquo;</p>
+                        {utt.answer && (
+                          <div className="mt-1 pt-1 border-t border-border/40 text-[11px] text-cyan-300 flex items-start gap-1.5">
+                            <Volume2 className="size-3 text-cyan-400 shrink-0 mt-0.5" />
+                            <span>
+                              <strong>Interviewer:</strong> {utt.answer}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Tier Progression Timeline Breakdown */}
@@ -1632,6 +2657,81 @@ STRICT LAWS:
               >
                 Return to Dashboard
               </Link>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* REFERENCE SOLUTION MODAL (Tier-Specific Canonical Implementation)       */}
+        {/* ========================================================================= */}
+        {showReferenceSolutionModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="relative w-full max-w-2xl rounded-2xl border border-border/80 bg-card p-5 shadow-2xl flex flex-col gap-4 max-h-[85vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-border/70 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="size-8 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center">
+                    <Lightbulb className="size-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
+                      Reference Solution — Tier {currentTier} ({problem.tiers[currentTier].name})
+                    </h3>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {problem.title} • Target: {problem.tiers[currentTier].complexityTag}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReferenceSolutionModal(false)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Consultation Info */}
+              <div className="rounded-lg bg-amber-950/30 border border-amber-500/40 p-3 font-mono text-xs text-amber-200 flex items-start gap-2">
+                <AlertCircle className="size-4 shrink-0 text-amber-400 mt-0.5" />
+                <div>
+                  <strong>Canonical Reference Solution:</strong> Inspect the recommended algorithm structure and invariants for Tier {currentTier}. Note: Viewing the reference solution is logged for the final evaluation scorecard.
+                </div>
+              </div>
+
+              {/* Reference Code Viewer */}
+              <div className="relative flex-1 overflow-y-auto rounded-xl border border-border/80 bg-[#0d1117] p-4 font-mono text-xs text-slate-100">
+                <pre className="overflow-x-auto whitespace-pre leading-relaxed">
+                  <code>{problem.tiers[currentTier].referenceSolution?.[language]}</code>
+                </pre>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-between pt-2 border-t border-border/70">
+                <span className="font-mono text-xs text-muted-foreground">
+                  Language: <strong className="text-foreground capitalize">{language}</strong>
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyReference}
+                    className="font-mono text-xs gap-1.5 border-border cursor-pointer"
+                  >
+                    {copiedReference ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+                    {copiedReference ? "Copied!" : "Copy Code"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setShowReferenceSolutionModal(false)}
+                    className="font-mono text-xs bg-primary text-primary-foreground cursor-pointer"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         )}

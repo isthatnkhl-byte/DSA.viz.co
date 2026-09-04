@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   UserCheck,
   LayoutDashboard,
+  Radio,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -42,6 +43,7 @@ import {
   updateLeetcodeUsername,
   updateProfileUsername,
 } from "@/lib/submissions.functions";
+import { getLocalInterviewRating, getLocalInterviewHistory } from "@/lib/interview-rating";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/profile")({
@@ -341,6 +343,18 @@ function ProfilePage() {
   const leetcodeStats = (profile as any)?.leetcode_stats || (profile as any)?.leetcodeStats;
   const leetcodeUsername = (profile as any)?.leetcode_username || (profile as any)?.leetcodeUsername;
 
+  const interviewRating = useMemo(() => {
+    const raw = (profile as any)?.interviewRating ?? (profile as any)?.interview_rating;
+    if (typeof raw === "number" && !isNaN(raw)) return raw;
+    return getLocalInterviewRating();
+  }, [profile]);
+
+  const interviewHistory = useMemo(() => {
+    const raw = (profile as any)?.interviewHistory ?? (profile as any)?.interview_history;
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    return getLocalInterviewHistory();
+  }, [profile]);
+
   const currentHandle = useMemo(() => {
     if (profile?.display_name) return profile.display_name;
     if (profile?.displayName) return profile.displayName;
@@ -520,6 +534,165 @@ function ProfilePage() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* ------------------------------------------------------------------ */}
+            {/* LIVE AI TECHNICAL INTERVIEW RATING & READINESS                     */}
+            {/* ------------------------------------------------------------------ */}
+            <div className="flex flex-col gap-5 rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-card/85 via-card/75 to-cyan-950/20 p-6 shadow-sm backdrop-blur-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-400">
+                    <Award className="size-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-foreground">
+                        Technical Interview Readiness Rating
+                      </h3>
+                      <span className="rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2.5 py-0.5 font-mono text-[10px] font-black text-cyan-300">
+                        {interviewRating} / 100 RATING
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Maintained across proctored live AI mock interviews, cadence evaluations, and algorithmic solutions.
+                    </p>
+                  </div>
+                </div>
+
+                <Button asChild size="sm" className="h-8 gap-1.5 font-mono text-xs bg-cyan-600 hover:bg-cyan-500 text-white shadow-xs">
+                  <Link to="/live-interview">
+                    <Radio className="size-3.5 animate-pulse" />
+                    <span>Launch Live Mock Interview</span>
+                  </Link>
+                </Button>
+              </div>
+
+              {/* Rating Gauge and Tier Breakdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                <div className="sm:col-span-4 rounded-xl border border-cyan-500/30 bg-black/40 p-4 flex flex-col items-center justify-center text-center gap-1">
+                  <span className="text-[10px] uppercase font-mono font-bold text-muted-foreground">
+                    Interview Rating
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-black font-display text-cyan-300">
+                      {interviewRating}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">/ 100</span>
+                  </div>
+                  <span
+                    className={`mt-1 rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold border ${
+                      interviewRating >= 85
+                        ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
+                        : interviewRating >= 70
+                          ? "bg-cyan-950/60 border-cyan-500/50 text-cyan-300"
+                          : interviewRating >= 55
+                            ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
+                            : "bg-rose-950/60 border-rose-500/50 text-rose-300"
+                    }`}
+                  >
+                    {interviewRating >= 85
+                      ? "Senior Ready (Top 10%)"
+                      : interviewRating >= 70
+                        ? "Mid-Level Standard"
+                        : interviewRating >= 55
+                          ? "Leaning Hire"
+                          : "Needs Practice (-Penalty)"}
+                  </span>
+                </div>
+
+                <div className="sm:col-span-8 flex flex-col gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex justify-between text-xs font-mono">
+                      <span className="text-muted-foreground">Readiness Progress Bar</span>
+                      <span className="font-bold text-foreground">{interviewRating}%</span>
+                    </div>
+                    <div className="h-2.5 w-full rounded-full bg-black/50 overflow-hidden border border-border/70">
+                      <div
+                        className={`h-full transition-all duration-500 ${
+                          interviewRating >= 85
+                            ? "bg-emerald-400"
+                            : interviewRating >= 70
+                              ? "bg-cyan-400"
+                              : interviewRating >= 55
+                                ? "bg-amber-400"
+                                : "bg-rose-400"
+                        }`}
+                        style={{ width: `${interviewRating}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-2 text-center">
+                      <div className="text-[10px] text-muted-foreground">Interviews</div>
+                      <div className="text-sm font-bold text-foreground">{interviewHistory.length}</div>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-2 text-center">
+                      <div className="text-[10px] text-muted-foreground">Passed</div>
+                      <div className="text-sm font-bold text-emerald-400">
+                        {interviewHistory.filter((h: any) => h.status === "PASSED").length}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-2 text-center">
+                      <div className="text-[10px] text-muted-foreground">3-Strike Drops</div>
+                      <div className="text-sm font-bold text-rose-400">
+                        {interviewHistory.filter((h: any) => h.isDisqualified || h.strikes >= 3).length}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Interview History */}
+              {interviewHistory.length > 0 && (
+                <div className="flex flex-col gap-2 border-t border-border/60 pt-3">
+                  <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider">
+                    Recent Interview Sessions &amp; Integrity Logs
+                  </span>
+                  <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto">
+                    {interviewHistory.slice(0, 5).map((h: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-card/60 p-2.5 font-mono text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`size-2 rounded-full ${
+                              h.status === "PASSED" ? "bg-emerald-400" : "bg-rose-400"
+                            }`}
+                          />
+                          <span className="font-bold text-foreground">{h.problemTitle || "Live Interview"}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(h.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {h.strikes > 0 && (
+                            <span className="text-[10px] text-rose-400 font-bold">
+                              {h.strikes} strike{h.strikes > 1 ? "s" : ""}
+                            </span>
+                          )}
+                          <span
+                            className={`font-bold ${
+                              h.ratingDelta > 0
+                                ? "text-emerald-400"
+                                : h.ratingDelta < 0
+                                  ? "text-rose-400"
+                                  : "text-muted-foreground"
+                            }`}
+                          >
+                            {h.ratingDelta > 0 ? `+${h.ratingDelta}` : h.ratingDelta} pts
+                          </span>
+                          <span className="text-muted-foreground text-[10px]">
+                            ({h.newRating ?? interviewRating}/100)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ------------------------------------------------------------------ */}

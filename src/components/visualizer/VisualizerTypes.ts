@@ -381,10 +381,10 @@ export function getMarkerStyle(name: string, isMatch = false): MarkerStyle {
   }
   const lower = String(name || "").toLowerCase().trim();
 
-  // Left / Slow / Write / Low / Start / Row / i / p1 / u / src / p (Emerald)
+  // Left / Slow / Write / Low / Start / Row / i / p1 / u / src / p / land (Emerald)
   if (
-    /^(?:left|low|slow|start|write|p1|row|r|i|u|src|p)$/.test(lower) ||
-    /\b(?:left|low|slow|start|write)\b/.test(lower) ||
+    /^(?:left|low|slow|start|write|p1|row|r|i|u|src|p|land)$/.test(lower) ||
+    /\b(?:left|low|slow|start|write|land)\b/.test(lower) ||
     /^(?:r\d+|row\d+)$/.test(lower)
   ) {
     return {
@@ -417,10 +417,10 @@ export function getMarkerStyle(name: string, isMatch = false): MarkerStyle {
     };
   }
 
-  // Mid / Pivot / Center / k / p3 (Amber)
+  // Mid / Pivot / Center / k / p3 / pos / origin / point / cell (Amber)
   if (
-    /^(?:mid|pivot|center|k|p3)$/.test(lower) ||
-    /\b(?:mid|pivot|center)\b/.test(lower)
+    /^(?:mid|pivot|center|k|p3|pos|origin|point|cell)$/.test(lower) ||
+    /\b(?:mid|pivot|center|origin|point)\b/.test(lower)
   ) {
     return {
       bg: "bg-amber-500/25",
@@ -431,6 +431,23 @@ export function getMarkerStyle(name: string, isMatch = false): MarkerStyle {
       svgFill: "rgba(245, 158, 11, 0.25)",
       svgStroke: "rgba(245, 158, 11, 0.8)",
       svgText: "#fcd34d",
+    };
+  }
+
+  // Merge / Union / Connect (Fuchsia)
+  if (
+    /^(?:merge|union|connect)$/.test(lower) ||
+    /\b(?:merge|union|connect)\b/.test(lower)
+  ) {
+    return {
+      bg: "bg-fuchsia-500/25",
+      textCol: "text-fuchsia-300",
+      border: "border-fuchsia-500/60",
+      ring: "ring-fuchsia-500/40",
+      glow: false,
+      svgFill: "rgba(217, 70, 239, 0.25)",
+      svgStroke: "rgba(217, 70, 239, 0.8)",
+      svgText: "#f0abfc",
     };
   }
 
@@ -451,10 +468,10 @@ export function getMarkerStyle(name: string, isMatch = false): MarkerStyle {
     };
   }
 
-  // Next / Successor / Child / Neighbor (Purple)
+  // Next / Successor / Child / Neighbor / nbr (Purple)
   if (
-    /^(?:next|successor|child|neighbor)$/.test(lower) ||
-    /\b(?:next|successor)\b/.test(lower)
+    /^(?:next|successor|child|neighbor|nbr)$/.test(lower) ||
+    /\b(?:next|successor|neighbor)\b/.test(lower)
   ) {
     return {
       bg: "bg-purple-500/25",

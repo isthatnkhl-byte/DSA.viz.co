@@ -71,24 +71,27 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * You MUST visit and evaluate EVERY island / component in the entire input dataset.
      * ONLY after the outer loops complete the full scan across all elements/cells should you emit the final return step.
 
-5) COMPLETE END-TO-END TRAVERSAL & MANDATORY STEP COUNT INVARIANTS:
+5) COMPLETE END-TO-END TRAVERSAL, STEP COUNT & OPTIMAL PACING INVARIANTS:
    - You MUST simulate the algorithm completely from the first initialization line to the final return/termination statement.
    - NEVER STOP HALFWAY, truncate, or end early. Traverse EVERY element, pointer step, node, or grid cell until the entire test input dataset has been completely processed according to the pseudocode.
-   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15–25 elements or 5×6 / 6×6 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
-   - STRICT STEP COUNT INVARIANTS (ANTI-LAZINESS LAW):
-     * Under NO circumstances should you output only 4, 8, or 9 macro-steps!
-     * NORMAL / STANDARD DATASET: You MUST generate at least 15 to 30 granular steps. Every loop iteration, pointer increment, cell visit, or stack/queue mutation MUST have its own individual step!
-     * LONGER & EXTENDED DATASET: You MUST generate at least 30 to 60+ granular steps. Walk through the entire extended dataset element-by-element and cell-by-cell without skipping.
-     * EDGE DATASET: You MUST generate at least 8 to 20 granular steps illustrating boundary conditions.
+   - OPTIMAL STEP PACING & USER-UNDERSTANDABILITY LAW:
+     * BALANCE & CLARITY: Keep steps educational, intuitive, and easy for a human learner to absorb.
+       Avoid extreme laziness (only 4–9 macro steps is strictly forbidden).
+       Also avoid micro-bloat (do NOT generate 50+ tiny repetitive micro-steps for normal input, as 50+ steps becomes overwhelming and hard to follow).
+     * NORMAL / STANDARD DATASET: Target 20 to 30 well-paced, readable steps (e.g. 18–30 steps).
+       - Each step represents a clear algorithmic transition: advancing a pointer, testing a condition, placing land/node, mutating a queue/stack/map, or connecting components.
+       - Group minor sub-checks (e.g. out-of-bounds or direction check) into a single concise, informative step rather than 3 separate steps for the same direction.
+     * LONGER & EXTENDED DATASETS: Target 30 to 50 comprehensive steps demonstrating full scale and traversal depth so the learner has ample time to observe and understand the algorithm working through longer data.
+     * EDGE CASE DATASET: Target 8 to 15 focused steps highlighting boundary conditions.
+     * STEP DESCRIPTIONS ("desc"): Must be user-friendly, clear, and educational in plain English. State what line is executing, which values/indices are being inspected, and the exact state change in intuitive terms.
    - UNIVERSAL FULL SINGLE-CELL & SINGLE-ELEMENT MOVEMENT LAW:
-     * You MUST NOT generate small steps, macro jumps, or cut traversals short.
-     * In 2D Grids / Islands / Matrices: You MUST evaluate cell-by-cell!
-       - Outer loop scan: step through and evaluate cells (r, c) across ALL rows and columns.
-       - Connected components / DFS / BFS: visit every neighbor cell-by-cell (step into land, update visited, increment area, visit next direction, backtrack).
-       - Never stop after only visiting 1 cell or 1 island! Process ALL separate islands and continue until the full grid has been scanned.
-     * In Arrays / Two-Pointers: evaluate every element comparison and pointer adjustment step-by-step.
-     * In Trees: traverse level-by-level or branch-by-branch through all nodes in the tree/queue.
-   - Generate all necessary execution steps (from initial state, loop progression, all iterations, to final return) to provide a complete, unbroken visual walkthrough.
+     * You MUST NOT take macro skips across elements or cut traversals short.
+     * In 2D Grids / Islands / Matrices: Evaluate cell-by-cell!
+       - Outer loop scan: step through and evaluate cells (r, c) across rows and columns.
+       - Connected components / DFS / BFS / Union-Find: physically MOVE pointers to each probed neighbor or land cell so the visualizer marker visibly moves on screen.
+       - Never stop after only visiting 1 cell or 1 island! Process ALL separate components.
+     * In Arrays / Two-Pointers: evaluate element comparisons and pointer adjustments step-by-step.
+     * In Trees: traverse level-by-level or branch-by-branch through nodes in tree/queue.
    - The final step MUST highlight the termination condition, the final return value, or the completed data structure state.
 
 6) MULTI-DATASET & MULTI-STRUCTURE SUPPORT:
@@ -122,8 +125,8 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
    - "cols": integer number of columns.
    - "current": string "r,c" representing the active cell coordinate being evaluated.
    - "visited": array of visited coordinate strings ["r1,c1", "r2,c2", ...] that updates as new cells are reached. NEVER leave "visited" frozen!
-   - "wSum": current island area integer (e.g. 1 -> 2 -> 3 ...) for the active connected component.
-   - "mSum": maximum island area integer found so far across the entire grid.
+   - "wSum": current island area integer (e.g. 1 -> 2 -> 3 ...) for area problems, or island count for component counting problems.
+   - "mSum": maximum island area integer found so far across the entire grid (ONLY for area problems).
    - "direction": 4-directional step currently being explored matching candidate's pseudocode.
    - "islandCells": list of coordinate strings belonging to the current island component for area shading.
    - RECURSIVE DFS ORDER: Follow the candidate's exact recursive call-stack order (when recursing into an adjacent neighbor, dive into that neighbor's sub-tree BEFORE visiting sibling directions of the caller).
@@ -142,6 +145,20 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * When marking or overwriting a row or column: step through each cell along that row or column one-by-one with "current": "r,c", showing the in-place matrix mutation on each step.
      * When performing a second pass: step through cells individually, highlighting each conversion or update in-place.
      * In "desc", explicitly reference indices i, j and cell values matrix[i][j].
+
+7c) DYNAMIC 2D GRID MUTATIONS & UNION-FIND (Number of Islands II, Dynamic Land Additions, DSU):
+   - Set "type": "matrix".
+   - Start with "matrix" initialized to all water (zeros): [[0,0,...], ...].
+   - When operations add land at (r, c):
+     * Physically MUTATE the matrix in-place: "matrix[r][c] = 1" (so the cell visually turns from water to land in real time).
+     * "wSum": count of active islands/components (e.g. 1 -> 1 -> 2 -> 3). Do NOT emit "currentArea" or "maxArea" as this problem does not track area.
+     * ACTIVE MOVING POINTERS & NEIGHBOR PROBING (NEVER KEEP POINTER FROZEN):
+       - When placing land: set "current": "r,c", "activePointers": { "pos": [r, c], "land": [r, c] }.
+       - When checking each of the 4 neighbors (dr, dc): PHYSICALLY ADVANCE the active marker to the neighbor cell:
+         "current": "nr,nc", "direction": "DOWN (+1, 0)", "activePointers": { "pos": [r, c], "neighbor": [nr, nc] }.
+         This guarantees the user clearly sees the pointer probe neighboring cells rather than staying frozen on the origin!
+       - When a neighbor is land and union succeeds: emit step with "activePointers": { "pos": [r, c], "neighbor": [nr, nc], "merge": [nr, nc] }, update DSU root map in "map", and decrement "wSum".
+   - PACING: Keep operations crisp and easy to understand (~18–25 steps total for 4 positions: 1 land addition step + 1 step per neighbor probe/union).
 
 8) BINARY TREE BFS / LEVEL-ORDER:
    - Set "type": "tree".
@@ -274,14 +291,22 @@ export function buildVisualizerUserPrompt({
   datasetDescription?: string;
   pseudocode: string;
 }) {
+  const isIslandUnionFind =
+    /number[- ]of[- ]islands[- ]ii|islands[- ]2|union.*find.*island|dynamic.*island/i.test(title) ||
+    (/numIslands2|addLand|parent\s*=|find\(|union\(/i.test(pseudocode) &&
+      /island|grid|positions/i.test(pseudocode + title));
+
   const isIsland =
-    /island|max.*area.*island|number[- ]of[- ]islands|flood[- ]fill|rotting.*orange|surrounded[- ]regions|walls[- ]and[- ]gates|pacific[- ]atlantic|count-sub-islands|making-a-large-island/i.test(
+    !isIslandUnionFind &&
+    (/island|max.*area.*island|number[- ]of[- ]islands|flood[- ]fill|rotting.*orange|surrounded[- ]regions|walls[- ]and[- ]gates|pacific[- ]atlantic|count-sub-islands|making-a-large-island/i.test(
       title,
     ) ||
-    (/\bdr,\s*dc\b|\bdirections\b/i.test(pseudocode) && /dfs|bfs|connected|component|land|water/i.test(pseudocode));
+      (/\bdr,\s*dc\b|\bdirections\b/i.test(pseudocode) &&
+        /dfs|bfs|connected|component|land|water/i.test(pseudocode)));
 
   const isMatrixTransform =
     !isIsland &&
+    !isIslandUnionFind &&
     (/set[- ]matrix|rotate[- ]image|spiral[- ]matrix|game[- ]of[- ]life|valid[- ]sudoku|diagonal[- ]traverse|matrix.*zero|zeroes/i.test(
       title,
     ) ||
@@ -303,9 +328,35 @@ export function buildVisualizerUserPrompt({
   const safeExample = Array.isArray(example) && example.length > 0 ? example : [1, 2, 3];
   let sampleGuidance = `Suggested sample input: [${safeExample.join(", ")}].${targetExample !== undefined ? ` Target = ${targetExample}.` : ""}`;
 
-  if (secondaryArrayExample && secondaryArrayExample.length > 0) {
+  if (isIslandUnionFind) {
+    const rows = matrixExample?.length ?? 3;
+    const cols = matrixExample?.[0]?.length ?? 3;
+    const emptyGrid = Array.from({ length: rows }, () => Array(cols).fill(0));
+    const positionsList =
+      secondaryArrayExample && secondaryArrayExample.length > 0
+        ? secondaryArrayExample
+        : [
+            [0, 0],
+            [0, 1],
+            [1, 2],
+            [2, 1],
+          ];
+
+    sampleGuidance = `Simulate Number of Islands II (Dynamic Land Additions with Union-Find Disjoint Set):
+- Start with ${rows}×${cols} empty water grid (all zeros): matrix = ${JSON.stringify(emptyGrid)}, cols = ${cols}.
+- Positions to add land: ${JSON.stringify(positionsList)}.
+- Set type='matrix'. Maintain DSU parent map in 'map', island count in 'wSum'. (Do NOT emit 'currentArea' or 'maxArea' as this is not an area problem).
+- For each position [r, c] in positions:
+  1) Land Placement: Mutate matrix in-place: matrix[r][c] = 1. Add pos to DSU parent map. Increment island count 'wSum'.
+     Set 'current': "r,c", 'activePointers': { "pos": [r, c], "land": [r, c] }.
+  2) Neighbor Probing (Moving Pointers): For each direction (DOWN, UP, RIGHT, LEFT):
+     Physically MOVE the active marker to the neighbor cell: 'current': "nr,nc", 'direction': dirName, 'activePointers': { "pos": [r, c], "neighbor": [nr, nc] }.
+     If in bounds and neighbor is land: call union. If union connects two components, decrement 'wSum' and highlight merge: 'activePointers': { "pos": [r, c], "neighbor": [nr, nc], "merge": [nr, nc] }.
+- PACING: Keep operations crisp, intuitive, and easy to understand (~18 to 25 steps total for 4 positions: 1 land addition step + 1 step per neighbor probe/union). Avoid micro-bloat.`;
+  } else if (secondaryArrayExample && secondaryArrayExample.length > 0) {
     sampleGuidance = `Simulate dual-sequence / multi-attribute array execution using primary array (${JSON.stringify(safeExample)}) and secondaryArray (${JSON.stringify(secondaryArrayExample)}).${targetExample !== undefined ? ` Target / minProfit = ${targetExample}.` : ""} Track dual pointers ("left", "right" on primary array and "left2", "right2" on secondaryArray).`;
   } else if (isIsland) {
+    const isMaxArea = /max.*area/i.test(title);
     const gridRows =
       matrixExample && matrixExample.length > 0
         ? matrixExample
@@ -322,16 +373,20 @@ matrix = ${JSON.stringify(gridRows)}
 cols = ${gridRows[0]?.length ?? 6}
 Set type='matrix'. Step through 4-directional DFS traversal based on candidate's exact pseudocode until ALL islands across the entire grid are evaluated.
 MANDATORY FOR GRID/ISLAND TRAVERSALS:
-- Step through EVERY single connected land cell one by one! Do NOT jump across islands or skip intermediate recursive steps.
+- Step through connected land cells cleanly! Do NOT jump across islands or skip intermediate recursive steps.
 - For each step:
   * Set 'current' to the active cell coordinates string "r,c" (e.g. "2,1").
   * Follow true recursive DFS call stack: when recursing into an adjacent neighbor (dr, dc), explore that neighbor's connected cells BEFORE visiting sibling directions.
   * Add newly visited cells to 'visited' as ["r1,c1", "r2,c2", ...] (cumulative across all islands).
   * 'islandCells': Array of coordinates belonging to the CURRENT active island only.
-  * 'currentArea' (or 'wSum'): Exact count of land cells discovered in the active island so far (starts at 1 for the root, increments on each new neighbor).
-  * 'maxArea' (or 'mSum'): Running maximum island area discovered across the entire grid so far.
+  ${
+    isMaxArea
+      ? "* 'currentArea' (or 'wSum'): Land cells discovered in the active island so far.\n  * 'maxArea' (or 'mSum'): Running maximum island area discovered across the entire grid so far."
+      : "* 'wSum': Running count of separate islands discovered so far across the grid (e.g. 1 -> 2 -> 3). Do NOT emit 'maxArea'."
+  }
   * 'direction': Vector being traversed (e.g. "DOWN (+1, 0)", "UP (-1, 0)", "RIGHT (0, +1)", "LEFT (0, -1)").
-- When an island's DFS completes, update maxArea = max(maxArea, currentArea), then continue the outer scan (for r... for c...) to discover and fully explore Island #2, Island #3, etc. until the entire grid is complete.`;
+- When an island's DFS completes, continue the outer scan (for r... for c...) to discover and explore subsequent islands until the entire grid is complete.
+- PACING: Keep steps user-friendly (~20 to 30 steps for standard dataset).`;
   } else if (isMatrixTransform) {
     const gridRows =
       matrixExample && matrixExample.length > 0

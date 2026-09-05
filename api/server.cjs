@@ -174009,6 +174009,7 @@ var statements_default = {
   "lru-cache": 'Design a data structure that follows the constraints of a Least Recently Used (LRU) cache.\n\nImplement the LRUCache class:\n\n	- LRUCache(int capacity) Initialize the LRU cache with positive size capacity.\n\n	- int get(int key) Return the value of the key if the key exists, otherwise return -1.\n\n	- void put(int key, int value) Update the value of the key if the key exists. Otherwise, add the key-value pair to the cache. If the number of keys exceeds the capacity from this operation, evict the least recently used key.\n\nThe functions get and put must each run in O(1) average time complexity.\n\n\xA0\n\nExample 1:\n\n```\nInput\n["LRUCache", "put", "put", "get", "put", "get", "put", "get", "get", "get"]\n[[2], [1, 1], [2, 2], [1], [3, 3], [2], [4, 4], [1], [3], [4]]\nOutput\n[null, null, null, 1, null, -1, null, -1, 3, 4]\n\nExplanation\nLRUCache lRUCache = new LRUCache(2);\nlRUCache.put(1, 1); // cache is {1=1}\nlRUCache.put(2, 2); // cache is {1=1, 2=2}\nlRUCache.get(1);    // return 1\nlRUCache.put(3, 3); // LRU key was 2, evicts key 2, cache is {1=1, 3=3}\nlRUCache.get(2);    // returns -1 (not found)\nlRUCache.put(4, 4); // LRU key was 1, evicts key 1, cache is {4=4, 3=3}\nlRUCache.get(1);    // return -1 (not found)\nlRUCache.get(3);    // return 3\nlRUCache.get(4);    // return 4\n```\n\n\xA0\n\nConstraints:\n\n	- 1 <= capacity <= 3000\n\n	- 0 <= key <= 104\n\n	- 0 <= value <= 105\n\n	- At most 2 * 105 calls will be made to get and put.',
   "bus-routes": "You are given an array routes representing bus routes where routes[i] is a bus route that the ith bus repeats forever.\n\n	- For example, if routes[0] = [1, 5, 7], this means that the 0th bus travels in the sequence 1 -> 5 -> 7 -> 1 -> 5 -> 7 -> 1 -> ... forever.\n\nYou will start at the bus stop source (You are not on any bus initially), and you want to go to the bus stop target. You can travel between bus stops by buses only.\n\nReturn the least number of buses you must take to travel from source to target. Return -1 if it is not possible.\n\n\xA0\n\nExample 1:\n\n```\nInput: routes = [[1,2,7],[3,6,7]], source = 1, target = 6\nOutput: 2\nExplanation: The best strategy is take the first bus to the bus stop 7, then take the second bus to the bus stop 6.\n```\n\nExample 2:\n\n```\nInput: routes = [[7,12],[4,5,15],[6],[15,19],[9,12,13]], source = 15, target = 12\nOutput: -1\n```\n\n\xA0\n\n\xA0\n\nConstraints:\n\n	- 1 <= routes.length <= 500.\n\n	- 1 <= routes[i].length <= 105\n\n	- All the values of routes[i] are unique.\n\n	- sum(routes[i].length) <= 105\n\n	- 0 <= routes[i][j] < 106\n\n	- 0 <= source, target < 106",
   "number-of-islands": 'Given an m x n 2D binary grid grid which represents a map of \'1\'s (land) and \'0\'s (water), return the number of islands.\n\nAn island is surrounded by water and is formed by connecting adjacent lands horizontally or vertically. You may assume all four edges of the grid are all surrounded by water.\n\n\xA0\n\nExample 1:\n\n```\nInput: grid = [\n  ["1","1","1","1","0"],\n  ["1","1","0","1","0"],\n  ["1","1","0","0","0"],\n  ["0","0","0","0","0"]\n]\nOutput: 1\n```\n\nExample 2:\n\n```\nInput: grid = [\n  ["1","1","0","0","0"],\n  ["1","1","0","0","0"],\n  ["0","0","1","0","0"],\n  ["0","0","0","1","1"]\n]\nOutput: 3\n```\n\n\xA0\n\nConstraints:\n\n	- m == grid.length\n\n	- n == grid[i].length\n\n	- 1 <= m, n <= 300\n\n	- grid[i][j] is \'0\' or \'1\'.',
+  "number-of-islands-ii": "You are given an empty 2D binary grid grid of size m x n. The grid represents a map where 0's represent water and 1's represent land. Initially, all the cells of grid are water cells (i.e., all the cells are 0's).\n\nWe may perform an addLand operation which turns the water at position into a land. You are given an array positions where positions[i] = [ri, ci] is the position at which we should do the ith operation.\n\nReturn an array of integers answer where answer[i] is the number of islands after turning the cell (ri, ci) into a land.\n\nAn island is surrounded by water and is formed by connecting adjacent lands horizontally or vertically. You may assume all four edges of the grid are all surrounded by water.\n\n\xA0\n\nExample 1:\n\n```\nInput: m = 3, n = 3, positions = [[0,0],[0,1],[1,2],[2,1]]\nOutput: [1,1,2,3]\nExplanation:\nInitially, the 2d grid is filled with water.\n- Operation #1: addLand(0, 0) turns the water at grid[0][0] into a land. We have 1 island.\n- Operation #2: addLand(0, 1) turns the water at grid[0][1] into a land. We have 1 island (connected to (0,0)).\n- Operation #3: addLand(1, 2) turns the water at grid[1][2] into a land. We have 2 islands.\n- Operation #4: addLand(2, 1) turns the water at grid[2][1] into a land. We have 3 islands.\n```\n\nExample 2:\n\n```\nInput: m = 1, n = 1, positions = [[0,0]]\nOutput: [1]\n```\n\n\xA0\n\nConstraints:\n\n	- 1 <= m, n, positions.length <= 104\n\n	- 1 <= m * n <= 104\n\n	- positions[i].length == 2\n\n	- 0 <= ri < m\n\n	- 0 <= ci < n",
   "longest-continuous-subarray-with-absolute-diff-less-than-or-equal-to-limit": "Given an array of integers nums and an integer limit, return the size of the longest non-empty subarray such that the absolute difference between any two elements of this subarray is less than or equal to limit.\n\n\xA0\n\nExample 1:\n\n```\nInput: nums = [8,2,4,7], limit = 4\nOutput: 2 \nExplanation: All subarrays are: \n[8] with maximum absolute diff |8-8| = 0 <= 4.\n[8,2] with maximum absolute diff |8-2| = 6 > 4. \n[8,2,4] with maximum absolute diff |8-2| = 6 > 4.\n[8,2,4,7] with maximum absolute diff |8-2| = 6 > 4.\n[2] with maximum absolute diff |2-2| = 0 <= 4.\n[2,4] with maximum absolute diff |2-4| = 2 <= 4.\n[2,4,7] with maximum absolute diff |2-7| = 5 > 4.\n[4] with maximum absolute diff |4-4| = 0 <= 4.\n[4,7] with maximum absolute diff |4-7| = 3 <= 4.\n[7] with maximum absolute diff |7-7| = 0 <= 4. \nTherefore, the size of the longest subarray is 2.\n```\n\nExample 2:\n\n```\nInput: nums = [10,1,2,4,7,2], limit = 5\nOutput: 4 \nExplanation: The subarray [2,4,7,2] is the longest since the maximum absolute diff is |2-7| = 5 <= 5.\n```\n\nExample 3:\n\n```\nInput: nums = [4,2,2,2,4,4,2,2], limit = 0\nOutput: 3\n```\n\n\xA0\n\nConstraints:\n\n	- 1 <= nums.length <= 105\n\n	- 1 <= nums[i] <= 109\n\n	- 0 <= limit <= 109",
   "longest-increasing-subsequence": "Given an integer array nums, return the length of the longest strictly increasing subsequence.\n\n\xA0\n\nExample 1:\n\n```\nInput: nums = [10,9,2,5,3,7,101,18]\nOutput: 4\nExplanation: The longest increasing subsequence is [2,3,7,101], therefore the length is 4.\n```\n\nExample 2:\n\n```\nInput: nums = [0,1,0,3,2,3]\nOutput: 4\n```\n\nExample 3:\n\n```\nInput: nums = [7,7,7,7,7,7,7]\nOutput: 1\n```\n\n\xA0\n\nConstraints:\n\n	- 1 <= nums.length <= 2500\n\n	- -104 <= nums[i] <= 104\n\n\xA0\n\nFollow up:\xA0Can you come up with an algorithm that runs in\xA0O(n log(n)) time complexity?",
   "merge-sorted-array": "You are given two integer arrays nums1 and nums2, sorted in non-decreasing order, and two integers m and n, representing the number of elements in nums1 and nums2 respectively.\n\nMerge nums1 and nums2 into a single array sorted in non-decreasing order.\n\nThe final sorted array should not be returned by the function, but instead be stored inside the array nums1. To accommodate this, nums1 has a length of m + n, where the first m elements denote the elements that should be merged, and the last n elements are set to 0 and should be ignored. nums2 has a length of n.\n\n\xA0\n\nExample 1:\n\n```\nInput: nums1 = [1,2,3,0,0,0], m = 3, nums2 = [2,5,6], n = 3\nOutput: [1,2,2,3,5,6]\nExplanation: The arrays we are merging are [1,2,3] and [2,5,6].\nThe result of the merge is [1,2,2,3,5,6] with the underlined elements coming from nums1.\n```\n\nExample 2:\n\n```\nInput: nums1 = [1], m = 1, nums2 = [], n = 0\nOutput: [1]\nExplanation: The arrays we are merging are [1] and [].\nThe result of the merge is [1].\n```\n\nExample 3:\n\n```\nInput: nums1 = [0], m = 0, nums2 = [1], n = 1\nOutput: [1]\nExplanation: The arrays we are merging are [] and [1].\nThe result of the merge is [1].\nNote that because m = 0, there are no elements in nums1. The 0 is only there to ensure the merge result can fit in nums1.\n```\n\n\xA0\n\nConstraints:\n\n	- nums1.length == m + n\n\n	- nums2.length == n\n\n	- 0 <= m, n <= 200\n\n	- 1 <= m + n <= 200\n\n	- -109 <= nums1[i], nums2[j] <= 109\n\n\xA0\n\nFollow up: Can you come up with an algorithm that runs in O(m + n) time?",
@@ -236794,6 +236795,7 @@ var statements_default2 = {
   "lru-cache": 'Design a data structure that follows the constraints of a Least Recently Used (LRU) cache.\n\nImplement the LRUCache class:\n\n	- LRUCache(int capacity) Initialize the LRU cache with positive size capacity.\n\n	- int get(int key) Return the value of the key if the key exists, otherwise return -1.\n\n	- void put(int key, int value) Update the value of the key if the key exists. Otherwise, add the key-value pair to the cache. If the number of keys exceeds the capacity from this operation, evict the least recently used key.\n\nThe functions get and put must each run in O(1) average time complexity.\n\n\xA0\n\nExample 1:\n\n```\nInput\n["LRUCache", "put", "put", "get", "put", "get", "put", "get", "get", "get"]\n[[2], [1, 1], [2, 2], [1], [3, 3], [2], [4, 4], [1], [3], [4]]\nOutput\n[null, null, null, 1, null, -1, null, -1, 3, 4]\n\nExplanation\nLRUCache lRUCache = new LRUCache(2);\nlRUCache.put(1, 1); // cache is {1=1}\nlRUCache.put(2, 2); // cache is {1=1, 2=2}\nlRUCache.get(1);    // return 1\nlRUCache.put(3, 3); // LRU key was 2, evicts key 2, cache is {1=1, 3=3}\nlRUCache.get(2);    // returns -1 (not found)\nlRUCache.put(4, 4); // LRU key was 1, evicts key 1, cache is {4=4, 3=3}\nlRUCache.get(1);    // return -1 (not found)\nlRUCache.get(3);    // return 3\nlRUCache.get(4);    // return 4\n```\n\n\xA0\n\nConstraints:\n\n	- 1 <= capacity <= 3000\n\n	- 0 <= key <= 104\n\n	- 0 <= value <= 105\n\n	- At most 2 * 105 calls will be made to get and put.',
   "bus-routes": "You are given an array routes representing bus routes where routes[i] is a bus route that the ith bus repeats forever.\n\n	- For example, if routes[0] = [1, 5, 7], this means that the 0th bus travels in the sequence 1 -> 5 -> 7 -> 1 -> 5 -> 7 -> 1 -> ... forever.\n\nYou will start at the bus stop source (You are not on any bus initially), and you want to go to the bus stop target. You can travel between bus stops by buses only.\n\nReturn the least number of buses you must take to travel from source to target. Return -1 if it is not possible.\n\n\xA0\n\nExample 1:\n\n```\nInput: routes = [[1,2,7],[3,6,7]], source = 1, target = 6\nOutput: 2\nExplanation: The best strategy is take the first bus to the bus stop 7, then take the second bus to the bus stop 6.\n```\n\nExample 2:\n\n```\nInput: routes = [[7,12],[4,5,15],[6],[15,19],[9,12,13]], source = 15, target = 12\nOutput: -1\n```\n\n\xA0\n\n\xA0\n\nConstraints:\n\n	- 1 <= routes.length <= 500.\n\n	- 1 <= routes[i].length <= 105\n\n	- All the values of routes[i] are unique.\n\n	- sum(routes[i].length) <= 105\n\n	- 0 <= routes[i][j] < 106\n\n	- 0 <= source, target < 106",
   "number-of-islands": 'Given an m x n 2D binary grid grid which represents a map of \'1\'s (land) and \'0\'s (water), return the number of islands.\n\nAn island is surrounded by water and is formed by connecting adjacent lands horizontally or vertically. You may assume all four edges of the grid are all surrounded by water.\n\n\xA0\n\nExample 1:\n\n```\nInput: grid = [\n  ["1","1","1","1","0"],\n  ["1","1","0","1","0"],\n  ["1","1","0","0","0"],\n  ["0","0","0","0","0"]\n]\nOutput: 1\n```\n\nExample 2:\n\n```\nInput: grid = [\n  ["1","1","0","0","0"],\n  ["1","1","0","0","0"],\n  ["0","0","1","0","0"],\n  ["0","0","0","1","1"]\n]\nOutput: 3\n```\n\n\xA0\n\nConstraints:\n\n	- m == grid.length\n\n	- n == grid[i].length\n\n	- 1 <= m, n <= 300\n\n	- grid[i][j] is \'0\' or \'1\'.',
+  "number-of-islands-ii": "You are given an empty 2D binary grid grid of size m x n. The grid represents a map where 0's represent water and 1's represent land. Initially, all the cells of grid are water cells (i.e., all the cells are 0's).\n\nWe may perform an addLand operation which turns the water at position into a land. You are given an array positions where positions[i] = [ri, ci] is the position at which we should do the ith operation.\n\nReturn an array of integers answer where answer[i] is the number of islands after turning the cell (ri, ci) into a land.\n\nAn island is surrounded by water and is formed by connecting adjacent lands horizontally or vertically. You may assume all four edges of the grid are all surrounded by water.\n\n\xA0\n\nExample 1:\n\n```\nInput: m = 3, n = 3, positions = [[0,0],[0,1],[1,2],[2,1]]\nOutput: [1,1,2,3]\nExplanation:\nInitially, the 2d grid is filled with water.\n- Operation #1: addLand(0, 0) turns the water at grid[0][0] into a land. We have 1 island.\n- Operation #2: addLand(0, 1) turns the water at grid[0][1] into a land. We have 1 island (connected to (0,0)).\n- Operation #3: addLand(1, 2) turns the water at grid[1][2] into a land. We have 2 islands.\n- Operation #4: addLand(2, 1) turns the water at grid[2][1] into a land. We have 3 islands.\n```\n\nExample 2:\n\n```\nInput: m = 1, n = 1, positions = [[0,0]]\nOutput: [1]\n```\n\n\xA0\n\nConstraints:\n\n	- 1 <= m, n, positions.length <= 104\n\n	- 1 <= m * n <= 104\n\n	- positions[i].length == 2\n\n	- 0 <= ri < m\n\n	- 0 <= ci < n",
   "longest-continuous-subarray-with-absolute-diff-less-than-or-equal-to-limit": "Given an array of integers nums and an integer limit, return the size of the longest non-empty subarray such that the absolute difference between any two elements of this subarray is less than or equal to limit.\n\n\xA0\n\nExample 1:\n\n```\nInput: nums = [8,2,4,7], limit = 4\nOutput: 2 \nExplanation: All subarrays are: \n[8] with maximum absolute diff |8-8| = 0 <= 4.\n[8,2] with maximum absolute diff |8-2| = 6 > 4. \n[8,2,4] with maximum absolute diff |8-2| = 6 > 4.\n[8,2,4,7] with maximum absolute diff |8-2| = 6 > 4.\n[2] with maximum absolute diff |2-2| = 0 <= 4.\n[2,4] with maximum absolute diff |2-4| = 2 <= 4.\n[2,4,7] with maximum absolute diff |2-7| = 5 > 4.\n[4] with maximum absolute diff |4-4| = 0 <= 4.\n[4,7] with maximum absolute diff |4-7| = 3 <= 4.\n[7] with maximum absolute diff |7-7| = 0 <= 4. \nTherefore, the size of the longest subarray is 2.\n```\n\nExample 2:\n\n```\nInput: nums = [10,1,2,4,7,2], limit = 5\nOutput: 4 \nExplanation: The subarray [2,4,7,2] is the longest since the maximum absolute diff is |2-7| = 5 <= 5.\n```\n\nExample 3:\n\n```\nInput: nums = [4,2,2,2,4,4,2,2], limit = 0\nOutput: 3\n```\n\n\xA0\n\nConstraints:\n\n	- 1 <= nums.length <= 105\n\n	- 1 <= nums[i] <= 109\n\n	- 0 <= limit <= 109",
   "longest-increasing-subsequence": "Given an integer array nums, return the length of the longest strictly increasing subsequence.\n\n\xA0\n\nExample 1:\n\n```\nInput: nums = [10,9,2,5,3,7,101,18]\nOutput: 4\nExplanation: The longest increasing subsequence is [2,3,7,101], therefore the length is 4.\n```\n\nExample 2:\n\n```\nInput: nums = [0,1,0,3,2,3]\nOutput: 4\n```\n\nExample 3:\n\n```\nInput: nums = [7,7,7,7,7,7,7]\nOutput: 1\n```\n\n\xA0\n\nConstraints:\n\n	- 1 <= nums.length <= 2500\n\n	- -104 <= nums[i] <= 104\n\n\xA0\n\nFollow up:\xA0Can you come up with an algorithm that runs in\xA0O(n log(n)) time complexity?",
   "merge-sorted-array": "You are given two integer arrays nums1 and nums2, sorted in non-decreasing order, and two integers m and n, representing the number of elements in nums1 and nums2 respectively.\n\nMerge nums1 and nums2 into a single array sorted in non-decreasing order.\n\nThe final sorted array should not be returned by the function, but instead be stored inside the array nums1. To accommodate this, nums1 has a length of m + n, where the first m elements denote the elements that should be merged, and the last n elements are set to 0 and should be ignored. nums2 has a length of n.\n\n\xA0\n\nExample 1:\n\n```\nInput: nums1 = [1,2,3,0,0,0], m = 3, nums2 = [2,5,6], n = 3\nOutput: [1,2,2,3,5,6]\nExplanation: The arrays we are merging are [1,2,3] and [2,5,6].\nThe result of the merge is [1,2,2,3,5,6] with the underlined elements coming from nums1.\n```\n\nExample 2:\n\n```\nInput: nums1 = [1], m = 1, nums2 = [], n = 0\nOutput: [1]\nExplanation: The arrays we are merging are [1] and [].\nThe result of the merge is [1].\n```\n\nExample 3:\n\n```\nInput: nums1 = [0], m = 0, nums2 = [1], n = 1\nOutput: [1]\nExplanation: The arrays we are merging are [] and [1].\nThe result of the merge is [1].\nNote that because m = 0, there are no elements in nums1. The 0 is only there to ensure the merge result can fit in nums1.\n```\n\n\xA0\n\nConstraints:\n\n	- nums1.length == m + n\n\n	- nums2.length == n\n\n	- 0 <= m, n <= 200\n\n	- 1 <= m + n <= 200\n\n	- -109 <= nums1[i], nums2[j] <= 109\n\n\xA0\n\nFollow up: Can you come up with an algorithm that runs in O(m + n) time?",
@@ -240172,6 +240174,15 @@ function classifyProblem(slug = "", title = "", topics = []) {
       algorithmName: "Max Area Island Flood-Fill (2D Matrix DFS)"
     };
   }
+  if (/number-of-islands-ii|islands-2/.test(s2)) {
+    return {
+      category: "grid-matrix",
+      primaryVizType: "matrix",
+      pattern: "island-union-find",
+      isMultiEntity: true,
+      algorithmName: "Dynamic Island Addition & Union-Find (2D Disjoint Set)"
+    };
+  }
   if (/number-of-islands|count.*island|making-a-large-island/.test(s2)) {
     return {
       category: "grid-matrix",
@@ -240681,6 +240692,11 @@ var CANONICAL_MATRICES = {
     [0, 0, 0, 1, 1, 0],
     [1, 1, 0, 0, 0, 1],
     [1, 0, 0, 1, 1, 1]
+  ],
+  "number-of-islands-ii": [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0]
   ],
   "rotting-oranges": [
     [2, 1, 1, 0, 1, 1],
@@ -242266,6 +242282,70 @@ function isDesignProblem(slug, topics = []) {
   ) || /design/i.test(t2);
 }
 function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
+  if (slug === "number-of-islands-ii") {
+    return [
+      {
+        id: "d1",
+        label: "Dataset 1",
+        category: "standard",
+        matrix: [
+          [0, 0, 0],
+          [0, 0, 0],
+          [0, 0, 0]
+        ],
+        secondaryArray: [
+          [0, 0],
+          [0, 1],
+          [1, 2],
+          [2, 1]
+        ],
+        target: 3,
+        cols: 3,
+        description: "Standard 3\xD73 water grid with 4 dynamic addLand operations: [[0,0],[0,1],[1,2],[2,1]]."
+      },
+      {
+        id: "d2",
+        label: "Dataset 2",
+        category: "longer",
+        matrix: Array.from({ length: 5 }, () => Array(6).fill(0)),
+        secondaryArray: [
+          [0, 0],
+          [0, 1],
+          [1, 1],
+          [1, 2],
+          [2, 2],
+          [2, 3],
+          [3, 4],
+          [3, 5],
+          [4, 4],
+          [4, 0],
+          [0, 5],
+          [4, 2]
+        ],
+        target: 5,
+        cols: 6,
+        description: "Extended 5\xD76 grid with 12 addLand operations producing multiple island creations, merges, and component unions."
+      },
+      {
+        id: "d3",
+        label: "Dataset 3",
+        category: "edge",
+        matrix: [
+          [0, 0],
+          [0, 0]
+        ],
+        secondaryArray: [
+          [0, 0],
+          [0, 0],
+          [0, 1],
+          [1, 1]
+        ],
+        target: 2,
+        cols: 2,
+        description: "Edge-case 2\xD72 grid testing duplicate land addition at [0,0] and boundary unions."
+      }
+    ];
+  }
   const CUSTOM_DATASETS = {
     "check-preorder-is-valid-or-not": [
       { id: "d1", label: "Dataset 1", category: "standard", array: [1, 5, 3, 4, 2], target: 3, description: "Standard dataset for Check Preorder Is Valid Or Not." }
@@ -243093,7 +243173,20 @@ function getCanonicalMultiDatasets(slug, _title = "", topics = []) {
       { id: "d1", label: "Dataset 1", category: "standard", matrix: [[1, 0, 0], [-1, 0, 3]], description: "Actual Example 1 from LeetCode Premium." }
     ],
     "number-of-islands-ii": [
-      { id: "d1", label: "Dataset 1", category: "standard", matrix: [[0, 0], [0, 1], [1, 2], [2, 1]], target: 3, description: "Actual Example 1 from LeetCode Premium." }
+      {
+        id: "d1",
+        label: "Dataset 1",
+        category: "standard",
+        matrix: [
+          [0, 0, 0],
+          [0, 0, 0],
+          [0, 0, 0]
+        ],
+        secondaryArray: [[0, 0], [0, 1], [1, 2], [2, 1]],
+        target: 3,
+        cols: 3,
+        description: "Standard 3\xD73 water grid with 4 dynamic addLand operations: [[0,0],[0,1],[1,2],[2,1]]."
+      }
     ],
     "binary-tree-longest-consecutive-sequence": [
       { id: "d1", label: "Dataset 1", category: "standard", array: [1, null, 3, 2, 4, null, null, null, 5], description: "Actual Example 1 from LeetCode Premium." }
@@ -248313,6 +248406,270 @@ function islandCount(matrixInput) {
   });
   return { code, array: matrix.flat(), steps: cap(steps) };
 }
+function islandUnionFindSim(dataset, slug = "number-of-islands-ii") {
+  const code = [
+    "def numIslands2(m, n, positions):",
+    "    parent = {}; count = 0; ans = []",
+    "    def find(x):",
+    "        if parent[x] != x: parent[x] = find(parent[x])",
+    "        return parent[x]",
+    "    def union(x, y):",
+    "        rx, ry = find(x), find(y)",
+    "        if rx != ry: parent[rx] = ry; return True",
+    "        return False",
+    "    for r, c in positions:",
+    "        pos = (r, c)",
+    "        if pos in parent: ans.append(count); continue",
+    "        parent[pos] = pos; count += 1",
+    "        for dr, dc in [(1,0), (-1,0), (0,1), (0,-1)]:",
+    "            nr, nc = r + dr, c + dc",
+    "            if 0 <= nr < m and 0 <= nc < n and (nr, nc) in parent:",
+    "                if union(pos, (nr, nc)): count -= 1",
+    "        ans.append(count)",
+    "    return ans"
+  ];
+  let rows = 3;
+  let cols = 3;
+  if (Array.isArray(dataset?.matrix) && dataset.matrix.length > 0) {
+    rows = dataset.matrix.length;
+    cols = dataset.cols ?? dataset.matrix[0]?.length ?? 3;
+  } else if (dataset?.cols) {
+    cols = dataset.cols;
+  }
+  const grid2 = Array.from({ length: rows }, () => Array(cols).fill(0));
+  let positions = [];
+  if (Array.isArray(dataset?.secondaryArray) && dataset.secondaryArray.length > 0) {
+    positions = dataset.secondaryArray.map((p) => {
+      if (Array.isArray(p) && p.length >= 2) return [Number(p[0]), Number(p[1])];
+      if (typeof p === "string") {
+        const parts = p.replace(/[()[\]]/g, "").split(",");
+        return [Number(parts[0] ?? 0), Number(parts[1] ?? 0)];
+      }
+      return [0, 0];
+    });
+  } else if (Array.isArray(dataset?.matrix) && dataset.matrix.length > 0 && dataset.matrix.every((r2) => Array.isArray(r2) && r2.length === 2 && !r2.some((x2) => Number(x2) > 5))) {
+    positions = dataset.matrix.map((r2) => [Number(r2[0]), Number(r2[1])]);
+  } else {
+    positions = [
+      [0, 0],
+      [0, 1],
+      [1, 2],
+      [2, 1]
+    ];
+  }
+  const parent = {};
+  function find(x2) {
+    if (parent[x2] !== x2 && parent[x2] !== void 0) {
+      parent[x2] = find(parent[x2]);
+    }
+    return parent[x2] ?? x2;
+  }
+  function union2(x2, y) {
+    const rx = find(x2);
+    const ry = find(y);
+    if (rx !== ry) {
+      parent[rx] = ry;
+      return true;
+    }
+    return false;
+  }
+  const inBounds = (r2, c) => r2 >= 0 && c >= 0 && r2 < rows && c < cols;
+  const DIRS = [
+    [1, 0, "DOWN (+1, 0)"],
+    [-1, 0, "UP (-1, 0)"],
+    [0, 1, "RIGHT (0, +1)"],
+    [0, -1, "LEFT (0, -1)"]
+  ];
+  let count = 0;
+  const ans = [];
+  const visited = [];
+  const steps = [
+    {
+      type: "matrix",
+      matrix: grid2.map((r2) => [...r2]),
+      cols,
+      current: null,
+      visited: [],
+      wSum: 0,
+      line: 1,
+      desc: `Initialize ${rows}\xD7${cols} empty water grid (all 0s), empty DSU parent map, and island count = 0.`,
+      activePointers: {},
+      map: {}
+    }
+  ];
+  for (let pi = 0; pi < positions.length; pi++) {
+    const [r2, c] = positions[pi];
+    const posKey = `${r2},${c}`;
+    steps.push({
+      type: "matrix",
+      matrix: grid2.map((row) => [...row]),
+      cols,
+      current: `${r2},${c}`,
+      activePointers: { pos: [r2, c] },
+      visited: [...visited],
+      wSum: count,
+      line: 9,
+      desc: `Operation #${pi + 1}: addLand at (${r2}, ${c}). Preparing to turn cell into land.`,
+      map: { ...parent }
+    });
+    if (parent[posKey] !== void 0) {
+      ans.push(count);
+      steps.push({
+        type: "matrix",
+        matrix: grid2.map((row) => [...row]),
+        cols,
+        current: `${r2},${c}`,
+        activePointers: { pos: [r2, c] },
+        visited: [...visited],
+        wSum: count,
+        line: 11,
+        desc: `Cell (${r2}, ${c}) is already land. Skip operation; island count remains ${count}.`,
+        map: { ...parent }
+      });
+      continue;
+    }
+    grid2[r2][c] = 1;
+    parent[posKey] = posKey;
+    count++;
+    if (!visited.includes(posKey)) visited.push(posKey);
+    steps.push({
+      type: "matrix",
+      matrix: grid2.map((row) => [...row]),
+      cols,
+      current: `${r2},${c}`,
+      activePointers: { pos: [r2, c], land: [r2, c] },
+      visited: [...visited],
+      wSum: count,
+      line: 12,
+      desc: `Turned (${r2}, ${c}) into LAND! Initialized isolated component. Count incremented to ${count}.`,
+      map: { ...parent }
+    });
+    for (const [dr, dc, dirName] of DIRS) {
+      const nr = r2 + dr;
+      const nc = c + dc;
+      const nKey = `${nr},${nc}`;
+      steps.push({
+        type: "matrix",
+        matrix: grid2.map((row) => [...row]),
+        cols,
+        current: `${nr},${nc}`,
+        activePointers: { pos: [r2, c], neighbor: [nr, nc] },
+        direction: dirName,
+        visited: [...visited],
+        wSum: count,
+        line: 14,
+        desc: `Checking ${dirName} neighbor at (${nr}, ${nc}) from origin (${r2}, ${c})...`,
+        map: { ...parent }
+      });
+      if (!inBounds(nr, nc)) {
+        steps.push({
+          type: "matrix",
+          matrix: grid2.map((row) => [...row]),
+          cols,
+          current: `${nr},${nc}`,
+          activePointers: { pos: [r2, c], neighbor: [nr, nc] },
+          direction: dirName,
+          visited: [...visited],
+          wSum: count,
+          line: 15,
+          desc: `Neighbor (${nr}, ${nc}) is out of bounds. No connection in ${dirName} direction.`,
+          map: { ...parent }
+        });
+        continue;
+      }
+      if (grid2[nr][nc] !== 1) {
+        steps.push({
+          type: "matrix",
+          matrix: grid2.map((row) => [...row]),
+          cols,
+          current: `${nr},${nc}`,
+          activePointers: { pos: [r2, c], neighbor: [nr, nc] },
+          direction: dirName,
+          visited: [...visited],
+          wSum: count,
+          line: 15,
+          desc: `Neighbor (${nr}, ${nc}) is water (0). No island union possible.`,
+          map: { ...parent }
+        });
+        continue;
+      }
+      steps.push({
+        type: "matrix",
+        matrix: grid2.map((row) => [...row]),
+        cols,
+        current: `${nr},${nc}`,
+        activePointers: { pos: [r2, c], neighbor: [nr, nc], merge: [nr, nc] },
+        direction: dirName,
+        visited: [...visited],
+        wSum: count,
+        line: 16,
+        desc: `Neighbor (${nr}, ${nc}) is existing LAND! Calling union((${r2}, ${c}), (${nr}, ${nc}))...`,
+        map: { ...parent }
+      });
+      const root1 = find(posKey);
+      const root2 = find(nKey);
+      if (root1 !== root2) {
+        parent[root1] = root2;
+        count--;
+        steps.push({
+          type: "matrix",
+          matrix: grid2.map((row) => [...row]),
+          cols,
+          current: `${r2},${c}`,
+          activePointers: { pos: [r2, c], neighbor: [nr, nc], root: root2 },
+          direction: dirName,
+          visited: [...visited],
+          wSum: count,
+          line: 16,
+          desc: `Union successful: connected (${r2}, ${c}) with (${nr}, ${nc}) under root ${root2}. Island count decrements to ${count}.`,
+          map: { ...parent }
+        });
+      } else {
+        steps.push({
+          type: "matrix",
+          matrix: grid2.map((row) => [...row]),
+          cols,
+          current: `${r2},${c}`,
+          activePointers: { pos: [r2, c], neighbor: [nr, nc] },
+          direction: dirName,
+          visited: [...visited],
+          wSum: count,
+          line: 16,
+          desc: `(${r2}, ${c}) and (${nr}, ${nc}) already belong to the same component (root ${root1}). Count unchanged (${count}).`,
+          map: { ...parent }
+        });
+      }
+    }
+    ans.push(count);
+    steps.push({
+      type: "matrix",
+      matrix: grid2.map((row) => [...row]),
+      cols,
+      current: `${r2},${c}`,
+      activePointers: { pos: [r2, c] },
+      visited: [...visited],
+      wSum: count,
+      secondaryArray: [...ans],
+      line: 17,
+      desc: `Completed operation #${pi + 1}. Appended island count ${count} to result list: [${ans.join(", ")}].`,
+      map: { ...parent }
+    });
+  }
+  steps.push({
+    type: "matrix",
+    matrix: grid2.map((row) => [...row]),
+    cols,
+    current: null,
+    activePointers: {},
+    visited: [...visited],
+    wSum: count,
+    secondaryArray: [...ans],
+    line: 18,
+    desc: `All operations completed. Final island count sequence: [${ans.join(", ")}]. Total active islands = ${count}.`,
+    map: { ...parent }
+  });
+  return { code, array: grid2.flat(), steps: cap(steps) };
+}
 function grid(matrixOrInput, mode) {
   const code = mode === "bfs" ? [
     "queue = [start]; visited = {start}",
@@ -252014,6 +252371,8 @@ function simulateProblemWithDataset(slug, title = "", topics = [], dataset) {
       return islandMaxArea(matrixInput);
     case "island-count":
       return islandCount(matrixInput);
+    case "island-union-find":
+      return islandUnionFindSim(dataset, slug);
     case "grid-bfs":
       return grid(matrixInput ?? numInput, "bfs");
     case "grid-dfs":
@@ -252239,6 +252598,7 @@ CRITICAL EVALUATION & DATASET ARCHITECTURE RULES:
      * **CRITICAL UNIVERSAL ANTI-DEGENERACY LAW**:
        The Longer Dataset MUST NOT BE DEGENERATE OR EXIT EARLY!
        - For 2D Grids / Islands / Flood Fill: The grid MUST BE A SUBSTANTIALLY LARGER MATRIX OF AT LEAST 5\xD76 or 6\xD76 (e.g. 5\xD76, 6\xD76, 8\xD78, or 8\xD710) AND MUST CONTAIN MULTIPLE SUBSTANTIAL ISLANDS / CLUSTERS (e.g., 3 to 5 distinct, multi-cell landmasses distributed across different quadrants of the grid, totaling at least 12\u201325 land cells). NEVER generate an ocean of zeroes with only 1 solitary land cell that finishes in 4 steps! The grid must have rich landmasses that force the algorithm to explore multiple cells per island and discover all separate islands across the entire grid!
+       - For Dynamic Land Additions / Union-Find (e.g. Number of Islands II): Start with an empty water grid (all zeroes) in "matrix" (e.g. 5\xD76) and provide 10\u201315 distinct [r, c] addition coordinates in "secondaryArray" producing multiple island creations, adjacent neighbor detections, and component union merges.
        - For Matrix Transformations (Set Matrix Zeroes, Game of Life, Rotations): Distribute multiple zeroes/sentinels across multiple distinct rows and columns (at least 3-4 separate rows and cols affected) to ensure extensive cell-by-cell loops.
        - For 1D Arrays / Two Pointers / Binary Search: Provide 15\u201325 elements with targets, matches, or optimal windows placed deep in the array or requiring multiple boundary adjustments, sliding window expansions & contractions, or partitions. NEVER place the target at index 0 or 1 where it terminates in 2 steps!
        - For Monotonic Stacks: Include oscillating/fluctuating values (peaks and valleys) requiring multiple pushes, pops, and sightline resolutions.
@@ -252404,24 +252764,27 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * You MUST visit and evaluate EVERY island / component in the entire input dataset.
      * ONLY after the outer loops complete the full scan across all elements/cells should you emit the final return step.
 
-5) COMPLETE END-TO-END TRAVERSAL & MANDATORY STEP COUNT INVARIANTS:
+5) COMPLETE END-TO-END TRAVERSAL, STEP COUNT & OPTIMAL PACING INVARIANTS:
    - You MUST simulate the algorithm completely from the first initialization line to the final return/termination statement.
    - NEVER STOP HALFWAY, truncate, or end early. Traverse EVERY element, pointer step, node, or grid cell until the entire test input dataset has been completely processed according to the pseudocode.
-   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15\u201325 elements or 5\xD76 / 6\xD76 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
-   - STRICT STEP COUNT INVARIANTS (ANTI-LAZINESS LAW):
-     * Under NO circumstances should you output only 4, 8, or 9 macro-steps!
-     * NORMAL / STANDARD DATASET: You MUST generate at least 15 to 30 granular steps. Every loop iteration, pointer increment, cell visit, or stack/queue mutation MUST have its own individual step!
-     * LONGER & EXTENDED DATASET: You MUST generate at least 30 to 60+ granular steps. Walk through the entire extended dataset element-by-element and cell-by-cell without skipping.
-     * EDGE DATASET: You MUST generate at least 8 to 20 granular steps illustrating boundary conditions.
+   - OPTIMAL STEP PACING & USER-UNDERSTANDABILITY LAW:
+     * BALANCE & CLARITY: Keep steps educational, intuitive, and easy for a human learner to absorb.
+       Avoid extreme laziness (only 4\u20139 macro steps is strictly forbidden).
+       Also avoid micro-bloat (do NOT generate 50+ tiny repetitive micro-steps for normal input, as 50+ steps becomes overwhelming and hard to follow).
+     * NORMAL / STANDARD DATASET: Target 20 to 30 well-paced, readable steps (e.g. 18\u201330 steps).
+       - Each step represents a clear algorithmic transition: advancing a pointer, testing a condition, placing land/node, mutating a queue/stack/map, or connecting components.
+       - Group minor sub-checks (e.g. out-of-bounds or direction check) into a single concise, informative step rather than 3 separate steps for the same direction.
+     * LONGER & EXTENDED DATASETS: Target 30 to 50 comprehensive steps demonstrating full scale and traversal depth so the learner has ample time to observe and understand the algorithm working through longer data.
+     * EDGE CASE DATASET: Target 8 to 15 focused steps highlighting boundary conditions.
+     * STEP DESCRIPTIONS ("desc"): Must be user-friendly, clear, and educational in plain English. State what line is executing, which values/indices are being inspected, and the exact state change in intuitive terms.
    - UNIVERSAL FULL SINGLE-CELL & SINGLE-ELEMENT MOVEMENT LAW:
-     * You MUST NOT generate small steps, macro jumps, or cut traversals short.
-     * In 2D Grids / Islands / Matrices: You MUST evaluate cell-by-cell!
-       - Outer loop scan: step through and evaluate cells (r, c) across ALL rows and columns.
-       - Connected components / DFS / BFS: visit every neighbor cell-by-cell (step into land, update visited, increment area, visit next direction, backtrack).
-       - Never stop after only visiting 1 cell or 1 island! Process ALL separate islands and continue until the full grid has been scanned.
-     * In Arrays / Two-Pointers: evaluate every element comparison and pointer adjustment step-by-step.
-     * In Trees: traverse level-by-level or branch-by-branch through all nodes in the tree/queue.
-   - Generate all necessary execution steps (from initial state, loop progression, all iterations, to final return) to provide a complete, unbroken visual walkthrough.
+     * You MUST NOT take macro skips across elements or cut traversals short.
+     * In 2D Grids / Islands / Matrices: Evaluate cell-by-cell!
+       - Outer loop scan: step through and evaluate cells (r, c) across rows and columns.
+       - Connected components / DFS / BFS / Union-Find: physically MOVE pointers to each probed neighbor or land cell so the visualizer marker visibly moves on screen.
+       - Never stop after only visiting 1 cell or 1 island! Process ALL separate components.
+     * In Arrays / Two-Pointers: evaluate element comparisons and pointer adjustments step-by-step.
+     * In Trees: traverse level-by-level or branch-by-branch through nodes in tree/queue.
    - The final step MUST highlight the termination condition, the final return value, or the completed data structure state.
 
 6) MULTI-DATASET & MULTI-STRUCTURE SUPPORT:
@@ -252455,8 +252818,8 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
    - "cols": integer number of columns.
    - "current": string "r,c" representing the active cell coordinate being evaluated.
    - "visited": array of visited coordinate strings ["r1,c1", "r2,c2", ...] that updates as new cells are reached. NEVER leave "visited" frozen!
-   - "wSum": current island area integer (e.g. 1 -> 2 -> 3 ...) for the active connected component.
-   - "mSum": maximum island area integer found so far across the entire grid.
+   - "wSum": current island area integer (e.g. 1 -> 2 -> 3 ...) for area problems, or island count for component counting problems.
+   - "mSum": maximum island area integer found so far across the entire grid (ONLY for area problems).
    - "direction": 4-directional step currently being explored matching candidate's pseudocode.
    - "islandCells": list of coordinate strings belonging to the current island component for area shading.
    - RECURSIVE DFS ORDER: Follow the candidate's exact recursive call-stack order (when recursing into an adjacent neighbor, dive into that neighbor's sub-tree BEFORE visiting sibling directions of the caller).
@@ -252475,6 +252838,20 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * When marking or overwriting a row or column: step through each cell along that row or column one-by-one with "current": "r,c", showing the in-place matrix mutation on each step.
      * When performing a second pass: step through cells individually, highlighting each conversion or update in-place.
      * In "desc", explicitly reference indices i, j and cell values matrix[i][j].
+
+7c) DYNAMIC 2D GRID MUTATIONS & UNION-FIND (Number of Islands II, Dynamic Land Additions, DSU):
+   - Set "type": "matrix".
+   - Start with "matrix" initialized to all water (zeros): [[0,0,...], ...].
+   - When operations add land at (r, c):
+     * Physically MUTATE the matrix in-place: "matrix[r][c] = 1" (so the cell visually turns from water to land in real time).
+     * "wSum": count of active islands/components (e.g. 1 -> 1 -> 2 -> 3). Do NOT emit "currentArea" or "maxArea" as this problem does not track area.
+     * ACTIVE MOVING POINTERS & NEIGHBOR PROBING (NEVER KEEP POINTER FROZEN):
+       - When placing land: set "current": "r,c", "activePointers": { "pos": [r, c], "land": [r, c] }.
+       - When checking each of the 4 neighbors (dr, dc): PHYSICALLY ADVANCE the active marker to the neighbor cell:
+         "current": "nr,nc", "direction": "DOWN (+1, 0)", "activePointers": { "pos": [r, c], "neighbor": [nr, nc] }.
+         This guarantees the user clearly sees the pointer probe neighboring cells rather than staying frozen on the origin!
+       - When a neighbor is land and union succeeds: emit step with "activePointers": { "pos": [r, c], "neighbor": [nr, nc], "merge": [nr, nc] }, update DSU root map in "map", and decrement "wSum".
+   - PACING: Keep operations crisp and easy to understand (~18\u201325 steps total for 4 positions: 1 land addition step + 1 step per neighbor probe/union).
 
 8) BINARY TREE BFS / LEVEL-ORDER:
    - Set "type": "tree".
@@ -252595,10 +252972,11 @@ function buildVisualizerUserPrompt({
   datasetDescription,
   pseudocode
 }) {
-  const isIsland = /island|max.*area.*island|number[- ]of[- ]islands|flood[- ]fill|rotting.*orange|surrounded[- ]regions|walls[- ]and[- ]gates|pacific[- ]atlantic|count-sub-islands|making-a-large-island/i.test(
+  const isIslandUnionFind = /number[- ]of[- ]islands[- ]ii|islands[- ]2|union.*find.*island|dynamic.*island/i.test(title) || /numIslands2|addLand|parent\s*=|find\(|union\(/i.test(pseudocode) && /island|grid|positions/i.test(pseudocode + title);
+  const isIsland = !isIslandUnionFind && (/island|max.*area.*island|number[- ]of[- ]islands|flood[- ]fill|rotting.*orange|surrounded[- ]regions|walls[- ]and[- ]gates|pacific[- ]atlantic|count-sub-islands|making-a-large-island/i.test(
     title
-  ) || /\bdr,\s*dc\b|\bdirections\b/i.test(pseudocode) && /dfs|bfs|connected|component|land|water/i.test(pseudocode);
-  const isMatrixTransform = !isIsland && (/set[- ]matrix|rotate[- ]image|spiral[- ]matrix|game[- ]of[- ]life|valid[- ]sudoku|diagonal[- ]traverse|matrix.*zero|zeroes/i.test(
+  ) || /\bdr,\s*dc\b|\bdirections\b/i.test(pseudocode) && /dfs|bfs|connected|component|land|water/i.test(pseudocode));
+  const isMatrixTransform = !isIsland && !isIslandUnionFind && (/set[- ]matrix|rotate[- ]image|spiral[- ]matrix|game[- ]of[- ]life|valid[- ]sudoku|diagonal[- ]traverse|matrix.*zero|zeroes/i.test(
     title
   ) || Boolean(matrixExample && matrixExample.length > 0 && !isIsland));
   const isTree = /tree|level[- ]order|zigzag|right-side-view|bst/i.test(title) || /TreeNode|node\.left|node\.right|root/i.test(pseudocode);
@@ -252608,9 +252986,31 @@ function buildVisualizerUserPrompt({
   const isQueueSimulation = /reveal.*cards|deck.*reveal|dota2.*senate|circular.*queue|buy.*tickets/i.test(title) || /deck|revealed|permutation|queue\.enqueue|queue\.dequeue|simulateAndCheck/i.test(pseudocode);
   const safeExample = Array.isArray(example) && example.length > 0 ? example : [1, 2, 3];
   let sampleGuidance = `Suggested sample input: [${safeExample.join(", ")}].${targetExample !== void 0 ? ` Target = ${targetExample}.` : ""}`;
-  if (secondaryArrayExample && secondaryArrayExample.length > 0) {
+  if (isIslandUnionFind) {
+    const rows = matrixExample?.length ?? 3;
+    const cols = matrixExample?.[0]?.length ?? 3;
+    const emptyGrid = Array.from({ length: rows }, () => Array(cols).fill(0));
+    const positionsList = secondaryArrayExample && secondaryArrayExample.length > 0 ? secondaryArrayExample : [
+      [0, 0],
+      [0, 1],
+      [1, 2],
+      [2, 1]
+    ];
+    sampleGuidance = `Simulate Number of Islands II (Dynamic Land Additions with Union-Find Disjoint Set):
+- Start with ${rows}\xD7${cols} empty water grid (all zeros): matrix = ${JSON.stringify(emptyGrid)}, cols = ${cols}.
+- Positions to add land: ${JSON.stringify(positionsList)}.
+- Set type='matrix'. Maintain DSU parent map in 'map', island count in 'wSum'. (Do NOT emit 'currentArea' or 'maxArea' as this is not an area problem).
+- For each position [r, c] in positions:
+  1) Land Placement: Mutate matrix in-place: matrix[r][c] = 1. Add pos to DSU parent map. Increment island count 'wSum'.
+     Set 'current': "r,c", 'activePointers': { "pos": [r, c], "land": [r, c] }.
+  2) Neighbor Probing (Moving Pointers): For each direction (DOWN, UP, RIGHT, LEFT):
+     Physically MOVE the active marker to the neighbor cell: 'current': "nr,nc", 'direction': dirName, 'activePointers': { "pos": [r, c], "neighbor": [nr, nc] }.
+     If in bounds and neighbor is land: call union. If union connects two components, decrement 'wSum' and highlight merge: 'activePointers': { "pos": [r, c], "neighbor": [nr, nc], "merge": [nr, nc] }.
+- PACING: Keep operations crisp, intuitive, and easy to understand (~18 to 25 steps total for 4 positions: 1 land addition step + 1 step per neighbor probe/union). Avoid micro-bloat.`;
+  } else if (secondaryArrayExample && secondaryArrayExample.length > 0) {
     sampleGuidance = `Simulate dual-sequence / multi-attribute array execution using primary array (${JSON.stringify(safeExample)}) and secondaryArray (${JSON.stringify(secondaryArrayExample)}).${targetExample !== void 0 ? ` Target / minProfit = ${targetExample}.` : ""} Track dual pointers ("left", "right" on primary array and "left2", "right2" on secondaryArray).`;
   } else if (isIsland) {
+    const isMaxArea = /max.*area/i.test(title);
     const gridRows = matrixExample && matrixExample.length > 0 ? matrixExample : [
       [0, 0, 1, 0, 0, 0],
       [0, 1, 1, 0, 1, 1],
@@ -252624,16 +253024,16 @@ matrix = ${JSON.stringify(gridRows)}
 cols = ${gridRows[0]?.length ?? 6}
 Set type='matrix'. Step through 4-directional DFS traversal based on candidate's exact pseudocode until ALL islands across the entire grid are evaluated.
 MANDATORY FOR GRID/ISLAND TRAVERSALS:
-- Step through EVERY single connected land cell one by one! Do NOT jump across islands or skip intermediate recursive steps.
+- Step through connected land cells cleanly! Do NOT jump across islands or skip intermediate recursive steps.
 - For each step:
   * Set 'current' to the active cell coordinates string "r,c" (e.g. "2,1").
   * Follow true recursive DFS call stack: when recursing into an adjacent neighbor (dr, dc), explore that neighbor's connected cells BEFORE visiting sibling directions.
   * Add newly visited cells to 'visited' as ["r1,c1", "r2,c2", ...] (cumulative across all islands).
   * 'islandCells': Array of coordinates belonging to the CURRENT active island only.
-  * 'currentArea' (or 'wSum'): Exact count of land cells discovered in the active island so far (starts at 1 for the root, increments on each new neighbor).
-  * 'maxArea' (or 'mSum'): Running maximum island area discovered across the entire grid so far.
+  ${isMaxArea ? "* 'currentArea' (or 'wSum'): Land cells discovered in the active island so far.\n  * 'maxArea' (or 'mSum'): Running maximum island area discovered across the entire grid so far." : "* 'wSum': Running count of separate islands discovered so far across the grid (e.g. 1 -> 2 -> 3). Do NOT emit 'maxArea'."}
   * 'direction': Vector being traversed (e.g. "DOWN (+1, 0)", "UP (-1, 0)", "RIGHT (0, +1)", "LEFT (0, -1)").
-- When an island's DFS completes, update maxArea = max(maxArea, currentArea), then continue the outer scan (for r... for c...) to discover and fully explore Island #2, Island #3, etc. until the entire grid is complete.`;
+- When an island's DFS completes, continue the outer scan (for r... for c...) to discover and explore subsequent islands until the entire grid is complete.
+- PACING: Keep steps user-friendly (~20 to 30 steps for standard dataset).`;
   } else if (isMatrixTransform) {
     const gridRows = matrixExample && matrixExample.length > 0 ? matrixExample : [
       [1, 1, 1],

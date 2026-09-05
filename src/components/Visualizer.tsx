@@ -92,7 +92,27 @@ export function resolveStepActivePointers(
     pointers[currLabel] = coord ?? (typeof step.current === "object" ? JSON.stringify(step.current) : step.current);
   }
 
-  // 4. Dynamic extraction from step description if activePointers is still minimal
+  // 4. Extract from step.variables if available
+  if (step.variables && typeof step.variables === "object") {
+    for (const [vName, vVal] of Object.entries(step.variables)) {
+      if (vVal === null || vVal === undefined || vVal === "") continue;
+      const lower = vName.toLowerCase();
+      if (
+        [
+          "i", "j", "k", "u", "v", "left", "right", "mid", "curr", "node", "top",
+          "head", "tail", "front", "rear", "src", "dest", "row", "col", "r", "c",
+          "ptr", "pos", "neighbor", "nbr", "next", "land", "merge", "root", "parent"
+        ].includes(lower)
+      ) {
+        if (pointers[vName] === undefined && pointers[lower] === undefined) {
+          const coord = parse2DCoord(vVal);
+          pointers[vName] = coord ?? vVal;
+        }
+      }
+    }
+  }
+
+  // 5. Dynamic extraction from step description if activePointers is still minimal
   if (step.desc && typeof step.desc === "string") {
     const regex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*[:=]\s*(\[[0-9]+,\s*[0-9]+\]|\([0-9]+,\s*[0-9]+\)|-?[0-9]+)/g;
     let match: RegExpExecArray | null;
@@ -102,7 +122,11 @@ export function resolveStepActivePointers(
       if (!varName || !rawVal) continue;
       const lowerVar = varName.toLowerCase();
       if (
-        ["i", "j", "k", "u", "v", "left", "right", "mid", "curr", "node", "top", "head", "tail", "front", "rear", "src", "dest", "row", "col", "r", "c", "ptr"].includes(lowerVar)
+        [
+          "i", "j", "k", "u", "v", "left", "right", "mid", "curr", "node", "top",
+          "head", "tail", "front", "rear", "src", "dest", "row", "col", "r", "c",
+          "ptr", "pos", "neighbor", "nbr", "next", "land", "merge", "root", "parent"
+        ].includes(lowerVar)
       ) {
         if (pointers[varName] === undefined && pointers[lowerVar] === undefined) {
           const coord = parse2DCoord(rawVal);
@@ -114,6 +138,25 @@ export function resolveStepActivePointers(
           }
         }
       }
+    }
+
+    // Dynamic extraction of semantic natural language coordinate phrases
+    const neighborMatch = step.desc.match(/neighbor(?:\s+at)?\s*(\([0-9]+,\s*[0-9]+\)|\[[0-9]+,\s*[0-9]+\])/i);
+    if (neighborMatch?.[1] && !pointers["neighbor"]) {
+      const nCoord = parse2DCoord(neighborMatch[1]);
+      if (nCoord) pointers["neighbor"] = nCoord;
+    }
+
+    const originMatch = step.desc.match(/(?:origin|from(?:\s+origin)?|addLand(?:\s+at)?|turning)\s*(\([0-9]+,\s*[0-9]+\)|\[[0-9]+,\s*[0-9]+\])/i);
+    if (originMatch?.[1] && !pointers["pos"]) {
+      const oCoord = parse2DCoord(originMatch[1]);
+      if (oCoord) pointers["pos"] = oCoord;
+    }
+
+    const mergeMatch = step.desc.match(/(?:connected|merging|union)\s*\([^)]+\)\s*with\s*(\([0-9]+,\s*[0-9]+\)|\[[0-9]+,\s*[0-9]+\])/i);
+    if (mergeMatch?.[1] && !pointers["merge"]) {
+      const mCoord = parse2DCoord(mergeMatch[1]);
+      if (mCoord) pointers["merge"] = mCoord;
     }
   }
 
@@ -829,28 +872,54 @@ export const Visualizer = memo(function Visualizer({
     const rows = Array.isArray(current.matrix) ? current.matrix.length : 1;
     const cols =
       current.cols ?? (Array.isArray(current.matrix?.[0]) ? current.matrix[0].length : 1);
-    const hasAreaStats =
+    const hasAreaMetric =
       (current.currentArea !== null && current.currentArea !== undefined) ||
-      (current.wSum !== null && current.wSum !== undefined);
+      (current.maxArea !== null && current.maxArea !== undefined);
+    const isIslandProblem =
+      hasAreaMetric ||
+      /island|islands|land|component/i.test(current.desc || "") ||
+      Boolean(current.islandCells && current.islandCells.length > 0);
+
+    const stat3Label = hasAreaMetric
+      ? "Current Area"
+      : isIslandProblem && current.wSum !== null && current.wSum !== undefined
+        ? "Island Count"
+        : typeof current.wSum === "number"
+          ? "Value / Sum"
+          : isIslandProblem
+            ? "Land Explored"
+            : "Visited Cells";
+    const stat3Value = current.currentArea ?? current.wSum ?? visited.length;
+
+    let stat4Label = "Direction";
+    let stat4Value: string | number | null =
+      current.direction ?? (visited.length > 0 ? visited.length : "None");
+    if (current.maxArea !== null && current.maxArea !== undefined) {
+      stat4Label = "Max Area";
+      stat4Value = current.maxArea;
+    } else if (
+      current.mSum !== null &&
+      current.mSum !== undefined &&
+      current.mSum !== current.wSum
+    ) {
+      stat4Label = hasAreaMetric ? "Max Area" : isIslandProblem ? "Max Islands" : "Target";
+      stat4Value = current.mSum;
+    } else if (current.direction) {
+      stat4Label = "Direction";
+      stat4Value = current.direction;
+    }
 
     readouts = [
       { label: "Grid Size", value: `${rows} × ${cols}` },
       { label: "Active Cell", value: current.current ?? null, highlight: true },
       {
-        label: hasAreaStats ? "Current Area" : "Explored Land",
-        value: current.currentArea ?? current.wSum ?? visited.length,
-        highlight: hasAreaStats,
+        label: stat3Label,
+        value: stat3Value,
+        highlight: typeof stat3Value === "number" && stat3Value > 0,
       },
       {
-        label:
-          current.maxArea !== null && current.maxArea !== undefined
-            ? "Max Area"
-            : current.mSum !== null && current.mSum !== undefined
-              ? "Max Area"
-              : current.direction
-                ? "Direction"
-                : "Explored",
-        value: current.maxArea ?? current.mSum ?? current.direction ?? visited.length,
+        label: stat4Label,
+        value: stat4Value,
       },
     ];
     const activeMat = current.matrix ?? traceMatrix;

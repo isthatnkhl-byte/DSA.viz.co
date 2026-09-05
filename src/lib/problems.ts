@@ -344,6 +344,7 @@ export interface TestDataset {
   array?: (number | string)[];
   secondaryArray?: (number | string)[];
   matrix?: (number | string)[][];
+  cols?: number;
   tree?: (number | string | null)[];
   target?: number | string;
   k?: number;
@@ -472,6 +473,11 @@ export const CANONICAL_MATRICES: Record<string, (number | string)[][]> = {
     [0, 0, 0, 1, 1, 0],
     [1, 1, 0, 0, 0, 1],
     [1, 0, 0, 1, 1, 1],
+  ],
+  "number-of-islands-ii": [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
   ],
   "rotting-oranges": [
     [2, 1, 1, 0, 1, 1],
@@ -2265,6 +2271,71 @@ export function getCanonicalMultiDatasets(
   _title = "",
   topics: string[] = [],
 ): TestDataset[] {
+  if (slug === "number-of-islands-ii") {
+    return [
+      {
+        id: "d1",
+        label: "Dataset 1",
+        category: "standard",
+        matrix: [
+          [0, 0, 0],
+          [0, 0, 0],
+          [0, 0, 0],
+        ],
+        secondaryArray: [
+          [0, 0],
+          [0, 1],
+          [1, 2],
+          [2, 1],
+        ],
+        target: 3,
+        cols: 3,
+        description: "Standard 3×3 water grid with 4 dynamic addLand operations: [[0,0],[0,1],[1,2],[2,1]].",
+      },
+      {
+        id: "d2",
+        label: "Dataset 2",
+        category: "longer",
+        matrix: Array.from({ length: 5 }, () => Array(6).fill(0)),
+        secondaryArray: [
+          [0, 0],
+          [0, 1],
+          [1, 1],
+          [1, 2],
+          [2, 2],
+          [2, 3],
+          [3, 4],
+          [3, 5],
+          [4, 4],
+          [4, 0],
+          [0, 5],
+          [4, 2],
+        ],
+        target: 5,
+        cols: 6,
+        description: "Extended 5×6 grid with 12 addLand operations producing multiple island creations, merges, and component unions.",
+      },
+      {
+        id: "d3",
+        label: "Dataset 3",
+        category: "edge",
+        matrix: [
+          [0, 0],
+          [0, 0],
+        ],
+        secondaryArray: [
+          [0, 0],
+          [0, 0],
+          [0, 1],
+          [1, 1],
+        ],
+        target: 2,
+        cols: 2,
+        description: "Edge-case 2×2 grid testing duplicate land addition at [0,0] and boundary unions.",
+      },
+    ];
+  }
+
   const CUSTOM_DATASETS: Record<string, TestDataset[]> = {
     "check-preorder-is-valid-or-not": [
       { id: "d1", label: "Dataset 1", category: "standard", array: [1, 5, 3, 4, 2], target: 3, description: "Standard dataset for Check Preorder Is Valid Or Not." }
@@ -3092,7 +3163,20 @@ export function getCanonicalMultiDatasets(
       { id: "d1", label: "Dataset 1", category: "standard", matrix: [[1,0,0],[-1,0,3]], description: "Actual Example 1 from LeetCode Premium." }
     ],
     "number-of-islands-ii": [
-      { id: "d1", label: "Dataset 1", category: "standard", matrix: [[0,0],[0,1],[1,2],[2,1]], target: 3, description: "Actual Example 1 from LeetCode Premium." }
+      {
+        id: "d1",
+        label: "Dataset 1",
+        category: "standard",
+        matrix: [
+          [0, 0, 0],
+          [0, 0, 0],
+          [0, 0, 0],
+        ],
+        secondaryArray: [[0, 0], [0, 1], [1, 2], [2, 1]],
+        target: 3,
+        cols: 3,
+        description: "Standard 3×3 water grid with 4 dynamic addLand operations: [[0,0],[0,1],[1,2],[2,1]].",
+      },
     ],
     "binary-tree-longest-consecutive-sequence": [
       { id: "d1", label: "Dataset 1", category: "standard", array: [1,null,3,2,4,null,null,null,5], description: "Actual Example 1 from LeetCode Premium." }

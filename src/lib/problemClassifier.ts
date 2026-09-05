@@ -155,6 +155,15 @@ export function classifyProblem(
       algorithmName: "Max Area Island Flood-Fill (2D Matrix DFS)",
     };
   }
+  if (/number-of-islands-ii|islands-2/.test(s)) {
+    return {
+      category: "grid-matrix",
+      primaryVizType: "matrix",
+      pattern: "island-union-find",
+      isMultiEntity: true,
+      algorithmName: "Dynamic Island Addition & Union-Find (2D Disjoint Set)",
+    };
+  }
   if (/number-of-islands|count.*island|making-a-large-island/.test(s)) {
     return {
       category: "grid-matrix",

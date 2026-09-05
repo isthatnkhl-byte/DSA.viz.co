@@ -61,13 +61,30 @@ export function MatrixVisualizer({
     );
   }, [activePointers]);
 
+  // Check if grid elements are exclusively binary 0/1 or water/land
+  const isBinaryGrid = useMemo(() => {
+    if (!matrix || matrix.length === 0) return false;
+    return matrix.every((row) =>
+      row.every(
+        (val) =>
+          val === 0 ||
+          val === 1 ||
+          val === "0" ||
+          val === "1" ||
+          val === "water" ||
+          val === "land",
+      ),
+    );
+  }, [matrix]);
+
   // Detect whether this is genuinely an island / connected components problem
   const isIslandMode = useMemo(() => {
     if (Array.isArray(rawIslandCells) && rawIslandCells.length > 0) return true;
     if (typeof currentArea === "number" && currentArea > 0) return true;
     if (typeof maxArea === "number" && maxArea > 0) return true;
+    if (isBinaryGrid) return true;
     return false;
-  }, [rawIslandCells, currentArea, maxArea]);
+  }, [rawIslandCells, currentArea, maxArea, isBinaryGrid]);
 
   // Set of all visited coordinates
   const seenKeys = useMemo(() => {
@@ -106,8 +123,17 @@ export function MatrixVisualizer({
     return count;
   }, [isIslandMode, matrix, seenKeys, activeIslandSet]);
 
-  // Active metrics
-  const activeAreaValue =
+  // Differentiate between Area problems vs Count / Component problems
+  const isAreaProblem = typeof currentArea === "number" || typeof maxArea === "number";
+  const isIslandCountProblem = !isAreaProblem && isIslandMode && typeof wSum === "number";
+
+  const primaryMetricLabel = isAreaProblem
+    ? "Current Area"
+    : isIslandCountProblem
+      ? "Island Count"
+      : "Metric / Value";
+
+  const primaryMetricValue =
     typeof currentArea === "number"
       ? currentArea
       : typeof wSum === "number"
@@ -116,8 +142,25 @@ export function MatrixVisualizer({
           ? activeIslandSet.size
           : null;
 
-  const maxAreaValue =
-    typeof maxArea === "number" ? maxArea : typeof mSum === "number" ? mSum : activeAreaValue;
+  const showSecondaryMetric =
+    isAreaProblem
+      ? typeof maxArea === "number" || typeof mSum === "number"
+      : typeof mSum === "number" && mSum !== wSum;
+
+  const secondaryMetricLabel = isAreaProblem
+    ? "Max Area"
+    : isIslandCountProblem
+      ? "Max Islands"
+      : "Max / Target";
+
+  const secondaryMetricValue =
+    typeof maxArea === "number"
+      ? maxArea
+      : typeof mSum === "number"
+        ? mSum
+        : isAreaProblem
+          ? primaryMetricValue
+          : null;
 
   // Normalize direction text for compass widget
   const dirText = String(direction ?? "").toUpperCase();
@@ -281,52 +324,30 @@ export function MatrixVisualizer({
             </div>
           )}
 
-          {isIslandMode && activeAreaValue !== null && !isCurrentOOB && (
+          {primaryMetricValue !== null && !isCurrentOOB && (
             <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-1.5 shadow-sm shadow-emerald-500/10 animate-sync-glow">
               <Sparkles className="size-3.5 text-emerald-400" />
               <div className="flex flex-col text-right">
                 <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-300">
-                  Current Area
+                  {primaryMetricLabel}
                 </span>
                 <span className="font-mono text-xs font-black text-emerald-300">
-                  {activeAreaValue}
+                  {primaryMetricValue}
                 </span>
               </div>
             </div>
           )}
 
-          {isIslandMode && maxAreaValue !== null && (
+          {showSecondaryMetric && secondaryMetricValue !== null && (
             <div className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-1.5 shadow-sm shadow-amber-500/10">
               <Trophy className="size-3.5 text-amber-400" />
               <div className="flex flex-col text-right">
                 <span className="text-[9px] uppercase font-bold tracking-wider text-amber-300">
-                  Max Area
+                  {secondaryMetricLabel}
                 </span>
-                <span className="font-mono text-xs font-black text-amber-300">{maxAreaValue}</span>
-              </div>
-            </div>
-          )}
-
-          {!isIslandMode && typeof wSum === "number" && (
-            <div className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-1.5 shadow-sm shadow-primary/10">
-              <Sparkles className="size-3.5 text-primary" />
-              <div className="flex flex-col text-right">
-                <span className="text-[9px] uppercase font-bold tracking-wider text-primary">
-                  Metric / Value
+                <span className="font-mono text-xs font-black text-amber-300">
+                  {secondaryMetricValue}
                 </span>
-                <span className="font-mono text-xs font-black text-primary">{wSum}</span>
-              </div>
-            </div>
-          )}
-
-          {!isIslandMode && typeof mSum === "number" && (
-            <div className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-1.5 shadow-sm shadow-amber-500/10">
-              <Trophy className="size-3.5 text-amber-400" />
-              <div className="flex flex-col text-right">
-                <span className="text-[9px] uppercase font-bold tracking-wider text-amber-300">
-                  Max / Target
-                </span>
-                <span className="font-mono text-xs font-black text-amber-300">{mSum}</span>
               </div>
             </div>
           )}
@@ -516,7 +537,7 @@ export function MatrixVisualizer({
                         className={`relative flex size-12 flex-col items-center justify-center rounded-xl border font-mono transition-all duration-300 select-none ${cellBgStyle}`}
                       >
                         {/* Floating Pointer Badges with Accurate Semantic Colors */}
-                        {matchingPointerBadges.length > 0 && !isActive && (
+                        {matchingPointerBadges.length > 0 && (
                           <div className="absolute -top-3 z-20 flex gap-0.5 pointer-events-none">
                             {matchingPointerBadges.map((badge, bi) => {
                               const s = getMarkerStyle(badge.name, badge.isMatch);

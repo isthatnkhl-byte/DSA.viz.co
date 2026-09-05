@@ -40,6 +40,7 @@ export type Pattern =
   | "parentheses"
   | "island-max-area"
   | "island-count"
+  | "island-union-find"
   | "grid-bfs"
   | "grid-dfs"
   | "matrix-transform"
@@ -1921,6 +1922,299 @@ function islandCount(matrixInput?: (number | string)[][]): VizBundle {
   });
 
   return { code, array: matrix.flat(), steps: cap(steps) };
+}
+
+function islandUnionFindSim(dataset?: TestDataset, slug = "number-of-islands-ii"): VizBundle {
+  const code = [
+    "def numIslands2(m, n, positions):",
+    "    parent = {}; count = 0; ans = []",
+    "    def find(x):",
+    "        if parent[x] != x: parent[x] = find(parent[x])",
+    "        return parent[x]",
+    "    def union(x, y):",
+    "        rx, ry = find(x), find(y)",
+    "        if rx != ry: parent[rx] = ry; return True",
+    "        return False",
+    "    for r, c in positions:",
+    "        pos = (r, c)",
+    "        if pos in parent: ans.append(count); continue",
+    "        parent[pos] = pos; count += 1",
+    "        for dr, dc in [(1,0), (-1,0), (0,1), (0,-1)]:",
+    "            nr, nc = r + dr, c + dc",
+    "            if 0 <= nr < m and 0 <= nc < n and (nr, nc) in parent:",
+    "                if union(pos, (nr, nc)): count -= 1",
+    "        ans.append(count)",
+    "    return ans",
+  ];
+
+  let rows = 3;
+  let cols = 3;
+  if (Array.isArray(dataset?.matrix) && dataset.matrix.length > 0) {
+    rows = dataset.matrix.length;
+    cols = dataset.cols ?? dataset.matrix[0]?.length ?? 3;
+  } else if (dataset?.cols) {
+    cols = dataset.cols;
+  }
+
+  const grid: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+  let positions: [number, number][] = [];
+  if (Array.isArray(dataset?.secondaryArray) && dataset.secondaryArray.length > 0) {
+    positions = dataset.secondaryArray.map((p) => {
+      if (Array.isArray(p) && p.length >= 2) return [Number(p[0]), Number(p[1])];
+      if (typeof p === "string") {
+        const parts = p.replace(/[()[\]]/g, "").split(",");
+        return [Number(parts[0] ?? 0), Number(parts[1] ?? 0)];
+      }
+      return [0, 0];
+    });
+  } else if (
+    Array.isArray(dataset?.matrix) &&
+    dataset.matrix.length > 0 &&
+    dataset.matrix.every((r) => Array.isArray(r) && r.length === 2 && !r.some((x) => Number(x) > 5))
+  ) {
+    positions = dataset.matrix.map((r) => [Number(r[0]), Number(r[1])]);
+  } else {
+    positions = [
+      [0, 0],
+      [0, 1],
+      [1, 2],
+      [2, 1],
+    ];
+  }
+
+  const parent: Record<string, string> = {};
+  function find(x: string): string {
+    if (parent[x] !== x && parent[x] !== undefined) {
+      parent[x] = find(parent[x]!);
+    }
+    return parent[x] ?? x;
+  }
+
+  function union(x: string, y: string): boolean {
+    const rx = find(x);
+    const ry = find(y);
+    if (rx !== ry) {
+      parent[rx] = ry;
+      return true;
+    }
+    return false;
+  }
+
+  const inBounds = (r: number, c: number) => r >= 0 && c >= 0 && r < rows && c < cols;
+  const DIRS: [number, number, string][] = [
+    [1, 0, "DOWN (+1, 0)"],
+    [-1, 0, "UP (-1, 0)"],
+    [0, 1, "RIGHT (0, +1)"],
+    [0, -1, "LEFT (0, -1)"],
+  ];
+
+  let count = 0;
+  const ans: number[] = [];
+  const visited: string[] = [];
+  const steps: VizStep[] = [
+    {
+      type: "matrix",
+      matrix: grid.map((r) => [...r]),
+      cols,
+      current: null,
+      visited: [],
+      wSum: 0,
+      line: 1,
+      desc: `Initialize ${rows}×${cols} empty water grid (all 0s), empty DSU parent map, and island count = 0.`,
+      activePointers: {},
+      map: {},
+    },
+  ];
+
+  for (let pi = 0; pi < positions.length; pi++) {
+    const [r, c] = positions[pi]!;
+    const posKey = `${r},${c}`;
+
+    steps.push({
+      type: "matrix",
+      matrix: grid.map((row) => [...row]),
+      cols,
+      current: `${r},${c}`,
+      activePointers: { pos: [r, c] },
+      visited: [...visited],
+      wSum: count,
+      line: 9,
+      desc: `Operation #${pi + 1}: addLand at (${r}, ${c}). Preparing to turn cell into land.`,
+      map: { ...parent },
+    });
+
+    if (parent[posKey] !== undefined) {
+      ans.push(count);
+      steps.push({
+        type: "matrix",
+        matrix: grid.map((row) => [...row]),
+        cols,
+        current: `${r},${c}`,
+        activePointers: { pos: [r, c] },
+        visited: [...visited],
+        wSum: count,
+        line: 11,
+        desc: `Cell (${r}, ${c}) is already land. Skip operation; island count remains ${count}.`,
+        map: { ...parent },
+      });
+      continue;
+    }
+
+    grid[r]![c] = 1;
+    parent[posKey] = posKey;
+    count++;
+    if (!visited.includes(posKey)) visited.push(posKey);
+
+    steps.push({
+      type: "matrix",
+      matrix: grid.map((row) => [...row]),
+      cols,
+      current: `${r},${c}`,
+      activePointers: { pos: [r, c], land: [r, c] },
+      visited: [...visited],
+      wSum: count,
+      line: 12,
+      desc: `Turned (${r}, ${c}) into LAND! Initialized isolated component. Count incremented to ${count}.`,
+      map: { ...parent },
+    });
+
+    for (const [dr, dc, dirName] of DIRS) {
+      const nr = r + dr;
+      const nc = c + dc;
+      const nKey = `${nr},${nc}`;
+
+      // Probe step: physically move marker to neighbor cell
+      steps.push({
+        type: "matrix",
+        matrix: grid.map((row) => [...row]),
+        cols,
+        current: `${nr},${nc}`,
+        activePointers: { pos: [r, c], neighbor: [nr, nc] },
+        direction: dirName,
+        visited: [...visited],
+        wSum: count,
+        line: 14,
+        desc: `Checking ${dirName} neighbor at (${nr}, ${nc}) from origin (${r}, ${c})...`,
+        map: { ...parent },
+      });
+
+      if (!inBounds(nr, nc)) {
+        steps.push({
+          type: "matrix",
+          matrix: grid.map((row) => [...row]),
+          cols,
+          current: `${nr},${nc}`,
+          activePointers: { pos: [r, c], neighbor: [nr, nc] },
+          direction: dirName,
+          visited: [...visited],
+          wSum: count,
+          line: 15,
+          desc: `Neighbor (${nr}, ${nc}) is out of bounds. No connection in ${dirName} direction.`,
+          map: { ...parent },
+        });
+        continue;
+      }
+
+      if (grid[nr]![nc] !== 1) {
+        steps.push({
+          type: "matrix",
+          matrix: grid.map((row) => [...row]),
+          cols,
+          current: `${nr},${nc}`,
+          activePointers: { pos: [r, c], neighbor: [nr, nc] },
+          direction: dirName,
+          visited: [...visited],
+          wSum: count,
+          line: 15,
+          desc: `Neighbor (${nr}, ${nc}) is water (0). No island union possible.`,
+          map: { ...parent },
+        });
+        continue;
+      }
+
+      // Neighbor is land! Call union
+      steps.push({
+        type: "matrix",
+        matrix: grid.map((row) => [...row]),
+        cols,
+        current: `${nr},${nc}`,
+        activePointers: { pos: [r, c], neighbor: [nr, nc], merge: [nr, nc] },
+        direction: dirName,
+        visited: [...visited],
+        wSum: count,
+        line: 16,
+        desc: `Neighbor (${nr}, ${nc}) is existing LAND! Calling union((${r}, ${c}), (${nr}, ${nc}))...`,
+        map: { ...parent },
+      });
+
+      const root1 = find(posKey);
+      const root2 = find(nKey);
+      if (root1 !== root2) {
+        parent[root1] = root2;
+        count--;
+
+        steps.push({
+          type: "matrix",
+          matrix: grid.map((row) => [...row]),
+          cols,
+          current: `${r},${c}`,
+          activePointers: { pos: [r, c], neighbor: [nr, nc], root: root2 },
+          direction: dirName,
+          visited: [...visited],
+          wSum: count,
+          line: 16,
+          desc: `Union successful: connected (${r}, ${c}) with (${nr}, ${nc}) under root ${root2}. Island count decrements to ${count}.`,
+          map: { ...parent },
+        });
+      } else {
+        steps.push({
+          type: "matrix",
+          matrix: grid.map((row) => [...row]),
+          cols,
+          current: `${r},${c}`,
+          activePointers: { pos: [r, c], neighbor: [nr, nc] },
+          direction: dirName,
+          visited: [...visited],
+          wSum: count,
+          line: 16,
+          desc: `(${r}, ${c}) and (${nr}, ${nc}) already belong to the same component (root ${root1}). Count unchanged (${count}).`,
+          map: { ...parent },
+        });
+      }
+    }
+
+    ans.push(count);
+    steps.push({
+      type: "matrix",
+      matrix: grid.map((row) => [...row]),
+      cols,
+      current: `${r},${c}`,
+      activePointers: { pos: [r, c] },
+      visited: [...visited],
+      wSum: count,
+      secondaryArray: [...ans],
+      line: 17,
+      desc: `Completed operation #${pi + 1}. Appended island count ${count} to result list: [${ans.join(", ")}].`,
+      map: { ...parent },
+    });
+  }
+
+  steps.push({
+    type: "matrix",
+    matrix: grid.map((row) => [...row]),
+    cols,
+    current: null,
+    activePointers: {},
+    visited: [...visited],
+    wSum: count,
+    secondaryArray: [...ans],
+    line: 18,
+    desc: `All operations completed. Final island count sequence: [${ans.join(", ")}]. Total active islands = ${count}.`,
+    map: { ...parent },
+  });
+
+  return { code, array: grid.flat(), steps: cap(steps) };
 }
 
 function grid(matrixOrInput: (number | string)[][] | number[], mode: "bfs" | "dfs"): VizBundle {
@@ -6161,6 +6455,8 @@ export function simulateProblemWithDataset(
       return islandMaxArea(matrixInput);
     case "island-count":
       return islandCount(matrixInput);
+    case "island-union-find":
+      return islandUnionFindSim(dataset, slug);
     case "grid-bfs":
       return grid(matrixInput ?? numInput, "bfs");
     case "grid-dfs":

@@ -1662,10 +1662,10 @@ export function validateAndNormalizeVizPayload(
       }
 
       // Extract pointers mentioned dynamically in step description
-      if (typeof rawDesc === "string" && rawDesc) {
+      if (typeof descText === "string" && descText) {
         const descRegex = /\b(left|right|slow|fast|curr|current|top|front|rear|head|tail|root|node|pivot|mid|low|high|src|dest|[ijuvpqxy])\s*(?:=|is|at|:|->|➔)\s*(?:index\s*|idx\s*|node\s*|vertex\s*|cell\s*)?(\(?-?\d+\s*,\s*-?\d+\)?|-?\d+|'[A-Za-z0-9_]+'|"[A-Za-z0-9_]+")/gi;
-        let dm;
-        while ((dm = descRegex.exec(rawDesc)) !== null) {
+        let dm: RegExpExecArray | null;
+        while ((dm = descRegex.exec(descText)) !== null) {
           const vName = dm[1]?.toLowerCase();
           const vVal = dm[2]?.trim().replace(/['"]/g, "");
           if (!vName || !vVal) continue;

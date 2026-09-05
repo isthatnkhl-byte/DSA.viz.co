@@ -99,6 +99,7 @@ export function resolveStepActivePointers(
     while ((match = regex.exec(step.desc)) !== null) {
       const varName = match[1];
       const rawVal = match[2];
+      if (!varName || !rawVal) continue;
       const lowerVar = varName.toLowerCase();
       if (
         ["i", "j", "k", "u", "v", "left", "right", "mid", "curr", "node", "top", "head", "tail", "front", "rear", "src", "dest", "row", "col", "r", "c", "ptr"].includes(lowerVar)

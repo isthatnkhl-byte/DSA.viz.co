@@ -1,5 +1,6 @@
 import { memo, useState, useMemo } from "react";
 import type { Sightline } from "@/lib/problems";
+import { getMarkerStyle, type MarkerStyle } from "./VisualizerTypes";
 import {
   Layers,
   Eye,
@@ -18,6 +19,8 @@ interface MonotonicStackVisualizerProps {
   stackInvariant?: "increasing" | "decreasing" | null;
   sightlines?: Sightline[] | null;
   explanation?: string;
+  pointer_labels?: Record<string, string> | null | undefined;
+  activePointers?: Record<string, number | string | [number, number] | null> | null | undefined;
 }
 
 export const MonotonicStackVisualizer = memo(function MonotonicStackVisualizer({
@@ -28,6 +31,8 @@ export const MonotonicStackVisualizer = memo(function MonotonicStackVisualizer({
   stackInvariant = "decreasing",
   sightlines = [],
   explanation = "",
+  pointer_labels,
+  activePointers,
 }: MonotonicStackVisualizerProps) {
   const safeArray = useMemo(() => (Array.isArray(array) ? array : []), [array]);
   const safeStack = useMemo(() => (Array.isArray(stack) ? stack : []), [stack]);
@@ -122,8 +127,39 @@ export const MonotonicStackVisualizer = memo(function MonotonicStackVisualizer({
     return { barLayouts: layouts, svgWidth: totalW, svgHeight: totalH };
   }, [safeArray, minVal, maxVal]);
 
+  const activePointerEntries = useMemo(() => {
+    if (!activePointers || typeof activePointers !== "object") return [];
+    return Object.entries(activePointers).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    );
+  }, [activePointers]);
+
   return (
     <div className="flex flex-col gap-3.5 w-full">
+      {/* Active Pointer Legend Bar */}
+      {activePointerEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+            Active Pointers:
+          </span>
+          {activePointerEntries.map(([k, v]) => {
+            const style = getMarkerStyle(k);
+            return (
+              <span
+                key={`ms-badge-${k}`}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 border font-semibold ${style.bg} ${style.textCol} ${style.border}`}
+              >
+                <span>{k}</span>
+                <span className="opacity-70">➔</span>
+                <span className="font-bold text-foreground">
+                  {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Top Banner: Invariant Status Badge & Sightline Telemetry */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/80 bg-card/75 p-3.5 backdrop-blur-md">
         <div className="flex items-center gap-2.5">
@@ -432,6 +468,24 @@ export const MonotonicStackVisualizer = memo(function MonotonicStackVisualizer({
 
                   const halfW = bar.barWidth / 2;
 
+                  const barPointers: { label: string; style: MarkerStyle }[] = [];
+                  if (activePointers && typeof activePointers === "object") {
+                    for (const [pName, pVal] of Object.entries(activePointers)) {
+                      if (pVal === null || pVal === undefined) continue;
+                      if (
+                        (typeof pVal === "number" && pVal === bar.idx) ||
+                        String(pVal) === String(bar.val)
+                      ) {
+                        barPointers.push({ label: pName.slice(0, 8), style: getMarkerStyle(pName) });
+                      }
+                    }
+                  }
+                  if (isActive && !barPointers.some((p) => /curr/.test(p.label.toLowerCase()))) {
+                    barPointers.push({ label: pointer_labels?.current || "curr", style: getMarkerStyle("curr") });
+                  }
+
+                  const firstBarPointer = barPointers[0];
+
                   return (
                     <g
                       key={bar.idx}
@@ -453,6 +507,30 @@ export const MonotonicStackVisualizer = memo(function MonotonicStackVisualizer({
                           strokeDasharray="4 3"
                           className="animate-pulse"
                         />
+                      )}
+
+                      {/* Floating Pointer Badge above Bar */}
+                      {firstBarPointer && (
+                        <g transform={`translate(${bar.centerX}, ${bar.topY - 26})`}>
+                          <rect
+                            x="-16"
+                            y="-8"
+                            width="32"
+                            height="14"
+                            rx="3"
+                            fill={firstBarPointer.style.svgFill}
+                            stroke={firstBarPointer.style.svgStroke}
+                            strokeWidth="1"
+                          />
+                          <text
+                            textAnchor="middle"
+                            dy="3"
+                            className="font-mono text-[8.5px] font-black select-none uppercase"
+                            fill={firstBarPointer.style.svgText}
+                          >
+                            {firstBarPointer.label}
+                          </text>
+                        </g>
                       )}
 
                       {/* Main Vertical Bar */}

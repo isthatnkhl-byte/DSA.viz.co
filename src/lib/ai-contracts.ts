@@ -1634,8 +1634,8 @@ export function validateAndNormalizeVizPayload(
         const label = auxPointerLabels?.right || "right";
         if (activePointers[label] === undefined) activePointers[label] = Number(rawRight);
       }
-      if (resolvedCurrent !== null && resolvedCurrent !== undefined && auxPointerLabels?.current) {
-        const label = auxPointerLabels.current;
+      if (resolvedCurrent !== null && resolvedCurrent !== undefined && resolvedCurrent !== "") {
+        const label = auxPointerLabels?.current || "curr";
         if (activePointers[label] === undefined) activePointers[label] = resolvedCurrent;
       }
 
@@ -1656,6 +1656,27 @@ export function validateAndNormalizeVizPayload(
               activePointers[varName] = varVal;
             } else if (typeof varVal === "string" && varVal.trim()) {
               activePointers[varName] = varVal.trim();
+            }
+          }
+        }
+      }
+
+      // Extract pointers mentioned dynamically in step description
+      if (typeof rawDesc === "string" && rawDesc) {
+        const descRegex = /\b(left|right|slow|fast|curr|current|top|front|rear|head|tail|root|node|pivot|mid|low|high|src|dest|[ijuvpqxy])\s*(?:=|is|at|:|->|➔)\s*(?:index\s*|idx\s*|node\s*|vertex\s*|cell\s*)?(\(?-?\d+\s*,\s*-?\d+\)?|-?\d+|'[A-Za-z0-9_]+'|"[A-Za-z0-9_]+")/gi;
+        let dm;
+        while ((dm = descRegex.exec(rawDesc)) !== null) {
+          const vName = dm[1]?.toLowerCase();
+          const vVal = dm[2]?.trim().replace(/['"]/g, "");
+          if (!vName || !vVal) continue;
+          if (activePointers[vName] === undefined) {
+            const coord = parse2DCoord(vVal);
+            if (coord) {
+              activePointers[vName] = coord;
+            } else if (!isNaN(Number(vVal))) {
+              activePointers[vName] = Number(vVal);
+            } else {
+              activePointers[vName] = vVal;
             }
           }
         }

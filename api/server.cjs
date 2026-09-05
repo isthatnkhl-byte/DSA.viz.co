@@ -207330,8 +207330,8 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
       const label = auxPointerLabels?.right || "right";
       if (activePointers[label] === void 0) activePointers[label] = Number(rawRight);
     }
-    if (resolvedCurrent !== null && resolvedCurrent !== void 0 && auxPointerLabels?.current) {
-      const label = auxPointerLabels.current;
+    if (resolvedCurrent !== null && resolvedCurrent !== void 0 && resolvedCurrent !== "") {
+      const label = auxPointerLabels?.current || "curr";
       if (activePointers[label] === void 0) activePointers[label] = resolvedCurrent;
     }
     for (const [varName, varVal] of Object.entries(rawVars)) {
@@ -207348,6 +207348,25 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
             activePointers[varName] = varVal;
           } else if (typeof varVal === "string" && varVal.trim()) {
             activePointers[varName] = varVal.trim();
+          }
+        }
+      }
+    }
+    if (typeof rawDesc === "string" && rawDesc) {
+      const descRegex = /\b(left|right|slow|fast|curr|current|top|front|rear|head|tail|root|node|pivot|mid|low|high|src|dest|[ijuvpqxy])\s*(?:=|is|at|:|->|➔)\s*(?:index\s*|idx\s*|node\s*|vertex\s*|cell\s*)?(\(?-?\d+\s*,\s*-?\d+\)?|-?\d+|'[A-Za-z0-9_]+'|"[A-Za-z0-9_]+")/gi;
+      let dm;
+      while ((dm = descRegex.exec(rawDesc)) !== null) {
+        const vName = dm[1]?.toLowerCase();
+        const vVal = dm[2]?.trim().replace(/['"]/g, "");
+        if (!vName || !vVal) continue;
+        if (activePointers[vName] === void 0) {
+          const coord = parse2DCoord(vVal);
+          if (coord) {
+            activePointers[vName] = coord;
+          } else if (!isNaN(Number(vVal))) {
+            activePointers[vName] = Number(vVal);
+          } else {
+            activePointers[vName] = vVal;
           }
         }
       }
@@ -252385,10 +252404,16 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * You MUST visit and evaluate EVERY island / component in the entire input dataset.
      * ONLY after the outer loops complete the full scan across all elements/cells should you emit the final return step.
 
-5) COMPLETE END-TO-END TRAVERSAL (MANDATORY):
+5) COMPLETE END-TO-END TRAVERSAL & MANDATORY STEP COUNT INVARIANTS:
    - You MUST simulate the algorithm completely from the first initialization line to the final return/termination statement.
    - NEVER STOP HALFWAY, truncate, or end early. Traverse EVERY element, pointer step, node, or grid cell until the entire test input dataset has been completely processed according to the pseudocode.
-   - UNIVERSAL ANTI-DEGENERACY & FULL SINGLE-CELL MOVEMENT LAW:
+   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15\u201325 elements or 5\xD76 / 6\xD76 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
+   - STRICT STEP COUNT INVARIANTS (ANTI-LAZINESS LAW):
+     * Under NO circumstances should you output only 4, 8, or 9 macro-steps!
+     * NORMAL / STANDARD DATASET: You MUST generate at least 15 to 30 granular steps. Every loop iteration, pointer increment, cell visit, or stack/queue mutation MUST have its own individual step!
+     * LONGER & EXTENDED DATASET: You MUST generate at least 30 to 60+ granular steps. Walk through the entire extended dataset element-by-element and cell-by-cell without skipping.
+     * EDGE DATASET: You MUST generate at least 8 to 20 granular steps illustrating boundary conditions.
+   - UNIVERSAL FULL SINGLE-CELL & SINGLE-ELEMENT MOVEMENT LAW:
      * You MUST NOT generate small steps, macro jumps, or cut traversals short.
      * In 2D Grids / Islands / Matrices: You MUST evaluate cell-by-cell!
        - Outer loop scan: step through and evaluate cells (r, c) across ALL rows and columns.
@@ -252396,7 +252421,6 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
        - Never stop after only visiting 1 cell or 1 island! Process ALL separate islands and continue until the full grid has been scanned.
      * In Arrays / Two-Pointers: evaluate every element comparison and pointer adjustment step-by-step.
      * In Trees: traverse level-by-level or branch-by-branch through all nodes in the tree/queue.
-   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15\u201325 elements or 5\xD76 / 6\xD76 / 8\xD710 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
    - Generate all necessary execution steps (from initial state, loop progression, all iterations, to final return) to provide a complete, unbroken visual walkthrough.
    - The final step MUST highlight the termination condition, the final return value, or the completed data structure state.
 
@@ -252692,9 +252716,10 @@ MANDATORY FOR PREFIX SUM WITH HASH MAP:
     sampleGuidance = `Simulate Prefix Trie insertion/search. Set type='trie' or 'tree'. Track the active character node in 'current' and character dictionary in 'map'.`;
   }
   const isLongerDataset = /longer|complex|dataset\s*2/i.test(datasetLabel ?? "");
+  const isEdgeDataset = /edge|boundary|dataset\s*3/i.test(datasetLabel ?? "");
   const datasetContext = datasetLabel ? `
 Active Dataset: "${datasetLabel}" ${datasetDescription ? `(${datasetDescription})` : ""}
-${isLongerDataset ? "CRITICAL INSTRUCTION FOR EXTENDED DATASET: This is an EXTENDED, LARGE-SCALE dataset designed for a deep, comprehensive animation (25\u201350+ steps). Step through ALL elements, matrix cells, tree nodes, or graph vertices systematically! In 2D grids, step through EVERY land cell of every island across all rows and columns (never exit after 4 steps or after only 1 island). In arrays/heaps/trees, traverse all elements thoroughly to provide the user with a rich, long-running visualization of their pseudocode execution.\n" : "Simulate the ENTIRE dataset from the first element to the final return/completion step without stopping early.\n"}` : "";
+${isLongerDataset ? "CRITICAL INSTRUCTION FOR EXTENDED DATASET: This is an EXTENDED, LARGE-SCALE dataset designed for a deep, comprehensive animation (30\u201360+ steps). Step through ALL elements, matrix cells, tree nodes, or graph vertices systematically! In 2D grids, step through EVERY land cell of every island across all rows and columns (never exit after 4 or 9 steps). In arrays/heaps/trees, traverse all elements thoroughly to provide the user with a rich, long-running visualization of their pseudocode execution.\n" : isEdgeDataset ? "CRITICAL INSTRUCTION FOR EDGE DATASET: Simulate all boundary checks, empty conditions, single-element iterations, and return statements thoroughly (8\u201320 steps).\n" : "CRITICAL INSTRUCTION FOR STANDARD DATASET: Simulate the ENTIRE dataset from the first element to the final return/completion step without stopping early. Generate at least 15\u201330 granular steps (never output only 4 or 8 macro-steps).\n"}` : "";
   return `Problem: "${title}".
 Statement:
 ${statement}
@@ -253407,7 +253432,11 @@ async function processReviewPseudocode(data) {
       test_array: fallback2.array
     };
     const normalizedViz = vizOut ? validateAndNormalizeVizPayload(vizOut, fallback2, preferredShape, userCodeLines2) : null;
-    const isValidAiViz = !!vizOut && !!normalizedViz && Array.isArray(normalizedViz.viz_steps) && normalizedViz.viz_steps.length > 0 && hasMeaningfulTraversal(normalizedViz.viz_steps);
+    const isLonger = activeDataset.category === "longer" || activeDataset.id === "dataset_2";
+    const isEdge = activeDataset.category === "edge" || activeDataset.id === "dataset_3";
+    const minAcceptableSteps = isLonger ? 18 : isEdge ? 3 : 10;
+    const isTooShallow = fallback2.steps.length >= 8 && Array.isArray(normalizedViz?.viz_steps) && normalizedViz.viz_steps.length < Math.min(minAcceptableSteps, Math.floor(fallback2.steps.length * 0.55));
+    const isValidAiViz = !!vizOut && !!normalizedViz && Array.isArray(normalizedViz.viz_steps) && normalizedViz.viz_steps.length > 0 && !isTooShallow && hasMeaningfulTraversal(normalizedViz.viz_steps);
     if (!isValidAiViz) {
       visualizerFallbackUsed = true;
       vizModel = null;
@@ -253587,7 +253616,10 @@ async function processDatasetVisualization(data) {
     }
   }
   const normalizedViz = vizOut ? validateAndNormalizeVizPayload(vizOut, fallback, preferredShape, userCodeLines2) : null;
-  const isValidAiViz = !!vizOut && !!normalizedViz && Array.isArray(normalizedViz.viz_steps) && normalizedViz.viz_steps.length > 0 && hasMeaningfulTraversal(normalizedViz.viz_steps);
+  const isEdge = dataset.category === "edge" || dataset.id === "dataset_3";
+  const minAcceptableSteps = isLonger ? 18 : isEdge ? 3 : 10;
+  const isTooShallow = fallback.steps.length >= 8 && Array.isArray(normalizedViz?.viz_steps) && normalizedViz.viz_steps.length < Math.min(minAcceptableSteps, Math.floor(fallback.steps.length * 0.55));
+  const isValidAiViz = !!vizOut && !!normalizedViz && Array.isArray(normalizedViz.viz_steps) && normalizedViz.viz_steps.length > 0 && !isTooShallow && hasMeaningfulTraversal(normalizedViz.viz_steps);
   const codeLines = isValidAiViz && normalizedViz ? normalizedViz.code_lines.some(
     (line) => /^line\s+\d+$/i.test(String(line).trim())
   ) ? userCodeLines2 : normalizedViz.code_lines : fallback.code;

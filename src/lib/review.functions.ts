@@ -590,11 +590,20 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
         ? validateAndNormalizeVizPayload(vizOut, fallback, preferredShape, userCodeLines)
         : null;
 
+      const isLonger = activeDataset.category === "longer" || activeDataset.id === "dataset_2";
+      const isEdge = activeDataset.category === "edge" || activeDataset.id === "dataset_3";
+      const minAcceptableSteps = isLonger ? 18 : isEdge ? 3 : 10;
+      const isTooShallow =
+        fallback.steps.length >= 8 &&
+        Array.isArray(normalizedViz?.viz_steps) &&
+        normalizedViz.viz_steps.length < Math.min(minAcceptableSteps, Math.floor(fallback.steps.length * 0.55));
+
       const isValidAiViz =
         !!vizOut &&
         !!normalizedViz &&
         Array.isArray(normalizedViz.viz_steps) &&
         normalizedViz.viz_steps.length > 0 &&
+        !isTooShallow &&
         hasMeaningfulTraversal(normalizedViz.viz_steps);
 
       if (!isValidAiViz) {
@@ -863,11 +872,19 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
     ? validateAndNormalizeVizPayload(vizOut, fallback, preferredShape, userCodeLines)
     : null;
 
+  const isEdge = dataset.category === "edge" || dataset.id === "dataset_3";
+  const minAcceptableSteps = isLonger ? 18 : isEdge ? 3 : 10;
+  const isTooShallow =
+    fallback.steps.length >= 8 &&
+    Array.isArray(normalizedViz?.viz_steps) &&
+    normalizedViz.viz_steps.length < Math.min(minAcceptableSteps, Math.floor(fallback.steps.length * 0.55));
+
   const isValidAiViz =
     !!vizOut &&
     !!normalizedViz &&
     Array.isArray(normalizedViz.viz_steps) &&
     normalizedViz.viz_steps.length > 0 &&
+    !isTooShallow &&
     hasMeaningfulTraversal(normalizedViz.viz_steps);
 
   const codeLines =

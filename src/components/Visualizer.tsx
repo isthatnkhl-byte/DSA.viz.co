@@ -30,11 +30,95 @@ import { useChat } from "@/context/ChatContext";
 import { usePlaybackOrchestrator } from "@/hooks/usePlaybackOrchestrator";
 import {
   detectOperation,
+  parse2DCoord,
   safeArray,
   safeTreeArray,
   toText,
   type Val,
 } from "./visualizer/VisualizerTypes";
+
+/**
+ * Universal pointer synthesizer that guarantees every visualizer component receives
+ * normalized, fully resolved active pointer locations and variable labels.
+ */
+export function resolveStepActivePointers(
+  step?: VizStep | null,
+): Record<string, number | string | [number, number]> {
+  if (!step) return {};
+
+  const pointers: Record<string, number | string | [number, number]> = {};
+
+  // 1. Inherit any existing activePointers, normalizing 2D coordinates if present
+  if (step.activePointers && typeof step.activePointers === "object") {
+    for (const [k, v] of Object.entries(step.activePointers)) {
+      if (v !== null && v !== undefined && v !== "") {
+        const coord = parse2DCoord(v);
+        pointers[k] = coord ?? v;
+      }
+    }
+  }
+
+  // 2. Synthesize left / right / left2 / right2 pointers
+  const leftLabel = step.pointer_labels?.left || "left";
+  if (typeof step.left === "number" && pointers[leftLabel] === undefined && pointers["L"] === undefined) {
+    pointers[leftLabel] = step.left;
+  }
+
+  const rightLabel = step.pointer_labels?.right || "right";
+  if (typeof step.right === "number" && pointers[rightLabel] === undefined && pointers["R"] === undefined) {
+    pointers[rightLabel] = step.right;
+  }
+
+  const left2Label = step.pointer_labels?.left2 || "left2";
+  if (typeof step.left2 === "number" && pointers[left2Label] === undefined && pointers["L2"] === undefined) {
+    pointers[left2Label] = step.left2;
+  }
+
+  const right2Label = step.pointer_labels?.right2 || "right2";
+  if (typeof step.right2 === "number" && pointers[right2Label] === undefined && pointers["R2"] === undefined) {
+    pointers[right2Label] = step.right2;
+  }
+
+  // 3. Synthesize current pointer
+  const currLabel = step.pointer_labels?.current || "curr";
+  if (
+    step.current !== null &&
+    step.current !== undefined &&
+    pointers[currLabel] === undefined &&
+    pointers["curr"] === undefined &&
+    pointers["current"] === undefined
+  ) {
+    const coord = parse2DCoord(step.current);
+    pointers[currLabel] = coord ?? (typeof step.current === "object" ? JSON.stringify(step.current) : step.current);
+  }
+
+  // 4. Dynamic extraction from step description if activePointers is still minimal
+  if (step.desc && typeof step.desc === "string") {
+    const regex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*[:=]\s*(\[[0-9]+,\s*[0-9]+\]|\([0-9]+,\s*[0-9]+\)|-?[0-9]+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(step.desc)) !== null) {
+      const varName = match[1];
+      const rawVal = match[2];
+      const lowerVar = varName.toLowerCase();
+      if (
+        ["i", "j", "k", "u", "v", "left", "right", "mid", "curr", "node", "top", "head", "tail", "front", "rear", "src", "dest", "row", "col", "r", "c", "ptr"].includes(lowerVar)
+      ) {
+        if (pointers[varName] === undefined && pointers[lowerVar] === undefined) {
+          const coord = parse2DCoord(rawVal);
+          if (coord) {
+            pointers[varName] = coord;
+          } else {
+            const num = parseInt(rawVal, 10);
+            pointers[varName] = Number.isNaN(num) ? rawVal : num;
+          }
+        }
+      }
+    }
+  }
+
+  return pointers;
+}
+
 export const Visualizer = memo(function Visualizer({
   array,
   codeLines = [],
@@ -183,6 +267,8 @@ export const Visualizer = memo(function Visualizer({
   }, [handleKeyDown]);
 
   const current: VizStep = safeSteps[step] ?? safeSteps[0] ?? ({} as VizStep);
+
+  const unifiedActivePointers = useMemo(() => resolveStepActivePointers(current), [current]);
 
   // Infer the active visualization type
   const type: VizType = useMemo(() => {
@@ -437,7 +523,7 @@ export const Visualizer = memo(function Visualizer({
         wSum={current.wSum}
         mSum={current.mSum}
         pointer_labels={current.pointer_labels}
-        activePointers={current.activePointers}
+        activePointers={unifiedActivePointers}
       />
     );
   } else if (type === "bit") {
@@ -586,6 +672,8 @@ export const Visualizer = memo(function Visualizer({
           stackInvariant={current.stackInvariant}
           sightlines={current.sightlines}
           explanation={current.desc}
+          pointer_labels={current.pointer_labels}
+          activePointers={unifiedActivePointers}
         />
       );
     } else {
@@ -626,6 +714,8 @@ export const Visualizer = memo(function Visualizer({
           current={current.current ?? null}
           visited={visited}
           type={type}
+          pointer_labels={current.pointer_labels}
+          activePointers={unifiedActivePointers}
         />
       );
     }
@@ -644,7 +734,7 @@ export const Visualizer = memo(function Visualizer({
         predecessor={current.predecessor ?? null}
         visited={visited}
         pointer_labels={current.pointer_labels}
-        activePointers={current.activePointers}
+        activePointers={unifiedActivePointers}
       />
     );
   } else if (type === "heap") {
@@ -672,6 +762,8 @@ export const Visualizer = memo(function Visualizer({
         heapSwap={current.heapSwap}
         activeIndex={activeIdx}
         explanation={current.desc}
+        pointer_labels={current.pointer_labels}
+        activePointers={unifiedActivePointers}
       />
     );
   } else if (type === "tree" || type === "bst" || type === "trie") {
@@ -709,7 +801,7 @@ export const Visualizer = memo(function Visualizer({
         left={typeof current.left === "number" ? current.left : null}
         right={typeof current.right === "number" ? current.right : null}
         pointer_labels={current.pointer_labels}
-        activePointers={current.activePointers}
+        activePointers={unifiedActivePointers}
       />
     );
   } else if (type === "hashmap" || type === "set") {
@@ -729,7 +821,7 @@ export const Visualizer = memo(function Visualizer({
         visited={visited}
         type={type}
         pointer_labels={current.pointer_labels}
-        activePointers={current.activePointers}
+        activePointers={unifiedActivePointers}
       />
     );
   } else if (type === "matrix") {
@@ -775,7 +867,7 @@ export const Visualizer = memo(function Visualizer({
         islandCells={current.islandCells}
         wSum={current.wSum}
         mSum={current.mSum}
-        activePointers={current.activePointers}
+        activePointers={unifiedActivePointers}
         pointer_labels={current.pointer_labels}
       />
     );
@@ -799,7 +891,7 @@ export const Visualizer = memo(function Visualizer({
         type={type}
         map={current.map}
         pointer_labels={current.pointer_labels}
-        activePointers={current.activePointers}
+        activePointers={unifiedActivePointers}
       />
     );
   } else {
@@ -857,7 +949,7 @@ export const Visualizer = memo(function Visualizer({
         mSum={current.mSum}
         isMathMode={isMathMode}
         pointer_labels={current.pointer_labels}
-        activePointers={current.activePointers}
+        activePointers={unifiedActivePointers}
       />
     );
   }
@@ -883,6 +975,8 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type={hasAuxSetInTrace ? "set" : "hashmap"}
+        pointer_labels={current.pointer_labels}
+        activePointers={unifiedActivePointers}
       />
     </div>
   );
@@ -903,6 +997,8 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type={hasAuxStackInTrace ? "stack" : "queue"}
+        pointer_labels={current.pointer_labels}
+        activePointers={unifiedActivePointers}
       />
     </div>
   );
@@ -921,7 +1017,7 @@ export const Visualizer = memo(function Visualizer({
         predecessor={current.predecessor ?? null}
         visited={visited}
         pointer_labels={current.pointer_labels}
-        activePointers={current.activePointers}
+        activePointers={unifiedActivePointers}
       />
 
     </div>
@@ -943,6 +1039,8 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type="heap"
+        pointer_labels={current.pointer_labels}
+        activePointers={unifiedActivePointers}
       />
     </div>
   );
@@ -972,6 +1070,7 @@ export const Visualizer = memo(function Visualizer({
         isMathMode={isMathMode}
         hideBars={true}
         pointer_labels={current.pointer_labels}
+        activePointers={unifiedActivePointers}
       />
     </div>
   );

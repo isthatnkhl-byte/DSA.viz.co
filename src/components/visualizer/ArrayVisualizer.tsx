@@ -277,10 +277,12 @@ export function ArrayVisualizer({
                 tags.push({ text: labelCurr, bg: s.bg, textCol: s.textCol, border: s.border, glow: s.glow });
               }
 
-              // Multi-Pointer Stacker: render all auxiliary active pointers (e.g. low, mid, high, i, j, k)
-              if (activePointers && typeof activePointers === "object" && !isSecondary) {
+              // Multi-Pointer Stacker: render all auxiliary active pointers (e.g. low, mid, high, i, j, k, left, right)
+              if (activePointers && typeof activePointers === "object") {
                 for (const [ptrName, ptrPos] of Object.entries(activePointers)) {
                   if (ptrPos === null || ptrPos === undefined) continue;
+                  const isSecPtr = /^(?:right|right2|p2|j|v|dest|q|c)$/i.test(ptrName);
+                  if (isSecondary && !isSecPtr && !isDualSequence) continue;
                   const isMatchingIndex = typeof ptrPos === "number" && ptrPos === i;
                   const isMatchingVal = typeof ptrPos !== "number" && String(ptrPos) === String(val);
                   if (
@@ -407,8 +409,39 @@ export function ArrayVisualizer({
     visited.length > 0;
   const isMathSimulation = isMathMode;
 
+  const activePointerEntries = useMemo(() => {
+    if (!activePointers || typeof activePointers !== "object") return [];
+    return Object.entries(activePointers).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    );
+  }, [activePointers]);
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Active Pointer Legend Bar */}
+      {activePointerEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+            Array Pointers:
+          </span>
+          {activePointerEntries.map(([k, v]) => {
+            const style = getMarkerStyle(k);
+            return (
+              <span
+                key={`arr-badge-${k}`}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 border font-semibold ${style.bg} ${style.textCol} ${style.border}`}
+              >
+                <span>{k}</span>
+                <span className="opacity-70">➔</span>
+                <span className="font-bold text-foreground">
+                  {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Visualizer Canvas */}
       <div
         ref={scrollContainerRef}

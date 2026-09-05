@@ -1,5 +1,6 @@
 import { memo, useState, useMemo, useCallback } from "react";
 import type { HeapSwap } from "@/lib/problems";
+import { getMarkerStyle, type MarkerStyle } from "./VisualizerTypes";
 import {
   ArrowLeftRight,
   ArrowDown,
@@ -18,6 +19,8 @@ interface BinaryHeapVisualizerProps {
   activeIndex?: number | null;
   heapType?: "min" | "max";
   explanation?: string;
+  pointer_labels?: Record<string, string> | null | undefined;
+  activePointers?: Record<string, number | string | [number, number] | null> | null | undefined;
 }
 
 export const BinaryHeapVisualizer = memo(function BinaryHeapVisualizer({
@@ -26,6 +29,8 @@ export const BinaryHeapVisualizer = memo(function BinaryHeapVisualizer({
   activeIndex: externalActiveIndex,
   heapType = "min",
   explanation = "",
+  pointer_labels,
+  activePointers,
 }: BinaryHeapVisualizerProps) {
   // Sandbox state
   const [sandboxMode, setSandboxMode] = useState(false);
@@ -270,8 +275,39 @@ export const BinaryHeapVisualizer = memo(function BinaryHeapVisualizer({
     setSandboxLog(`Switched invariant to ${nextType.toUpperCase()}-HEAP. Complete array reheapified.`);
   };
 
+  const activePointerEntries = useMemo(() => {
+    if (!activePointers || typeof activePointers !== "object") return [];
+    return Object.entries(activePointers).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    );
+  }, [activePointers]);
+
   return (
     <div className="flex flex-col gap-3.5 w-full">
+      {/* Active Pointer Legend Bar */}
+      {activePointerEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+            Active Pointers:
+          </span>
+          {activePointerEntries.map(([k, v]) => {
+            const style = getMarkerStyle(k);
+            return (
+              <span
+                key={`bh-badge-${k}`}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 border font-semibold ${style.bg} ${style.textCol} ${style.border}`}
+              >
+                <span>{k}</span>
+                <span className="opacity-70">➔</span>
+                <span className="font-bold text-foreground">
+                  {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Sift-Up / Down Swap Alert Banner with Directional Chevrons */}
       {currentHeapSwap && (
         <div className="flex items-center justify-between gap-2.5 rounded-xl border border-amber-500/60 bg-amber-950/40 p-3 shadow-md shadow-amber-500/10 backdrop-blur-md animate-pulse">
@@ -495,6 +531,20 @@ export const BinaryHeapVisualizer = memo(function BinaryHeapVisualizer({
                   ringClass = "ring-1 ring-violet-500/60";
                 }
 
+                const cellPointers: { label: string; style: MarkerStyle }[] = [];
+                if (activePointers && typeof activePointers === "object") {
+                  for (const [pName, pVal] of Object.entries(activePointers)) {
+                    if (pVal === null || pVal === undefined) continue;
+                    if (
+                      (typeof pVal === "number" && pVal === idx) ||
+                      String(pVal) === String(val)
+                    ) {
+                      cellPointers.push({ label: pName.slice(0, 8), style: getMarkerStyle(pName) });
+                    }
+                  }
+                }
+                const firstCellPointer = cellPointers[0];
+
                 return (
                   <div
                     key={idx}
@@ -502,6 +552,15 @@ export const BinaryHeapVisualizer = memo(function BinaryHeapVisualizer({
                     onMouseLeave={() => setHoveredIdx(null)}
                     className={`group relative flex flex-col items-center justify-between rounded-lg border p-2 min-w-[54px] cursor-pointer transition-all duration-200 select-none ${bgColor} ${borderColor} ${ringClass} hover:scale-105`}
                   >
+                    {/* Floating Pointer Badge */}
+                    {firstCellPointer && (
+                      <span
+                        className={`absolute -top-2.5 rounded px-1 text-[8px] font-bold border shadow-xs ${firstCellPointer.style.bg} ${firstCellPointer.style.textCol} ${firstCellPointer.style.border}`}
+                      >
+                        {firstCellPointer.label}
+                      </span>
+                    )}
+
                     {/* Array Index Tag */}
                     <span className="font-mono text-[9px] text-muted-foreground font-semibold">
                       [{idx}]
@@ -667,6 +726,23 @@ export const BinaryHeapVisualizer = memo(function BinaryHeapVisualizer({
                   textFill = "#ede9fe";
                 }
 
+                const nodePointers: { label: string; style: MarkerStyle }[] = [];
+                if (activePointers && typeof activePointers === "object") {
+                  for (const [pName, pVal] of Object.entries(activePointers)) {
+                    if (pVal === null || pVal === undefined) continue;
+                    if (
+                      (typeof pVal === "number" && pVal === node.idx) ||
+                      String(pVal) === String(node.val)
+                    ) {
+                      nodePointers.push({ label: pName.slice(0, 8), style: getMarkerStyle(pName) });
+                    }
+                  }
+                }
+                if (isActive && !nodePointers.some((p) => /curr|node/.test(p.label.toLowerCase()))) {
+                  nodePointers.push({ label: pointer_labels?.current || "node", style: getMarkerStyle("curr") });
+                }
+                const firstNodePointer = nodePointers[0];
+
                 return (
                   <g
                     key={node.idx}
@@ -696,6 +772,30 @@ export const BinaryHeapVisualizer = memo(function BinaryHeapVisualizer({
                       strokeWidth={isActive || isSwapTarget ? "2.5" : "1.5"}
                       className="transition-all duration-200"
                     />
+
+                    {/* Floating SVG Pointer Badge */}
+                    {firstNodePointer && (
+                      <g transform="translate(0, -32)">
+                        <rect
+                          x="-16"
+                          y="-7"
+                          width="32"
+                          height="14"
+                          rx="3"
+                          fill={firstNodePointer.style.svgFill}
+                          stroke={firstNodePointer.style.svgStroke}
+                          strokeWidth="1"
+                        />
+                        <text
+                          textAnchor="middle"
+                          dy="3"
+                          className="font-mono text-[8.5px] font-black select-none uppercase"
+                          fill={firstNodePointer.style.svgText}
+                        >
+                          {firstNodePointer.label}
+                        </text>
+                      </g>
+                    )}
 
                     {/* Node Value */}
                     <text

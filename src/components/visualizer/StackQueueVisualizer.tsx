@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import type { Val } from "./VisualizerTypes";
-import { safeArray } from "./VisualizerTypes";
+import { safeArray, getMarkerStyle, type MarkerStyle } from "./VisualizerTypes";
 import { ArrowDown, ArrowLeft, ArrowRight, Layers, Shuffle } from "lucide-react";
 
 interface StackQueueVisualizerProps {
@@ -11,6 +11,8 @@ interface StackQueueVisualizerProps {
   type: "stack" | "queue" | "deque";
   label1?: string;
   label2?: string;
+  pointer_labels?: Record<string, string> | null | undefined;
+  activePointers?: Record<string, number | string | [number, number] | null> | null | undefined;
 }
 
 export function StackQueueVisualizer({
@@ -21,6 +23,8 @@ export function StackQueueVisualizer({
   type,
   label1,
   label2,
+  pointer_labels,
+  activePointers,
 }: StackQueueVisualizerProps) {
   const items = useMemo(() => safeArray(rawItems), [rawItems]);
   const secondaryItems = useMemo(
@@ -33,6 +37,13 @@ export function StackQueueVisualizer({
   const isQueue = type === "queue";
   const isDeque = type === "deque";
   const hasDualContainers = secondaryItems !== null && secondaryItems !== undefined;
+
+  const activePointerEntries = useMemo(() => {
+    if (!activePointers || typeof activePointers !== "object") return [];
+    return Object.entries(activePointers).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    );
+  }, [activePointers]);
 
   const renderSingleStack = (
     stackItems: Val[],
@@ -74,21 +85,51 @@ export function StackQueueVisualizer({
               const isCurrent =
                 current !== null &&
                 current !== undefined &&
-                (String(val) === String(current) || current === val);
+                (String(val) === String(current) || current === val || (typeof current === "number" && current === i));
+
+              const itemPointers: { label: string; style: MarkerStyle }[] = [];
+              if (activePointers && typeof activePointers === "object") {
+                for (const [pName, pVal] of Object.entries(activePointers)) {
+                  if (pVal === null || pVal === undefined) continue;
+                  if (
+                    (typeof pVal === "number" && pVal === i) ||
+                    String(pVal) === String(val)
+                  ) {
+                    itemPointers.push({ label: pName.slice(0, 8), style: getMarkerStyle(pName) });
+                  }
+                }
+              }
+
+              if (isTop && !itemPointers.some((p) => /top/.test(p.label.toLowerCase()))) {
+                itemPointers.push({ label: "TOP", style: getMarkerStyle("top") });
+              }
+              if (isCurrent && !itemPointers.some((p) => /curr/.test(p.label.toLowerCase()))) {
+                itemPointers.push({ label: pointer_labels?.current || "CURR", style: getMarkerStyle("curr") });
+              }
 
               return (
                 <div
                   key={`stack-${stackLabel}-${i}`}
-                  className={`flex items-center justify-between rounded-xl border px-4 py-2.5 font-mono transition-all duration-300 ${
-                    isTop || isCurrent
+                  className={`relative flex items-center justify-between rounded-xl border px-4 py-2.5 font-mono transition-all duration-300 ${
+                    isTop || isCurrent || itemPointers.length > 0
                       ? isSecondary
                         ? "scale-[1.02] border-indigo-400 bg-indigo-500/20 text-indigo-300 font-bold shadow-md shadow-indigo-500/30 ring-2 ring-indigo-400/60"
                         : "scale-[1.02] border-primary bg-primary/20 text-primary font-bold shadow-md shadow-primary/30 ring-2 ring-primary/60 constant-glow-primary"
                       : "border-border/80 bg-background/80 text-foreground font-semibold"
                   }`}
                 >
-                  <span className="text-xs text-muted-foreground">[{i}]</span>
-                  <span className="text-base">{String(val)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">[{i}]</span>
+                    {itemPointers.map((p, pIdx) => (
+                      <span
+                        key={`sp-${pIdx}`}
+                        className={`rounded px-1.5 py-0.2 text-[9px] font-bold border ${p.style.bg} ${p.style.textCol} ${p.style.border}`}
+                      >
+                        {p.label}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="text-base font-bold">{String(val)}</span>
                 </div>
               );
             })
@@ -138,32 +179,55 @@ export function StackQueueVisualizer({
                 const isCurrent =
                   current !== null &&
                   current !== undefined &&
-                  (String(val) === String(current) || current === val);
+                  (String(val) === String(current) || current === val || (typeof current === "number" && current === i));
+
+                const itemPointers: { label: string; style: MarkerStyle }[] = [];
+                if (activePointers && typeof activePointers === "object") {
+                  for (const [pName, pVal] of Object.entries(activePointers)) {
+                    if (pVal === null || pVal === undefined) continue;
+                    if (
+                      (typeof pVal === "number" && pVal === i) ||
+                      String(pVal) === String(val)
+                    ) {
+                      itemPointers.push({ label: pName.slice(0, 8), style: getMarkerStyle(pName) });
+                    }
+                  }
+                }
+
+                if (isFront && !itemPointers.some((p) => /front/.test(p.label.toLowerCase()))) {
+                  itemPointers.push({ label: "FRONT", style: getMarkerStyle("front") });
+                }
+                if (isRear && !isFront && !itemPointers.some((p) => /rear/.test(p.label.toLowerCase()))) {
+                  itemPointers.push({ label: "REAR", style: getMarkerStyle("rear") });
+                }
+                if (isCurrent && !itemPointers.some((p) => /curr/.test(p.label.toLowerCase()))) {
+                  itemPointers.push({ label: pointer_labels?.current || "CURR", style: getMarkerStyle("curr") });
+                }
 
                 return (
                   <div
                     key={`queue-${queueLabel}-${i}`}
                     className={`relative flex min-w-16 flex-col items-center justify-center rounded-xl border p-3 font-mono transition-all duration-300 ${
-                      isFront || isCurrent
+                      isFront || isCurrent || itemPointers.length > 0
                         ? isSecondary
                           ? "border-indigo-400 bg-indigo-500/20 text-indigo-300 font-bold shadow-md shadow-indigo-500/30 ring-2 ring-indigo-400/60 scale-105"
                           : "border-primary bg-primary/20 text-primary font-bold shadow-md shadow-primary/30 ring-2 ring-primary/60 scale-105 constant-glow-primary"
                         : "border-border/80 bg-background/80 text-foreground font-semibold"
                     }`}
                   >
-                    {/* Front/Rear indicators */}
-                    {isFront && (
-                      <span className="absolute -top-3 rounded bg-accent/20 px-1 font-mono text-[8px] font-bold text-accent border border-accent/40">
-                        FRONT
-                      </span>
-                    )}
-                    {isRear && !isFront && (
-                      <span className="absolute -top-3 rounded bg-primary/20 px-1 font-mono text-[8px] font-bold text-primary border border-primary/40">
-                        REAR
-                      </span>
-                    )}
+                    {/* Pointer Badges Stack */}
+                    <div className="absolute -top-3 flex items-center gap-1">
+                      {itemPointers.map((p, pIdx) => (
+                        <span
+                          key={`qp-${pIdx}`}
+                          className={`rounded px-1 font-mono text-[8px] font-bold border shadow-xs ${p.style.bg} ${p.style.textCol} ${p.style.border}`}
+                        >
+                          {p.label}
+                        </span>
+                      ))}
+                    </div>
 
-                    <span className="text-base">{String(val)}</span>
+                    <span className="text-base font-bold">{String(val)}</span>
                     <span className="text-[9px] text-muted-foreground mt-0.5">[{i}]</span>
                   </div>
                 );
@@ -177,6 +241,30 @@ export function StackQueueVisualizer({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Active Pointer Legend Bar */}
+      {activePointerEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+            Active Pointers:
+          </span>
+          {activePointerEntries.map(([k, v]) => {
+            const style = getMarkerStyle(k);
+            return (
+              <span
+                key={`sq-badge-${k}`}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 border font-semibold ${style.bg} ${style.textCol} ${style.border}`}
+              >
+                <span>{k}</span>
+                <span className="opacity-70">➔</span>
+                <span className="font-bold text-foreground">
+                  {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex min-h-[240px] flex-col items-center justify-center overflow-x-auto rounded-xl border border-border/80 bg-gradient-to-b from-card/90 via-card/50 to-background/90 p-6 shadow-inner">
         {/* Header / Mode Banner */}
         <div className="mb-6 flex w-full items-center justify-between">

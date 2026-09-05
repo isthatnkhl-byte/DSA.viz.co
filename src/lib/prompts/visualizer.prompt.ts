@@ -71,10 +71,16 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * You MUST visit and evaluate EVERY island / component in the entire input dataset.
      * ONLY after the outer loops complete the full scan across all elements/cells should you emit the final return step.
 
-5) COMPLETE END-TO-END TRAVERSAL (MANDATORY):
+5) COMPLETE END-TO-END TRAVERSAL & MANDATORY STEP COUNT INVARIANTS:
    - You MUST simulate the algorithm completely from the first initialization line to the final return/termination statement.
    - NEVER STOP HALFWAY, truncate, or end early. Traverse EVERY element, pointer step, node, or grid cell until the entire test input dataset has been completely processed according to the pseudocode.
-   - UNIVERSAL ANTI-DEGENERACY & FULL SINGLE-CELL MOVEMENT LAW:
+   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15–25 elements or 5×6 / 6×6 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
+   - STRICT STEP COUNT INVARIANTS (ANTI-LAZINESS LAW):
+     * Under NO circumstances should you output only 4, 8, or 9 macro-steps!
+     * NORMAL / STANDARD DATASET: You MUST generate at least 15 to 30 granular steps. Every loop iteration, pointer increment, cell visit, or stack/queue mutation MUST have its own individual step!
+     * LONGER & EXTENDED DATASET: You MUST generate at least 30 to 60+ granular steps. Walk through the entire extended dataset element-by-element and cell-by-cell without skipping.
+     * EDGE DATASET: You MUST generate at least 8 to 20 granular steps illustrating boundary conditions.
+   - UNIVERSAL FULL SINGLE-CELL & SINGLE-ELEMENT MOVEMENT LAW:
      * You MUST NOT generate small steps, macro jumps, or cut traversals short.
      * In 2D Grids / Islands / Matrices: You MUST evaluate cell-by-cell!
        - Outer loop scan: step through and evaluate cells (r, c) across ALL rows and columns.
@@ -82,7 +88,6 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
        - Never stop after only visiting 1 cell or 1 island! Process ALL separate islands and continue until the full grid has been scanned.
      * In Arrays / Two-Pointers: evaluate every element comparison and pointer adjustment step-by-step.
      * In Trees: traverse level-by-level or branch-by-branch through all nodes in the tree/queue.
-   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15–25 elements or 5×6 / 6×6 / 8×10 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
    - Generate all necessary execution steps (from initial state, loop progression, all iterations, to final return) to provide a complete, unbroken visual walkthrough.
    - The final step MUST highlight the termination condition, the final return value, or the completed data structure state.
 
@@ -444,11 +449,14 @@ MANDATORY FOR PREFIX SUM WITH HASH MAP:
 
 
   const isLongerDataset = /longer|complex|dataset\s*2/i.test(datasetLabel ?? "");
+  const isEdgeDataset = /edge|boundary|dataset\s*3/i.test(datasetLabel ?? "");
   const datasetContext = datasetLabel
     ? `\nActive Dataset: "${datasetLabel}" ${datasetDescription ? `(${datasetDescription})` : ""}\n${
         isLongerDataset
-          ? "CRITICAL INSTRUCTION FOR EXTENDED DATASET: This is an EXTENDED, LARGE-SCALE dataset designed for a deep, comprehensive animation (25–50+ steps). Step through ALL elements, matrix cells, tree nodes, or graph vertices systematically! In 2D grids, step through EVERY land cell of every island across all rows and columns (never exit after 4 steps or after only 1 island). In arrays/heaps/trees, traverse all elements thoroughly to provide the user with a rich, long-running visualization of their pseudocode execution.\n"
-          : "Simulate the ENTIRE dataset from the first element to the final return/completion step without stopping early.\n"
+          ? "CRITICAL INSTRUCTION FOR EXTENDED DATASET: This is an EXTENDED, LARGE-SCALE dataset designed for a deep, comprehensive animation (30–60+ steps). Step through ALL elements, matrix cells, tree nodes, or graph vertices systematically! In 2D grids, step through EVERY land cell of every island across all rows and columns (never exit after 4 or 9 steps). In arrays/heaps/trees, traverse all elements thoroughly to provide the user with a rich, long-running visualization of their pseudocode execution.\n"
+          : isEdgeDataset
+            ? "CRITICAL INSTRUCTION FOR EDGE DATASET: Simulate all boundary checks, empty conditions, single-element iterations, and return statements thoroughly (8–20 steps).\n"
+            : "CRITICAL INSTRUCTION FOR STANDARD DATASET: Simulate the ENTIRE dataset from the first element to the final return/completion step without stopping early. Generate at least 15–30 granular steps (never output only 4 or 8 macro-steps).\n"
       }`
     : "";
 

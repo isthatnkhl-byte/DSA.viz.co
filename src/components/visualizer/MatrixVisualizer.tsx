@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Val } from "./VisualizerTypes";
-import { coordKey, getMarkerStyle, safeArray, safeMatrix, toText } from "./VisualizerTypes";
+import { coordKey, getMarkerStyle, parse2DCoord, safeArray, safeMatrix, toText } from "./VisualizerTypes";
 import {
   Compass,
   ArrowUp,
@@ -53,6 +53,13 @@ export function MatrixVisualizer({
   const rows = matrix.length;
 
   const currentKey = coordKey(current);
+
+  const activePointerEntries = useMemo(() => {
+    if (!activePointers || typeof activePointers !== "object") return [];
+    return Object.entries(activePointers).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    );
+  }, [activePointers]);
 
   // Detect whether this is genuinely an island / connected components problem
   const isIslandMode = useMemo(() => {
@@ -147,6 +154,30 @@ export function MatrixVisualizer({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Active Pointer Legend Bar */}
+      {activePointerEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+            Grid Pointers:
+          </span>
+          {activePointerEntries.map(([k, v]) => {
+            const style = getMarkerStyle(k);
+            return (
+              <span
+                key={`mat-badge-${k}`}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 border font-semibold ${style.bg} ${style.textCol} ${style.border}`}
+              >
+                <span>{k}</span>
+                <span className="opacity-70">➔</span>
+                <span className="font-bold text-foreground">
+                  {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Top Banner: Grid Info, Directional Compass & Live Stats */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card/75 p-4 shadow-sm backdrop-blur-sm">
         {/* Left: Grid Dimension & Stats */}
@@ -425,25 +456,26 @@ export function MatrixVisualizer({
 
                     if (activePointers && typeof activePointers === "object") {
                       for (const [pName, pVal] of Object.entries(activePointers)) {
-                        if (!pVal) continue;
-                        if (
-                          Array.isArray(pVal) &&
-                          pVal.length === 2 &&
-                          Number(pVal[0]) === r &&
-                          Number(pVal[1]) === c
-                        ) {
-                          if (!matchingPointerBadges.some((b) => b.name === pName)) {
-                            matchingPointerBadges.push({ name: pName });
-                          }
-                        } else if (
+                        if (pVal === null || pVal === undefined) continue;
+                        const coord = parse2DCoord(pVal);
+                        const isCoordMatch = Boolean(coord && coord[0] === r && coord[1] === c);
+                        const isFlatMatch = typeof pVal === "number" && pVal === r * cols + c;
+                        const isStrMatch =
                           typeof pVal === "string" &&
-                          (pVal === cellKey || pVal === `${r},${c}`)
-                        ) {
-                          if (!matchingPointerBadges.some((b) => b.name === pName)) {
+                          (pVal.replace(/[()[\]\s]/g, "") === `${r},${c}` || pVal === cellKey);
+
+                        if (isCoordMatch || isFlatMatch || isStrMatch) {
+                          if (!matchingPointerBadges.some((b) => b.name.toLowerCase() === pName.toLowerCase())) {
                             matchingPointerBadges.push({ name: pName });
                           }
                         }
                       }
+                    }
+
+                    if (isActive && !matchingPointerBadges.some((b) => /curr|cell|node/.test(b.name.toLowerCase()))) {
+                      matchingPointerBadges.push({
+                        name: pointer_labels?.current || "curr",
+                      });
                     }
 
                     // Compute styling classes

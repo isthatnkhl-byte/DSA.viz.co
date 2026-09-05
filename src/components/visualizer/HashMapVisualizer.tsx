@@ -104,8 +104,13 @@ export function HashMapVisualizer({
               if (activePointers && typeof activePointers === "object") {
                 for (const [pName, pVal] of Object.entries(activePointers)) {
                   if (pVal === null || pVal === undefined) continue;
-                  if (String(pVal) === key || String(pVal) === String(value)) {
-                    entryPointers.push({ label: pName, style: getMarkerStyle(pName) });
+                  const isMatchingVal = String(pVal) === key || String(pVal) === String(value);
+                  const isMatchingSlot = typeof pVal === "number" && pVal === i;
+                  if (
+                    (isMatchingVal || isMatchingSlot) &&
+                    !entryPointers.some((p) => p.label.toLowerCase() === pName.toLowerCase())
+                  ) {
+                    entryPointers.push({ label: pName.slice(0, 8), style: getMarkerStyle(pName) });
                   }
                 }
               }

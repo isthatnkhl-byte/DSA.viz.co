@@ -1045,10 +1045,21 @@ export function validateAndNormalizeVizPayload(
       ? rawRecord.viz_steps
       : (fallback.steps ?? [])
   ) as RawVizStep[];
-  const test_array =
+  let test_array =
     Array.isArray(rawRecord.test_array) && rawRecord.test_array.length > 0
       ? sanitizeScalarArray(rawRecord.test_array)
-      : sanitizeScalarArray(fallback.array);
+      : [];
+
+  if (test_array.length === 0) {
+    const rawWithArray = rawSteps.find(
+      (s: RawVizStep) => Array.isArray(s?.array) && s.array.length > 0,
+    ) as RawVizStep | undefined;
+    if (rawWithArray && Array.isArray(rawWithArray.array)) {
+      test_array = sanitizeScalarArray(rawWithArray.array);
+    } else {
+      test_array = sanitizeScalarArray(fallback.array);
+    }
+  }
 
   const isDesignProblem = code_lines.some((l) =>
     /\b(?:class\s+|def\s+put|def\s+get|def\s+remove|METHOD\s+put|METHOD\s+get|MyHashMap|MyHashSet|LRUCache)\b/i.test(
@@ -1069,6 +1080,19 @@ export function validateAndNormalizeVizPayload(
     if (rawWithArray && Array.isArray(rawWithArray.array)) {
       canonicalArray = sanitizeScalarArray(rawWithArray.array);
     }
+  }
+
+  // Find canonical full matrix structure across rawSteps or fallback
+  let canonicalMatrix: (number | string)[][] | null = null;
+  const rawWithMatrix = rawSteps.find(
+    (s: RawVizStep) =>
+      hasValidMatrixShape(s?.matrix) ||
+      (Array.isArray(s?.matrix) && s.matrix.length > 0 && Array.isArray(s.matrix[0])),
+  ) as RawVizStep | undefined;
+  if (rawWithMatrix && Array.isArray(rawWithMatrix.matrix)) {
+    canonicalMatrix = sanitizeMatrix(rawWithMatrix.matrix);
+  } else if (fallback.steps[0]?.matrix && Array.isArray(fallback.steps[0].matrix)) {
+    canonicalMatrix = fallback.steps[0].matrix.map((r: (number | string)[]) => [...r]);
   }
 
   // Find canonical full tree structure for tree / bst / trie problems
@@ -1108,6 +1132,9 @@ export function validateAndNormalizeVizPayload(
   }
 
   // Pass 1: Normalize types, descriptions, and line indices
+  let runningMatrix: (number | string)[][] | null = canonicalMatrix
+    ? canonicalMatrix.map((r) => [...r])
+    : null;
   let runningList: (number | string)[] | null = null;
   let runningMap: Record<string, number | string | null> | null = null;
   let runningSet: (number | string)[] | null = null;
@@ -1334,21 +1361,21 @@ export function validateAndNormalizeVizPayload(
         }
       }
 
-      const canonicalMatrix = fallback.steps[0]?.matrix ?? null;
       let auxMatrix: (number | string)[][] | null = null;
       if (hasValidMatrixShape(step.matrix)) {
         auxMatrix = step.matrix;
       } else if (Array.isArray(step.matrix) && step.matrix.length > 0) {
         auxMatrix = sanitizeMatrix(step.matrix);
       } else if (type === "matrix" || type === "graph") {
-        auxMatrix = canonicalMatrix
-          ? canonicalMatrix.map((r: (number | string)[]) => [...r])
-          : [[...fallback.array]];
+        auxMatrix = runningMatrix
+          ? runningMatrix.map((r: (number | string)[]) => [...r])
+          : canonicalMatrix
+            ? canonicalMatrix.map((r: (number | string)[]) => [...r])
+            : [[...fallback.array]];
       }
 
-      // If matrix is 1D (only 1 row) but fallback is a rich 2D matrix (e.g. islands), restore the canonical 2D matrix
-      if (auxMatrix && auxMatrix.length <= 1 && canonicalMatrix && canonicalMatrix.length > 1) {
-        auxMatrix = canonicalMatrix.map((r: (number | string)[]) => [...r]);
+      if (auxMatrix && auxMatrix.length > 0) {
+        runningMatrix = auxMatrix.map((r) => [...r]);
       }
 
       const rawStepItem = step as RawVizStep & { 
@@ -1610,6 +1637,28 @@ export function validateAndNormalizeVizPayload(
       if (resolvedCurrent !== null && resolvedCurrent !== undefined && auxPointerLabels?.current) {
         const label = auxPointerLabels.current;
         if (activePointers[label] === undefined) activePointers[label] = resolvedCurrent;
+      }
+
+      // Universal Pointer Extraction across all data structures from rawVars and step properties
+      for (const [varName, varVal] of Object.entries(rawVars)) {
+        if (varVal === null || varVal === undefined) continue;
+        const lowerVar = varName.toLowerCase();
+        if (
+          /^(?:i|j|k|r|c|row|col|left|right|mid|low|high|slow|fast|write|read|start|end|curr|current|prev|next|target|ptr|p1|p2|p3|p|q|u|v|src|dest|root|node|head|tail|top|front|rear)$/.test(
+            lowerVar,
+          )
+        ) {
+          if (activePointers[varName] === undefined) {
+            const coord = parse2DCoord(varVal);
+            if (coord) {
+              activePointers[varName] = coord;
+            } else if (typeof varVal === "number" && Number.isFinite(varVal)) {
+              activePointers[varName] = varVal;
+            } else if (typeof varVal === "string" && varVal.trim()) {
+              activePointers[varName] = varVal.trim();
+            }
+          }
+        }
       }
 
 
@@ -1918,19 +1967,17 @@ export function validateAndNormalizeVizPayload(
       }
     }
   
-    // Check if problem is 2D Grid / Island traversal
-    const isMatrixOrIsland =
+    // Check if problem is an explicit Island / connected component DFS traversal
+    const isExplicitIslandProblem =
       (preferred === "matrix" || initialSteps.some((s) => s.type === "matrix")) &&
-      (code_lines.some((l) =>
-        /\b(?:grid|matrix|row|col|dfs|bfs|island|max_area|visited)\b/i.test(l),
-      ) ||
-        rawSteps.some((s: RawVizStep) =>
-          /\b(?:grid|cell|matrix|island|area|visited|\(\d+,\s*\d+\))\b/i.test(String(s?.desc ?? "")),
-        ));
-  
-    if (isMatrixOrIsland) {
+      (code_lines.some((l) => /\b(?:island|max_area|num_islands|island_count)\b/i.test(l)) ||
+        rawSteps.some((s: RawVizStep) => /\b(?:island|max_area)\b/i.test(String(s?.desc ?? ""))));
+
+    if (isExplicitIslandProblem) {
       const canonicalMatrix = fallback.steps[0]?.matrix ?? null;
-      const activeMat = canonicalMatrix ?? initialSteps[0]?.matrix;
+      const activeMat =
+        initialSteps.find((s) => Array.isArray(s.matrix) && s.matrix.length > 0 && Array.isArray(s.matrix[0]))?.matrix ??
+        canonicalMatrix;
   
       if (Array.isArray(activeMat) && activeMat.length > 0 && Array.isArray(activeMat[0])) {
         const rows = activeMat.length;
@@ -2026,7 +2073,10 @@ export function validateAndNormalizeVizPayload(
           const reconstructedSteps: VizStep[] = [];
           const cumulativeVisited: string[] = [];
           let runningMaxArea = 0;
-  
+          const baseActiveDataset = initialSteps[0]?.activeDataset ?? null;
+          const baseShiftInfo = initialSteps[0]?.shiftInfo ?? null;
+          const baseDatasetLabels = initialSteps[0]?.datasetLabels ?? null;
+
           // Step 1: Initial state
           reconstructedSteps.push({
             type: "matrix",
@@ -2041,6 +2091,9 @@ export function validateAndNormalizeVizPayload(
             maxArea: 0,
             line: initLine !== -1 ? initLine : 0,
             desc: `Initialize visited set and max_area = 0 on ${rows}×${cols} island grid.`,
+            activeDataset: baseActiveDataset,
+            shiftInfo: baseShiftInfo,
+            datasetLabels: baseDatasetLabels,
           });
   
           for (let islIdx = 0; islIdx < gridIslands.length; islIdx++) {
@@ -2063,6 +2116,9 @@ export function validateAndNormalizeVizPayload(
               maxArea: runningMaxArea,
               line: outerLoopLine !== -1 ? outerLoopLine : 0,
               desc: `Outer loop scanning grid: found unvisited land at (${rootCoord}). Starting DFS for Island #${islandNum}.`,
+              activeDataset: baseActiveDataset,
+              shiftInfo: baseShiftInfo,
+              datasetLabels: baseDatasetLabels,
             });
   
             // Recursive DFS steps for each land cell in this island
@@ -2103,6 +2159,9 @@ export function validateAndNormalizeVizPayload(
                   cellIdx === 0
                     ? `Explored root land cell at (${coord}). Island #${islandNum} area = ${curArea}.`
                     : `Recurse into adjacent land cell at (${coord}). Island #${islandNum} area = ${curArea}.`,
+                activeDataset: baseActiveDataset,
+                shiftInfo: baseShiftInfo,
+                datasetLabels: baseDatasetLabels,
               });
             }
   
@@ -2123,6 +2182,9 @@ export function validateAndNormalizeVizPayload(
               maxArea: runningMaxArea,
               line: maxUpdateLine !== -1 ? maxUpdateLine : outerLoopLine,
               desc: `Completed DFS for Island #${islandNum} (area = ${islandArea}). Current Max Area = ${runningMaxArea}.`,
+              activeDataset: baseActiveDataset,
+              shiftInfo: baseShiftInfo,
+              datasetLabels: baseDatasetLabels,
             });
           }
   
@@ -2140,6 +2202,9 @@ export function validateAndNormalizeVizPayload(
             maxArea: trueMaxArea,
             line: returnLine !== -1 ? returnLine : Math.max(0, code_lines.length - 1),
             desc: `Scan complete across all ${rows}×${cols} cells. Discovered ${gridIslands.length} islands. Returning final Max Area = ${trueMaxArea}.`,
+            activeDataset: baseActiveDataset,
+            shiftInfo: baseShiftInfo,
+            datasetLabels: baseDatasetLabels,
           });
   
           initialSteps.length = 0;

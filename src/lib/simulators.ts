@@ -72,7 +72,7 @@ export function patternFor(slug: string, title = "", topics: string[] = []): Pat
   return classifyProblem(slug, title, topics).pattern;
 }
 
-const MAX_SIMULATION_STEPS = 80;
+const MAX_SIMULATION_STEPS = 1000;
 const cap = (steps: VizStep[]) => {
   if (steps.length <= MAX_SIMULATION_STEPS) return steps;
   // If steps exceed threshold, keep initial steps and always preserve the final conclusive step
@@ -87,7 +87,7 @@ export function bruteForcePairSum(
   input: (number | string)[],
   targetInput?: number | string,
 ): VizBundle {
-  const nums = input.map(Number).filter((n) => !isNaN(n)).slice(0, 10);
+  const nums = input.map(Number).filter((n) => !isNaN(n));
   const safeNums = nums.length > 0 ? nums : [2, 7, 11, 15];
   const target = typeof targetInput === "number" ? targetInput : 9;
   const code = [
@@ -276,7 +276,7 @@ function hashmapPair(input: number[], targetInput?: number): VizBundle {
     "    seen[x] = i",
     "return []",
   ];
-  const nums = input.slice(0, 7);
+  const nums = input.length > 0 ? input : [2, 7, 11, 15];
   const target = typeof targetInput === "number" ? targetInput : (nums[0] ?? 0) + (nums[nums.length - 2] ?? 0);
   const seen: Record<string, number> = {};
   const steps: VizStep[] = [
@@ -351,7 +351,7 @@ function hashmapPair(input: number[], targetInput?: number): VizBundle {
 }
 
 function frequencyCount(input: (number | string)[], slug = "", dataset?: TestDataset): VizBundle {
-  const items = input && input.length > 0 ? input.slice(0, 10) : ["bella", "label", "roller"];
+  const items = input && input.length > 0 ? input : ["bella", "label", "roller"];
   const isMultiWord =
     slug === "find-common-characters" ||
     items.some((x) => typeof x === "string" && String(x).length > 1);
@@ -861,7 +861,7 @@ function slidingWindow(input: (number | string)[], dataset?: TestDataset): VizBu
     "return best",
   ];
   const rawNums = input.length > 0 ? input : [2, 1, 5, 1, 3, 2];
-  const nums = rawNums.map(Number).filter((n) => !isNaN(n)).slice(0, 16);
+  const nums = rawNums.map(Number).filter((n) => !isNaN(n));
   const safeNums = nums.length > 0 ? nums : [2, 1, 5, 1, 3, 2];
   const k = typeof dataset?.k === "number" && dataset.k > 0 ? dataset.k : 3;
   const steps: VizStep[] = [
@@ -1015,7 +1015,7 @@ function twoPointersPairSum(
 ): VizBundle {
   const isChar = input.some((x) => typeof x === "string" && isNaN(Number(x)));
   if (isChar) {
-    const items = input.slice(0, 10);
+    const items = input.length > 0 ? input : ["r", "a", "c", "e", "c", "a", "r"];
     const code = [
       "left = 0, right = len(s) - 1",
       "while left < right:",
@@ -1089,7 +1089,6 @@ function twoPointersPairSum(
     input.length > 0
       ? (input.filter((x): x is number => typeof x === "number") as number[])
           .sort((a, b) => a - b)
-          .slice(0, 10)
       : [1, 2, 4, 6, 8, 11, 15];
   const safeNums = nums.length > 0 ? nums : [1, 2, 4, 6, 8];
   const target = typeof targetVal === "number" ? targetVal : (safeNums[0] ?? 0) + (safeNums[safeNums.length - 1] ?? 0);
@@ -1188,7 +1187,7 @@ function twoPointersPairSum(
 }
 
 function kadanesAlgorithm(input: number[]): VizBundle {
-  const nums = input.length > 0 ? input.slice(0, 9) : [-2, 1, -3, 4, -1, 2, 1, -5, 4];
+  const nums = input.length > 0 ? input : [-2, 1, -3, 4, -1, 2, 1, -5, 4];
   const code = [
     "max_so_far = nums[0]",
     "curr_max = nums[0]",
@@ -1267,7 +1266,7 @@ function twoPointers(input: number[]): VizBundle {
     "    else: right -= 1",
     "return best",
   ];
-  const arr = input.slice(0, 8);
+  const arr = input.length > 0 ? input : [1, 8, 6, 2, 5, 4, 8, 3, 7];
   const steps: VizStep[] = [
     {
       type: "array",
@@ -1343,7 +1342,7 @@ function monotonicStack(input: (number | string)[]): VizBundle {
     "return result",
   ];
   const rawNums = input.length > 0 ? input : [2, 1, 2, 4, 3];
-  const nums = rawNums.map(Number).filter((n) => !isNaN(n)).slice(0, 16);
+  const nums = rawNums.map(Number).filter((n) => !isNaN(n));
   const safeNums = nums.length > 0 ? nums : [2, 1, 2, 4, 3];
   const stack: number[] = [];
   const steps: VizStep[] = [
@@ -1446,10 +1445,10 @@ function parentheses(input: (number | string)[]): VizBundle {
 
   let chars: string[] = [];
   if (isRawBracketInput) {
-    chars = input.map(String).slice(0, 16);
+    chars = input.map(String);
   } else {
     const openStack: string[] = [];
-    input.slice(0, 8).forEach((n, i) => {
+    input.forEach((n, i) => {
       if (i % 2 === 0 || openStack.length === 0) {
         const num = typeof n === "number" ? n : String(n).charCodeAt(0);
         const ch = opens[Math.abs(num) % 3]!;
@@ -2135,7 +2134,7 @@ function graphBfs(input: number[]): VizBundle {
     "        if nb not in seen: seen.add(nb); queue.append(nb)",
     "return seen",
   ];
-  const nodes = Array.from(new Set(input.map((n, i) => n + i))).slice(0, 6);
+  const nodes = Array.from(new Set(input.map((n, i) => n + i)));
   const adj = new Map<number, number[]>();
   nodes.forEach((n, i) =>
     adj.set(n, [nodes[(i + 1) % nodes.length]!, nodes[(i + 2) % nodes.length]!]),
@@ -2762,7 +2761,7 @@ function linkedListReverse(input: number[]): VizBundle {
     "    prev, curr = curr, nxt",
     "return prev",
   ];
-  const list = input.slice(0, 6);
+  const list = input.length > 0 ? input : [1, 2, 3, 4, 5];
   const steps: VizStep[] = [
     {
       type: "linkedlist",
@@ -2821,7 +2820,7 @@ function linkedListCycle(
     "return False",
   ];
   const rawList = dataset?.array ?? (input.length > 0 ? input : [3, 2, 0, -4]);
-  const list = rawList.slice(0, 8);
+  const list = rawList.length > 0 ? rawList : [3, 2, 0, -4];
   const cyclePos = typeof dataset?.pos === "number" ? dataset.pos : (dataset?.hasCycle !== false && list.length > 1 ? 1 : -1);
 
   const getNext = (idx: number): number => {
@@ -2920,7 +2919,7 @@ function linkedListCycle(
 }
 
 function treeArray(input: number[]): (number | null)[] {
-  return input.slice(0, 7).map((n) => n);
+  return input.map((n) => n);
 }
 
 function treeDfs(
@@ -3357,9 +3356,9 @@ function bstSearch(
       .map(Number)
       .filter((n) => !isNaN(n));
     const sorted = Array.from(new Set(numList.length > 0 ? numList : [4, 2, 7, 1, 3]))
-      .sort((a, b) => a - b)
-      .slice(0, 7);
-    tree = new Array(7).fill(null);
+      .sort((a, b) => a - b);
+    const treeSlots = Math.min(63, 2 ** Math.ceil(Math.log2(sorted.length + 1)) - 1);
+    tree = new Array(Math.max(7, treeSlots)).fill(null);
     const build = (lo: number, hi: number, idx: number) => {
       if (lo > hi || idx >= tree.length) return;
       const mid = Math.floor((lo + hi) / 2);
@@ -6255,7 +6254,7 @@ export function simulateCustomInput(
   matrixInput?: (number | string)[][],
   title?: string,
 ): VizBundle {
-  const safeInput = input.length > 0 ? input.slice(0, 10) : [1, 2, 3, 4, 5];
+  const safeInput = input.length > 0 ? input : [1, 2, 3, 4, 5];
   const numInput = safeInput.map((x) => (typeof x === "number" ? x : parseFloat(String(x)) || 0));
   const numTarget = typeof target === "number" ? target : typeof target === "string" ? parseFloat(target) || undefined : undefined;
   const t = (title ?? "").toLowerCase();

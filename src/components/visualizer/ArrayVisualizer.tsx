@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect } from "react";
 import type { Val } from "./VisualizerTypes";
-import { safeArray } from "./VisualizerTypes";
+import { getMarkerStyle, safeArray } from "./VisualizerTypes";
 import { Layers, ArrowRightLeft, Sparkles } from "lucide-react";
 
 interface ArrayVisualizerProps {
@@ -240,33 +240,41 @@ export function ArrayVisualizer({
             // Compute consolidated pointer tag list to prevent DOM badge collisions
             const tags: { text: string; bg: string; textCol: string; border: string; glow?: boolean }[] = [];
             if (isLeftPtr && isMatchingPair) {
-              tags.push({ text: "MATCH", bg: "bg-emerald-500", textCol: "text-white", border: "border-emerald-400", glow: true });
+              const s = getMarkerStyle("match", true);
+              tags.push({ text: "MATCH", bg: s.bg, textCol: s.textCol, border: s.border, glow: s.glow });
             } else {
               if (isLeftPtr && isRightPtr) {
-                tags.push({ text: `${isSecondary ? labelR : labelL}, ${labelR}`, bg: "bg-primary", textCol: "text-primary-foreground", border: "border-primary", glow: true });
+                const s = getMarkerStyle("curr");
+                tags.push({ text: `${isSecondary ? labelR : labelL}, ${labelR}`, bg: s.bg, textCol: s.textCol, border: s.border, glow: true });
               } else {
                 if (isLeftPtr) {
+                  const s = getMarkerStyle(isSecondary ? labelR : labelL);
                   tags.push({
                     text: isSecondary ? labelR : labelL,
-                    bg: isSecondary ? "bg-indigo-500/30" : "bg-emerald-500/30",
-                    textCol: isSecondary ? "text-indigo-300" : "text-emerald-400",
-                    border: isSecondary ? "border-indigo-500/60" : "border-emerald-500/60"
+                    bg: s.bg,
+                    textCol: s.textCol,
+                    border: s.border,
+                    glow: s.glow,
                   });
                 }
                 if (isRightPtr) {
+                  const s = getMarkerStyle(labelR);
                   tags.push({
                     text: labelR,
-                    bg: "bg-indigo-500/30",
-                    textCol: "text-indigo-300",
-                    border: "border-indigo-500/60"
+                    bg: s.bg,
+                    textCol: s.textCol,
+                    border: s.border,
+                    glow: s.glow,
                   });
                 }
               }
               if (isMidPtr && !isLeftPtr && !isRightPtr) {
-                tags.push({ text: labelMid, bg: "bg-amber-500/25", textCol: "text-amber-300", border: "border-amber-500/50" });
+                const s = getMarkerStyle(labelMid);
+                tags.push({ text: labelMid, bg: s.bg, textCol: s.textCol, border: s.border, glow: s.glow });
               }
               if (isCurrent && !isLeftPtr && !isRightPtr && !isMidPtr) {
-                tags.push({ text: labelCurr, bg: "bg-primary/25", textCol: "text-primary", border: "border-primary/50" });
+                const s = getMarkerStyle(labelCurr);
+                tags.push({ text: labelCurr, bg: s.bg, textCol: s.textCol, border: s.border, glow: s.glow });
               }
 
               // Multi-Pointer Stacker: render all auxiliary active pointers (e.g. low, mid, high, i, j, k)
@@ -279,30 +287,13 @@ export function ArrayVisualizer({
                     (isMatchingIndex || isMatchingVal) &&
                     !tags.some((t) => t.text.toLowerCase() === ptrName.toLowerCase())
                   ) {
-                    const lower = ptrName.toLowerCase();
-                    let bg = "bg-sky-500/25";
-                    let textCol = "text-sky-300";
-                    let border = "border-sky-500/50";
-
-                    if (/slow|left|low|start|write|p1|\bi\b/.test(lower)) {
-                      bg = "bg-emerald-500/30";
-                      textCol = "text-emerald-400";
-                      border = "border-emerald-500/60";
-                    } else if (/fast|right|high|end|read|p2|\bj\b/.test(lower)) {
-                      bg = "bg-indigo-500/30";
-                      textCol = "text-indigo-300";
-                      border = "border-indigo-500/60";
-                    } else if (/mid|pivot|center|\bk\b/.test(lower)) {
-                      bg = "bg-amber-500/25";
-                      textCol = "text-amber-300";
-                      border = "border-amber-500/50";
-                    }
-
+                    const s = getMarkerStyle(ptrName);
                     tags.push({
                       text: ptrName.slice(0, 8),
-                      bg,
-                      textCol,
-                      border,
+                      bg: s.bg,
+                      textCol: s.textCol,
+                      border: s.border,
+                      glow: s.glow,
                     });
                   }
                 }

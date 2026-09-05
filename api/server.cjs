@@ -206913,7 +206913,17 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
   );
   const code_lines = userCodeLines2 && userCodeLines2.length > 0 ? userCodeLines2 : rawLines && rawLines.length && !isDummyLines ? rawLines.slice(0, 60).map((line) => String(line)) : fallback.code;
   const rawSteps = Array.isArray(rawRecord.viz_steps) && rawRecord.viz_steps.length > 0 ? rawRecord.viz_steps : fallback.steps ?? [];
-  const test_array = Array.isArray(rawRecord.test_array) && rawRecord.test_array.length > 0 ? sanitizeScalarArray(rawRecord.test_array) : sanitizeScalarArray(fallback.array);
+  let test_array = Array.isArray(rawRecord.test_array) && rawRecord.test_array.length > 0 ? sanitizeScalarArray(rawRecord.test_array) : [];
+  if (test_array.length === 0) {
+    const rawWithArray = rawSteps.find(
+      (s2) => Array.isArray(s2?.array) && s2.array.length > 0
+    );
+    if (rawWithArray && Array.isArray(rawWithArray.array)) {
+      test_array = sanitizeScalarArray(rawWithArray.array);
+    } else {
+      test_array = sanitizeScalarArray(fallback.array);
+    }
+  }
   const isDesignProblem2 = code_lines.some(
     (l) => /\b(?:class\s+|def\s+put|def\s+get|def\s+remove|METHOD\s+put|METHOD\s+get|MyHashMap|MyHashSet|LRUCache)\b/i.test(
       l
@@ -206931,6 +206941,15 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
     if (rawWithArray && Array.isArray(rawWithArray.array)) {
       canonicalArray = sanitizeScalarArray(rawWithArray.array);
     }
+  }
+  let canonicalMatrix = null;
+  const rawWithMatrix = rawSteps.find(
+    (s2) => hasValidMatrixShape(s2?.matrix) || Array.isArray(s2?.matrix) && s2.matrix.length > 0 && Array.isArray(s2.matrix[0])
+  );
+  if (rawWithMatrix && Array.isArray(rawWithMatrix.matrix)) {
+    canonicalMatrix = sanitizeMatrix(rawWithMatrix.matrix);
+  } else if (fallback.steps[0]?.matrix && Array.isArray(fallback.steps[0].matrix)) {
+    canonicalMatrix = fallback.steps[0].matrix.map((r2) => [...r2]);
   }
   let canonicalTree = null;
   const rawWithTree = rawSteps.find(
@@ -206958,6 +206977,7 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
   } else if (fallbackWithSecondary && Array.isArray(fallbackWithSecondary.secondaryArray)) {
     canonicalSecondaryArray = sanitizeScalarArray(fallbackWithSecondary.secondaryArray);
   }
+  let runningMatrix = canonicalMatrix ? canonicalMatrix.map((r2) => [...r2]) : null;
   let runningList = null;
   let runningMap = null;
   let runningSet = null;
@@ -207110,17 +207130,16 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
         auxTree = [...canonicalTree];
       }
     }
-    const canonicalMatrix = fallback.steps[0]?.matrix ?? null;
     let auxMatrix = null;
     if (hasValidMatrixShape(step.matrix)) {
       auxMatrix = step.matrix;
     } else if (Array.isArray(step.matrix) && step.matrix.length > 0) {
       auxMatrix = sanitizeMatrix(step.matrix);
     } else if (type === "matrix" || type === "graph") {
-      auxMatrix = canonicalMatrix ? canonicalMatrix.map((r2) => [...r2]) : [[...fallback.array]];
+      auxMatrix = runningMatrix ? runningMatrix.map((r2) => [...r2]) : canonicalMatrix ? canonicalMatrix.map((r2) => [...r2]) : [[...fallback.array]];
     }
-    if (auxMatrix && auxMatrix.length <= 1 && canonicalMatrix && canonicalMatrix.length > 1) {
-      auxMatrix = canonicalMatrix.map((r2) => [...r2]);
+    if (auxMatrix && auxMatrix.length > 0) {
+      runningMatrix = auxMatrix.map((r2) => [...r2]);
     }
     const rawStepItem = step;
     let rawLeft = step.left ?? rawStepItem.l ?? rawStepItem.ptr1 ?? null;
@@ -207314,6 +207333,24 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
     if (resolvedCurrent !== null && resolvedCurrent !== void 0 && auxPointerLabels?.current) {
       const label = auxPointerLabels.current;
       if (activePointers[label] === void 0) activePointers[label] = resolvedCurrent;
+    }
+    for (const [varName, varVal] of Object.entries(rawVars)) {
+      if (varVal === null || varVal === void 0) continue;
+      const lowerVar = varName.toLowerCase();
+      if (/^(?:i|j|k|r|c|row|col|left|right|mid|low|high|slow|fast|write|read|start|end|curr|current|prev|next|target|ptr|p1|p2|p3|p|q|u|v|src|dest|root|node|head|tail|top|front|rear)$/.test(
+        lowerVar
+      )) {
+        if (activePointers[varName] === void 0) {
+          const coord = parse2DCoord(varVal);
+          if (coord) {
+            activePointers[varName] = coord;
+          } else if (typeof varVal === "number" && Number.isFinite(varVal)) {
+            activePointers[varName] = varVal;
+          } else if (typeof varVal === "string" && varVal.trim()) {
+            activePointers[varName] = varVal.trim();
+          }
+        }
+      }
     }
     return {
       ...base,
@@ -207550,14 +207587,10 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
         }
       }
     }
-    const isMatrixOrIsland = (preferred === "matrix" || initialSteps.some((s2) => s2.type === "matrix")) && (code_lines.some(
-      (l) => /\b(?:grid|matrix|row|col|dfs|bfs|island|max_area|visited)\b/i.test(l)
-    ) || rawSteps.some(
-      (s2) => /\b(?:grid|cell|matrix|island|area|visited|\(\d+,\s*\d+\))\b/i.test(String(s2?.desc ?? ""))
-    ));
-    if (isMatrixOrIsland) {
-      const canonicalMatrix = fallback.steps[0]?.matrix ?? null;
-      const activeMat = canonicalMatrix ?? initialSteps[0]?.matrix;
+    const isExplicitIslandProblem = (preferred === "matrix" || initialSteps.some((s2) => s2.type === "matrix")) && (code_lines.some((l) => /\b(?:island|max_area|num_islands|island_count)\b/i.test(l)) || rawSteps.some((s2) => /\b(?:island|max_area)\b/i.test(String(s2?.desc ?? ""))));
+    if (isExplicitIslandProblem) {
+      const canonicalMatrix2 = fallback.steps[0]?.matrix ?? null;
+      const activeMat = initialSteps.find((s2) => Array.isArray(s2.matrix) && s2.matrix.length > 0 && Array.isArray(s2.matrix[0]))?.matrix ?? canonicalMatrix2;
       if (Array.isArray(activeMat) && activeMat.length > 0 && Array.isArray(activeMat[0])) {
         const rows = activeMat.length;
         const cols = activeMat[0].length;
@@ -207631,6 +207664,9 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
           const reconstructedSteps = [];
           const cumulativeVisited = [];
           let runningMaxArea = 0;
+          const baseActiveDataset = initialSteps[0]?.activeDataset ?? null;
+          const baseShiftInfo = initialSteps[0]?.shiftInfo ?? null;
+          const baseDatasetLabels = initialSteps[0]?.datasetLabels ?? null;
           reconstructedSteps.push({
             type: "matrix",
             matrix: activeMat.map((r2) => [...r2]),
@@ -207643,7 +207679,10 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
             currentArea: 0,
             maxArea: 0,
             line: initLine !== -1 ? initLine : 0,
-            desc: `Initialize visited set and max_area = 0 on ${rows}\xD7${cols} island grid.`
+            desc: `Initialize visited set and max_area = 0 on ${rows}\xD7${cols} island grid.`,
+            activeDataset: baseActiveDataset,
+            shiftInfo: baseShiftInfo,
+            datasetLabels: baseDatasetLabels
           });
           for (let islIdx = 0; islIdx < gridIslands.length; islIdx++) {
             const island = gridIslands[islIdx];
@@ -207662,7 +207701,10 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
               currentArea: 0,
               maxArea: runningMaxArea,
               line: outerLoopLine !== -1 ? outerLoopLine : 0,
-              desc: `Outer loop scanning grid: found unvisited land at (${rootCoord}). Starting DFS for Island #${islandNum}.`
+              desc: `Outer loop scanning grid: found unvisited land at (${rootCoord}). Starting DFS for Island #${islandNum}.`,
+              activeDataset: baseActiveDataset,
+              shiftInfo: baseShiftInfo,
+              datasetLabels: baseDatasetLabels
             });
             for (let cellIdx = 0; cellIdx < island.length; cellIdx++) {
               const coord = island[cellIdx];
@@ -207694,7 +207736,10 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
                 currentArea: curArea,
                 maxArea: runningMaxArea,
                 line: dfsRecurseLine !== -1 ? dfsRecurseLine : outerLoopLine,
-                desc: cellIdx === 0 ? `Explored root land cell at (${coord}). Island #${islandNum} area = ${curArea}.` : `Recurse into adjacent land cell at (${coord}). Island #${islandNum} area = ${curArea}.`
+                desc: cellIdx === 0 ? `Explored root land cell at (${coord}). Island #${islandNum} area = ${curArea}.` : `Recurse into adjacent land cell at (${coord}). Island #${islandNum} area = ${curArea}.`,
+                activeDataset: baseActiveDataset,
+                shiftInfo: baseShiftInfo,
+                datasetLabels: baseDatasetLabels
               });
             }
             const islandArea = island.length;
@@ -207711,7 +207756,10 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
               currentArea: islandArea,
               maxArea: runningMaxArea,
               line: maxUpdateLine !== -1 ? maxUpdateLine : outerLoopLine,
-              desc: `Completed DFS for Island #${islandNum} (area = ${islandArea}). Current Max Area = ${runningMaxArea}.`
+              desc: `Completed DFS for Island #${islandNum} (area = ${islandArea}). Current Max Area = ${runningMaxArea}.`,
+              activeDataset: baseActiveDataset,
+              shiftInfo: baseShiftInfo,
+              datasetLabels: baseDatasetLabels
             });
           }
           reconstructedSteps.push({
@@ -207726,7 +207774,10 @@ function validateAndNormalizeVizPayload(rawObj, fallback, preferredType, userCod
             currentArea: 0,
             maxArea: trueMaxArea,
             line: returnLine !== -1 ? returnLine : Math.max(0, code_lines.length - 1),
-            desc: `Scan complete across all ${rows}\xD7${cols} cells. Discovered ${gridIslands.length} islands. Returning final Max Area = ${trueMaxArea}.`
+            desc: `Scan complete across all ${rows}\xD7${cols} cells. Discovered ${gridIslands.length} islands. Returning final Max Area = ${trueMaxArea}.`,
+            activeDataset: baseActiveDataset,
+            shiftInfo: baseShiftInfo,
+            datasetLabels: baseDatasetLabels
           });
           initialSteps.length = 0;
           initialSteps.push(...reconstructedSteps);
@@ -246707,7 +246758,7 @@ var VALID_VIZ_TYPE_SET = new Set(VALID_VIZ_TYPES2);
 function patternFor(slug, title = "", topics = []) {
   return classifyProblem(slug, title, topics).pattern;
 }
-var MAX_SIMULATION_STEPS = 80;
+var MAX_SIMULATION_STEPS = 1e3;
 var cap = (steps) => {
   if (steps.length <= MAX_SIMULATION_STEPS) return steps;
   const finalStep = steps[steps.length - 1];
@@ -246811,7 +246862,7 @@ function hashmapPair(input2, targetInput) {
     "    seen[x] = i",
     "return []"
   ];
-  const nums = input2.slice(0, 7);
+  const nums = input2.length > 0 ? input2 : [2, 7, 11, 15];
   const target = typeof targetInput === "number" ? targetInput : (nums[0] ?? 0) + (nums[nums.length - 2] ?? 0);
   const seen = {};
   const steps = [
@@ -246885,7 +246936,7 @@ function hashmapPair(input2, targetInput) {
   return { code, array: nums, steps: cap(steps) };
 }
 function frequencyCount(input2, slug = "", dataset) {
-  const items = input2 && input2.length > 0 ? input2.slice(0, 10) : ["bella", "label", "roller"];
+  const items = input2 && input2.length > 0 ? input2 : ["bella", "label", "roller"];
   const isMultiWord = slug === "find-common-characters" || items.some((x2) => typeof x2 === "string" && String(x2).length > 1);
   if (isMultiWord) {
     const code2 = [
@@ -247329,7 +247380,7 @@ function slidingWindow(input2, dataset) {
     "return best"
   ];
   const rawNums = input2.length > 0 ? input2 : [2, 1, 5, 1, 3, 2];
-  const nums = rawNums.map(Number).filter((n) => !isNaN(n)).slice(0, 16);
+  const nums = rawNums.map(Number).filter((n) => !isNaN(n));
   const safeNums = nums.length > 0 ? nums : [2, 1, 5, 1, 3, 2];
   const k = typeof dataset?.k === "number" && dataset.k > 0 ? dataset.k : 3;
   const steps = [
@@ -247474,7 +247525,7 @@ function binarySearch(input2, customTarget) {
 function twoPointersPairSum(input2, targetVal) {
   const isChar = input2.some((x2) => typeof x2 === "string" && isNaN(Number(x2)));
   if (isChar) {
-    const items = input2.slice(0, 10);
+    const items = input2.length > 0 ? input2 : ["r", "a", "c", "e", "c", "a", "r"];
     const code2 = [
       "left = 0, right = len(s) - 1",
       "while left < right:",
@@ -247543,7 +247594,7 @@ function twoPointersPairSum(input2, targetVal) {
     });
     return { code: code2, array: items, steps: cap(steps2) };
   }
-  const nums = input2.length > 0 ? input2.filter((x2) => typeof x2 === "number").sort((a, b) => a - b).slice(0, 10) : [1, 2, 4, 6, 8, 11, 15];
+  const nums = input2.length > 0 ? input2.filter((x2) => typeof x2 === "number").sort((a, b) => a - b) : [1, 2, 4, 6, 8, 11, 15];
   const safeNums = nums.length > 0 ? nums : [1, 2, 4, 6, 8];
   const target = typeof targetVal === "number" ? targetVal : (safeNums[0] ?? 0) + (safeNums[safeNums.length - 1] ?? 0);
   const code = [
@@ -247640,7 +247691,7 @@ function twoPointersPairSum(input2, targetVal) {
   return { code, array: safeNums, steps: cap(steps) };
 }
 function kadanesAlgorithm(input2) {
-  const nums = input2.length > 0 ? input2.slice(0, 9) : [-2, 1, -3, 4, -1, 2, 1, -5, 4];
+  const nums = input2.length > 0 ? input2 : [-2, 1, -3, 4, -1, 2, 1, -5, 4];
   const code = [
     "max_so_far = nums[0]",
     "curr_max = nums[0]",
@@ -247718,7 +247769,7 @@ function monotonicStack(input2) {
     "return result"
   ];
   const rawNums = input2.length > 0 ? input2 : [2, 1, 2, 4, 3];
-  const nums = rawNums.map(Number).filter((n) => !isNaN(n)).slice(0, 16);
+  const nums = rawNums.map(Number).filter((n) => !isNaN(n));
   const safeNums = nums.length > 0 ? nums : [2, 1, 2, 4, 3];
   const stack = [];
   const steps = [
@@ -247817,10 +247868,10 @@ function parentheses(input2) {
   const isRawBracketInput = input2.length > 0 && input2.every((x2) => typeof x2 === "string" && allBrackets.has(x2));
   let chars = [];
   if (isRawBracketInput) {
-    chars = input2.map(String).slice(0, 16);
+    chars = input2.map(String);
   } else {
     const openStack = [];
-    input2.slice(0, 8).forEach((n, i2) => {
+    input2.forEach((n, i2) => {
       if (i2 % 2 === 0 || openStack.length === 0) {
         const num = typeof n === "number" ? n : String(n).charCodeAt(0);
         const ch = opens[Math.abs(num) % 3];
@@ -248437,7 +248488,7 @@ function graphBfs(input2) {
     "        if nb not in seen: seen.add(nb); queue.append(nb)",
     "return seen"
   ];
-  const nodes = Array.from(new Set(input2.map((n, i2) => n + i2))).slice(0, 6);
+  const nodes = Array.from(new Set(input2.map((n, i2) => n + i2)));
   const adj = /* @__PURE__ */ new Map();
   nodes.forEach(
     (n, i2) => adj.set(n, [nodes[(i2 + 1) % nodes.length], nodes[(i2 + 2) % nodes.length]])
@@ -248985,7 +249036,7 @@ function linkedListReverse(input2) {
     "    prev, curr = curr, nxt",
     "return prev"
   ];
-  const list = input2.slice(0, 6);
+  const list = input2.length > 0 ? input2 : [1, 2, 3, 4, 5];
   const steps = [
     {
       type: "linkedlist",
@@ -249038,7 +249089,7 @@ function linkedListCycle(input2, _slug = "", _title = "", dataset) {
     "return False"
   ];
   const rawList = dataset?.array ?? (input2.length > 0 ? input2 : [3, 2, 0, -4]);
-  const list = rawList.slice(0, 8);
+  const list = rawList.length > 0 ? rawList : [3, 2, 0, -4];
   const cyclePos = typeof dataset?.pos === "number" ? dataset.pos : dataset?.hasCycle !== false && list.length > 1 ? 1 : -1;
   const getNext = (idx) => {
     if (idx < 0) return -1;
@@ -249510,8 +249561,9 @@ function bstSearch(input2, slug = "", title = "", dataset) {
     target = dataset?.target ?? (tree.find((x2) => x2 !== null) ?? 0);
   } else {
     const numList = input2.map(Number).filter((n) => !isNaN(n));
-    const sorted = Array.from(new Set(numList.length > 0 ? numList : [4, 2, 7, 1, 3])).sort((a, b) => a - b).slice(0, 7);
-    tree = new Array(7).fill(null);
+    const sorted = Array.from(new Set(numList.length > 0 ? numList : [4, 2, 7, 1, 3])).sort((a, b) => a - b);
+    const treeSlots = Math.min(63, 2 ** Math.ceil(Math.log2(sorted.length + 1)) - 1);
+    tree = new Array(Math.max(7, treeSlots)).fill(null);
     const build = (lo, hi, idx2) => {
       if (lo > hi || idx2 >= tree.length) return;
       const mid = Math.floor((lo + hi) / 2);
@@ -252026,7 +252078,7 @@ function simulateProblem(slug, title = "", topics = []) {
   return simulateProblemWithDataset(slug, title, topics);
 }
 function simulateCustomInput(type, input2, target, matrixInput, title) {
-  const safeInput = input2.length > 0 ? input2.slice(0, 10) : [1, 2, 3, 4, 5];
+  const safeInput = input2.length > 0 ? input2 : [1, 2, 3, 4, 5];
   const numInput = safeInput.map((x2) => typeof x2 === "number" ? x2 : parseFloat(String(x2)) || 0);
   const numTarget = typeof target === "number" ? target : typeof target === "string" ? parseFloat(target) || void 0 : void 0;
   const t2 = (title ?? "").toLowerCase();
@@ -252120,9 +252172,9 @@ function simulateCustomInput(type, input2, target, matrixInput, title) {
 // src/lib/prompts/review.prompt.ts
 var REVIEW_SYSTEM_PROMPT = `You are a Principal Software Engineer and Staff DSA Technical Interviewer conducting a rigorous coding interview.
 
-Your job is to evaluate the candidate's ACTUAL submitted pseudocode with extreme precision, multi-dataset awareness, and ZERO hallucination. Do NOT fill in the blanks or assume the candidate meant to write something they didn't.
+Your job is to evaluate the candidate's ACTUAL submitted pseudocode with extreme precision, decide the optimal data structure archetype, and generate 3 rich test datasets with zero hallucination. Do NOT fill in the blanks or assume the candidate meant to write something they didn't.
 
-CRITICAL EVALUATION RULES:
+CRITICAL EVALUATION & DATASET ARCHITECTURE RULES:
 1. STRICT LOGICAL COMPLETENESS & VIABILITY EVALUATION (MANDATORY FIRST CHECK):
    - You must evaluate whether the candidate's pseudocode provides a LOGICALLY COMPLETE, viable end-to-end algorithm approach (Brute Force, Better, or Optimal).
    - We DO NOT enforce a strict syntax, specific programming language, or particular template. As long as the logic is coherent, understandable, and represents a complete flow, it is acceptable.
@@ -252133,16 +252185,16 @@ CRITICAL EVALUATION RULES:
      * Core Traversal / Logic: Explicit loop conditions, state transitions, and operations.
      * Termination & Return: Explicitly computes and returns/yields the result.
 
-2. MULTI-DATASET & ALGORITHMIC EFFICIENCY CRITIQUE:
-   - Evaluate trade-offs of using auxiliary datasets (e.g., using a Hash Table for O(N) time at the cost of O(N) space, vs O(1) space two-pointer traversal).
-   - Verify pointer shift correctness when multiple datasets are iterated (e.g., merging two sorted arrays, sliding window across strings).
-   - Evaluate cache eviction invariants (e.g., in LRU Cache, deleting from HashMap when evicting tail from Doubly Linked List).
+2. AI-DRIVEN DATA STRUCTURE ARCHETYPE SELECTION:
+   - You must dynamically determine the primary data structure archetype ("primary_type"):
+     "matrix" | "array" | "tree" | "heap" | "stack" | "queue" | "linkedlist" | "hashmap" | "recursion-tree" | "intervals" | "bit" | "dp" | "graph"
+   - If the algorithm uses multiple auxiliary structures (e.g. 2D Grid + Visited Set + Call Stack, Binary Tree + FIFO Queue, Array + Hash Map, Dual Pointers across Two Arrays, or Array + Monotonic Stack), note them in your review so downstream visualizer steps populate all structures simultaneously.
 
 3. HANDLING INCOMPLETE VS COMPLETE LOGIC:
    - IF THE PSEUDOCODE IS INCOMPLETE, BROKEN, MISSING CORE LOGIC, OR SOLVES A DIFFERENT PROBLEM:
      * Set "is_complete": false
      * Set "classification": "Incomplete"
-     * Set "missing_elements": Array of 1 to 4 clear, specific items the user still needs to add (e.g., ["Loop condition to check all elements", "Logic to update auxiliary hash map", "Pointer shift logic for secondary array"]).
+     * Set "missing_elements": Array of 1 to 4 clear, specific items the user still needs to add.
      * Set "nudge": Clear, actionable guidance explaining what is missing and hinting what more to add next to complete their logic (without giving away full code).
      * Set "praise": Acknowledge any good starting intuition or setup present in their snippet.
      * Set "complexity": { "time": "\u2014", "space": "\u2014" }
@@ -252154,55 +252206,56 @@ CRITICAL EVALUATION RULES:
      * Set "missing_elements": []
      * Set "complexity": { "time": "O(...)", "space": "O(...)" } for the exact logic written (use clean plain text like 'O(N)', 'O(N log N)', 'O(1)'; never output raw LaTeX macros like \\mathcal{O} or \\%).
      * Set "praise": 2-3 sentences highlighting genuine strong decisions in their pseudocode and structure management.
-     * Set "nudge": If Brute Force or Better, hint at how to optimize further (e.g. using auxiliary structures). If Optimal, provide a tricky edge case or follow-up question.
+     * Set "nudge": If Brute Force or Better, hint at how to optimize further. If Optimal, provide a tricky edge case or follow-up question.
      * Set "review": A structured markdown review under 200 words evaluating algorithm structure, invariants, time/space complexity justification, and dry-run correctness.
-     * MANDATORY DATASET TRIPLE GENERATION: Always generate exactly 3 curated test datasets tailored specifically to this problem's data structure:
-       - MANDATORY CANONICAL PRESERVATION FOR DATASET 1: Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case", category="standard") MUST strictly preserve the exact canonical Example 1 from the problem statement (e.g., for Two Sum, nums=[2,7,11,15] and target=9; for Set Matrix Zeroes, matrix=[[1,1,1],[1,0,1],[1,1,1]]). Never invent or substitute a different array or target for Dataset 1.
-       - MANDATORY DATASET SIZE & STRUCTURE ENFORCEMENT: 
-         * For 2D Grids / Matrices (Transformation, Islands, Graph Grid, Matrix Search):
-           - Must provide "matrix": [[...], [...], ...] and matching flattened "array".
-           - Dataset 1 (Standard Case): The canonical LeetCode Example 1 matrix (e.g., 3\xD73 or 3\xD74).
-           - Dataset 2 (Longer & Complex Trace \u26A1): MUST BE A SUBSTANTIALLY LARGER MATRIX OF AT LEAST 5\xD76 or 6\xD76 (strictly larger than Dataset 1) with multiple target elements (multiple zeroes, multiple islands, or dispersed values). This is strictly required so that the visualizer generates extended execution steps, providing the user ample time to understand the algorithm traversing larger 2D data. NEVER produce a 2\xD72, 3\xD73, or shrunken matrix for Dataset 2!
-           - Dataset 3 (Edge & Boundary Case): Boundary matrix (e.g. 3\xD75, edge/corner values, all zeroes, or disconnected components).
-         * For 1D Arrays:
-           - Dataset 1 (Standard Case): Exact canonical LeetCode Example 1.
-           - Dataset 2 (Longer & Complex Trace \u26A1): Must be 15\u201325 elements (substantially longer than Dataset 1) so the visualizer generates 25\u201340+ steps, giving the user ample time to observe sustained pointer movement, partitions, or iterations.
-           - Dataset 3 (Edge & Boundary Case): Boundary conditions (negatives, duplicates, single items, zeroes, alternating signs, or extreme values).
-         * For Trees (represented as BFS level-order arrays with nulls):
-           - Dataset 1 (Standard Case): Exact canonical Example 1 tree.
-           - Dataset 2 (Longer & Complex Trace \u26A1): Deep/wide tree with 15\u201331 nodes (depth 4\u20135) for extended multi-level traversal.
-           - Dataset 3 (Edge & Boundary Case): Skewed, unbalanced, or single-path tree.
-         * For Strings & Sliding Windows:
-           - Dataset 1 (Standard Case): Canonical Example 1 (as character array ["a", "b", ...] or string).
-           - Dataset 2 (Longer & Complex Trace \u26A1): 20\u201335 characters with repeated character clusters to induce multiple window expansions and contractions.
-           - Dataset 3 (Edge & Boundary Case): Homogeneous string, single character, or minimal length.
-         * For Problems with Target or Parameter 'k':
-           - Explicitly provide "target" or "k" on each of the 3 datasets matching the problem logic.
-         * For Dual Sequence / Two Array Problems:
-           - Include "array" (sequence 1) and "secondaryArray" (sequence 2).
-       - Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case", category="standard"): Exact canonical problem example 1.
-       - Dataset 2 (id="dataset_2", label="Dataset 2: Longer & Complex Trace \u26A1", category="longer"): A significantly longer, extended dataset adhering to the large sizes above to produce an extensive full execution trace.
-       - Dataset 3 (id="dataset_3", label="Dataset 3: Edge & Boundary Case", category="edge"): Extreme constraint testing (negatives, duplicates, single paths, tight boundaries).
 
-4. OUTPUT FORMAT:
+4. MANDATORY 3-DATASET SYNTHESIS WITH ZERO DEGENERACY:
+   Always generate exactly 3 curated test datasets tailored specifically to the problem and chosen data structure:
+
+   - Dataset 1 (id="dataset_1", label="Dataset 1: Standard Case", category="standard"):
+     * Baseline validation test input (e.g. standard canonical example from problem statement).
+
+   - Dataset 2 (id="dataset_2", label="Dataset 2: Longer & Complex Trace \u26A1", category="longer"):
+     * Substantially larger, extended scale dataset designed to produce an extensive, deep execution traversal (25\u201350+ steps), giving the learner ample time to observe sustained pointer movement, partitions, or iterations.
+     * **CRITICAL UNIVERSAL ANTI-DEGENERACY LAW**:
+       The Longer Dataset MUST NOT BE DEGENERATE OR EXIT EARLY!
+       - For 2D Grids / Islands / Flood Fill: The grid MUST BE A SUBSTANTIALLY LARGER MATRIX OF AT LEAST 5\xD76 or 6\xD76 (e.g. 5\xD76, 6\xD76, 8\xD78, or 8\xD710) AND MUST CONTAIN MULTIPLE SUBSTANTIAL ISLANDS / CLUSTERS (e.g., 3 to 5 distinct, multi-cell landmasses distributed across different quadrants of the grid, totaling at least 12\u201325 land cells). NEVER generate an ocean of zeroes with only 1 solitary land cell that finishes in 4 steps! The grid must have rich landmasses that force the algorithm to explore multiple cells per island and discover all separate islands across the entire grid!
+       - For Matrix Transformations (Set Matrix Zeroes, Game of Life, Rotations): Distribute multiple zeroes/sentinels across multiple distinct rows and columns (at least 3-4 separate rows and cols affected) to ensure extensive cell-by-cell loops.
+       - For 1D Arrays / Two Pointers / Binary Search: Provide 15\u201325 elements with targets, matches, or optimal windows placed deep in the array or requiring multiple boundary adjustments, sliding window expansions & contractions, or partitions. NEVER place the target at index 0 or 1 where it terminates in 2 steps!
+       - For Monotonic Stacks: Include oscillating/fluctuating values (peaks and valleys) requiring multiple pushes, pops, and sightline resolutions.
+       - For Trees: Multi-level tree (depth 4\u20135 with 15\u201331 nodes) with left and right subtrees so BFS/DFS visits all branches.
+       - For Strings / Sliding Windows: 20\u201335 characters with alternating and repeated clusters to force sustained window contractions and expansions.
+       - For Dual Sequences: Provide primary array (12\u201320 elements) and secondary array (10\u201318 elements).
+
+   - Dataset 3 (id="dataset_3", label="Dataset 3: Edge & Boundary Case", category="edge"):
+     * Extreme constraint testing (e.g., all zeroes/water, all ones/land, single elements, negative targets, duplicates, tight boundaries).
+
+   - DATASET STRUCTURE FIELDS TO EMIT:
+     * If 2D Grid / Matrix: include "matrix": [[...], [...]] and matching flattened "array".
+     * If Binary Tree: include "tree": [...] as level-order BFS array with nulls.
+     * If Dual Input: include "array": [...] and "secondaryArray": [...].
+     * If target or parameter k is needed: explicitly include "target" or "k".
+
+5. OUTPUT FORMAT:
 Respond ONLY with a valid JSON object in this exact schema with no surrounding markdown or extra text:
 {
   "is_complete": true | false,
   "classification": "Optimal" | "Better" | "Brute Force" | "Incomplete",
+  "primary_type": "matrix" | "array" | "tree" | "heap" | "stack" | "queue" | "linkedlist" | "hashmap" | "recursion-tree" | "intervals" | "bit" | "dp" | "graph",
   "missing_elements": ["string"],
   "complexity": {
     "time": "O(...)",
     "space": "O(...)"
   },
-  "praise": "2-3 sentences highlighting positive decisions or initial intuitions in their actual pseudocode.",
-  "nudge": "Actionable feedback. If incomplete, state what logic is missing and hint what more to add. If complete, provide optimization or edge-case hint.",
-  "review": "A structured markdown review under 200 words evaluating logical completeness, problem alignment, algorithm structure, invariants, multi-dataset management, and time/space complexity.",
+  "praise": "2-3 sentences highlighting positive decisions in their actual pseudocode.",
+  "nudge": "Actionable feedback. If incomplete, state what logic is missing. If complete, provide optimization hint.",
+  "review": "A structured markdown review under 200 words evaluating algorithm structure, invariants, multi-dataset management, and time/space complexity.",
   "test_datasets": [
     {
       "id": "dataset_1",
       "label": "Dataset 1: Standard Case",
       "category": "standard",
-      "description": "Baseline canonical test input from LeetCode Example 1.",
+      "description": "Baseline canonical test input.",
       "array": [2, 7, 11, 15],
       "target": 9
     },
@@ -252210,7 +252263,7 @@ Respond ONLY with a valid JSON object in this exact schema with no surrounding m
       "id": "dataset_2",
       "label": "Dataset 2: Longer & Complex Trace \u26A1",
       "category": "longer",
-      "description": "Significantly longer dataset (Array: 15-25 elements, Matrix: 5x6 or 6x6) producing extended visualizer steps for deep algorithmic understanding.",
+      "description": "Substantially longer dataset with rich distributed targets/islands producing extended visualizer steps.",
       "array": [2, 4, 7, 11, 15, 18, 22, 27, 33, 40, 48, 55, 63, 72, 85, 99],
       "target": 55
     },
@@ -252223,8 +252276,7 @@ Respond ONLY with a valid JSON object in this exact schema with no surrounding m
       "target": 0
     }
   ]
-}
-NOTE: If the problem operates on a 2D matrix/grid, include "matrix": [[...], [...]] on each dataset, with Dataset 2 guaranteed to be 5x6 or 6x6. If operating on a tree, include "tree": [...]. If operating on dual inputs, include "secondaryArray": [...].`;
+}`;
 function buildReviewUserPrompt({
   title,
   difficulty: difficulty2,
@@ -252247,12 +252299,13 @@ ${pseudocode}
 
 TASK:
 1. CRITICAL: Check if the candidate's pseudocode is logically complete (has end-to-end working logic for Brute Force, Better, or Optimal) or if it is incomplete / missing key parts / solving the wrong problem. DO NOT hallucinate or assume missing logic. If it is half-written, it is Incomplete.
-2. MANDATORY DATASET TRIPLE GENERATION: Generate exactly 3 variable datasets tailored specifically to this problem in "test_datasets":
-   - Dataset 1 (id="dataset_1", category="standard", label="Dataset 1: Standard Case"): The exact canonical famous LeetCode Example 1 from the problem statement.
+2. DYNAMICALLY CHOOSE DATA STRUCTURE ARCHETYPE: Output "primary_type" (e.g. matrix, array, tree, stack, queue, linkedlist, hashmap, recursion-tree, intervals, heap, dp, graph).
+3. MANDATORY DATASET TRIPLE GENERATION: Generate exactly 3 variable datasets tailored specifically to this problem in "test_datasets":
+   - Dataset 1 (id="dataset_1", category="standard", label="Dataset 1: Standard Case"): The baseline standard example.
    - Dataset 2 (id="dataset_2", category="longer", label="Dataset 2: Longer & Complex Trace \u26A1"): A dataset that is usually longer and significantly larger (for arrays: 15\u201325 elements; for matrices: at least 5\xD76 or 6\xD76; for strings: 20\u201335 chars; for trees: 15\u201331 nodes) so that the visualizer generates longer steps and gives the learner more time to understand the algorithm as it moves through larger data.
+     * UNIVERSAL ANTI-DEGENERACY MANDATE: NEVER generate degenerate data (like an 8\xD710 grid with only 1 land cell or an array where target is at index 0) that terminates in 2\u20134 steps! Provide rich, distributed data so the visualizer generates an extensive 25\u201350+ step execution walkthrough.
    - Dataset 3 (id="dataset_3", category="edge", label="Dataset 3: Edge & Boundary Case"): Boundary condition case testing edge limits, negatives, duplicates, single items, or extreme constraints.
    - Match the problem's data structure: provide "matrix" for 2D grids, "tree" for binary trees, "secondaryArray" for dual inputs, and "target" / "k" if required.
-3. Evaluate multi-dataset handling (if applicable) and pointer/transition correctness.
 4. If incomplete, set is_complete to false, classification to "Incomplete", list missing_elements, and explain what more to add in nudge.
 5. If complete, set is_complete to true, classify as "Optimal", "Better", or "Brute Force", and analyze the exact time/space complexity.
 6. Output the required JSON object.`;
@@ -252335,12 +252388,20 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
 5) COMPLETE END-TO-END TRAVERSAL (MANDATORY):
    - You MUST simulate the algorithm completely from the first initialization line to the final return/termination statement.
    - NEVER STOP HALFWAY, truncate, or end early. Traverse EVERY element, pointer step, node, or grid cell until the entire test input dataset has been completely processed according to the pseudocode.
-   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15\u201325 elements or 5\xD76 / 6\xD76 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
+   - UNIVERSAL ANTI-DEGENERACY & FULL SINGLE-CELL MOVEMENT LAW:
+     * You MUST NOT generate small steps, macro jumps, or cut traversals short.
+     * In 2D Grids / Islands / Matrices: You MUST evaluate cell-by-cell!
+       - Outer loop scan: step through and evaluate cells (r, c) across ALL rows and columns.
+       - Connected components / DFS / BFS: visit every neighbor cell-by-cell (step into land, update visited, increment area, visit next direction, backtrack).
+       - Never stop after only visiting 1 cell or 1 island! Process ALL separate islands and continue until the full grid has been scanned.
+     * In Arrays / Two-Pointers: evaluate every element comparison and pointer adjustment step-by-step.
+     * In Trees: traverse level-by-level or branch-by-branch through all nodes in the tree/queue.
+   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15\u201325 elements or 5\xD76 / 6\xD76 / 8\xD710 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
    - Generate all necessary execution steps (from initial state, loop progression, all iterations, to final return) to provide a complete, unbroken visual walkthrough.
    - The final step MUST highlight the termination condition, the final return value, or the completed data structure state.
 
-6) MULTI-DATASET & STRUCTURE SUPPORT:
-   - When an algorithm operates on multiple structures or datasets (e.g. Grid + Visited Set + Stack, Tree + Queue, Array + Hash Table, Array + Monotonic Stack, List + Map, Dual Arrays), POPULATE ALL active structures simultaneously in each step!
+6) MULTI-DATASET & MULTI-STRUCTURE SUPPORT:
+   - When an algorithm operates on multiple structures or datasets (e.g. Grid + Visited Set + Call Stack, Tree + Queue, Array + Hash Table, Array + Monotonic Stack, List + Map, Dual Arrays), POPULATE ALL active structures simultaneously in each step!
    - Available structure fields:
      * "matrix": [[row1], [row2], ...] (2D grid of numbers or 0/1 binary land/water values)
      * "cols": number of columns in the grid
@@ -252359,6 +252420,10 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * "sightlines": [{ "fromIndex": number, "toIndex": number, "resolvedValue": number | string, "type": "next-greater" | "next-smaller" }] (Optical ray-cast sightlines)
      * "intervals": [{ "id": string, "start": number, "end": number, "label": string, "status": "unprocessed" | "comparing" | "active" | "merged" | "finalized" }] (1D timeline intervals)
      * "sweepLine": number (Current time playhead / laser position on continuous 1D timeline)
+   - FINE-GRAINED STRUCTURE-SPECIFIC STEPS & DATASET FOCUS:
+     * "activeDataset" & "shiftInfo": Every step tracks data transitions between structures (e.g. from matrix to visited, from array to map, or popping from queue to inspect a tree node).
+     * Independent Mutations: Each structure only updates on the exact line where it is mutated (e.g. queue enqueues/dequeues step-by-step, stack pushes/pops on recursive descent and backtracking, hash maps insert elements when processed).
+     * Synced Multi-Pointer UI: Pointers across primary and secondary arrays ("left", "right", "left2", "right2", "current") and cell coordinates ("r,c") highlight their respective structures in tandem on the canvas.
 
 7) 2D GRID, ISLANDS & AREA TRAVERSALS (Max Area of Island, Number of Islands, Flood Fill, Rotting Oranges):
    - Set "type": "matrix".
@@ -252523,16 +252588,16 @@ function buildVisualizerUserPrompt({
     sampleGuidance = `Simulate dual-sequence / multi-attribute array execution using primary array (${JSON.stringify(safeExample)}) and secondaryArray (${JSON.stringify(secondaryArrayExample)}).${targetExample !== void 0 ? ` Target / minProfit = ${targetExample}.` : ""} Track dual pointers ("left", "right" on primary array and "left2", "right2" on secondaryArray).`;
   } else if (isIsland) {
     const gridRows = matrixExample && matrixExample.length > 0 ? matrixExample : [
-      [0, 0, 1, 0, 0, 0, 0, 1],
-      [0, 0, 0, 0, 0, 0, 0, 1],
-      [0, 1, 1, 0, 1, 0, 0, 0],
-      [0, 1, 0, 0, 1, 1, 0, 0],
-      [0, 1, 0, 0, 1, 1, 0, 0],
-      [0, 0, 0, 0, 0, 0, 0, 0]
+      [0, 0, 1, 0, 0, 0],
+      [0, 1, 1, 0, 1, 1],
+      [0, 1, 1, 0, 1, 1],
+      [0, 0, 0, 0, 1, 1],
+      [1, 1, 0, 0, 0, 0],
+      [1, 1, 0, 0, 0, 0]
     ];
     sampleGuidance = `Simulate 2D Grid Island traversal on this input binary grid (0 = Water, 1 = Land):
 matrix = ${JSON.stringify(gridRows)}
-cols = ${gridRows[0]?.length ?? 8}
+cols = ${gridRows[0]?.length ?? 6}
 Set type='matrix'. Step through 4-directional DFS traversal based on candidate's exact pseudocode until ALL islands across the entire grid are evaluated.
 MANDATORY FOR GRID/ISLAND TRAVERSALS:
 - Step through EVERY single connected land cell one by one! Do NOT jump across islands or skip intermediate recursive steps.
@@ -252629,7 +252694,7 @@ MANDATORY FOR PREFIX SUM WITH HASH MAP:
   const isLongerDataset = /longer|complex|dataset\s*2/i.test(datasetLabel ?? "");
   const datasetContext = datasetLabel ? `
 Active Dataset: "${datasetLabel}" ${datasetDescription ? `(${datasetDescription})` : ""}
-${isLongerDataset ? "CRITICAL INSTRUCTION FOR EXTENDED DATASET: This is an EXTENDED, LARGE-SCALE dataset designed for a deep, comprehensive animation (25\u201345+ steps). Step through ALL elements, matrix cells, tree nodes, or graph vertices systematically to provide the user with a rich, long-running visualization of their pseudocode execution.\n" : "Simulate the ENTIRE dataset from the first element to the final return/completion step without stopping early.\n"}` : "";
+${isLongerDataset ? "CRITICAL INSTRUCTION FOR EXTENDED DATASET: This is an EXTENDED, LARGE-SCALE dataset designed for a deep, comprehensive animation (25\u201350+ steps). Step through ALL elements, matrix cells, tree nodes, or graph vertices systematically! In 2D grids, step through EVERY land cell of every island across all rows and columns (never exit after 4 steps or after only 1 island). In arrays/heaps/trees, traverse all elements thoroughly to provide the user with a rich, long-running visualization of their pseudocode execution.\n" : "Simulate the ENTIRE dataset from the first element to the final return/completion step without stopping early.\n"}` : "";
   return `Problem: "${title}".
 Statement:
 ${statement}
@@ -253155,67 +253220,6 @@ function evaluatePseudocodeHeuristic(pseudocode) {
     nudge: "Good job outlining your algorithm! Watch the step-by-step trace across datasets below."
   };
 }
-function isValidMatrixForProblem(matrix, slug, topics = [], isLongerDataset = false, canonicalRows = 0, canonicalCols = 0) {
-  if (!Array.isArray(matrix) || matrix.length < 2) return false;
-  if (!matrix.every((r2) => Array.isArray(r2) && r2.length >= 2 && r2.length === matrix[0].length)) {
-    return false;
-  }
-  const isIsland = isIslandOrGridProblem(slug, topics);
-  if (isIsland) {
-    if (matrix.length < 3 || (matrix[0]?.length ?? 0) < 3) return false;
-    const isBinary = matrix.every(
-      (row) => Array.isArray(row) && row.every((cell) => {
-        const n = Number(cell);
-        const s2 = String(cell).toUpperCase();
-        return n === 0 || n === 1 || n === 2 || s2 === "0" || s2 === "1" || s2 === "X" || s2 === "O";
-      })
-    );
-    if (!isBinary) return false;
-  }
-  if (isLongerDataset && canonicalRows > 0 && canonicalCols > 0) {
-    const aiCells = matrix.length * matrix[0].length;
-    const canonCells = canonicalRows * canonicalCols;
-    if (aiCells < canonCells || matrix.length < canonicalRows || matrix[0].length < canonicalCols) {
-      return false;
-    }
-  }
-  return true;
-}
-function isValidArrayForProblem(arr, _slug, _topics = [], isLongerDataset = false, canonicalLength = 0) {
-  if (!Array.isArray(arr) || arr.length === 0) return false;
-  if (isLongerDataset && canonicalLength > 0 && arr.length < canonicalLength) {
-    return false;
-  }
-  return true;
-}
-function expandMatrixToSize(matrix, targetRows, targetCols) {
-  if (!Array.isArray(matrix) || matrix.length === 0 || !Array.isArray(matrix[0]) || matrix[0].length === 0) {
-    return matrix;
-  }
-  const origR = matrix.length;
-  const origC = matrix[0].length;
-  const newR = Math.max(origR, targetRows);
-  const newC = Math.max(origC, targetCols);
-  return Array.from(
-    { length: newR },
-    (_, r2) => Array.from({ length: newC }, (_2, c) => matrix[r2 % origR][c % origC])
-  );
-}
-function expandArrayToLength(arr, targetLength) {
-  if (!Array.isArray(arr) || arr.length === 0 || arr.length >= targetLength) return arr;
-  if (typeof arr[0] === "number") {
-    const last = Number(arr[arr.length - 1] ?? 0);
-    const step = 2;
-    const needed = targetLength - arr.length;
-    const extra = Array.from({ length: needed }, (_, i2) => last + (i2 + 1) * step);
-    return [...arr, ...extra];
-  }
-  const result = [...arr];
-  while (result.length < targetLength) {
-    result.push(...arr);
-  }
-  return result.slice(0, targetLength);
-}
 async function processReviewPseudocode(data) {
   const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
   const reviewKeyForRequest = geminiKey || reviewKey || openRouterKey;
@@ -253296,16 +253300,8 @@ async function processReviewPseudocode(data) {
     if (aiDatasets.length > 0) {
       const d1Canon = canonicalDatasets[0];
       const d1Ai = aiDatasets[0];
-      let d1Matrix = d1Canon.matrix;
-      if (d1Ai?.matrix && isValidMatrixForProblem(d1Ai.matrix, data.slug, data.topics ?? [], false)) {
-        d1Matrix = d1Ai.matrix;
-      }
-      let d1Array = d1Canon.array;
-      if (d1Matrix && (d1Canon.matrix || d1Ai?.matrix)) {
-        d1Array = d1Matrix.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string");
-      } else if (d1Ai?.array && isValidArrayForProblem(d1Ai.array, data.slug, data.topics ?? [], false)) {
-        d1Array = d1Ai.array;
-      }
+      const d1Matrix = d1Ai?.matrix && Array.isArray(d1Ai.matrix) && d1Ai.matrix.length > 0 && Array.isArray(d1Ai.matrix[0]) ? d1Ai.matrix : d1Canon.matrix;
+      const d1Array = d1Ai?.array && Array.isArray(d1Ai.array) && d1Ai.array.length > 0 ? d1Ai.array : d1Matrix && (d1Ai?.matrix || d1Canon.matrix) ? d1Matrix.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string") : d1Canon.array;
       const d1 = {
         id: "dataset_1",
         label: d1Ai?.label || d1Canon.label || "Dataset 1: Standard Case",
@@ -253325,34 +253321,8 @@ async function processReviewPseudocode(data) {
         description: "Longer extended sequence for in-depth execution traversal."
       };
       const d2Ai = aiDatasets[1];
-      let d2Matrix = d2Canon.matrix;
-      if (d2Ai?.matrix && isValidMatrixForProblem(d2Ai.matrix, data.slug, data.topics ?? [], false)) {
-        const minRows = Math.max(5, (d1.matrix?.length ?? 3) + 1);
-        const minCols = Math.max(6, (d1.matrix?.[0]?.length ?? 3) + 1);
-        if (d2Ai.matrix.length < minRows || (d2Ai.matrix[0]?.length ?? 0) < minCols) {
-          d2Matrix = expandMatrixToSize(d2Ai.matrix, minRows, minCols);
-        } else {
-          d2Matrix = d2Ai.matrix;
-        }
-      } else if (d1.matrix && !d2Matrix) {
-        const minRows = Math.max(5, d1.matrix.length + 2);
-        const minCols = Math.max(6, (d1.matrix[0]?.length ?? 3) + 2);
-        d2Matrix = expandMatrixToSize(d1.matrix, minRows, minCols);
-      }
-      let d2Array = d2Canon.array;
-      if (d2Matrix && (d1.matrix || d2Canon.matrix)) {
-        d2Array = d2Matrix.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string");
-      } else if (d2Ai?.array && isValidArrayForProblem(d2Ai.array, data.slug, data.topics ?? [], false)) {
-        const targetLen = Math.max(15, (d1.array?.length ?? 8) + 6);
-        if (d2Ai.array.length < targetLen) {
-          d2Array = expandArrayToLength(d2Ai.array, targetLen);
-        } else {
-          d2Array = d2Ai.array;
-        }
-      } else if (d1.array && !d2Array) {
-        const targetLen = Math.max(15, d1.array.length + 8);
-        d2Array = expandArrayToLength(d1.array, targetLen);
-      }
+      const d2Matrix = d2Ai?.matrix && Array.isArray(d2Ai.matrix) && d2Ai.matrix.length > 0 && Array.isArray(d2Ai.matrix[0]) ? d2Ai.matrix : d2Canon.matrix;
+      const d2Array = d2Ai?.array && Array.isArray(d2Ai.array) && d2Ai.array.length > 0 ? d2Ai.array : d2Matrix && (d2Ai?.matrix || d2Canon.matrix) ? d2Matrix.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string") : d2Canon.array;
       const d2 = {
         id: "dataset_2",
         label: d2Ai?.label || d2Canon.label || "Dataset 2: Longer & Complex Trace \u26A1",
@@ -253372,16 +253342,8 @@ async function processReviewPseudocode(data) {
         description: "Boundary condition testing edge cases, duplicates, negative numbers, or tight constraints."
       };
       const d3Ai = aiDatasets[2];
-      let d3Matrix = d3Canon.matrix;
-      if (d3Ai?.matrix && isValidMatrixForProblem(d3Ai.matrix, data.slug, data.topics ?? [], false)) {
-        d3Matrix = d3Ai.matrix;
-      }
-      let d3Array = d3Canon.array;
-      if (d3Matrix && (d1.matrix || d3Canon.matrix)) {
-        d3Array = d3Matrix.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string");
-      } else if (d3Ai?.array && isValidArrayForProblem(d3Ai.array, data.slug, data.topics ?? [], false)) {
-        d3Array = d3Ai.array;
-      }
+      const d3Matrix = d3Ai?.matrix && Array.isArray(d3Ai.matrix) && d3Ai.matrix.length > 0 && Array.isArray(d3Ai.matrix[0]) ? d3Ai.matrix : d3Canon.matrix;
+      const d3Array = d3Ai?.array && Array.isArray(d3Ai.array) && d3Ai.array.length > 0 ? d3Ai.array : d3Matrix && (d3Ai?.matrix || d3Canon.matrix) ? d3Matrix.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string") : d3Canon.array;
       const d3 = {
         id: "dataset_3",
         label: d3Ai?.label || d3Canon.label || "Dataset 3: Edge & Boundary Case",
@@ -253405,7 +253367,7 @@ async function processReviewPseudocode(data) {
       data.topics ?? [],
       activeDataset
     );
-    const preferredShape = fallback2.steps[0]?.type ?? pickShape(data.slug, data.topics ?? []);
+    const preferredShape = (typeof reviewOut?.primary_type === "string" ? reviewOut.primary_type : void 0) ?? (typeof reviewOut?.visualization_manifest?.primary_type === "string" ? reviewOut.visualization_manifest.primary_type : void 0) ?? fallback2.steps[0]?.type ?? pickShape(data.slug, data.topics ?? []);
     if (vizKeyForRequest) {
       const vizSystem = VISUALIZER_SYSTEM_PROMPT;
       const matrixExample = activeDataset.matrix && activeDataset.matrix.length > 0 ? activeDataset.matrix : isIslandOrGridProblem(data.slug, data.topics ?? []) || isMatrixTransformationProblem(data.slug, data.topics ?? []) ? sampleMatrixFor(data.slug) : void 0;
@@ -253572,16 +253534,7 @@ async function processDatasetVisualization(data) {
   const isLonger = dataset.category === "longer" || dataset.id === "dataset_2";
   const canonDatasets = getCanonicalMultiDatasets(data.slug, data.title, data.topics ?? []);
   const canonMatch = canonDatasets.find((d) => d.id === dataset.id);
-  const canonRows = canonMatch?.matrix?.length ?? 0;
-  const canonCols = canonMatch?.matrix?.[0]?.length ?? 0;
-  const matrixExample = dataset.matrix && isValidMatrixForProblem(
-    dataset.matrix,
-    data.slug,
-    data.topics ?? [],
-    isLonger,
-    canonRows,
-    canonCols
-  ) ? dataset.matrix : isIslandOrGridProblem(data.slug, data.topics ?? []) || isMatrixTransformationProblem(data.slug, data.topics ?? []) ? sampleMatrixFor(data.slug) : void 0;
+  const matrixExample = dataset.matrix && dataset.matrix.length > 0 && Array.isArray(dataset.matrix[0]) ? dataset.matrix : isIslandOrGridProblem(data.slug, data.topics ?? []) || isMatrixTransformationProblem(data.slug, data.topics ?? []) ? canonMatch?.matrix ?? sampleMatrixFor(data.slug) : void 0;
   const isDynamicWindow = isDynamicSlidingWindowProblem(data.slug, data.topics ?? []);
   let candidateArray = dataset.array;
   if (isDynamicWindow && candidateArray && candidateArray.length === 1 && typeof candidateArray[0] === "string" && candidateArray[0].length > 1) {
@@ -253592,7 +253545,7 @@ async function processDatasetVisualization(data) {
     matrix: matrixExample,
     target: dataset.target !== void 0 ? dataset.target : canonMatch?.target,
     k: dataset.k !== void 0 ? dataset.k : canonMatch?.k,
-    array: matrixExample && matrixExample.length > 0 ? matrixExample.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string") : candidateArray ?? canonMatch?.array
+    array: candidateArray && candidateArray.length > 0 ? candidateArray : matrixExample && matrixExample.length > 0 ? matrixExample.flat().filter((x2) => typeof x2 === "number" || typeof x2 === "string") : canonMatch?.array
   };
   const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
   const vizKeyForRequest = geminiKey || vizKey || openRouterKey || reviewKey;
@@ -253603,7 +253556,7 @@ async function processDatasetVisualization(data) {
     data.topics ?? [],
     sanitizedDataset
   );
-  const preferredShape = fallback.steps[0]?.type ?? pickShape(data.slug, data.topics ?? []);
+  const preferredShape = (typeof dataset.primary_type === "string" ? dataset.primary_type : void 0) ?? fallback.steps[0]?.type ?? pickShape(data.slug, data.topics ?? []);
   let vizOut = null;
   if (vizKeyForRequest) {
     const vizSystem = VISUALIZER_SYSTEM_PROMPT;

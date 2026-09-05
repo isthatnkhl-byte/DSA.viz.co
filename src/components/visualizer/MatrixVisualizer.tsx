@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Val } from "./VisualizerTypes";
-import { coordKey, safeArray, safeMatrix, toText } from "./VisualizerTypes";
+import { coordKey, getMarkerStyle, safeArray, safeMatrix, toText } from "./VisualizerTypes";
 import {
   Compass,
   ArrowUp,
@@ -26,6 +26,7 @@ interface MatrixVisualizerProps {
   islandCells?: (string | [number, number])[] | null | undefined;
   wSum?: number | null | undefined;
   mSum?: number | null | undefined;
+  pointer_labels?: Record<string, string> | null | undefined;
   activePointers?: Record<string, number | string | [number, number] | null> | null | undefined;
 }
 
@@ -42,6 +43,7 @@ export function MatrixVisualizer({
   islandCells: rawIslandCells,
   wSum,
   mSum,
+  pointer_labels,
   activePointers,
 }: MatrixVisualizerProps) {
   const matrix = useMemo(() => safeMatrix(rawMatrix ?? []), [rawMatrix]);
@@ -51,6 +53,14 @@ export function MatrixVisualizer({
   const rows = matrix.length;
 
   const currentKey = coordKey(current);
+
+  // Detect whether this is genuinely an island / connected components problem
+  const isIslandMode = useMemo(() => {
+    if (Array.isArray(rawIslandCells) && rawIslandCells.length > 0) return true;
+    if (typeof currentArea === "number" && currentArea > 0) return true;
+    if (typeof maxArea === "number" && maxArea > 0) return true;
+    return false;
+  }, [rawIslandCells, currentArea, maxArea]);
 
   // Set of all visited coordinates
   const seenKeys = useMemo(() => {
@@ -62,20 +72,21 @@ export function MatrixVisualizer({
     return s;
   }, [visited]);
 
-  // Set of cells in the currently active island cluster
+  // Set of cells in the currently active island cluster (if in island mode)
   const activeIslandSet = useMemo(() => {
     const s = new Set<string>();
-    if (Array.isArray(rawIslandCells) && rawIslandCells.length > 0) {
+    if (isIslandMode && Array.isArray(rawIslandCells) && rawIslandCells.length > 0) {
       rawIslandCells.forEach((c) => {
         const k = coordKey(c);
         if (k) s.add(k);
       });
     }
     return s;
-  }, [rawIslandCells]);
+  }, [isIslandMode, rawIslandCells]);
 
-  // Calculate total land cells in grid (cells with value 1, seen as visited, or in active island)
+  // Calculate total land cells in grid (only used when isIslandMode is true)
   const totalLandCount = useMemo(() => {
+    if (!isIslandMode) return 0;
     let count = 0;
     for (let r = 0; r < matrix.length; r++) {
       for (let c = 0; c < (matrix[r]?.length ?? 0); c++) {
@@ -86,9 +97,9 @@ export function MatrixVisualizer({
       }
     }
     return count;
-  }, [matrix, seenKeys, activeIslandSet]);
+  }, [isIslandMode, matrix, seenKeys, activeIslandSet]);
 
-  // Derive active area and max area metrics
+  // Active metrics
   const activeAreaValue =
     typeof currentArea === "number"
       ? currentArea
@@ -103,6 +114,7 @@ export function MatrixVisualizer({
 
   // Normalize direction text for compass widget
   const dirText = String(direction ?? "").toUpperCase();
+  const hasDirection = Boolean(direction && direction.trim());
   const isUp = dirText.includes("UP") || dirText.includes("-1, 0") || dirText.includes("-1,0");
   const isDown =
     dirText.includes("DOWN") ||
@@ -129,11 +141,15 @@ export function MatrixVisualizer({
     return false;
   }, [currentKey, rows, cols]);
 
+  // Derive pointer names
+  const rowPtrLabel = pointer_labels?.left || "r";
+  const colPtrLabel = pointer_labels?.right || "c";
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Top Banner: Grid Info, Directional Compass & Live Island Area Readouts */}
+      {/* Top Banner: Grid Info, Directional Compass & Live Stats */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card/75 p-4 shadow-sm backdrop-blur-sm">
-        {/* Left: Grid Dimension & Land Stats */}
+        {/* Left: Grid Dimension & Stats */}
         <div className="flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/30 shadow-xs">
             <Layers className="size-5" />
@@ -141,68 +157,84 @@ export function MatrixVisualizer({
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
-                2D Grid Matrix
+                2D Matrix Grid
               </span>
               <span className="rounded-md border border-border/70 bg-background/60 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
                 {rows} × {cols}
               </span>
             </div>
-            <span className="text-[11px] text-muted-foreground">
-              Total Land Cells:{" "}
-              <strong className="text-amber-300 font-mono">{totalLandCount}</strong> · Explored:{" "}
-              <strong className="text-emerald-400 font-mono">{visited.length}</strong>
-            </span>
+            {isIslandMode ? (
+              <span className="text-[11px] text-muted-foreground">
+                Total Land Cells:{" "}
+                <strong className="text-amber-300 font-mono">{totalLandCount}</strong> · Explored:{" "}
+                <strong className="text-emerald-400 font-mono">{visited.length}</strong>
+              </span>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">
+                Explored Cells:{" "}
+                <strong className="text-emerald-400 font-mono">{visited.length}</strong> · Active:{" "}
+                <strong className="text-primary font-mono">
+                  {currentKey
+                    ? `(${currentKey})`
+                    : typeof left === "number" && typeof right === "number"
+                      ? `(${left}, ${right})`
+                      : "—"}
+                </strong>
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Center: 4-Direction Traversal Compass Widget */}
-        <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/60 px-3 py-1.5 shadow-inner">
-          <Compass className="size-4 text-primary shrink-0" />
-          <div className="flex items-center gap-1 font-mono text-[10px]">
-            <span
-              className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all ${
-                isUp
-                  ? "bg-primary text-primary-foreground shadow-xs scale-105 ring-1 ring-primary"
-                  : "text-muted-foreground/60"
-              }`}
-              title="UP (-1, 0)"
-            >
-              <ArrowUp className="size-3" /> UP
-            </span>
-            <span
-              className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all ${
-                isDown
-                  ? "bg-primary text-primary-foreground shadow-xs scale-105 ring-1 ring-primary"
-                  : "text-muted-foreground/60"
-              }`}
-              title="DOWN (+1, 0)"
-            >
-              <ArrowDown className="size-3" /> DOWN
-            </span>
-            <span
-              className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all ${
-                isLeft
-                  ? "bg-primary text-primary-foreground shadow-xs scale-105 ring-1 ring-primary"
-                  : "text-muted-foreground/60"
-              }`}
-              title="LEFT (0, -1)"
-            >
-              <ArrowLeft className="size-3" /> LEFT
-            </span>
-            <span
-              className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all ${
-                isRight
-                  ? "bg-primary text-primary-foreground shadow-xs scale-105 ring-1 ring-primary"
-                  : "text-muted-foreground/60"
-              }`}
-              title="RIGHT (0, +1)"
-            >
-              <ArrowRight className="size-3" /> RIGHT
-            </span>
+        {/* Center: 4-Direction Traversal Compass Widget (rendered when direction exists) */}
+        {hasDirection && (
+          <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/60 px-3 py-1.5 shadow-inner">
+            <Compass className="size-4 text-primary shrink-0" />
+            <div className="flex items-center gap-1 font-mono text-[10px]">
+              <span
+                className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all ${
+                  isUp
+                    ? "bg-primary text-primary-foreground shadow-xs scale-105 ring-1 ring-primary"
+                    : "text-muted-foreground/60"
+                }`}
+                title="UP (-1, 0)"
+              >
+                <ArrowUp className="size-3" /> UP
+              </span>
+              <span
+                className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all ${
+                  isDown
+                    ? "bg-primary text-primary-foreground shadow-xs scale-105 ring-1 ring-primary"
+                    : "text-muted-foreground/60"
+                }`}
+                title="DOWN (+1, 0)"
+              >
+                <ArrowDown className="size-3" /> DOWN
+              </span>
+              <span
+                className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all ${
+                  isLeft
+                    ? "bg-primary text-primary-foreground shadow-xs scale-105 ring-1 ring-primary"
+                    : "text-muted-foreground/60"
+                }`}
+                title="LEFT (0, -1)"
+              >
+                <ArrowLeft className="size-3" /> LEFT
+              </span>
+              <span
+                className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 font-bold transition-all ${
+                  isRight
+                    ? "bg-primary text-primary-foreground shadow-xs scale-105 ring-1 ring-primary"
+                    : "text-muted-foreground/60"
+                }`}
+                title="RIGHT (0, +1)"
+              >
+                <ArrowRight className="size-3" /> RIGHT
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Right: Island Area & Max Area Badges or OOB Banner */}
+        {/* Right: Area or Metric Badges or OOB Banner */}
         <div className="flex items-center gap-2">
           {isCurrentOOB && (
             <div className="flex items-center gap-1.5 rounded-xl border border-amber-500/50 bg-amber-500/15 px-3 py-1.5 shadow-sm shadow-amber-500/10">
@@ -218,7 +250,7 @@ export function MatrixVisualizer({
             </div>
           )}
 
-          {activeAreaValue !== null && !isCurrentOOB && (
+          {isIslandMode && activeAreaValue !== null && !isCurrentOOB && (
             <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-1.5 shadow-sm shadow-emerald-500/10 animate-sync-glow">
               <Sparkles className="size-3.5 text-emerald-400" />
               <div className="flex flex-col text-right">
@@ -232,7 +264,7 @@ export function MatrixVisualizer({
             </div>
           )}
 
-          {maxAreaValue !== null && (
+          {isIslandMode && maxAreaValue !== null && (
             <div className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-1.5 shadow-sm shadow-amber-500/10">
               <Trophy className="size-3.5 text-amber-400" />
               <div className="flex flex-col text-right">
@@ -240,6 +272,30 @@ export function MatrixVisualizer({
                   Max Area
                 </span>
                 <span className="font-mono text-xs font-black text-amber-300">{maxAreaValue}</span>
+              </div>
+            </div>
+          )}
+
+          {!isIslandMode && typeof wSum === "number" && (
+            <div className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-1.5 shadow-sm shadow-primary/10">
+              <Sparkles className="size-3.5 text-primary" />
+              <div className="flex flex-col text-right">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-primary">
+                  Metric / Value
+                </span>
+                <span className="font-mono text-xs font-black text-primary">{wSum}</span>
+              </div>
+            </div>
+          )}
+
+          {!isIslandMode && typeof mSum === "number" && (
+            <div className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-1.5 shadow-sm shadow-amber-500/10">
+              <Trophy className="size-3.5 text-amber-400" />
+              <div className="flex flex-col text-right">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-amber-300">
+                  Max / Target
+                </span>
+                <span className="font-mono text-xs font-black text-amber-300">{mSum}</span>
               </div>
             </div>
           )}
@@ -252,149 +308,244 @@ export function MatrixVisualizer({
           <span className="font-mono text-sm text-muted-foreground">Empty grid</span>
         ) : (
           <div className="flex flex-col gap-2">
-            {/* Column Indices Header */}
+            {/* Column Indices Header with Pointer Badges */}
             <div className="flex gap-2 pl-9">
-              {Array.from({ length: cols }, (_, c) => (
-                <div
-                  key={`col-idx-${c}`}
-                  className="w-12 text-center font-mono text-[11px] font-bold text-muted-foreground"
-                >
-                  c{c}
-                </div>
-              ))}
+              {Array.from({ length: cols }, (_, c) => {
+                const isColActive = typeof right === "number" && right === c;
+                let activeColPointerName: string | null = isColActive ? colPtrLabel : null;
+
+                if (!activeColPointerName && activePointers && typeof activePointers === "object") {
+                  for (const [pName, pVal] of Object.entries(activePointers)) {
+                    if (pVal === null || pVal === undefined) continue;
+                    const lowerP = pName.toLowerCase();
+                    if (/^(?:col|c|j|p2)$/.test(lowerP) && Number(pVal) === c) {
+                      activeColPointerName = pName;
+                      break;
+                    }
+                  }
+                }
+
+                const colStyle = activeColPointerName ? getMarkerStyle(activeColPointerName) : null;
+
+                return (
+                  <div
+                    key={`col-idx-${c}`}
+                    className="relative flex flex-col items-center w-12 text-center"
+                  >
+                    {activeColPointerName && colStyle && (
+                      <span
+                        className={`absolute -top-5 rounded px-1.5 py-0.2 font-mono text-[9px] font-black uppercase border shadow-xs ${colStyle.bg} ${colStyle.textCol} ${colStyle.border}`}
+                      >
+                        {activeColPointerName}
+                      </span>
+                    )}
+                    <span
+                      className={`font-mono text-[11px] font-bold transition-colors ${
+                        activeColPointerName && colStyle ? `${colStyle.textCol} font-black scale-110` : "text-muted-foreground"
+                      }`}
+                    >
+                      c{c}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Grid Rows */}
-            {matrix.map((row, r) => (
-              <div key={`row-${r}`} className="flex items-center gap-2">
-                {/* Row Index Label */}
-                <span className="w-7 text-right pr-1 font-mono text-[11px] font-bold text-muted-foreground">
-                  r{r}
-                </span>
+            {matrix.map((row, r) => {
+              const isRowActive = typeof left === "number" && left === r;
+              let activeRowPointerName: string | null = isRowActive ? rowPtrLabel : null;
 
-                {/* Cells in this row */}
-                {row.slice(0, cols).map((val, c) => {
-                  const cellKey = `${r},${c}`;
-
-                  // Strict coordinate matching only; never match scalar index numbers to 2D coordinates
-                  const isCoordActive = typeof left === "number" && typeof right === "number" && left === r && right === c;
-                  const isActive = isCoordActive || currentKey === cellKey;
-                  const isTopDependency = typeof left === "number" && typeof right === "number" && left > 0 && r === left - 1 && c === right;
-                  const isLeftDependency = typeof left === "number" && typeof right === "number" && right > 0 && r === left && c === right - 1;
-                  const isDependencyCell = !isActive && (isTopDependency || isLeftDependency);
-
-                  const isVisited = seenKeys.has(cellKey);
-                  const isCurrentActiveIsland =
-                    activeIslandSet.has(cellKey) || (isActive && (Number(val) === 1 || isVisited));
-                  
-                  // Water cells must never mutate into land even when probed by DFS/BFS
-                  const isRawWater = Number(val) === 0 || String(val).toLowerCase() === "water";
-                  const isWater = isRawWater && !activeIslandSet.has(cellKey);
-                  const isLand = !isWater && (
-                    Number(val) === 1 ||
-                    String(val).toLowerCase() === "land" ||
-                    isVisited ||
-                    isCurrentActiveIsland
-                  );
-
-                  const matchingPointerLabels: string[] = [];
-                  if (activePointers && typeof activePointers === "object") {
-                    for (const [pName, pVal] of Object.entries(activePointers)) {
-                      if (!pVal) continue;
-                      if (Array.isArray(pVal) && pVal.length === 2 && Number(pVal[0]) === r && Number(pVal[1]) === c) {
-                        matchingPointerLabels.push(pName);
-                      } else if (typeof pVal === "string" && (pVal === cellKey || pVal === `${r},${c}`)) {
-                        matchingPointerLabels.push(pName);
-                      }
-                    }
+              if (!activeRowPointerName && activePointers && typeof activePointers === "object") {
+                for (const [pName, pVal] of Object.entries(activePointers)) {
+                  if (pVal === null || pVal === undefined) continue;
+                  const lowerP = pName.toLowerCase();
+                  if (/^(?:row|r|i|p1)$/.test(lowerP) && Number(pVal) === r) {
+                    activeRowPointerName = pName;
+                    break;
                   }
+                }
+              }
 
-                  return (
-                    <div
-                      key={`cell-${r}-${c}`}
-                      className={`relative flex size-12 flex-col items-center justify-center rounded-xl border font-mono transition-all duration-300 select-none ${
-                        isActive
-                          ? "border-primary bg-primary text-primary-foreground font-black shadow-lg shadow-primary/40 ring-2 ring-primary/80 z-10 scale-105"
-                          : matchingPointerLabels.length > 0
-                            ? "border-amber-400 bg-amber-500/30 text-amber-200 font-black shadow-md ring-2 ring-amber-400/80 z-10 scale-105"
-                            : isDependencyCell
-                              ? "border-purple-400/70 bg-purple-950/40 text-purple-200 ring-1 ring-purple-400/40"
-                              : isCurrentActiveIsland
-                                ? "border-emerald-400/80 bg-emerald-500/25 text-emerald-200 font-bold hover:border-emerald-300 hover:bg-emerald-500/35 ring-1 ring-emerald-500/40 shadow-xs"
-                                : isVisited && isLand
-                                  ? "border-teal-400/80 bg-teal-800/60 text-teal-100 font-bold shadow-sm shadow-teal-900/40 ring-1 ring-teal-400/50"
-                                  : isLand
-                                    ? "border-amber-400/80 bg-amber-500/25 text-amber-200 font-bold hover:border-amber-300 hover:bg-amber-500/35 ring-1 ring-amber-500/40 shadow-xs"
-                                    : isWater
-                                      ? "border-slate-800/80 bg-slate-950/60 text-slate-500/60 hover:bg-slate-900/60"
-                                      : "border-border/60 bg-card/60 text-muted-foreground"
+              const rowStyle = activeRowPointerName ? getMarkerStyle(activeRowPointerName) : null;
+
+              return (
+                <div key={`row-${r}`} className="flex items-center gap-2">
+                  {/* Row Index Label with Pointer Badge */}
+                  <div className="relative flex items-center justify-end w-7 pr-1">
+                    {activeRowPointerName && rowStyle && (
+                      <span
+                        className={`absolute -left-6 rounded px-1 py-0.2 font-mono text-[8px] font-black uppercase border shadow-xs ${rowStyle.bg} ${rowStyle.textCol} ${rowStyle.border}`}
+                      >
+                        {activeRowPointerName}
+                      </span>
+                    )}
+                    <span
+                      className={`font-mono text-[11px] font-bold transition-colors ${
+                        activeRowPointerName && rowStyle ? `${rowStyle.textCol} font-black scale-110` : "text-muted-foreground"
                       }`}
                     >
-                      {/* Floating Multi-Pointer Label Badge */}
-                      {matchingPointerLabels.length > 0 && !isActive && (
-                        <div className="absolute -top-3 z-20 flex gap-0.5 pointer-events-none">
-                          {matchingPointerLabels.map((lbl, li) => (
-                            <span
-                              key={li}
-                              className="rounded bg-amber-500 text-slate-950 px-1 py-0.2 font-mono text-[8px] font-black uppercase shadow-xs"
-                            >
-                              {lbl.slice(0, 5)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      r{r}
+                    </span>
+                  </div>
 
-                      {/* Active Cell Notification Dot */}
-                      {isActive && (
-                        <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                          <span className="relative inline-flex size-2 rounded-full bg-primary-foreground" />
-                        </span>
-                      )}
+                  {/* Cells in this row */}
+                  {row.slice(0, cols).map((val, c) => {
+                    const cellKey = `${r},${c}`;
 
-                      {/* Explored/Visited Land Check Dot */}
-                      {isVisited && !isCurrentActiveIsland && !isActive && (
-                        <span
-                          className="absolute -top-1 -right-1 size-2.5 rounded-full bg-teal-400 shadow-xs shadow-teal-400/80 ring-1 ring-background"
-                          title="Explored / Visited Land Cell"
-                        />
-                      )}
+                    // Strict coordinate matching
+                    const isCoordActive =
+                      typeof left === "number" && typeof right === "number" && left === r && right === c;
+                    const isActive = isCoordActive || currentKey === cellKey;
+                    const isTopDependency =
+                      typeof left === "number" && typeof right === "number" && left > 0 && r === left - 1 && c === right;
+                    const isLeftDependency =
+                      typeof left === "number" && typeof right === "number" && right > 0 && r === left && c === right - 1;
+                    const isDependencyCell = !isActive && (isTopDependency || isLeftDependency);
 
-                      {/* Small coordinate subscript */}
-                      <span
-                        className={`text-[8px] leading-none mb-0.5 opacity-70 ${
-                          isActive
-                            ? "text-primary-foreground font-semibold"
-                            : isCurrentActiveIsland
-                              ? "text-emerald-200 font-medium"
-                              : isVisited
-                                ? "text-teal-200"
-                                : "text-muted-foreground"
-                        }`}
+                    const isVisited = seenKeys.has(cellKey);
+                    const isCurrentActiveIsland =
+                      isIslandMode &&
+                      (activeIslandSet.has(cellKey) || (isActive && (Number(val) === 1 || isVisited)));
+
+                    const isRawWater = isIslandMode && (Number(val) === 0 || String(val).toLowerCase() === "water");
+                    const isWater = isRawWater && !activeIslandSet.has(cellKey);
+                    const isLand =
+                      isIslandMode &&
+                      !isWater &&
+                      (Number(val) === 1 || String(val).toLowerCase() === "land" || isVisited || isCurrentActiveIsland);
+
+                    // Collect matching pointer labels for this cell
+                    const matchingPointerBadges: { name: string; isMatch?: boolean }[] = [];
+                    if (isCoordActive) {
+                      matchingPointerBadges.push({
+                        name: pointer_labels?.current || `${rowPtrLabel},${colPtrLabel}`,
+                      });
+                    }
+
+                    if (activePointers && typeof activePointers === "object") {
+                      for (const [pName, pVal] of Object.entries(activePointers)) {
+                        if (!pVal) continue;
+                        if (
+                          Array.isArray(pVal) &&
+                          pVal.length === 2 &&
+                          Number(pVal[0]) === r &&
+                          Number(pVal[1]) === c
+                        ) {
+                          if (!matchingPointerBadges.some((b) => b.name === pName)) {
+                            matchingPointerBadges.push({ name: pName });
+                          }
+                        } else if (
+                          typeof pVal === "string" &&
+                          (pVal === cellKey || pVal === `${r},${c}`)
+                        ) {
+                          if (!matchingPointerBadges.some((b) => b.name === pName)) {
+                            matchingPointerBadges.push({ name: pName });
+                          }
+                        }
+                      }
+                    }
+
+                    // Compute styling classes
+                    let cellBgStyle = "border-border/70 bg-card/85 text-foreground hover:border-primary/50 shadow-xs";
+                    if (isActive) {
+                      cellBgStyle =
+                        "border-primary bg-primary text-primary-foreground font-black shadow-lg shadow-primary/40 ring-2 ring-primary/80 z-10 scale-105";
+                    } else if (matchingPointerBadges.length > 0) {
+                      const firstMarker = getMarkerStyle(matchingPointerBadges[0]!.name);
+                      cellBgStyle = `${firstMarker.border} ${firstMarker.bg} ${firstMarker.textCol} font-black shadow-md ring-2 ${firstMarker.ring} z-10 scale-105`;
+                    } else if (isDependencyCell) {
+                      cellBgStyle = "border-purple-400/70 bg-purple-950/40 text-purple-200 ring-1 ring-purple-400/40";
+                    } else if (isIslandMode) {
+                      if (isCurrentActiveIsland) {
+                        cellBgStyle =
+                          "border-emerald-400/80 bg-emerald-500/25 text-emerald-200 font-bold ring-1 ring-emerald-500/40 shadow-xs";
+                      } else if (isVisited && isLand) {
+                        cellBgStyle =
+                          "border-teal-400/80 bg-teal-800/60 text-teal-100 font-bold shadow-sm shadow-teal-900/40 ring-1 ring-teal-400/50";
+                      } else if (isLand) {
+                        cellBgStyle =
+                          "border-amber-400/80 bg-amber-500/25 text-amber-200 font-bold ring-1 ring-amber-500/40 shadow-xs";
+                      } else if (isWater) {
+                        cellBgStyle = "border-slate-800/80 bg-slate-950/60 text-slate-500/60 hover:bg-slate-900/60";
+                      }
+                    } else {
+                      // Universal Matrix Non-Island Mode
+                      if (isVisited) {
+                        cellBgStyle = "border-primary/40 bg-primary/10 text-primary font-bold ring-1 ring-primary/20 shadow-xs";
+                      } else if (val === 0 || val === "0") {
+                        cellBgStyle = "border-amber-500/40 bg-amber-500/10 text-amber-300 font-bold shadow-xs";
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={`cell-${r}-${c}`}
+                        className={`relative flex size-12 flex-col items-center justify-center rounded-xl border font-mono transition-all duration-300 select-none ${cellBgStyle}`}
                       >
-                        {r},{c}
-                      </span>
-
-                      {/* Value Display */}
-                      <span className="text-sm font-bold leading-none">
-                        {isWater ? (
-                          <span className="flex items-center gap-0.5 opacity-70">0</span>
-                        ) : isVisited || isCurrentActiveIsland ? (
-                          <span>1</span>
-                        ) : (
-                          toText(val)
+                        {/* Floating Pointer Badges with Accurate Semantic Colors */}
+                        {matchingPointerBadges.length > 0 && !isActive && (
+                          <div className="absolute -top-3 z-20 flex gap-0.5 pointer-events-none">
+                            {matchingPointerBadges.map((badge, bi) => {
+                              const s = getMarkerStyle(badge.name, badge.isMatch);
+                              return (
+                                <span
+                                  key={bi}
+                                  className={`rounded px-1.5 py-0.2 font-mono text-[8px] font-black uppercase border shadow-xs ${s.bg} ${s.textCol} ${s.border}`}
+                                >
+                                  {badge.name.slice(0, 6)}
+                                </span>
+                              );
+                            })}
+                          </div>
                         )}
-                      </span>
 
-                      {/* Island Area Badge on Active Shaded Island Cells */}
-                      {isCurrentActiveIsland && !isActive && (
-                        <span className="absolute -bottom-1 -right-1 size-2 rounded-full bg-emerald-400 shadow-xs shadow-emerald-400/80 ring-1 ring-background" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                        {/* Active Cell Notification Dot */}
+                        {isActive && (
+                          <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                            <span className="relative inline-flex size-2 rounded-full bg-primary-foreground" />
+                          </span>
+                        )}
+
+                        {/* Visited Check Dot */}
+                        {isVisited && !isCurrentActiveIsland && !isActive && (
+                          <span
+                            className="absolute -top-1 -right-1 size-2 rounded-full bg-teal-400 shadow-xs shadow-teal-400/80 ring-1 ring-background"
+                            title="Explored / Visited Cell"
+                          />
+                        )}
+
+                        {/* Coordinate subscript */}
+                        <span
+                          className={`text-[8px] leading-none mb-0.5 opacity-70 ${
+                            isActive
+                              ? "text-primary-foreground font-semibold"
+                              : isCurrentActiveIsland
+                                ? "text-emerald-200 font-medium"
+                                : isVisited
+                                  ? "text-teal-300"
+                                  : "text-muted-foreground"
+                          }`}
+                        >
+                          {r},{c}
+                        </span>
+
+                        {/* Value Display (preserves authentic scalar/string values) */}
+                        <span className="text-sm font-bold leading-none">
+                          {toText(val)}
+                        </span>
+
+                        {/* Island Area Dot on Active Island Cells */}
+                        {isIslandMode && isCurrentActiveIsland && !isActive && (
+                          <span className="absolute -bottom-1 -right-1 size-2 rounded-full bg-emerald-400 shadow-xs shadow-emerald-400/80 ring-1 ring-background" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -438,29 +589,54 @@ export function MatrixVisualizer({
         )}
       </div>
 
-      {/* Visual Legend */}
-      <div className="flex flex-wrap items-center justify-center gap-4 rounded-xl border border-border/60 bg-card/30 px-4 py-2 text-[11px] font-mono text-muted-foreground">
-        <div className="flex items-center gap-1.5">
-          <span className="size-3 rounded border border-slate-800/80 bg-slate-950/60" />
-          <span>Water (0)</span>
+      {/* Visual Legend (Mode-aware) */}
+      {isIslandMode ? (
+        <div className="flex flex-wrap items-center justify-center gap-4 rounded-xl border border-border/60 bg-card/30 px-4 py-2 text-[11px] font-mono text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-slate-800/80 bg-slate-950/60" />
+            <span>Water (0)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-amber-400/80 bg-amber-500/25 shadow-xs" />
+            <span className="text-amber-300 font-bold">Unvisited Land (1)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-primary bg-primary shadow-xs" />
+            <span className="text-primary font-bold">Active Cell (r, c)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-emerald-400 bg-emerald-500/40 shadow-xs" />
+            <span className="text-emerald-400 font-bold">Current Island</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-teal-400/80 bg-teal-800/60 shadow-xs" />
+            <span className="text-teal-300 font-bold">Visited Land</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="size-3 rounded border border-amber-400/80 bg-amber-500/25 shadow-xs" />
-          <span className="text-amber-300 font-bold">Unvisited Land (1)</span>
+      ) : (
+        <div className="flex flex-wrap items-center justify-center gap-4 rounded-xl border border-border/60 bg-card/30 px-4 py-2 text-[11px] font-mono text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-border/70 bg-card/85 shadow-xs" />
+            <span>Grid Cell</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-primary bg-primary shadow-xs" />
+            <span className="text-primary font-bold">Active Cell (r, c)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-primary/40 bg-primary/10 shadow-xs" />
+            <span className="text-primary font-bold">Visited Cell</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-amber-500/40 bg-amber-500/10 shadow-xs" />
+            <span className="text-amber-300 font-bold">Zero / Sentinel</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-3 rounded border border-purple-400/70 bg-purple-950/40 shadow-xs" />
+            <span className="text-purple-300 font-bold">Dependency Cell</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="size-3 rounded border border-primary bg-primary shadow-xs" />
-          <span className="text-primary font-bold">Active Cell (r, c)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="size-3 rounded border border-emerald-400 bg-emerald-500/40 shadow-xs" />
-          <span className="text-emerald-400 font-bold">Current Island (DFS Active)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="size-3 rounded border border-teal-400/80 bg-teal-800/60 shadow-xs" />
-          <span className="text-teal-300 font-bold">Visited Island (Explored)</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

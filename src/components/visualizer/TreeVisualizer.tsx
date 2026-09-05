@@ -1,12 +1,16 @@
 import React, { useMemo } from "react";
-import type { Val } from "./VisualizerTypes";
-import { toText } from "./VisualizerTypes";
+import type { Val, MarkerStyle } from "./VisualizerTypes";
+import { toText, getMarkerStyle } from "./VisualizerTypes";
 
 interface TreeVisualizerProps {
   treeData: (Val | null)[];
   current: Val | null;
   visited: Val[];
   type: "tree" | "bst" | "heap" | "trie";
+  left?: number | null | undefined;
+  right?: number | null | undefined;
+  pointer_labels?: Record<string, string> | null;
+  activePointers?: Record<string, number | string | [number, number] | null> | null;
 }
 
 interface TreeEdge {
@@ -21,7 +25,16 @@ interface TreeEdge {
   isVisited: boolean;
 }
 
-export function TreeVisualizer({ treeData, current, visited, type }: TreeVisualizerProps) {
+export function TreeVisualizer({
+  treeData,
+  current,
+  visited,
+  type,
+  left,
+  right,
+  pointer_labels,
+  activePointers,
+}: TreeVisualizerProps) {
   const safeNodes = useMemo(() => {
     return treeData.map((val) =>
       val === null || val === undefined || String(val) === "null" ? null : val,
@@ -48,9 +61,8 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
 
   const svgWidth = depth >= 6 ? 960 : depth === 5 ? 740 : depth >= 4 ? 640 : 560;
   const levelHeight = depth >= 6 ? 55 : 65;
-  const svgHeight = Math.max(180, 50 + depth * levelHeight);
+  const svgHeight = Math.max(200, 60 + depth * levelHeight);
   const nodeRadius = depth >= 6 ? 15 : depth === 5 ? 17 : 19;
-
 
   // Compute position for each node
   const nodePositions = useMemo(() => {
@@ -63,11 +75,11 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
       const posInLevel = i - (2 ** level - 1);
       const levelSlots = 2 ** level;
       const x = (posInLevel + 0.5) * (svgWidth / levelSlots);
-      const y = 40 + level * levelHeight;
+      const y = 48 + level * levelHeight;
       positions.push({ index: i, val, x, y, level });
     }
     return positions;
-  }, [safeNodes, depth, svgWidth]);
+  }, [safeNodes, depth, svgWidth, levelHeight]);
 
   // Compute branches/edges between parents and children
   const edges = useMemo<TreeEdge[]>(() => {
@@ -106,8 +118,36 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
     return lines;
   }, [nodePositions, currentStr, visitedSet, type]);
 
+  const activePointerEntries = useMemo(() => {
+    if (!activePointers || typeof activePointers !== "object") return [];
+    return Object.entries(activePointers).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    );
+  }, [activePointers]);
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Pointer Bar if active */}
+      {activePointerEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+            Tree Pointers:
+          </span>
+          {activePointerEntries.map(([k, v]) => {
+            const style = getMarkerStyle(k);
+            return (
+              <span
+                key={`pbadge-${k}`}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-bold border shadow-xs ${style.bg} ${style.textCol} ${style.border}`}
+              >
+                <span>{k}</span>
+                <span className="opacity-70 font-normal">→ {String(v)}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* SVG Binary Tree Canvas */}
       <div className="relative flex min-h-[220px] items-center justify-center overflow-x-auto rounded-xl border border-border/80 bg-gradient-to-b from-card/90 via-card/50 to-background/90 p-4 shadow-inner">
         {safeNodes.length === 0 || safeNodes.every((v) => v === null) ? (
@@ -188,18 +228,109 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
                 visitedSet.has(nodeValStr) ||
                 (visitedSet.has(String(node.index)) && visited.length <= safeNodes.length);
 
+              // Gather pointer badges for this node
+              const nodePointers: { label: string; style: MarkerStyle }[] = [];
+
+              if (activePointers && typeof activePointers === "object") {
+                for (const [pName, pVal] of Object.entries(activePointers)) {
+                  if (pVal === null || pVal === undefined) continue;
+                  const isMatchingIndex = typeof pVal === "number" && pVal === node.index;
+                  const isMatchingVal = typeof pVal !== "number" && String(pVal) === nodeValStr;
+                  if (
+                    (isMatchingIndex || isMatchingVal) &&
+                    !nodePointers.some((p) => p.label.toLowerCase() === pName.toLowerCase())
+                  ) {
+                    nodePointers.push({
+                      label: pName.slice(0, 8),
+                      style: getMarkerStyle(pName),
+                    });
+                  }
+                }
+              }
+
+              if (typeof left === "number" && left === node.index) {
+                const lbl = pointer_labels?.left || "L";
+                if (!nodePointers.some((p) => p.label.toLowerCase() === lbl.toLowerCase())) {
+                  nodePointers.push({ label: lbl, style: getMarkerStyle("left") });
+                }
+              }
+
+              if (typeof right === "number" && right === node.index) {
+                const lbl = pointer_labels?.right || "R";
+                if (!nodePointers.some((p) => p.label.toLowerCase() === lbl.toLowerCase())) {
+                  nodePointers.push({ label: lbl, style: getMarkerStyle("right") });
+                }
+              }
+
+              if (isCurrent && !nodePointers.some((p) => /curr|current/.test(p.label.toLowerCase()))) {
+                const lbl = pointer_labels?.current || "CURR";
+                nodePointers.push({ label: lbl, style: getMarkerStyle("curr") });
+              }
+
+              const firstNodePointer = nodePointers[0];
+
               return (
                 <g
                   key={`node-${node.index}`}
                   transform={`translate(${node.x}, ${node.y})`}
                   className="transition-all duration-300"
                 >
+                  {/* Floating Pointer Badges above node */}
+                  {nodePointers.length > 0 && (
+                    <g transform={`translate(0, ${-nodeRadius - 12})`}>
+                      {nodePointers.map((badge, bIdx) => {
+                        const textLen = badge.label.length;
+                        const bWidth = Math.max(26, textLen * 6.5 + 8);
+                        const bHeight = 14;
+                        const totalWidth =
+                          nodePointers.length * bWidth + (nodePointers.length - 1) * 4;
+                        const startX = -totalWidth / 2;
+                        const badgeX = startX + bIdx * (bWidth + 4);
+
+                        return (
+                          <g key={`tbadge-${bIdx}`} transform={`translate(${badgeX}, -7)`}>
+                            <rect
+                              width={bWidth}
+                              height={bHeight}
+                              rx="4"
+                              fill={badge.style.svgFill}
+                              stroke={badge.style.svgStroke}
+                              strokeWidth="1.2"
+                            />
+                            <text
+                              x={bWidth / 2}
+                              y={bHeight / 2 + 0.5}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fill={badge.style.svgText}
+                              className="font-mono text-[9px] font-bold select-none"
+                            >
+                              {badge.label}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  )}
+
                   {/* Outer constant glow ring for active node */}
                   {isCurrent && (
                     <circle
                       r={nodeRadius + 5}
                       className="fill-primary/10 stroke-primary/50 transition-all duration-300"
                       strokeWidth="1.5"
+                    />
+                  )}
+
+                  {/* Pointer accent ring if node has custom pointers */}
+                  {firstNodePointer && !isCurrent && (
+                    <circle
+                      r={nodeRadius + 4}
+                      fill="none"
+                      stroke={firstNodePointer.style.svgStroke}
+                      strokeWidth="1.5"
+                      strokeDasharray="3 2"
+                      className="animate-pulse"
                     />
                   )}
 
@@ -220,7 +351,6 @@ export function TreeVisualizer({ treeData, current, visited, type }: TreeVisuali
                   {type === "trie" && (
                     <circle r={Math.max(10, nodeRadius - 4)} className="fill-none stroke-primary/40 stroke-1" />
                   )}
-
 
                   {/* Node Value */}
                   <text

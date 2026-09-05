@@ -406,21 +406,21 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
         }));
 
       if (aiDatasets.length > 0) {
-        // Dataset 1: Standard Case (preserves canonical if AI did not provide valid input)
+        // Dataset 1: Standard Case
         const d1Canon = canonicalDatasets[0]!;
         const d1Ai = aiDatasets[0];
 
-        let d1Matrix = d1Canon.matrix;
-        if (d1Ai?.matrix && isValidMatrixForProblem(d1Ai.matrix, data.slug, data.topics ?? [], false)) {
-          d1Matrix = d1Ai.matrix;
-        }
+        const d1Matrix =
+          d1Ai?.matrix && Array.isArray(d1Ai.matrix) && d1Ai.matrix.length > 0 && Array.isArray(d1Ai.matrix[0])
+            ? d1Ai.matrix
+            : d1Canon.matrix;
 
-        let d1Array = d1Canon.array;
-        if (d1Matrix && (d1Canon.matrix || d1Ai?.matrix)) {
-          d1Array = d1Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string");
-        } else if (d1Ai?.array && isValidArrayForProblem(d1Ai.array, data.slug, data.topics ?? [], false)) {
-          d1Array = d1Ai.array;
-        }
+        const d1Array =
+          d1Ai?.array && Array.isArray(d1Ai.array) && d1Ai.array.length > 0
+            ? d1Ai.array
+            : d1Matrix && (d1Ai?.matrix || d1Canon.matrix)
+              ? d1Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
+              : d1Canon.array;
 
         const d1: TestDataset = {
           id: "dataset_1",
@@ -438,7 +438,7 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
           k: d1Ai?.k !== undefined ? d1Ai.k : d1Canon.k,
         };
 
-        // Dataset 2: Longer & Complex Trace (enforces strictly larger dimensions for longer visualization duration)
+        // Dataset 2: Longer & Complex Trace
         const d2Canon = canonicalDatasets[1] ?? {
           id: "dataset_2",
           label: "Dataset 2: Longer & Complex Trace ⚡",
@@ -447,35 +447,17 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
         };
         const d2Ai = aiDatasets[1];
 
-        let d2Matrix = d2Canon.matrix;
-        if (d2Ai?.matrix && isValidMatrixForProblem(d2Ai.matrix, data.slug, data.topics ?? [], false)) {
-          const minRows = Math.max(5, (d1.matrix?.length ?? 3) + 1);
-          const minCols = Math.max(6, (d1.matrix?.[0]?.length ?? 3) + 1);
-          if (d2Ai.matrix.length < minRows || (d2Ai.matrix[0]?.length ?? 0) < minCols) {
-            d2Matrix = expandMatrixToSize(d2Ai.matrix, minRows, minCols);
-          } else {
-            d2Matrix = d2Ai.matrix;
-          }
-        } else if (d1.matrix && !d2Matrix) {
-          const minRows = Math.max(5, d1.matrix.length + 2);
-          const minCols = Math.max(6, (d1.matrix[0]?.length ?? 3) + 2);
-          d2Matrix = expandMatrixToSize(d1.matrix, minRows, minCols);
-        }
+        const d2Matrix =
+          d2Ai?.matrix && Array.isArray(d2Ai.matrix) && d2Ai.matrix.length > 0 && Array.isArray(d2Ai.matrix[0])
+            ? d2Ai.matrix
+            : d2Canon.matrix;
 
-        let d2Array = d2Canon.array;
-        if (d2Matrix && (d1.matrix || d2Canon.matrix)) {
-          d2Array = d2Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string");
-        } else if (d2Ai?.array && isValidArrayForProblem(d2Ai.array, data.slug, data.topics ?? [], false)) {
-          const targetLen = Math.max(15, (d1.array?.length ?? 8) + 6);
-          if (d2Ai.array.length < targetLen) {
-            d2Array = expandArrayToLength(d2Ai.array, targetLen);
-          } else {
-            d2Array = d2Ai.array;
-          }
-        } else if (d1.array && !d2Array) {
-          const targetLen = Math.max(15, d1.array.length + 8);
-          d2Array = expandArrayToLength(d1.array, targetLen);
-        }
+        const d2Array =
+          d2Ai?.array && Array.isArray(d2Ai.array) && d2Ai.array.length > 0
+            ? d2Ai.array
+            : d2Matrix && (d2Ai?.matrix || d2Canon.matrix)
+              ? d2Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
+              : d2Canon.array;
 
         const d2: TestDataset = {
           id: "dataset_2",
@@ -505,17 +487,17 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
         };
         const d3Ai = aiDatasets[2];
 
-        let d3Matrix = d3Canon.matrix;
-        if (d3Ai?.matrix && isValidMatrixForProblem(d3Ai.matrix, data.slug, data.topics ?? [], false)) {
-          d3Matrix = d3Ai.matrix;
-        }
+        const d3Matrix =
+          d3Ai?.matrix && Array.isArray(d3Ai.matrix) && d3Ai.matrix.length > 0 && Array.isArray(d3Ai.matrix[0])
+            ? d3Ai.matrix
+            : d3Canon.matrix;
 
-        let d3Array = d3Canon.array;
-        if (d3Matrix && (d1.matrix || d3Canon.matrix)) {
-          d3Array = d3Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string");
-        } else if (d3Ai?.array && isValidArrayForProblem(d3Ai.array, data.slug, data.topics ?? [], false)) {
-          d3Array = d3Ai.array;
-        }
+        const d3Array =
+          d3Ai?.array && Array.isArray(d3Ai.array) && d3Ai.array.length > 0
+            ? d3Ai.array
+            : d3Matrix && (d3Ai?.matrix || d3Canon.matrix)
+              ? d3Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
+              : d3Canon.array;
 
         const d3: TestDataset = {
           id: "dataset_3",
@@ -547,7 +529,11 @@ export async function processReviewPseudocode(data: z.infer<typeof Input>): Prom
         data.topics ?? [],
         activeDataset,
       );
-      const preferredShape = fallback.steps[0]?.type ?? pickShape(data.slug, data.topics ?? []);
+      const preferredShape =
+        (typeof reviewOut?.primary_type === "string" ? reviewOut.primary_type : undefined) ??
+        (typeof reviewOut?.visualization_manifest?.primary_type === "string" ? reviewOut.visualization_manifest.primary_type : undefined) ??
+        fallback.steps[0]?.type ??
+        pickShape(data.slug, data.topics ?? []);
 
       if (vizKeyForRequest) {
         const vizSystem = VISUALIZER_SYSTEM_PROMPT;
@@ -789,23 +775,13 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
   const isLonger = dataset.category === "longer" || dataset.id === "dataset_2";
   const canonDatasets = getCanonicalMultiDatasets(data.slug, data.title, data.topics ?? []);
   const canonMatch = canonDatasets.find((d) => d.id === dataset.id);
-  const canonRows = canonMatch?.matrix?.length ?? 0;
-  const canonCols = canonMatch?.matrix?.[0]?.length ?? 0;
 
   const matrixExample =
-    dataset.matrix &&
-    isValidMatrixForProblem(
-      dataset.matrix,
-      data.slug,
-      data.topics ?? [],
-      isLonger,
-      canonRows,
-      canonCols,
-    )
+    dataset.matrix && dataset.matrix.length > 0 && Array.isArray(dataset.matrix[0])
       ? dataset.matrix
       : isIslandOrGridProblem(data.slug, data.topics ?? []) ||
         isMatrixTransformationProblem(data.slug, data.topics ?? [])
-        ? sampleMatrixFor(data.slug)
+        ? (canonMatch?.matrix ?? sampleMatrixFor(data.slug))
         : undefined;
 
   const isDynamicWindow = isDynamicSlidingWindowProblem(data.slug, data.topics ?? []);
@@ -826,9 +802,11 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
     target: dataset.target !== undefined ? dataset.target : canonMatch?.target,
     k: dataset.k !== undefined ? dataset.k : canonMatch?.k,
     array:
-      matrixExample && matrixExample.length > 0
-        ? matrixExample.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
-        : (candidateArray ?? canonMatch?.array),
+      candidateArray && candidateArray.length > 0
+        ? candidateArray
+        : matrixExample && matrixExample.length > 0
+          ? matrixExample.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
+          : canonMatch?.array,
   };
 
   const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
@@ -840,7 +818,10 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
     data.topics ?? [],
     sanitizedDataset,
   );
-  const preferredShape = fallback.steps[0]?.type ?? pickShape(data.slug, data.topics ?? []);
+  const preferredShape =
+    (typeof (dataset as any).primary_type === "string" ? (dataset as any).primary_type : undefined) ??
+    fallback.steps[0]?.type ??
+    pickShape(data.slug, data.topics ?? []);
 
   let vizOut: any = null;
   if (vizKeyForRequest) {

@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
-import type { Val } from "./VisualizerTypes";
-import { safeArray } from "./VisualizerTypes";
+import type { Val, MarkerStyle } from "./VisualizerTypes";
+import { safeArray, getMarkerStyle } from "./VisualizerTypes";
 import { ArrowRight, Link2 } from "lucide-react";
 
 interface LinkedListVisualizerProps {
@@ -54,8 +54,36 @@ export function LinkedListVisualizer({
   const labelCurr = pointer_labels?.current ? pointer_labels.current.slice(0, 7) : (isCycleMode ? "SLOW" : "CURR");
   const labelPrev = pointer_labels?.predecessor ? pointer_labels.predecessor.slice(0, 7) : (isCycleMode ? "FAST" : "PREV");
 
+  const activePointerEntries = useMemo(() => {
+    if (!activePointers || typeof activePointers !== "object") return [];
+    return Object.entries(activePointers).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    );
+  }, [activePointers]);
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Active Pointers Bar */}
+      {activePointerEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+            List Pointers:
+          </span>
+          {activePointerEntries.map(([k, v]) => {
+            const style = getMarkerStyle(k);
+            return (
+              <span
+                key={`lpbadge-${k}`}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-bold border shadow-xs ${style.bg} ${style.textCol} ${style.border}`}
+              >
+                <span>{k}</span>
+                <span className="opacity-70 font-normal">→ {String(v)}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex min-h-[220px] w-full flex-col justify-center overflow-x-auto rounded-xl border border-border/80 bg-gradient-to-b from-card/90 via-card/50 to-background/90 p-6 shadow-inner">
         <div className="mb-6 flex w-full items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
@@ -87,18 +115,18 @@ export function LinkedListVisualizer({
               const isHead = i === 0;
               const isTail = i === list.length - 1;
 
-              const nodeTags: { text: string; bg: string; textCol: string; border: string }[] = [];
+              const nodeTags: { text: string; style: MarkerStyle }[] = [];
               if (isHead) {
-                nodeTags.push({ text: "HEAD", bg: "bg-emerald-500/20", textCol: "text-emerald-400", border: "border-emerald-500/30" });
+                nodeTags.push({ text: "HEAD", style: getMarkerStyle("head") });
               }
               if (isPrev) {
-                nodeTags.push({ text: labelPrev, bg: "bg-indigo-500/20", textCol: "text-indigo-300", border: "border-indigo-500/30" });
+                nodeTags.push({ text: labelPrev, style: getMarkerStyle(labelPrev) });
               }
               if (isCurrent) {
-                nodeTags.push({ text: labelCurr, bg: "bg-primary/20", textCol: "text-primary", border: "border-primary/40" });
+                nodeTags.push({ text: labelCurr, style: getMarkerStyle(labelCurr) });
               }
               if (isTail && !isHead) {
-                nodeTags.push({ text: "TAIL", bg: "bg-muted/60", textCol: "text-muted-foreground", border: "border-border" });
+                nodeTags.push({ text: "TAIL", style: getMarkerStyle("tail") });
               }
 
               if (activePointers && typeof activePointers === "object") {
@@ -110,33 +138,9 @@ export function LinkedListVisualizer({
                     (isMatchingIndex || isMatchingVal) &&
                     !nodeTags.some((t) => t.text.toLowerCase() === pName.toLowerCase())
                   ) {
-                    const lower = pName.toLowerCase();
-                    let bg = "bg-sky-500/25";
-                    let textCol = "text-sky-300";
-                    let border = "border-sky-500/50";
-                    if (/slow|prev|first|l1/.test(lower)) {
-                      bg = "bg-emerald-500/25";
-                      textCol = "text-emerald-400";
-                      border = "border-emerald-500/50";
-                    } else if (/fast|next|second|l2/.test(lower)) {
-                      bg = "bg-purple-500/25";
-                      textCol = "text-purple-300";
-                      border = "border-purple-500/50";
-                    } else if (/curr|mid/.test(lower)) {
-                      bg = "bg-amber-500/25";
-                      textCol = "text-amber-300";
-                      border = "border-amber-500/50";
-                    } else if (/dummy|anchor/.test(lower)) {
-                      bg = "bg-cyan-500/25";
-                      textCol = "text-cyan-300";
-                      border = "border-cyan-500/50";
-                    }
-
                     nodeTags.push({
                       text: pName.slice(0, 8),
-                      bg,
-                      textCol,
-                      border,
+                      style: getMarkerStyle(pName),
                     });
                   }
                 }
@@ -151,7 +155,7 @@ export function LinkedListVisualizer({
                       {nodeTags.map((t, tagIdx) => (
                         <span
                           key={`tag-${tagIdx}`}
-                          className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold border shadow-xs ${t.bg} ${t.textCol} ${t.border}`}
+                          className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold border shadow-xs ${t.style.bg} ${t.style.textCol} ${t.style.border}`}
                         >
                           {t.text}
                         </span>

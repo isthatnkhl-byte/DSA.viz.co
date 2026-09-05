@@ -706,6 +706,10 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type={type}
+        left={typeof current.left === "number" ? current.left : null}
+        right={typeof current.right === "number" ? current.right : null}
+        pointer_labels={current.pointer_labels}
+        activePointers={current.activePointers}
       />
     );
   } else if (type === "hashmap" || type === "set") {
@@ -724,6 +728,8 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type={type}
+        pointer_labels={current.pointer_labels}
+        activePointers={current.activePointers}
       />
     );
   } else if (type === "matrix") {
@@ -770,6 +776,7 @@ export const Visualizer = memo(function Visualizer({
         wSum={current.wSum}
         mSum={current.mSum}
         activePointers={current.activePointers}
+        pointer_labels={current.pointer_labels}
       />
     );
   } else if (type === "graph") {
@@ -791,6 +798,8 @@ export const Visualizer = memo(function Visualizer({
         visited={visited}
         type={type}
         map={current.map}
+        pointer_labels={current.pointer_labels}
+        activePointers={current.activePointers}
       />
     );
   } else {

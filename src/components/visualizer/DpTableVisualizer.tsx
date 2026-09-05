@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
-import type { Val } from "./VisualizerTypes";
-import { coordKey, safeArray, safeMatrix, toText } from "./VisualizerTypes";
+import type { Val, MarkerStyle } from "./VisualizerTypes";
+import { coordKey, safeArray, safeMatrix, toText, getMarkerStyle } from "./VisualizerTypes";
 import { Table, ArrowDownRight, ArrowDown, ArrowRight, Sparkles, CheckCircle } from "lucide-react";
 
 interface DpTableVisualizerProps {
@@ -43,6 +43,13 @@ export function DpTableVisualizer({
   const visited = useMemo(() => safeArray(rawVisited), [rawVisited]);
   const cols = Number(rawCols ?? matrix[0]?.length ?? 1) || 1;
   const rows = matrix.length;
+
+  const activePointerEntries = useMemo(() => {
+    if (!activePointers || typeof activePointers !== "object") return [];
+    return Object.entries(activePointers).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    );
+  }, [activePointers]);
 
   const currentKey = coordKey(current);
 
@@ -110,6 +117,28 @@ export function DpTableVisualizer({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Active DP Pointers Bar */}
+      {activePointerEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+            DP Pointers:
+          </span>
+          {activePointerEntries.map(([k, v]) => {
+            const style = getMarkerStyle(k);
+            const valStr = Array.isArray(v) ? `[${v.join(",")}]` : String(v);
+            return (
+              <span
+                key={`dppbadge-${k}`}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-bold border shadow-xs ${style.bg} ${style.textCol} ${style.border}`}
+              >
+                <span>{k}</span>
+                <span className="opacity-70 font-normal">→ {valStr}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Top DP Status Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2.5 shadow-xs">
         <div className="flex items-center gap-2">
@@ -176,18 +205,44 @@ export function DpTableVisualizer({
             <tr>
               <th className="p-1.5 text-[10px] font-mono text-muted-foreground uppercase">Row</th>
               <th className="p-1.5 text-[10px] font-mono text-muted-foreground uppercase">Char</th>
-              {Array.from({ length: cols }, (_, c) => (
-                <th
-                  key={c}
-                  className={`p-1.5 font-mono text-[11px] font-semibold transition-colors duration-200 ${
-                    activeCoord && activeCoord.c === c
-                      ? "text-primary font-bold"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  j={c}
-                </th>
-              ))}
+              {Array.from({ length: cols }, (_, c) => {
+                const colPointers: { label: string; style: MarkerStyle }[] = [];
+                if (activeCoord && activeCoord.c === c) {
+                  colPointers.push({ label: pointer_labels?.right || "j", style: getMarkerStyle("col") });
+                }
+                if (activePointers) {
+                  for (const [pName, pVal] of Object.entries(activePointers)) {
+                    if (typeof pVal === "number" && pVal === c && /^(?:col|c|j|right|fast|p2)$/i.test(pName)) {
+                      if (!colPointers.some((p) => p.label.toLowerCase() === pName.toLowerCase())) {
+                        colPointers.push({ label: pName, style: getMarkerStyle(pName) });
+                      }
+                    }
+                  }
+                }
+
+                return (
+                  <th
+                    key={c}
+                    className={`p-1.5 font-mono text-[11px] font-semibold transition-colors duration-200 ${
+                      activeCoord && activeCoord.c === c
+                        ? "text-primary font-bold"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    <div className="flex flex-col items-center">
+                      {colPointers.map((p, pIdx) => (
+                        <span
+                          key={`dpcp-${pIdx}`}
+                          className={`mb-0.5 rounded px-1 py-0.2 text-[8px] font-bold border ${p.style.bg} ${p.style.textCol} ${p.style.border}`}
+                        >
+                          {p.label}
+                        </span>
+                      ))}
+                      <span>j={c}</span>
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -195,11 +250,35 @@ export function DpTableVisualizer({
               const rowChar = rowLabels?.[r - 1] ?? (r === 0 ? "ε" : `r${r}`);
               const isRowActive = activeCoord?.r === r;
 
+              const rowPointers: { label: string; style: MarkerStyle }[] = [];
+              if (activeCoord && activeCoord.r === r) {
+                rowPointers.push({ label: pointer_labels?.left || "i", style: getMarkerStyle("row") });
+              }
+              if (activePointers) {
+                for (const [pName, pVal] of Object.entries(activePointers)) {
+                  if (typeof pVal === "number" && pVal === r && /^(?:row|r|i|left|slow|p1)$/i.test(pName)) {
+                    if (!rowPointers.some((p) => p.label.toLowerCase() === pName.toLowerCase())) {
+                      rowPointers.push({ label: pName, style: getMarkerStyle(pName) });
+                    }
+                  }
+                }
+              }
+
               return (
                 <tr key={r} className="border-t border-border/40">
                   {/* Row index indicator */}
                   <td className="p-1.5 font-mono text-[11px] font-semibold text-muted-foreground">
-                    i={r}
+                    <div className="flex flex-col items-center">
+                      {rowPointers.map((p, pIdx) => (
+                        <span
+                          key={`dprp-${pIdx}`}
+                          className={`mb-0.5 rounded px-1 py-0.2 text-[8px] font-bold border ${p.style.bg} ${p.style.textCol} ${p.style.border}`}
+                        >
+                          {p.label}
+                        </span>
+                      ))}
+                      <span>i={r}</span>
+                    </div>
                   </td>
                   {/* Row character label */}
                   <td
@@ -221,10 +300,23 @@ export function DpTableVisualizer({
                     const isLeftDep = dependencyCells.left === key;
                     const isBaseCase = r === 0 || c === 0;
 
+                    const cellPointers: { label: string; style: MarkerStyle }[] = [];
+                    if (activePointers && typeof activePointers === "object") {
+                      for (const [pName, pVal] of Object.entries(activePointers)) {
+                        if (pVal === null || pVal === undefined) continue;
+                        if (Array.isArray(pVal) && pVal.length >= 2 && pVal[0] === r && pVal[1] === c) {
+                          cellPointers.push({ label: pName, style: getMarkerStyle(pName) });
+                        }
+                      }
+                    }
+
+                    const firstCellPointer = cellPointers[0];
                     let cellStyle = "border-border/60 bg-card/40 text-foreground";
                     if (isActive) {
                       cellStyle =
                         "border-primary ring-2 ring-primary bg-primary text-primary-foreground font-black scale-105 shadow-lg shadow-primary/40 z-10 animate-sync-glow constant-glow-primary";
+                    } else if (firstCellPointer) {
+                      cellStyle = `${firstCellPointer.style.border} ${firstCellPointer.style.bg} ${firstCellPointer.style.textCol} ring-1 ${firstCellPointer.style.ring} font-bold`;
                     } else if (isDiagDep) {
                       cellStyle =
                         "border-purple-500/70 bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/50 font-bold";
@@ -246,6 +338,13 @@ export function DpTableVisualizer({
                         <div
                           className={`relative flex min-h-11 min-w-11 items-center justify-center rounded-xl border p-1 text-center font-mono text-xs transition-all duration-300 ${cellStyle}`}
                         >
+                          {firstCellPointer && (
+                            <span
+                              className={`absolute -top-2 left-1/2 -translate-x-1/2 rounded px-1 text-[8px] font-bold border shadow-xs z-20 ${firstCellPointer.style.bg} ${firstCellPointer.style.textCol} ${firstCellPointer.style.border}`}
+                            >
+                              {firstCellPointer.label}
+                            </span>
+                          )}
                           <span>{val !== undefined && val !== null ? toText(val) : "0"}</span>
 
                           {/* Top-Right Dependency Indicator */}

@@ -8,7 +8,7 @@ import {
 } from "./ai-contracts";
 import { getProblemDatasets, localFallbackViz, pickShape, type VizStep, type TestDataset } from "./problems";
 import { simulateProblem, simulateProblemWithDataset } from "./simulators";
-import { coordKey } from "../components/visualizer/VisualizerTypes";
+import { coordKey, getMarkerStyle } from "../components/visualizer/VisualizerTypes";
 
 const fallback = {
   code: ["const x = 1;", "return x;"],
@@ -1536,6 +1536,142 @@ test("validateAndNormalizeVizPayload preserves list activePointers including slo
   assert.equal(step.activePointers.fast, 3);
   assert.equal(step.activePointers.dummy, 0);
 });
+
+test("getMarkerStyle provides accurate, accessible, and semantic colors for all pointer types", () => {
+  // Left / Slow / Low / Start / Write / Row / i / p1 / u / src / p (Emerald)
+  const leftStyle = getMarkerStyle("left");
+  assert.match(leftStyle.bg, /emerald/);
+  assert.match(leftStyle.textCol, /emerald/);
+  assert.ok(leftStyle.svgFill.includes("16, 185, 129"));
+  assert.equal(leftStyle.svgText, "#34d399");
+
+  const slowStyle = getMarkerStyle("slow");
+  assert.match(slowStyle.bg, /emerald/);
+
+  const uStyle = getMarkerStyle("u");
+  assert.match(uStyle.bg, /emerald/);
+
+  const pStyle = getMarkerStyle("p");
+  assert.match(pStyle.bg, /emerald/);
+
+  const rowStyle = getMarkerStyle("r1");
+  assert.match(rowStyle.bg, /emerald/);
+
+  // Right / Fast / High / End / Read / Col / j / p2 / v / dest / q (Indigo)
+  const rightStyle = getMarkerStyle("right");
+  assert.match(rightStyle.bg, /indigo/);
+  assert.match(rightStyle.textCol, /indigo/);
+  assert.ok(rightStyle.svgFill.includes("99, 102, 241"));
+  assert.equal(rightStyle.svgText, "#a5b4fc");
+
+  const vStyle = getMarkerStyle("v");
+  assert.match(vStyle.bg, /indigo/);
+
+  const qStyle = getMarkerStyle("q");
+  assert.match(qStyle.bg, /indigo/);
+
+  const colStyle = getMarkerStyle("c2");
+  assert.match(colStyle.bg, /indigo/);
+
+  // Mid / Pivot / Center / k / p3 (Amber)
+  const midStyle = getMarkerStyle("mid");
+  assert.match(midStyle.bg, /amber/);
+  assert.match(midStyle.textCol, /amber/);
+  assert.equal(midStyle.svgText, "#fcd34d");
+
+  const kStyle = getMarkerStyle("k");
+  assert.match(kStyle.bg, /amber/);
+
+  // Prev / Predecessor / Parent (Rose)
+  const prevStyle = getMarkerStyle("prev");
+  assert.match(prevStyle.bg, /rose/);
+  assert.match(prevStyle.textCol, /rose/);
+  assert.equal(prevStyle.svgText, "#fda4af");
+
+  // Next / Successor / Child / Neighbor (Purple)
+  const nextStyle = getMarkerStyle("next");
+  assert.match(nextStyle.bg, /purple/);
+  assert.match(nextStyle.textCol, /purple/);
+  assert.equal(nextStyle.svgText, "#d8b4fe");
+
+  // Target / Ans / Optimal / Match (Glowing Emerald)
+  const targetStyle = getMarkerStyle("target");
+  assert.match(targetStyle.bg, /emerald/);
+  assert.equal(targetStyle.glow, true);
+  assert.equal(targetStyle.svgText, "#6ee7b7");
+
+  const matchStyle = getMarkerStyle("curr", true);
+  assert.equal(matchStyle.glow, true);
+  assert.equal(matchStyle.svgText, "#ffffff");
+
+  // Curr / Current / Node / Head / Top / Front / Root (Sky)
+  const currStyle = getMarkerStyle("curr");
+  assert.match(currStyle.bg, /sky/);
+  assert.match(currStyle.textCol, /sky/);
+  assert.equal(currStyle.svgText, "#7dd3fc");
+
+  const rootStyle = getMarkerStyle("root");
+  assert.match(rootStyle.bg, /sky/);
+
+  // Tail / Back / Rear (Slate/Muted)
+  const tailStyle = getMarkerStyle("tail");
+  assert.match(tailStyle.bg, /muted/);
+  assert.equal(tailStyle.svgText, "#cbd5e1");
+
+  // Custom / Fallback (Cyan)
+  const customStyle = getMarkerStyle("customPtr");
+  assert.match(customStyle.bg, /cyan/);
+  assert.equal(customStyle.svgText, "#67e8f9");
+});
+
+test("validateAndNormalizeVizPayload universal pointer extraction across trees, graphs, and matrices", () => {
+  const codeLines = [
+    "def dfs(u, v):",
+    "    visited.add(u)",
+    "    for neighbor in adj[u]:",
+    "        ...",
+  ];
+
+  const rawPayload = {
+    code_lines: codeLines,
+    test_array: [0, 1, 2, 3],
+    viz_steps: [
+      {
+        type: "graph",
+        line: 1,
+        desc: "Visiting node u with target v",
+        matrix: [
+          [0, 1, 0],
+          [1, 0, 1],
+          [0, 1, 0],
+        ],
+        variables: {
+          u: 0,
+          v: 2,
+          p: 1,
+          q: 2,
+          root: 0,
+          node: 1,
+          i: 0,
+          j: 1,
+        },
+      } as any,
+    ],
+  };
+
+  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "graph");
+  const step = normalized.viz_steps[0]!;
+  assert.ok(step.activePointers);
+  assert.equal(step.activePointers.u, 0);
+  assert.equal(step.activePointers.v, 2);
+  assert.equal(step.activePointers.p, 1);
+  assert.equal(step.activePointers.q, 2);
+  assert.equal(step.activePointers.root, 0);
+  assert.equal(step.activePointers.node, 1);
+  assert.equal(step.activePointers.i, 0);
+  assert.equal(step.activePointers.j, 1);
+});
+
 
 
 

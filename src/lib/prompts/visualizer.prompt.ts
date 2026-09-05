@@ -74,12 +74,20 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
 5) COMPLETE END-TO-END TRAVERSAL (MANDATORY):
    - You MUST simulate the algorithm completely from the first initialization line to the final return/termination statement.
    - NEVER STOP HALFWAY, truncate, or end early. Traverse EVERY element, pointer step, node, or grid cell until the entire test input dataset has been completely processed according to the pseudocode.
-   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15–25 elements or 5×6 / 6×6 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
+   - UNIVERSAL ANTI-DEGENERACY & FULL SINGLE-CELL MOVEMENT LAW:
+     * You MUST NOT generate small steps, macro jumps, or cut traversals short.
+     * In 2D Grids / Islands / Matrices: You MUST evaluate cell-by-cell!
+       - Outer loop scan: step through and evaluate cells (r, c) across ALL rows and columns.
+       - Connected components / DFS / BFS: visit every neighbor cell-by-cell (step into land, update visited, increment area, visit next direction, backtrack).
+       - Never stop after only visiting 1 cell or 1 island! Process ALL separate islands and continue until the full grid has been scanned.
+     * In Arrays / Two-Pointers: evaluate every element comparison and pointer adjustment step-by-step.
+     * In Trees: traverse level-by-level or branch-by-branch through all nodes in the tree/queue.
+   - For LONGER & EXTENDED DATASETS (e.g. Dataset 2 with 15–25 elements or 5×6 / 6×6 / 8×10 matrices): Generate an extensive, thorough step sequence demonstrating the full progression across all elements/cells of the larger dataset so the learner has ample time to observe and understand the algorithm working through longer data.
    - Generate all necessary execution steps (from initial state, loop progression, all iterations, to final return) to provide a complete, unbroken visual walkthrough.
    - The final step MUST highlight the termination condition, the final return value, or the completed data structure state.
 
-6) MULTI-DATASET & STRUCTURE SUPPORT:
-   - When an algorithm operates on multiple structures or datasets (e.g. Grid + Visited Set + Stack, Tree + Queue, Array + Hash Table, Array + Monotonic Stack, List + Map, Dual Arrays), POPULATE ALL active structures simultaneously in each step!
+6) MULTI-DATASET & MULTI-STRUCTURE SUPPORT:
+   - When an algorithm operates on multiple structures or datasets (e.g. Grid + Visited Set + Call Stack, Tree + Queue, Array + Hash Table, Array + Monotonic Stack, List + Map, Dual Arrays), POPULATE ALL active structures simultaneously in each step!
    - Available structure fields:
      * "matrix": [[row1], [row2], ...] (2D grid of numbers or 0/1 binary land/water values)
      * "cols": number of columns in the grid
@@ -98,6 +106,10 @@ CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
      * "sightlines": [{ "fromIndex": number, "toIndex": number, "resolvedValue": number | string, "type": "next-greater" | "next-smaller" }] (Optical ray-cast sightlines)
      * "intervals": [{ "id": string, "start": number, "end": number, "label": string, "status": "unprocessed" | "comparing" | "active" | "merged" | "finalized" }] (1D timeline intervals)
      * "sweepLine": number (Current time playhead / laser position on continuous 1D timeline)
+   - FINE-GRAINED STRUCTURE-SPECIFIC STEPS & DATASET FOCUS:
+     * "activeDataset" & "shiftInfo": Every step tracks data transitions between structures (e.g. from matrix to visited, from array to map, or popping from queue to inspect a tree node).
+     * Independent Mutations: Each structure only updates on the exact line where it is mutated (e.g. queue enqueues/dequeues step-by-step, stack pushes/pops on recursive descent and backtracking, hash maps insert elements when processed).
+     * Synced Multi-Pointer UI: Pointers across primary and secondary arrays ("left", "right", "left2", "right2", "current") and cell coordinates ("r,c") highlight their respective structures in tandem on the canvas.
 
 7) 2D GRID, ISLANDS & AREA TRAVERSALS (Max Area of Island, Number of Islands, Flood Fill, Rotting Oranges):
    - Set "type": "matrix".
@@ -293,16 +305,16 @@ export function buildVisualizerUserPrompt({
       matrixExample && matrixExample.length > 0
         ? matrixExample
         : [
-            [0, 0, 1, 0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 0, 0, 0, 1],
-            [0, 1, 1, 0, 1, 0, 0, 0],
-            [0, 1, 0, 0, 1, 1, 0, 0],
-            [0, 1, 0, 0, 1, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0],
+            [0, 1, 1, 0, 1, 1],
+            [0, 1, 1, 0, 1, 1],
+            [0, 0, 0, 0, 1, 1],
+            [1, 1, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0],
           ];
     sampleGuidance = `Simulate 2D Grid Island traversal on this input binary grid (0 = Water, 1 = Land):
 matrix = ${JSON.stringify(gridRows)}
-cols = ${gridRows[0]?.length ?? 8}
+cols = ${gridRows[0]?.length ?? 6}
 Set type='matrix'. Step through 4-directional DFS traversal based on candidate's exact pseudocode until ALL islands across the entire grid are evaluated.
 MANDATORY FOR GRID/ISLAND TRAVERSALS:
 - Step through EVERY single connected land cell one by one! Do NOT jump across islands or skip intermediate recursive steps.
@@ -435,7 +447,7 @@ MANDATORY FOR PREFIX SUM WITH HASH MAP:
   const datasetContext = datasetLabel
     ? `\nActive Dataset: "${datasetLabel}" ${datasetDescription ? `(${datasetDescription})` : ""}\n${
         isLongerDataset
-          ? "CRITICAL INSTRUCTION FOR EXTENDED DATASET: This is an EXTENDED, LARGE-SCALE dataset designed for a deep, comprehensive animation (25–45+ steps). Step through ALL elements, matrix cells, tree nodes, or graph vertices systematically to provide the user with a rich, long-running visualization of their pseudocode execution.\n"
+          ? "CRITICAL INSTRUCTION FOR EXTENDED DATASET: This is an EXTENDED, LARGE-SCALE dataset designed for a deep, comprehensive animation (25–50+ steps). Step through ALL elements, matrix cells, tree nodes, or graph vertices systematically! In 2D grids, step through EVERY land cell of every island across all rows and columns (never exit after 4 steps or after only 1 island). In arrays/heaps/trees, traverse all elements thoroughly to provide the user with a rich, long-running visualization of their pseudocode execution.\n"
           : "Simulate the ENTIRE dataset from the first element to the final return/completion step without stopping early.\n"
       }`
     : "";

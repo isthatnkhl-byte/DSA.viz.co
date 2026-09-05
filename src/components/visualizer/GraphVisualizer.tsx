@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
-import type { Val } from "./VisualizerTypes";
-import { coordKey, safeArray, safeMatrix, toText } from "./VisualizerTypes";
+import type { Val, MarkerStyle } from "./VisualizerTypes";
+import { coordKey, safeArray, safeMatrix, toText, getMarkerStyle } from "./VisualizerTypes";
 import { Layers, Network, Table, Eye, Sparkles, Activity, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,8 @@ interface GraphVisualizerProps {
   visited: Val[];
   type: "graph" | "matrix";
   map?: Record<string, any> | null | undefined;
+  pointer_labels?: Record<string, string> | null;
+  activePointers?: Record<string, number | string | [number, number] | null> | null;
 }
 
 
@@ -37,6 +39,8 @@ export function GraphVisualizer({
   visited: rawVisited,
   type,
   map,
+  pointer_labels,
+  activePointers,
 }: GraphVisualizerProps) {
   const matrix = useMemo(() => safeMatrix(rawMatrix ?? []), [rawMatrix]);
   const visited = useMemo(() => safeArray(rawVisited), [rawVisited]);
@@ -197,8 +201,37 @@ export function GraphVisualizer({
     return edges;
   }, [is2DGrid, graphNodes, matrix]);
 
+  const activePointerEntries = useMemo(() => {
+    if (!activePointers || typeof activePointers !== "object") return [];
+    return Object.entries(activePointers).filter(
+      ([, v]) => v !== null && v !== undefined && v !== "",
+    );
+  }, [activePointers]);
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Active Pointer Legend Bar */}
+      {activePointerEntries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+            Graph Pointers:
+          </span>
+          {activePointerEntries.map(([k, v]) => {
+            const style = getMarkerStyle(k);
+            const valStr = Array.isArray(v) ? `[${v.join(",")}]` : String(v);
+            return (
+              <span
+                key={`gpbadge-${k}`}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-bold border shadow-xs ${style.bg} ${style.textCol} ${style.border}`}
+              >
+                <span>{k}</span>
+                <span className="opacity-70 font-normal">→ {valStr}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Top Graph Controls Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-2.5 shadow-xs">
         <div className="flex items-center gap-2.5">
@@ -254,56 +287,119 @@ export function GraphVisualizer({
             <span className="font-mono text-sm text-muted-foreground">Empty grid</span>
           ) : (
             <div className="flex flex-col gap-1.5">
-              {/* Column Indices */}
+              {/* Column Indices & Pointer Badges */}
               <div className="flex gap-1.5 pl-6">
-                {Array.from({ length: cols }, (_, c) => (
-                  <div
-                    key={`col-idx-${c}`}
-                    className="w-11 text-center font-mono text-[10px] font-semibold text-muted-foreground"
-                  >
-                    c{c}
-                  </div>
-                ))}
+                {Array.from({ length: cols }, (_, c) => {
+                  const matchingColPointers: { label: string; style: MarkerStyle }[] = [];
+                  if (activePointers) {
+                    for (const [pName, pVal] of Object.entries(activePointers)) {
+                      if (typeof pVal === "number" && pVal === c && /^(?:col|c|j|right|fast|p2)$/i.test(pName)) {
+                        matchingColPointers.push({ label: pName, style: getMarkerStyle(pName) });
+                      }
+                    }
+                  }
+                  return (
+                    <div
+                      key={`col-idx-${c}`}
+                      className="relative flex flex-col items-center w-11"
+                    >
+                      {matchingColPointers.map((p, pIdx) => (
+                        <span
+                          key={`cp-${pIdx}`}
+                          className={`mb-0.5 rounded px-1 py-0.2 text-[8px] font-bold border ${p.style.bg} ${p.style.textCol} ${p.style.border}`}
+                        >
+                          {p.label}
+                        </span>
+                      ))}
+                      <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                        c{c}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Grid Rows */}
-              {matrix.map((row, r) => (
-                <div key={`row-${r}`} className="flex items-center gap-1.5">
-                  {/* Row Index */}
-                  <span className="w-4 font-mono text-[10px] font-semibold text-muted-foreground">
-                    r{r}
-                  </span>
+              {matrix.map((row, r) => {
+                const matchingRowPointers: { label: string; style: MarkerStyle }[] = [];
+                if (activePointers) {
+                  for (const [pName, pVal] of Object.entries(activePointers)) {
+                    if (typeof pVal === "number" && pVal === r && /^(?:row|r|i|left|slow|p1)$/i.test(pName)) {
+                      matchingRowPointers.push({ label: pName, style: getMarkerStyle(pName) });
+                    }
+                  }
+                }
 
-                  {/* Cells in this row */}
-                  {row.slice(0, cols).map((val, c) => {
-                    const cellKey = `${r},${c}`;
-                    const flatIdx = r * cols + c;
-                    const isActive = currentKey === cellKey || currentKey === String(flatIdx);
-                    const isSeen = seenKeys.has(cellKey) || seenKeys.has(String(flatIdx));
-                    const isLand = Number(val) === 1;
+                return (
+                  <div key={`row-${r}`} className="flex items-center gap-1.5">
+                    {/* Row Index with Pointer Badges */}
+                    <div className="flex flex-col items-center justify-center w-5">
+                      {matchingRowPointers.map((p, pIdx) => (
+                        <span
+                          key={`rp-${pIdx}`}
+                          className={`mb-0.5 rounded px-1 py-0.2 text-[8px] font-bold border ${p.style.bg} ${p.style.textCol} ${p.style.border}`}
+                        >
+                          {p.label}
+                        </span>
+                      ))}
+                      <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                        r{r}
+                      </span>
+                    </div>
 
-                    return (
-                      <div
-                        key={`cell-${r}-${c}`}
-                        className={`relative flex size-11 items-center justify-center rounded-xl border font-mono text-sm font-bold transition-all duration-300 ${
-                          isActive
-                            ? "z-10 scale-105 border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/40 ring-2 ring-primary/60 animate-sync-glow"
-                            : isSeen
-                              ? "border-accent/60 bg-accent/20 text-accent font-semibold shadow-xs"
-                              : isLand
-                                ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                                : "border-border/60 bg-card/60 text-muted-foreground"
-                        }`}
-                      >
-                        {isActive && (
-                          <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary shadow-xs shadow-primary/60" />
-                        )}
-                        <span>{toText(val)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                    {/* Cells in this row */}
+                    {row.slice(0, cols).map((val, c) => {
+                      const cellKey = `${r},${c}`;
+                      const flatIdx = r * cols + c;
+                      const isActive = currentKey === cellKey || currentKey === String(flatIdx);
+                      const isSeen = seenKeys.has(cellKey) || seenKeys.has(String(flatIdx));
+
+                      const cellPointers: { label: string; style: MarkerStyle }[] = [];
+                      if (activePointers && typeof activePointers === "object") {
+                        for (const [pName, pVal] of Object.entries(activePointers)) {
+                          if (pVal === null || pVal === undefined) continue;
+                          if (Array.isArray(pVal) && pVal.length >= 2 && pVal[0] === r && pVal[1] === c) {
+                            cellPointers.push({ label: pName, style: getMarkerStyle(pName) });
+                          } else if (String(pVal) === cellKey || String(pVal) === String(flatIdx)) {
+                            cellPointers.push({ label: pName, style: getMarkerStyle(pName) });
+                          }
+                        }
+                      }
+
+                      const firstCellPointer = cellPointers[0];
+                      let cellBgClass = "border-border/60 bg-card/60 text-foreground";
+                      if (isActive) {
+                        cellBgClass =
+                          "z-10 scale-105 border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/40 ring-2 ring-primary/60 animate-sync-glow";
+                      } else if (firstCellPointer) {
+                        cellBgClass = `${firstCellPointer.style.border} ${firstCellPointer.style.bg} ${firstCellPointer.style.textCol} ring-1 ${firstCellPointer.style.ring} font-bold`;
+                      } else if (isSeen) {
+                        cellBgClass = "border-accent/60 bg-accent/20 text-accent font-semibold shadow-xs";
+                      }
+
+                      return (
+                        <div
+                          key={`cell-${r}-${c}`}
+                          className={`relative flex size-11 items-center justify-center rounded-xl border font-mono text-sm font-bold transition-all duration-300 ${cellBgClass}`}
+                        >
+                          {/* Floating pointer tag on cell */}
+                          {firstCellPointer && (
+                            <span
+                              className={`absolute -top-2 left-1/2 -translate-x-1/2 rounded px-1 text-[8px] font-bold border shadow-xs z-20 ${firstCellPointer.style.bg} ${firstCellPointer.style.textCol} ${firstCellPointer.style.border}`}
+                            >
+                              {firstCellPointer.label}
+                            </span>
+                          )}
+                          {isActive && (
+                            <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary shadow-xs shadow-primary/60" />
+                          )}
+                          <span>{toText(val)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -432,33 +528,108 @@ export function GraphVisualizer({
                     ? "text-[10px]"
                     : "text-xs";
 
-              return (
-                <g
-                  key={`gnode-${node.id}`}
-                  transform={`translate(${node.x}, ${node.y})`}
-                  className="cursor-pointer transition-all duration-300"
-                  onMouseEnter={() => setHoveredNode(node.id)}
-                  onMouseLeave={() => setHoveredNode(null)}
-                >
-                  {isActive && (
-                    <circle
-                      r={nodeRadius + 6}
-                      className="fill-primary/20 stroke-primary/60 animate-ping opacity-60"
-                      strokeWidth="1.5"
-                    />
-                  )}
-                  <circle
-                    r={nodeRadius}
-                    className={`transition-all duration-300 ${
-                      isActive
-                        ? "fill-primary stroke-primary stroke-2 shadow-lg ring-4 ring-primary/30"
-                        : isSeen
-                          ? "fill-accent/25 stroke-accent stroke-2"
-                          : isHovered
-                            ? "fill-cyan-500/20 stroke-cyan-400 stroke-2"
-                            : "fill-card stroke-border/80 stroke-2"
-                    }`}
-                  />
+              const nodePointers: { label: string; style: MarkerStyle }[] = [];
+              if (activePointers && typeof activePointers === "object") {
+                for (const [pName, pVal] of Object.entries(activePointers)) {
+                  if (pVal === null || pVal === undefined) continue;
+                  const isMatchingId = String(pVal) === node.id;
+                  if (isMatchingId && !nodePointers.some((p) => p.label.toLowerCase() === pName.toLowerCase())) {
+                    nodePointers.push({
+                      label: pName.slice(0, 8),
+                      style: getMarkerStyle(pName),
+                    });
+                  }
+                }
+              }
+
+              if (isActive && !nodePointers.some((p) => /curr|target|u|v/.test(p.label.toLowerCase()))) {
+                const lbl = pointer_labels?.current || "CURR";
+                nodePointers.push({ label: lbl, style: getMarkerStyle("curr") });
+              }
+
+                  const firstNodePointer = nodePointers[0];
+
+                  return (
+                    <g
+                      key={`gnode-${node.id}`}
+                      transform={`translate(${node.x}, ${node.y})`}
+                      className="cursor-pointer transition-all duration-300"
+                      onMouseEnter={() => setHoveredNode(node.id)}
+                      onMouseLeave={() => setHoveredNode(null)}
+                    >
+                      {/* Floating Pointer Badges above graph node */}
+                      {nodePointers.length > 0 && (
+                        <g transform={`translate(0, ${-nodeRadius - 12})`}>
+                          {nodePointers.map((badge, bIdx) => {
+                            const textLen = badge.label.length;
+                            const bWidth = Math.max(26, textLen * 6.5 + 8);
+                            const bHeight = 14;
+                            const totalWidth =
+                              nodePointers.length * bWidth + (nodePointers.length - 1) * 4;
+                            const startX = -totalWidth / 2;
+                            const badgeX = startX + bIdx * (bWidth + 4);
+
+                            return (
+                              <g key={`gnbadge-${bIdx}`} transform={`translate(${badgeX}, -7)`}>
+                                <rect
+                                  width={bWidth}
+                                  height={bHeight}
+                                  rx="4"
+                                  fill={badge.style.svgFill}
+                                  stroke={badge.style.svgStroke}
+                                  strokeWidth="1.2"
+                                />
+                                <text
+                                  x={bWidth / 2}
+                                  y={bHeight / 2 + 0.5}
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                  fill={badge.style.svgText}
+                                  className="font-mono text-[9px] font-bold select-none"
+                                >
+                                  {badge.label}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </g>
+                      )}
+
+                      {isActive && (
+                        <circle
+                          r={nodeRadius + 6}
+                          className="fill-primary/20 stroke-primary/60 animate-ping opacity-60"
+                          strokeWidth="1.5"
+                        />
+                      )}
+
+                      {/* Pointer accent ring if node has custom pointers */}
+                      {firstNodePointer && !isActive && (
+                        <circle
+                          r={nodeRadius + 4}
+                          fill="none"
+                          stroke={firstNodePointer.style.svgStroke}
+                          strokeWidth="1.5"
+                          strokeDasharray="3 2"
+                          className="animate-pulse"
+                        />
+                      )}
+
+                      <circle
+                        r={nodeRadius}
+                        className={`transition-all duration-300 ${
+                          isActive
+                            ? "fill-primary stroke-primary stroke-2 shadow-lg ring-4 ring-primary/30"
+                            : firstNodePointer
+                              ? "fill-card stroke-2"
+                              : isSeen
+                                ? "fill-accent/25 stroke-accent stroke-2"
+                                : isHovered
+                                  ? "fill-cyan-500/20 stroke-cyan-400 stroke-2"
+                                  : "fill-card stroke-border/80 stroke-2"
+                        }`}
+                        style={firstNodePointer && !isActive ? { stroke: firstNodePointer.style.svgStroke } : undefined}
+                      />
                   <text
                     textAnchor="middle"
                     dominantBaseline="middle"

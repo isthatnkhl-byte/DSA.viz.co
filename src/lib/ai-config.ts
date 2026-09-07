@@ -1,40 +1,53 @@
-export type AiProvider = "gemini" | "openrouter" | "none";
-
-const clean = (val?: string | null): string => {
-  if (!val) return "";
-  return val.trim().replace(/^["']|["']$/g, "").trim();
-};
+export type AiProvider = "gemini" | "openrouter" | "openai" | "none";
 
 export function getAiConfig() {
   const env: Record<string, string | undefined> =
     typeof process !== "undefined" && process?.env ? process.env : {};
 
-  const geminiKey = clean(
+  const geminiKey =
     env["GEMINI_API_KEY"] ||
     env["GOOGLE_API_KEY"] ||
-    ""
-  );
+    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_GEMINI_API_KEY) ||
+    "";
 
-  const openRouterKey = clean(
+  const openRouterKey =
     env["OPENROUTER_API_KEY"] ||
     env["OPEN_ROUTER_API_KEY"] ||
     env["Openrouterapi"] ||
-    ""
-  );
+    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_OPENROUTER_API_KEY) ||
+    "";
 
-  const reviewKey = geminiKey || openRouterKey;
-  const vizKey = geminiKey || openRouterKey;
+  const openAIKey =
+    env["OPENAI_API_KEY"] ||
+    env["OPEN_AI_API_KEY"] ||
+    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_OPENAI_API_KEY) ||
+    "";
 
-  const reviewProvider: AiProvider = geminiKey ? "gemini" : openRouterKey ? "openrouter" : "none";
-  const vizProvider: AiProvider = geminiKey ? "gemini" : openRouterKey ? "openrouter" : "none";
+  const reviewKey = geminiKey || openRouterKey || openAIKey;
+  const vizKey = geminiKey || openRouterKey || openAIKey;
+
+  const reviewProvider: AiProvider = geminiKey
+    ? "gemini"
+    : openRouterKey
+      ? "openrouter"
+      : openAIKey
+        ? "openai"
+        : "none";
+  const vizProvider: AiProvider = geminiKey
+    ? "gemini"
+    : openRouterKey
+      ? "openrouter"
+      : openAIKey
+        ? "openai"
+        : "none";
 
   return {
     geminiKey,
     openRouterKey,
+    openAIKey,
     reviewKey,
     vizKey,
     reviewProvider,
     vizProvider,
   };
 }
-

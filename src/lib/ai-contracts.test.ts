@@ -8,7 +8,7 @@ import {
 } from "./ai-contracts";
 import { getProblemDatasets, localFallbackViz, pickShape, type VizStep, type TestDataset } from "./problems";
 import { simulateProblem, simulateProblemWithDataset } from "./simulators";
-import { coordKey, getMarkerStyle } from "../components/visualizer/VisualizerTypes";
+import { coordKey } from "../components/visualizer/VisualizerTypes";
 
 const fallback = {
   code: ["const x = 1;", "return x;"],
@@ -1332,348 +1332,84 @@ test("validateAndNormalizeVizPayload repairs raw AI steps containing INT_MAX, ze
   assert.deepEqual(normalized.viz_steps[2]?.map, { e: 1, l: 2 }, "Valid key-value map e:1, l:2 preserved");
 });
 
-test("validateAndNormalizeVizPayload extracts i and j loop variables into dual pointers with labels", () => {
-  const rawPayload = {
-    code_lines: [
-      "for i in range(len(nums)):",
-      "    for j in range(i + 1, len(nums)):",
-      "        if nums[i] + nums[j] == target:",
-      "            return [i, j]",
+test("nested-loop pair traversal extracts i and j pointers and labels", () => {
+  const fallback = {
+    code: ["for i = 0 to n-1:", "  for j = i+1 to n-1:", "    if nums[i]+nums[j]==target: return [i,j]"],
+    array: [2, 7, 11, 15],
+    steps: [
+      {
+        type: "array" as const,
+        array: [2, 7, 11, 15],
+        left: 0,
+        right: 1,
+        line: 1,
+        pointer_labels: { left: "i", right: "j" },
+        desc: "Checking i=0 and j=1",
+      },
     ],
+  };
+
+  // Case 1: Raw AI payload where current is [0, 1] or string "0,1"
+  const rawPairPayload = {
     test_array: [2, 7, 11, 15],
     viz_steps: [
       {
         type: "array",
+        line: 1,
+        current: [0, 1],
+        desc: "Checking nums[0] + nums[1]",
+      },
+      {
+        type: "array",
         line: 2,
-        desc: "Checking nums[0] + nums[1] == 9",
-        i: 0,
-        j: 1,
-      } as any,
+        current: "0, 2",
+        desc: "Outer loop i = 0, inner loop j = 2",
+      },
     ],
   };
 
-  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
-  const step = normalized.viz_steps[0]!;
-  assert.equal(step.left, 0, "Extracts i into left pointer");
-  assert.equal(step.right, 1, "Extracts j into right pointer");
-  assert.deepEqual(
-    step.pointer_labels,
-    { left: "i", right: "j" },
-    "Populates pointer_labels with i and j",
-  );
+  const normalized = validateAndNormalizeVizPayload(rawPairPayload, fallback, "array");
+  assert.equal(normalized.viz_steps[0]?.left, 0);
+  assert.equal(normalized.viz_steps[0]?.right, 1);
+  assert.equal(normalized.viz_steps[0]?.pointer_labels?.left, "i");
+  assert.equal(normalized.viz_steps[0]?.pointer_labels?.right, "j");
+
+  assert.equal(normalized.viz_steps[1]?.left, 0);
+  assert.equal(normalized.viz_steps[1]?.right, 2);
+  assert.equal(normalized.viz_steps[1]?.pointer_labels?.left, "i");
+  assert.equal(normalized.viz_steps[1]?.pointer_labels?.right, "j");
 });
 
-test("validateAndNormalizeVizPayload extracts slow and fast pointers with labels", () => {
-  const rawPayload = {
-    code_lines: ["slow = 0", "for fast in range(len(nums)): if nums[fast] != 0: nums[slow] = nums[fast]; slow += 1"],
-    test_array: [0, 1, 0, 3, 12],
-    viz_steps: [
-      {
-        type: "array",
-        line: 1,
-        desc: "Inspecting nums[fast]",
-        slow: 0,
-        fast: 1,
-      } as any,
-    ],
+test("simulateProblemWithDataset generates nested loop traversal when pseudocode is TwoSumBruteForce", () => {
+  const pseudocode = `function TwoSumBruteForce(nums, target):
+    for i = 0 to length(nums) - 1:
+        for j = i + 1 to length(nums) - 1:
+            if nums[i] + nums[j] == target:
+                return [i, j]
+    return []`;
+
+  const dataset = {
+    id: "dataset_1",
+    label: "Dataset 1: Standard Case",
+    description: "LeetCode Example 1",
+    array: [2, 7, 11, 15],
+    target: 9,
   };
 
-  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
-  const step = normalized.viz_steps[0]!;
-  assert.equal(step.left, 0, "Extracts slow into left pointer");
-  assert.equal(step.right, 1, "Extracts fast into right pointer");
-  assert.deepEqual(
-    step.pointer_labels,
-    { left: "slow", right: "fast" },
-    "Populates pointer_labels with slow and fast",
-  );
+  const result = simulateProblemWithDataset("two-sum", "Two Sum", ["array", "hash-table"], dataset, pseudocode);
+  assert.ok(result.steps.length >= 2, "Must produce multiple steps");
+  // The second step checks i=0, j=1
+  const stepCheck = result.steps.find((s) => s.left === 0 && s.right === 1);
+  assert.ok(stepCheck, "Must have step with left=0 and right=1");
+  assert.equal(stepCheck?.pointer_labels?.left, "i");
+  assert.equal(stepCheck?.pointer_labels?.right, "j");
+  assert.ok(stepCheck?.desc.includes("nums[0] (2) + nums[1] (7) = 9"), "Desc explains comparison");
+
+  // Found match step
+  const matchStep = result.steps.find((s) => s.desc.includes("Match found"));
+  assert.ok(matchStep, "Must find match at [0, 1] for target 9");
+  assert.equal(matchStep?.left, 0);
+  assert.equal(matchStep?.right, 1);
 });
-
-test("validateAndNormalizeVizPayload extracts start and end / window pointers with labels", () => {
-  const rawPayload = {
-    code_lines: ["while end < len(s):", "    if s[end] in seen: start += 1", "    end += 1"],
-    test_array: ["a", "b", "c", "a"],
-    viz_steps: [
-      {
-        type: "array",
-        line: 1,
-        desc: "Active window [0..2]",
-        window: [0, 2],
-      } as any,
-    ],
-  };
-
-  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
-  const step = normalized.viz_steps[0]!;
-  assert.equal(step.left, 0, "Extracts window[0] into left pointer");
-  assert.equal(step.right, 2, "Extracts window[1] into right pointer");
-  assert.deepEqual(
-    step.pointer_labels,
-    { left: "left", right: "right" },
-    "Populates pointer_labels with left and right",
-  );
-});
-
-test("validateAndNormalizeVizPayload extracts low, high, mid binary search pointers with labels", () => {
-  const rawPayload = {
-    code_lines: ["while low <= high:", "    mid = (low + high) // 2", "    if nums[mid] == target: return mid"],
-    test_array: [1, 3, 5, 7, 9, 11],
-    viz_steps: [
-      {
-        type: "array",
-        line: 1,
-        desc: "Checking mid index 2",
-        low: 0,
-        high: 5,
-        mid: 2,
-      } as any,
-    ],
-  };
-
-  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
-  const step = normalized.viz_steps[0]!;
-  assert.equal(step.left, 0, "Extracts low into left pointer");
-  assert.equal(step.right, 5, "Extracts high into right pointer");
-  assert.equal(step.current, 2, "Extracts mid into current pointer");
-  assert.deepEqual(
-    step.pointer_labels,
-    { left: "low", right: "high", current: "mid" },
-    "Populates pointer_labels with low, high, and mid",
-  );
-});
-
-test("validateAndNormalizeVizPayload preserves multi-pointer activePointers dictionary", () => {
-  const rawPayload = {
-    code_lines: ["low = 0", "mid = 0", "high = len(nums) - 1", "while mid <= high:"],
-    test_array: [2, 0, 2, 1, 1, 0],
-    viz_steps: [
-      {
-        type: "array",
-        line: 3,
-        desc: "Dutch national flag partitioned pointers",
-        array: [0, 0, 1, 1, 2, 2],
-        activePointers: {
-          low: 1,
-          mid: 3,
-          high: 4,
-        },
-      } as any,
-    ],
-  };
-
-  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
-  const step = normalized.viz_steps[0]!;
-  assert.ok(step.activePointers, "activePointers must not be erased");
-  assert.equal(step.activePointers.low, 1);
-  assert.equal(step.activePointers.mid, 3);
-  assert.equal(step.activePointers.high, 4);
-});
-
-test("validateAndNormalizeVizPayload matches code_anchor with exact candidate line", () => {
-  const codeLines = [
-    "def search(nums, target):",
-    "    low = 0",
-    "    high = len(nums) - 1",
-    "    while low <= high:",
-    "        mid = (low + high) // 2",
-    "        if nums[mid] == target:",
-    "            return mid",
-    "    return -1",
-  ];
-
-  const rawPayload = {
-    code_lines: codeLines,
-    test_array: [1, 3, 5, 7, 9],
-    viz_steps: [
-      {
-        type: "array",
-        line: 0, // AI incorrectly said line 0
-        code_anchor: "if nums[mid] == target:",
-        desc: "Checking if nums[mid] equals target",
-        array: [1, 3, 5, 7, 9],
-      } as any,
-    ],
-  };
-
-  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "array");
-  const step = normalized.viz_steps[0]!;
-  assert.equal(step.line, 5, "Line should be matched to index 5 via code_anchor");
-});
-
-test("validateAndNormalizeVizPayload preserves list activePointers including slow, fast, and dummy", () => {
-  const codeLines = [
-    "slow = head",
-    "fast = head",
-    "while fast and fast.next:",
-    "    slow = slow.next",
-    "    fast = fast.next.next",
-  ];
-
-  const rawPayload = {
-    code_lines: codeLines,
-    test_array: [1, 2, 3, 4, 5],
-    viz_steps: [
-      {
-        type: "list",
-        line: 3,
-        desc: "Advancing slow by 1 node and fast by 2 nodes",
-        list: [1, 2, 3, 4, 5],
-        current: 2,
-        activePointers: {
-          slow: 1,
-          fast: 3,
-          dummy: 0,
-        },
-      } as any,
-    ],
-  };
-
-  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "linkedlist");
-
-  const step = normalized.viz_steps[0]!;
-  assert.ok(step.activePointers, "activePointers should be preserved for list steps");
-  assert.equal(step.activePointers.slow, 1);
-  assert.equal(step.activePointers.fast, 3);
-  assert.equal(step.activePointers.dummy, 0);
-});
-
-test("getMarkerStyle provides accurate, accessible, and semantic colors for all pointer types", () => {
-  // Left / Slow / Low / Start / Write / Row / i / p1 / u / src / p (Emerald)
-  const leftStyle = getMarkerStyle("left");
-  assert.match(leftStyle.bg, /emerald/);
-  assert.match(leftStyle.textCol, /emerald/);
-  assert.ok(leftStyle.svgFill.includes("16, 185, 129"));
-  assert.equal(leftStyle.svgText, "#34d399");
-
-  const slowStyle = getMarkerStyle("slow");
-  assert.match(slowStyle.bg, /emerald/);
-
-  const uStyle = getMarkerStyle("u");
-  assert.match(uStyle.bg, /emerald/);
-
-  const pStyle = getMarkerStyle("p");
-  assert.match(pStyle.bg, /emerald/);
-
-  const rowStyle = getMarkerStyle("r1");
-  assert.match(rowStyle.bg, /emerald/);
-
-  // Right / Fast / High / End / Read / Col / j / p2 / v / dest / q (Indigo)
-  const rightStyle = getMarkerStyle("right");
-  assert.match(rightStyle.bg, /indigo/);
-  assert.match(rightStyle.textCol, /indigo/);
-  assert.ok(rightStyle.svgFill.includes("99, 102, 241"));
-  assert.equal(rightStyle.svgText, "#a5b4fc");
-
-  const vStyle = getMarkerStyle("v");
-  assert.match(vStyle.bg, /indigo/);
-
-  const qStyle = getMarkerStyle("q");
-  assert.match(qStyle.bg, /indigo/);
-
-  const colStyle = getMarkerStyle("c2");
-  assert.match(colStyle.bg, /indigo/);
-
-  // Mid / Pivot / Center / k / p3 (Amber)
-  const midStyle = getMarkerStyle("mid");
-  assert.match(midStyle.bg, /amber/);
-  assert.match(midStyle.textCol, /amber/);
-  assert.equal(midStyle.svgText, "#fcd34d");
-
-  const kStyle = getMarkerStyle("k");
-  assert.match(kStyle.bg, /amber/);
-
-  // Prev / Predecessor / Parent (Rose)
-  const prevStyle = getMarkerStyle("prev");
-  assert.match(prevStyle.bg, /rose/);
-  assert.match(prevStyle.textCol, /rose/);
-  assert.equal(prevStyle.svgText, "#fda4af");
-
-  // Next / Successor / Child / Neighbor (Purple)
-  const nextStyle = getMarkerStyle("next");
-  assert.match(nextStyle.bg, /purple/);
-  assert.match(nextStyle.textCol, /purple/);
-  assert.equal(nextStyle.svgText, "#d8b4fe");
-
-  // Target / Ans / Optimal / Match (Glowing Emerald)
-  const targetStyle = getMarkerStyle("target");
-  assert.match(targetStyle.bg, /emerald/);
-  assert.equal(targetStyle.glow, true);
-  assert.equal(targetStyle.svgText, "#6ee7b7");
-
-  const matchStyle = getMarkerStyle("curr", true);
-  assert.equal(matchStyle.glow, true);
-  assert.equal(matchStyle.svgText, "#ffffff");
-
-  // Curr / Current / Node / Head / Top / Front / Root (Sky)
-  const currStyle = getMarkerStyle("curr");
-  assert.match(currStyle.bg, /sky/);
-  assert.match(currStyle.textCol, /sky/);
-  assert.equal(currStyle.svgText, "#7dd3fc");
-
-  const rootStyle = getMarkerStyle("root");
-  assert.match(rootStyle.bg, /sky/);
-
-  // Tail / Back / Rear (Slate/Muted)
-  const tailStyle = getMarkerStyle("tail");
-  assert.match(tailStyle.bg, /muted/);
-  assert.equal(tailStyle.svgText, "#cbd5e1");
-
-  // Custom / Fallback (Cyan)
-  const customStyle = getMarkerStyle("customPtr");
-  assert.match(customStyle.bg, /cyan/);
-  assert.equal(customStyle.svgText, "#67e8f9");
-});
-
-test("validateAndNormalizeVizPayload universal pointer extraction across trees, graphs, and matrices", () => {
-  const codeLines = [
-    "def dfs(u, v):",
-    "    visited.add(u)",
-    "    for neighbor in adj[u]:",
-    "        ...",
-  ];
-
-  const rawPayload = {
-    code_lines: codeLines,
-    test_array: [0, 1, 2, 3],
-    viz_steps: [
-      {
-        type: "graph",
-        line: 1,
-        desc: "Visiting node u with target v",
-        matrix: [
-          [0, 1, 0],
-          [1, 0, 1],
-          [0, 1, 0],
-        ],
-        variables: {
-          u: 0,
-          v: 2,
-          p: 1,
-          q: 2,
-          root: 0,
-          node: 1,
-          i: 0,
-          j: 1,
-        },
-      } as any,
-    ],
-  };
-
-  const normalized = validateAndNormalizeVizPayload(rawPayload, fallback, "graph");
-  const step = normalized.viz_steps[0]!;
-  assert.ok(step.activePointers);
-  assert.equal(step.activePointers.u, 0);
-  assert.equal(step.activePointers.v, 2);
-  assert.equal(step.activePointers.p, 1);
-  assert.equal(step.activePointers.q, 2);
-  assert.equal(step.activePointers.root, 0);
-  assert.equal(step.activePointers.node, 1);
-  assert.equal(step.activePointers.i, 0);
-  assert.equal(step.activePointers.j, 1);
-});
-
-
-
-
 
 

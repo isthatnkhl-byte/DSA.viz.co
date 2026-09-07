@@ -1,6 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import type { Val } from "./VisualizerTypes";
-import { coordKey, getMarkerStyle, parse2DCoord, safeArray, safeMatrix, toText } from "./VisualizerTypes";
+import { coordKey, parse2DCoord, safeArray, safeMatrix, toText } from "./VisualizerTypes";
+import type {
+  DirectionRay,
+  WaveDistance,
+  BacktrackingPathRibbon,
+  NQueensConflictRay,
+  MatrixRotationOrbit,
+  Kernel8Neighbor,
+  GridPredecessorArrow,
+} from "./VisualizerTypes";
 import {
   Compass,
   ArrowUp,
@@ -11,9 +20,25 @@ import {
   Layers,
   Trophy,
   CheckCircle2,
+  Clock,
+  RotateCw,
+  Box,
+  Footprints,
+  Radio,
+  Crown,
+  AlertTriangle,
+  Grid,
+  Crosshair,
+  Activity,
+  ShieldAlert,
+  ArrowUpRight,
+  ArrowDownRight,
+  ArrowUpLeft,
+  ArrowDownLeft,
+  Undo2,
 } from "lucide-react";
 
-interface MatrixVisualizerProps {
+export interface MatrixVisualizerProps {
   matrix?: (number | string)[][] | null | undefined;
   cols?: number | null | undefined;
   left?: number | null | undefined;
@@ -26,8 +51,22 @@ interface MatrixVisualizerProps {
   islandCells?: (string | [number, number])[] | null | undefined;
   wSum?: number | null | undefined;
   mSum?: number | null | undefined;
-  pointer_labels?: Record<string, string> | null | undefined;
-  activePointers?: Record<string, number | string | [number, number] | null> | null | undefined;
+  // Enhanced Matrix-specific capabilities
+  spiralBounds?: { top: number; bottom: number; left: number; right: number } | null | undefined;
+  frontier?: (string | [number, number])[] | null | undefined;
+  distanceLayer?: number | null | undefined;
+  highlightRows?: number[] | null | undefined;
+  highlightCols?: number[] | null | undefined;
+  trail?: (string | [number, number])[] | null | undefined;
+  rotationLayer?: number | null | undefined;
+  // Advanced 2D Matrix Visualizations
+  directionRay?: DirectionRay | null | undefined;
+  waveDistance?: WaveDistance | null | undefined;
+  backtrackingRibbon?: BacktrackingPathRibbon | null | undefined;
+  nQueensConflict?: NQueensConflictRay | null | undefined;
+  rotationOrbit?: MatrixRotationOrbit | null | undefined;
+  kernel8Neighbor?: Kernel8Neighbor | null | undefined;
+  predecessorArrows?: GridPredecessorArrow[] | null | undefined;
 }
 
 export function MatrixVisualizer({
@@ -43,74 +82,164 @@ export function MatrixVisualizer({
   islandCells: rawIslandCells,
   wSum,
   mSum,
-  pointer_labels,
-  activePointers,
+  spiralBounds,
+  frontier: rawFrontier,
+  distanceLayer,
+  highlightRows,
+  highlightCols,
+  trail: rawTrail,
+  rotationLayer,
+  directionRay,
+  waveDistance,
+  backtrackingRibbon,
+  nQueensConflict,
+  rotationOrbit,
+  kernel8Neighbor,
+  predecessorArrows,
 }: MatrixVisualizerProps) {
   const matrix = useMemo(() => safeMatrix(rawMatrix ?? []), [rawMatrix]);
-
   const visited = useMemo(() => safeArray(rawVisited), [rawVisited]);
   const cols = Number(rawCols ?? matrix[0]?.length ?? 1) || 1;
   const rows = matrix.length;
 
-  const currentKey = coordKey(current);
+  const parsedCurr = parse2DCoord(current);
+  const currentKey = parsedCurr ? `${parsedCurr[0]},${parsedCurr[1]}` : coordKey(current);
 
-  const activePointerEntries = useMemo(() => {
-    if (!activePointers || typeof activePointers !== "object") return [];
-    return Object.entries(activePointers).filter(
-      ([, v]) => v !== null && v !== undefined && v !== "",
-    );
-  }, [activePointers]);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const [cellLayouts, setCellLayouts] = useState<{
+    cellSize: number;
+    cellGap: number;
+  }>({ cellSize: 48, cellGap: 8 });
 
-  // Check if grid elements are exclusively binary 0/1 or water/land
-  const isBinaryGrid = useMemo(() => {
-    if (!matrix || matrix.length === 0) return false;
-    return matrix.every((row) =>
-      row.every(
-        (val) =>
-          val === 0 ||
-          val === 1 ||
-          val === "0" ||
-          val === "1" ||
-          val === "water" ||
-          val === "land",
-      ),
-    );
-  }, [matrix]);
-
-  // Detect whether this is genuinely an island / connected components problem
-  const isIslandMode = useMemo(() => {
-    if (Array.isArray(rawIslandCells) && rawIslandCells.length > 0) return true;
-    if (typeof currentArea === "number" && currentArea > 0) return true;
-    if (typeof maxArea === "number" && maxArea > 0) return true;
-    if (isBinaryGrid) return true;
-    return false;
-  }, [rawIslandCells, currentArea, maxArea, isBinaryGrid]);
+  // Update cell dimensions dynamically on resize
+  useEffect(() => {
+    const isMobile = window.innerWidth < 640;
+    setCellLayouts({
+      cellSize: isMobile ? 40 : 48,
+      cellGap: 8,
+    });
+  }, []);
 
   // Set of all visited coordinates
   const seenKeys = useMemo(() => {
     const s = new Set<string>();
     visited.forEach((item) => {
-      const k = coordKey(item);
+      const parsed = parse2DCoord(item);
+      const k = parsed ? `${parsed[0]},${parsed[1]}` : coordKey(item);
       if (k) s.add(k);
     });
     return s;
   }, [visited]);
 
-  // Set of cells in the currently active island cluster (if in island mode)
+  // Set of cells in the currently active island cluster
   const activeIslandSet = useMemo(() => {
     const s = new Set<string>();
-    if (isIslandMode && Array.isArray(rawIslandCells) && rawIslandCells.length > 0) {
+    if (Array.isArray(rawIslandCells) && rawIslandCells.length > 0) {
       rawIslandCells.forEach((c) => {
-        const k = coordKey(c);
+        const parsed = parse2DCoord(c);
+        const k = parsed ? `${parsed[0]},${parsed[1]}` : coordKey(c);
         if (k) s.add(k);
       });
     }
     return s;
-  }, [isIslandMode, rawIslandCells]);
+  }, [rawIslandCells]);
 
-  // Calculate total land cells in grid (only used when isIslandMode is true)
+  // Set of cells currently on the BFS frontier / queue
+  const frontierSet = useMemo(() => {
+    const s = new Set<string>();
+    if (Array.isArray(rawFrontier)) {
+      rawFrontier.forEach((c) => {
+        const parsed = parse2DCoord(c);
+        const k = parsed ? `${parsed[0]},${parsed[1]}` : coordKey(c);
+        if (k) s.add(k);
+      });
+    }
+    return s;
+  }, [rawFrontier]);
+
+  // Trail Map: cellKey -> 1-based order index in search path (e.g. Word Search / Backtracking)
+  const trailMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const trailSource = backtrackingRibbon?.path ?? rawTrail;
+    if (Array.isArray(trailSource)) {
+      trailSource.forEach((c, idx) => {
+        const parsed = parse2DCoord(c);
+        const k = parsed ? `${parsed[0]},${parsed[1]}` : coordKey(c);
+        if (k) map.set(k, idx + 1);
+      });
+    }
+    return map;
+  }, [rawTrail, backtrackingRibbon]);
+
+  // Wave distance map: cellKey -> distance
+  const waveMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (waveDistance?.waveRings) {
+      waveDistance.waveRings.forEach((ring) => {
+        ring.cells.forEach(([r, c]) => {
+          map.set(`${r},${c}`, ring.distance);
+        });
+      });
+    }
+    return map;
+  }, [waveDistance]);
+
+  // N-Queens attack lines set
+  const attackRaySet = useMemo(() => {
+    const s = new Set<string>();
+    if (nQueensConflict?.attackRays) {
+      nQueensConflict.attackRays.forEach((ray) => {
+        s.add(`${ray.r},${ray.c}`);
+      });
+    }
+    return s;
+  }, [nQueensConflict]);
+
+  // Rotation Orbit 4-tuple keys
+  const orbitSet = useMemo(() => {
+    const s = new Set<string>();
+    if (rotationOrbit?.orbit4) {
+      rotationOrbit.orbit4.forEach(([r, c]) => {
+        s.add(`${r},${c}`);
+      });
+    }
+    return s;
+  }, [rotationOrbit]);
+
+  // Kernel 3x3 8-neighbor cells set
+  const kernelSet = useMemo(() => {
+    const s = new Set<string>();
+    if (kernel8Neighbor?.center) {
+      const [cr, cc] = kernel8Neighbor.center;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          s.add(`${cr + dr},${cc + dc}`);
+        }
+      }
+    }
+    return s;
+  }, [kernel8Neighbor]);
+
+  // Predecessor map: targetCellKey -> PredecessorArrow[]
+  const predecessorMap = useMemo(() => {
+    const map = new Map<string, GridPredecessorArrow[]>();
+    if (predecessorArrows) {
+      predecessorArrows.forEach((arrow) => {
+        const key = `${arrow.cell[0]},${arrow.cell[1]}`;
+        const existing = map.get(key) ?? [];
+        existing.push(arrow);
+        map.set(key, existing);
+      });
+    }
+    return map;
+  }, [predecessorArrows]);
+
+  // Highlighted Rows & Columns sets (for Set Matrix Zeroes)
+  const rowHighlightSet = useMemo(() => new Set(highlightRows ?? []), [highlightRows]);
+  const colHighlightSet = useMemo(() => new Set(highlightCols ?? []), [highlightCols]);
+
+  // Calculate total land cells in grid (cells with value 1, seen as visited, or in active island)
   const totalLandCount = useMemo(() => {
-    if (!isIslandMode) return 0;
     let count = 0;
     for (let r = 0; r < matrix.length; r++) {
       for (let c = 0; c < (matrix[r]?.length ?? 0); c++) {
@@ -121,19 +250,10 @@ export function MatrixVisualizer({
       }
     }
     return count;
-  }, [isIslandMode, matrix, seenKeys, activeIslandSet]);
+  }, [matrix, seenKeys, activeIslandSet]);
 
-  // Differentiate between Area problems vs Count / Component problems
-  const isAreaProblem = typeof currentArea === "number" || typeof maxArea === "number";
-  const isIslandCountProblem = !isAreaProblem && isIslandMode && typeof wSum === "number";
-
-  const primaryMetricLabel = isAreaProblem
-    ? "Current Area"
-    : isIslandCountProblem
-      ? "Island Count"
-      : "Metric / Value";
-
-  const primaryMetricValue =
+  // Derive active area and max area metrics
+  const activeAreaValue =
     typeof currentArea === "number"
       ? currentArea
       : typeof wSum === "number"
@@ -142,29 +262,11 @@ export function MatrixVisualizer({
           ? activeIslandSet.size
           : null;
 
-  const showSecondaryMetric =
-    isAreaProblem
-      ? typeof maxArea === "number" || typeof mSum === "number"
-      : typeof mSum === "number" && mSum !== wSum;
-
-  const secondaryMetricLabel = isAreaProblem
-    ? "Max Area"
-    : isIslandCountProblem
-      ? "Max Islands"
-      : "Max / Target";
-
-  const secondaryMetricValue =
-    typeof maxArea === "number"
-      ? maxArea
-      : typeof mSum === "number"
-        ? mSum
-        : isAreaProblem
-          ? primaryMetricValue
-          : null;
+  const maxAreaValue =
+    typeof maxArea === "number" ? maxArea : typeof mSum === "number" ? mSum : activeAreaValue;
 
   // Normalize direction text for compass widget
-  const dirText = String(direction ?? "").toUpperCase();
-  const hasDirection = Boolean(direction && direction.trim());
+  const dirText = String(directionRay?.direction ?? direction ?? "").toUpperCase();
   const isUp = dirText.includes("UP") || dirText.includes("-1, 0") || dirText.includes("-1,0");
   const isDown =
     dirText.includes("DOWN") ||
@@ -191,76 +293,246 @@ export function MatrixVisualizer({
     return false;
   }, [currentKey, rows, cols]);
 
-  // Derive pointer names
-  const rowPtrLabel = pointer_labels?.left || "r";
-  const colPtrLabel = pointer_labels?.right || "c";
+  const isIslandMode = useMemo(() => {
+    if (
+      activeIslandSet.size > 0 ||
+      rawIslandCells !== undefined ||
+      typeof currentArea === "number" ||
+      typeof maxArea === "number"
+    ) {
+      return true;
+    }
+    // Check if matrix is binary (0/1), representing an island or binary grid
+    if (matrix.length > 0 && matrix[0]?.length) {
+      let isBinary = true;
+      for (let r = 0; r < matrix.length; r++) {
+        const row = matrix[r];
+        if (!row || row.length === 0) continue;
+        for (let c = 0; c < row.length; c++) {
+          const val = row[c];
+          const num = Number(val);
+          const str = String(val).toLowerCase().trim();
+          if (
+            str !== "0" &&
+            str !== "1" &&
+            num !== 0 &&
+            num !== 1 &&
+            str !== "water" &&
+            str !== "land"
+          ) {
+            isBinary = false;
+            break;
+          }
+        }
+        if (!isBinary) break;
+      }
+      if (isBinary) return true;
+    }
+    return false;
+  }, [activeIslandSet.size, rawIslandCells, currentArea, maxArea, matrix]);
+
+  // Mode determination for contextual banner
+  const modeTitle = useMemo(() => {
+    if (nQueensConflict) return "N-Queens Line-of-Sight Conflict Ray";
+    if (rotationOrbit) return `Matrix 4-Way Orbit Rotation (Ring ${rotationOrbit.ringLayer})`;
+    if (kernel8Neighbor) return "3×3 Cellular Kernel / Game of Life";
+    if (backtrackingRibbon) return "Backtracking Path / Word Search Ribbon";
+    if (directionRay) return "2D Directional Raycast Probe";
+    if (waveDistance || typeof distanceLayer === "number" || frontierSet.size > 0)
+      return "Multi-Source Wave BFS";
+    if (predecessorArrows && predecessorArrows.length > 0) return "2D DP Optimal Path Backpointer";
+    if (spiralBounds) return "Spiral Matrix Boundary Peeling";
+    if (typeof rotationLayer === "number") return `Matrix Rotation (Layer ${rotationLayer})`;
+    if (trailMap.size > 0) return "Grid Path / Word Search Traversal";
+    if (rowHighlightSet.size > 0 || colHighlightSet.size > 0) return "Matrix Zero In-Place Marker";
+    if (isIslandMode) return "2D Island Connected Component";
+    return "2D Matrix Grid";
+  }, [
+    nQueensConflict,
+    rotationOrbit,
+    kernel8Neighbor,
+    backtrackingRibbon,
+    directionRay,
+    waveDistance,
+    distanceLayer,
+    frontierSet.size,
+    predecessorArrows,
+    spiralBounds,
+    rotationLayer,
+    trailMap.size,
+    rowHighlightSet.size,
+    colHighlightSet.size,
+    isIslandMode,
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Active Pointer Legend Bar */}
-      {activePointerEntries.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-2 text-[11px] font-mono shadow-xs">
-          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
-            Grid Pointers:
-          </span>
-          {activePointerEntries.map(([k, v]) => {
-            const style = getMarkerStyle(k);
-            return (
-              <span
-                key={`mat-badge-${k}`}
-                className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 border font-semibold ${style.bg} ${style.textCol} ${style.border}`}
-              >
-                <span>{k}</span>
-                <span className="opacity-70">➔</span>
-                <span className="font-bold text-foreground">
-                  {typeof v === "object" ? JSON.stringify(v) : String(v)}
-                </span>
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Top Banner: Grid Info, Directional Compass & Live Stats */}
+      {/* Top Banner: Grid Info, Directional Compass, Spiral Bounds & Live Metrics */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card/75 p-4 shadow-sm backdrop-blur-sm">
         {/* Left: Grid Dimension & Stats */}
         <div className="flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/30 shadow-xs">
-            <Layers className="size-5" />
+            {nQueensConflict ? (
+              <Crown className="size-5 text-amber-400" />
+            ) : rotationOrbit || typeof rotationLayer === "number" ? (
+              <RotateCw className="size-5 text-purple-400" />
+            ) : kernel8Neighbor ? (
+              <Crosshair className="size-5 text-emerald-400" />
+            ) : backtrackingRibbon || trailMap.size > 0 ? (
+              <Footprints className="size-5 text-amber-400" />
+            ) : directionRay ? (
+              <Compass className="size-5 text-sky-400" />
+            ) : waveDistance || typeof distanceLayer === "number" || frontierSet.size > 0 ? (
+              <Radio className="size-5 text-cyan-400" />
+            ) : spiralBounds ? (
+              <Box className="size-5 text-indigo-400" />
+            ) : (
+              <Layers className="size-5 text-primary" />
+            )}
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
-                2D Matrix Grid
+                {modeTitle}
               </span>
               <span className="rounded-md border border-border/70 bg-background/60 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
                 {rows} × {cols}
               </span>
             </div>
-            {isIslandMode ? (
-              <span className="text-[11px] text-muted-foreground">
-                Total Land Cells:{" "}
-                <strong className="text-amber-300 font-mono">{totalLandCount}</strong> · Explored:{" "}
-                <strong className="text-emerald-400 font-mono">{visited.length}</strong>
-              </span>
-            ) : (
-              <span className="text-[11px] text-muted-foreground">
-                Explored Cells:{" "}
-                <strong className="text-emerald-400 font-mono">{visited.length}</strong> · Active:{" "}
-                <strong className="text-primary font-mono">
-                  {currentKey
-                    ? `(${currentKey})`
-                    : typeof left === "number" && typeof right === "number"
-                      ? `(${left}, ${right})`
-                      : "—"}
-                </strong>
-              </span>
-            )}
+            <span className="text-[11px] text-muted-foreground">
+              {nQueensConflict ? (
+                <>
+                  Queen at:{" "}
+                  <strong className="text-amber-300 font-mono">
+                    ({nQueensConflict.queenPos[0]}, {nQueensConflict.queenPos[1]})
+                  </strong>{" "}
+                  · Conflict:{" "}
+                  <strong className="text-rose-400 font-mono">
+                    {nQueensConflict.conflictCell
+                      ? `(${nQueensConflict.conflictCell[0]}, ${nQueensConflict.conflictCell[1]})`
+                      : "None (Safe)"}
+                  </strong>
+                </>
+              ) : rotationOrbit ? (
+                <>
+                  Orbit Layer:{" "}
+                  <strong className="text-purple-300 font-mono">
+                    {rotationOrbit.ringLayer}
+                  </strong>{" "}
+                  · Cycle Step:{" "}
+                  <strong className="text-amber-300 font-mono">
+                    {rotationOrbit.activeCycleStep ?? 1} / 4
+                  </strong>
+                </>
+              ) : kernel8Neighbor ? (
+                <>
+                  Center:{" "}
+                  <strong className="text-emerald-300 font-mono">
+                    ({kernel8Neighbor.center[0]}, {kernel8Neighbor.center[1]})
+                  </strong>{" "}
+                  · Live Neighbors:{" "}
+                  <strong className="text-cyan-300 font-mono">
+                    {kernel8Neighbor.aliveCount}
+                  </strong>
+                </>
+              ) : backtrackingRibbon ? (
+                <>
+                  Path Depth:{" "}
+                  <strong className="text-amber-300 font-mono">
+                    {backtrackingRibbon.path.length}
+                  </strong>{" "}
+                  · Word:{" "}
+                  <strong className="text-emerald-300 font-mono">
+                    {backtrackingRibbon.wordSoFar || "—"}
+                  </strong>
+                </>
+              ) : isIslandMode ? (
+                <>
+                  Total Land: <strong className="text-amber-300 font-mono">{totalLandCount}</strong>{" "}
+                  · Explored: <strong className="text-emerald-400 font-mono">{visited.length}</strong>
+                </>
+              ) : trailMap.size > 0 ? (
+                <>
+                  Path Depth: <strong className="text-amber-300 font-mono">{trailMap.size}</strong>{" "}
+                  · Visited: <strong className="text-sky-300 font-mono">{visited.length}</strong>
+                </>
+              ) : typeof distanceLayer === "number" || waveDistance ? (
+                <>
+                  Wave Distance:{" "}
+                  <strong className="text-cyan-300 font-mono">
+                    {waveDistance?.currentDistance ?? distanceLayer ?? 0}
+                  </strong>{" "}
+                  · Frontier:{" "}
+                  <strong className="text-amber-300 font-mono">
+                    {waveDistance?.frontierCount ?? frontierSet.size}
+                  </strong>
+                </>
+              ) : (
+                <>
+                  Total Cells:{" "}
+                  <strong className="text-primary font-mono">{rows * cols}</strong> · Processed:{" "}
+                  <strong className="text-emerald-400 font-mono">{visited.length}</strong>
+                </>
+              )}
+            </span>
           </div>
         </div>
 
-        {/* Center: 4-Direction Traversal Compass Widget (rendered when direction exists) */}
-        {hasDirection && (
+        {/* Center: Contextual Widgets */}
+        {directionRay ? (
+          <div className="flex items-center gap-2 rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-1.5 shadow-inner font-mono text-xs">
+            <Compass className="size-4 text-sky-400 shrink-0" />
+            <span className="text-sky-300 font-bold">Probe Ray:</span>
+            <span className="bg-sky-500/20 text-sky-200 px-2 py-0.5 rounded border border-sky-500/30 font-bold">
+              ({directionRay.from[0]},{directionRay.from[1]}) → ({directionRay.to[0]},
+              {directionRay.to[1]}) [{directionRay.direction}]
+            </span>
+            <span
+              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                directionRay.status === "valid"
+                  ? "bg-emerald-500/30 text-emerald-300 border border-emerald-500/50"
+                  : directionRay.status === "wall"
+                    ? "bg-rose-500/30 text-rose-300 border border-rose-500/50"
+                    : directionRay.status === "oob"
+                      ? "bg-amber-500/30 text-amber-300 border border-amber-500/50"
+                      : "bg-cyan-500/30 text-cyan-300 border border-cyan-500/50"
+              }`}
+            >
+              {directionRay.status}
+            </span>
+          </div>
+        ) : spiralBounds ? (
+          <div className="flex items-center gap-2 rounded-xl border border-indigo-500/40 bg-indigo-950/30 px-3 py-1.5 shadow-inner font-mono text-[11px]">
+            <span className="text-indigo-300 font-semibold uppercase tracking-wider text-[10px]">
+              Bounds:
+            </span>
+            <span className="bg-indigo-500/20 text-indigo-200 px-1.5 py-0.5 rounded border border-indigo-500/30 font-bold">
+              top: {spiralBounds.top}
+            </span>
+            <span className="bg-indigo-500/20 text-indigo-200 px-1.5 py-0.5 rounded border border-indigo-500/30 font-bold">
+              bottom: {spiralBounds.bottom}
+            </span>
+            <span className="bg-indigo-500/20 text-indigo-200 px-1.5 py-0.5 rounded border border-indigo-500/30 font-bold">
+              left: {spiralBounds.left}
+            </span>
+            <span className="bg-indigo-500/20 text-indigo-200 px-1.5 py-0.5 rounded border border-indigo-500/30 font-bold">
+              right: {spiralBounds.right}
+            </span>
+          </div>
+        ) : typeof distanceLayer === "number" || waveDistance ? (
+          <div className="flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-1.5 shadow-inner font-mono text-xs text-cyan-200">
+            <Clock className="size-4 text-cyan-400 shrink-0" />
+            <span>Wave Distance:</span>
+            <span className="font-bold text-cyan-300 bg-cyan-500/20 px-2 py-0.5 rounded border border-cyan-500/40">
+              d = {waveDistance?.currentDistance ?? distanceLayer ?? 0}
+            </span>
+            {(waveDistance?.frontierCount ?? frontierSet.size) > 0 && (
+              <span className="text-[10px] text-cyan-400/80">
+                ({waveDistance?.frontierCount ?? frontierSet.size} active in wave)
+              </span>
+            )}
+          </div>
+        ) : isIslandMode ? (
           <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/60 px-3 py-1.5 shadow-inner">
             <Compass className="size-4 text-primary shrink-0" />
             <div className="flex items-center gap-1 font-mono text-[10px]">
@@ -306,9 +578,20 @@ export function MatrixVisualizer({
               </span>
             </div>
           </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/60 px-3 py-1.5 shadow-inner font-mono text-xs">
+            <span className="text-muted-foreground text-[11px]">Loop Focus:</span>
+            {currentKey ? (
+              <span className="font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/30">
+                matrix[{currentKey}]
+              </span>
+            ) : (
+              <span className="text-muted-foreground/60 italic">Scanning complete</span>
+            )}
+          </div>
         )}
 
-        {/* Right: Area or Metric Badges or OOB Banner */}
+        {/* Right: Live Metrics Badges */}
         <div className="flex items-center gap-2">
           {isCurrentOOB && (
             <div className="flex items-center gap-1.5 rounded-xl border border-amber-500/50 bg-amber-500/15 px-3 py-1.5 shadow-sm shadow-amber-500/10">
@@ -324,80 +607,179 @@ export function MatrixVisualizer({
             </div>
           )}
 
-          {primaryMetricValue !== null && !isCurrentOOB && (
+          {isIslandMode && activeAreaValue !== null && !isCurrentOOB && (
             <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-1.5 shadow-sm shadow-emerald-500/10 animate-sync-glow">
               <Sparkles className="size-3.5 text-emerald-400" />
               <div className="flex flex-col text-right">
                 <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-300">
-                  {primaryMetricLabel}
+                  {typeof currentArea === "number" ? "Current Area" : "Active Island"}
                 </span>
                 <span className="font-mono text-xs font-black text-emerald-300">
-                  {primaryMetricValue}
+                  {activeAreaValue}
                 </span>
               </div>
             </div>
           )}
 
-          {showSecondaryMetric && secondaryMetricValue !== null && (
+          {isIslandMode && maxAreaValue !== null && (
             <div className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-1.5 shadow-sm shadow-amber-500/10">
               <Trophy className="size-3.5 text-amber-400" />
               <div className="flex flex-col text-right">
                 <span className="text-[9px] uppercase font-bold tracking-wider text-amber-300">
-                  {secondaryMetricLabel}
+                  {typeof maxArea === "number" ? "Max Area" : "Total Islands"}
                 </span>
-                <span className="font-mono text-xs font-black text-amber-300">
-                  {secondaryMetricValue}
+                <span className="font-mono text-xs font-black text-amber-300">{maxAreaValue}</span>
+              </div>
+            </div>
+          )}
+
+          {!isIslandMode && currentKey && !isCurrentOOB && (
+            <div className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-1.5 shadow-sm">
+              <div className="flex flex-col text-right font-mono">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground">
+                  Active Coordinate
                 </span>
+                <span className="text-xs font-black text-primary">({currentKey})</span>
               </div>
             </div>
           )}
         </div>
       </div>
 
+      {/* Backtracking Ribbon / Word Search Progress Sub-bar */}
+      {backtrackingRibbon && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-xs font-mono backdrop-blur-sm animate-fade">
+          <div className="flex items-center gap-2">
+            <span className="text-amber-300 uppercase text-[11px] font-bold flex items-center gap-1.5">
+              <Footprints className="size-4 text-amber-400" />
+              Word Search Path:
+            </span>
+            <div className="flex items-center gap-1 bg-amber-500/15 border border-amber-500/40 px-2.5 py-1 rounded-lg">
+              {(backtrackingRibbon.targetWord ?? "")
+                .split("")
+                .map((ch: string, charIdx: number) => {
+                  const isMatched =
+                    backtrackingRibbon.wordSoFar &&
+                    charIdx < backtrackingRibbon.wordSoFar.length;
+                  return (
+                    <span
+                      key={`w-ch-${charIdx}`}
+                      className={`size-6 flex items-center justify-center rounded text-xs font-black transition-all ${
+                        isMatched
+                          ? "bg-emerald-500 text-white shadow-xs scale-105 ring-1 ring-emerald-400"
+                          : "bg-muted/40 text-muted-foreground/60 border border-border/40"
+                      }`}
+                    >
+                      {ch}
+                    </span>
+                  );
+                })}
+            </div>
+          </div>
+
+          {backtrackingRibbon.retractedNode && (
+            <div className="flex items-center gap-1.5 text-rose-300 font-bold bg-rose-500/20 px-2.5 py-1 rounded-lg border border-rose-500/40">
+              <Undo2 className="size-3.5 text-rose-400" />
+              <span>
+                Backtracked from ({backtrackingRibbon.retractedNode[0]},
+                {backtrackingRibbon.retractedNode[1]})
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Rotation 4-Way Orbit Sub-bar */}
+      {rotationOrbit && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-purple-500/40 bg-purple-950/20 px-4 py-3 text-xs font-mono backdrop-blur-sm animate-fade">
+          <div className="flex items-center gap-2">
+            <span className="text-purple-300 uppercase text-[11px] font-bold flex items-center gap-1.5">
+              <RotateCw className="size-4 text-purple-400" />
+              4-Cell In-Place Cycle:
+            </span>
+            <div className="flex items-center gap-1.5">
+              {rotationOrbit.orbit4.map(([r, c], idx) => {
+                const labels = ["TOP", "RIGHT", "BOTTOM", "LEFT"];
+                const val = rotationOrbit.orbitValues?.[idx] ?? matrix[r]?.[c] ?? "-";
+                const isStepActive = (rotationOrbit.activeCycleStep ?? 1) - 1 === idx;
+                return (
+                  <div key={`orb-${idx}`} className="flex items-center gap-1">
+                    <div
+                      className={`flex flex-col items-center px-2 py-0.5 rounded-lg border transition-all ${
+                        isStepActive
+                          ? "border-amber-400 bg-amber-500 text-slate-950 font-black scale-105 shadow-md ring-2 ring-amber-300"
+                          : "border-purple-500/40 bg-purple-950/40 text-purple-200"
+                      }`}
+                    >
+                      <span className="text-[9px] uppercase opacity-80">{labels[idx]} ({r},{c})</span>
+                      <span className="font-bold text-xs">{String(val)}</span>
+                    </div>
+                    {idx < 3 && <span className="text-purple-400 font-bold">→</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <span className="text-[11px] text-purple-300 font-semibold">
+            Clockwise Orbit: (r, c) → (c, n-1-r) → (n-1-r, n-1-c) → (n-1-c, r)
+          </span>
+        </div>
+      )}
+
+      {/* Cellular Automata Kernel Sub-bar (Game of Life) */}
+      {kernel8Neighbor && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-950/20 px-4 py-3 text-xs font-mono backdrop-blur-sm animate-fade">
+          <div className="flex items-center gap-2">
+            <Crosshair className="size-4 text-emerald-400" />
+            <span className="text-emerald-300 uppercase text-[11px] font-bold">
+              3×3 Kernel Rule:
+            </span>
+            <span className="bg-emerald-500/20 text-emerald-200 border border-emerald-500/40 px-2.5 py-0.5 rounded-lg font-bold">
+              {kernel8Neighbor.ruleTriggered || `Live Neighbors = ${kernel8Neighbor.aliveCount}`}
+            </span>
+          </div>
+          {kernel8Neighbor.nextState !== undefined && (
+            <div className="flex items-center gap-1.5 text-cyan-300 font-bold">
+              <span>Next State:</span>
+              <span className="rounded bg-cyan-500/20 border border-cyan-500/40 px-2 py-0.5 text-cyan-200">
+                {String(kernel8Neighbor.nextState)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Main 2D Grid Canvas */}
-      <div className="flex flex-col items-center justify-center overflow-x-auto rounded-2xl border border-border/80 bg-gradient-to-b from-card/90 via-card/50 to-background/95 p-6 shadow-inner">
+      <div
+        ref={gridContainerRef}
+        className="relative flex flex-col items-center justify-center overflow-x-auto rounded-2xl border border-border/80 bg-gradient-to-b from-card/90 via-card/50 to-background/95 p-6 shadow-inner"
+      >
         {matrix.length === 0 ? (
           <span className="font-mono text-sm text-muted-foreground">Empty grid</span>
         ) : (
           <div className="flex flex-col gap-2">
-            {/* Column Indices Header with Pointer Badges */}
+            {/* Column Indices Header */}
             <div className="flex gap-2 pl-9">
               {Array.from({ length: cols }, (_, c) => {
-                const isColActive = typeof right === "number" && right === c;
-                let activeColPointerName: string | null = isColActive ? colPtrLabel : null;
-
-                if (!activeColPointerName && activePointers && typeof activePointers === "object") {
-                  for (const [pName, pVal] of Object.entries(activePointers)) {
-                    if (pVal === null || pVal === undefined) continue;
-                    const lowerP = pName.toLowerCase();
-                    if (/^(?:col|c|j|p2)$/.test(lowerP) && Number(pVal) === c) {
-                      activeColPointerName = pName;
-                      break;
-                    }
-                  }
-                }
-
-                const colStyle = activeColPointerName ? getMarkerStyle(activeColPointerName) : null;
-
+                const isColMarked = colHighlightSet.has(c);
+                const isColInSpiral = spiralBounds
+                  ? c >= spiralBounds.left && c <= spiralBounds.right
+                  : false;
+                const isQueenCol = nQueensConflict?.queenPos[1] === c;
                 return (
                   <div
                     key={`col-idx-${c}`}
-                    className="relative flex flex-col items-center w-12 text-center"
+                    className={`w-12 text-center font-mono text-[11px] font-bold transition-all ${
+                      isColMarked
+                        ? "text-rose-400 font-black scale-110"
+                        : isQueenCol
+                          ? "text-amber-400 font-black"
+                          : isColInSpiral
+                            ? "text-indigo-300"
+                            : "text-muted-foreground"
+                    }`}
                   >
-                    {activeColPointerName && colStyle && (
-                      <span
-                        className={`absolute -top-5 rounded px-1.5 py-0.2 font-mono text-[9px] font-black uppercase border shadow-xs ${colStyle.bg} ${colStyle.textCol} ${colStyle.border}`}
-                      >
-                        {activeColPointerName}
-                      </span>
-                    )}
-                    <span
-                      className={`font-mono text-[11px] font-bold transition-colors ${
-                        activeColPointerName && colStyle ? `${colStyle.textCol} font-black scale-110` : "text-muted-foreground"
-                      }`}
-                    >
-                      c{c}
-                    </span>
+                    c{c}
                   </div>
                 );
               })}
@@ -405,192 +787,377 @@ export function MatrixVisualizer({
 
             {/* Grid Rows */}
             {matrix.map((row, r) => {
-              const isRowActive = typeof left === "number" && left === r;
-              let activeRowPointerName: string | null = isRowActive ? rowPtrLabel : null;
-
-              if (!activeRowPointerName && activePointers && typeof activePointers === "object") {
-                for (const [pName, pVal] of Object.entries(activePointers)) {
-                  if (pVal === null || pVal === undefined) continue;
-                  const lowerP = pName.toLowerCase();
-                  if (/^(?:row|r|i|p1)$/.test(lowerP) && Number(pVal) === r) {
-                    activeRowPointerName = pName;
-                    break;
-                  }
-                }
-              }
-
-              const rowStyle = activeRowPointerName ? getMarkerStyle(activeRowPointerName) : null;
+              const isRowMarked = rowHighlightSet.has(r);
+              const isRowInSpiral = spiralBounds
+                ? r >= spiralBounds.top && r <= spiralBounds.bottom
+                : false;
+              const isQueenRow = nQueensConflict?.queenPos[0] === r;
 
               return (
                 <div key={`row-${r}`} className="flex items-center gap-2">
-                  {/* Row Index Label with Pointer Badge */}
-                  <div className="relative flex items-center justify-end w-7 pr-1">
-                    {activeRowPointerName && rowStyle && (
-                      <span
-                        className={`absolute -left-6 rounded px-1 py-0.2 font-mono text-[8px] font-black uppercase border shadow-xs ${rowStyle.bg} ${rowStyle.textCol} ${rowStyle.border}`}
-                      >
-                        {activeRowPointerName}
-                      </span>
-                    )}
-                    <span
-                      className={`font-mono text-[11px] font-bold transition-colors ${
-                        activeRowPointerName && rowStyle ? `${rowStyle.textCol} font-black scale-110` : "text-muted-foreground"
-                      }`}
-                    >
-                      r{r}
-                    </span>
-                  </div>
+                  {/* Row Index Label */}
+                  <span
+                    className={`w-7 text-right pr-1 font-mono text-[11px] font-bold transition-all ${
+                      isRowMarked
+                        ? "text-rose-400 font-black scale-110"
+                        : isQueenRow
+                          ? "text-amber-400 font-black"
+                          : isRowInSpiral
+                            ? "text-indigo-300"
+                            : "text-muted-foreground"
+                    }`}
+                  >
+                    r{r}
+                  </span>
 
                   {/* Cells in this row */}
                   {row.slice(0, cols).map((val, c) => {
                     const cellKey = `${r},${c}`;
 
                     // Strict coordinate matching
+                    const numLeft =
+                      typeof left === "number"
+                        ? left
+                        : typeof left === "string" && !isNaN(Number(left))
+                          ? Number(left)
+                          : null;
+                    const numRight =
+                      typeof right === "number"
+                        ? right
+                        : typeof right === "string" && !isNaN(Number(right))
+                          ? Number(right)
+                          : null;
                     const isCoordActive =
-                      typeof left === "number" && typeof right === "number" && left === r && right === c;
+                      numLeft !== null && numRight !== null && numLeft === r && numRight === c;
                     const isActive = isCoordActive || currentKey === cellKey;
                     const isTopDependency =
-                      typeof left === "number" && typeof right === "number" && left > 0 && r === left - 1 && c === right;
+                      numLeft !== null &&
+                      numRight !== null &&
+                      numLeft > 0 &&
+                      r === numLeft - 1 &&
+                      c === numRight;
                     const isLeftDependency =
-                      typeof left === "number" && typeof right === "number" && right > 0 && r === left && c === right - 1;
+                      numLeft !== null &&
+                      numRight !== null &&
+                      numRight > 0 &&
+                      r === numLeft &&
+                      c === numRight - 1;
                     const isDependencyCell = !isActive && (isTopDependency || isLeftDependency);
 
                     const isVisited = seenKeys.has(cellKey);
-                    const isCurrentActiveIsland =
-                      isIslandMode &&
-                      (activeIslandSet.has(cellKey) || (isActive && (Number(val) === 1 || isVisited)));
+                    const isFrontier = frontierSet.has(cellKey);
+                    const trailIdx = trailMap.get(cellKey);
+                    const isInTrail = trailIdx !== undefined;
+                    const isMarkedZero = isRowMarked || colHighlightSet.has(c);
 
-                    const isRawWater = isIslandMode && (Number(val) === 0 || String(val).toLowerCase() === "water");
-                    const isWater = isRawWater && !activeIslandSet.has(cellKey);
+                    // Wave BFS Ring distance
+                    const cellWaveDist = waveMap.get(cellKey);
+                    const isWaveCell = cellWaveDist !== undefined;
+
+                    // Advanced overlays
+                    const isQueen =
+                      nQueensConflict &&
+                      nQueensConflict.queenPos[0] === r &&
+                      nQueensConflict.queenPos[1] === c;
+                    const isQueenAttackRay = attackRaySet.has(cellKey);
+                    const isConflictCell =
+                      nQueensConflict?.conflictCell &&
+                      nQueensConflict.conflictCell[0] === r &&
+                      nQueensConflict.conflictCell[1] === c;
+
+                    const isOrbitCell = orbitSet.has(cellKey);
+                    const isKernelCell = kernelSet.has(cellKey);
+                    const isKernelCenter =
+                      kernel8Neighbor &&
+                      kernel8Neighbor.center[0] === r &&
+                      kernel8Neighbor.center[1] === c;
+
+                    const isDirectionRayTarget =
+                      directionRay &&
+                      directionRay.to[0] === r &&
+                      directionRay.to[1] === c;
+                    const isDirectionRaySource =
+                      directionRay &&
+                      directionRay.from[0] === r &&
+                      directionRay.from[1] === c;
+
+                    const isRetractedBacktrack =
+                      backtrackingRibbon?.retractedNode &&
+                      backtrackingRibbon.retractedNode[0] === r &&
+                      backtrackingRibbon.retractedNode[1] === c;
+
+                    const cellPredecessors = predecessorMap.get(cellKey);
+
+                    const isCurrentActiveIsland =
+                      activeIslandSet.has(cellKey) || (isActive && (Number(val) === 1 || isVisited));
+
+                    // Water cells in island mode
+                    const isRawWater =
+                      Number(val) === 0 ||
+                      String(val).toLowerCase() === "0" ||
+                      String(val).toLowerCase() === "water";
+                    const isWater = isIslandMode && isRawWater && !activeIslandSet.has(cellKey);
                     const isLand =
                       isIslandMode &&
                       !isWater &&
-                      (Number(val) === 1 || String(val).toLowerCase() === "land" || isVisited || isCurrentActiveIsland);
+                      (Number(val) === 1 ||
+                        String(val).toLowerCase() === "1" ||
+                        String(val).toLowerCase() === "land" ||
+                        isVisited ||
+                        isCurrentActiveIsland);
 
-                    // Collect matching pointer labels for this cell
-                    const matchingPointerBadges: { name: string; isMatch?: boolean }[] = [];
-                    if (isCoordActive) {
-                      matchingPointerBadges.push({
-                        name: pointer_labels?.current || `${rowPtrLabel},${colPtrLabel}`,
-                      });
-                    }
+                    // Grid BFS entities (e.g. Rotting Oranges / Walls & Gates)
+                    const isRottenOrange =
+                      val === 2 ||
+                      String(val).toLowerCase() === "rotten" ||
+                      String(val).toLowerCase() === "2";
+                    const isWall =
+                      val === -1 ||
+                      String(val).toLowerCase() === "wall" ||
+                      String(val).toLowerCase() === "-1" ||
+                      String(val) === "INF" ||
+                      String(val) === "2147483647";
 
-                    if (activePointers && typeof activePointers === "object") {
-                      for (const [pName, pVal] of Object.entries(activePointers)) {
-                        if (pVal === null || pVal === undefined) continue;
-                        const coord = parse2DCoord(pVal);
-                        const isCoordMatch = Boolean(coord && coord[0] === r && coord[1] === c);
-                        const isFlatMatch = typeof pVal === "number" && pVal === r * cols + c;
-                        const isStrMatch =
-                          typeof pVal === "string" &&
-                          (pVal.replace(/[()[\]\s]/g, "") === `${r},${c}` || pVal === cellKey);
+                    // Spiral bounds perimeter check
+                    const isSpiralPerimeter =
+                      spiralBounds &&
+                      r >= spiralBounds.top &&
+                      r <= spiralBounds.bottom &&
+                      c >= spiralBounds.left &&
+                      c <= spiralBounds.right &&
+                      (r === spiralBounds.top ||
+                        r === spiralBounds.bottom ||
+                        c === spiralBounds.left ||
+                        c === spiralBounds.right);
 
-                        if (isCoordMatch || isFlatMatch || isStrMatch) {
-                          if (!matchingPointerBadges.some((b) => b.name.toLowerCase() === pName.toLowerCase())) {
-                            matchingPointerBadges.push({ name: pName });
-                          }
-                        }
-                      }
-                    }
-
-                    if (isActive && !matchingPointerBadges.some((b) => /curr|cell|node/.test(b.name.toLowerCase()))) {
-                      matchingPointerBadges.push({
-                        name: pointer_labels?.current || "curr",
-                      });
-                    }
-
-                    // Compute styling classes
-                    let cellBgStyle = "border-border/70 bg-card/85 text-foreground hover:border-primary/50 shadow-xs";
-                    if (isActive) {
-                      cellBgStyle =
-                        "border-primary bg-primary text-primary-foreground font-black shadow-lg shadow-primary/40 ring-2 ring-primary/80 z-10 scale-105";
-                    } else if (matchingPointerBadges.length > 0) {
-                      const firstMarker = getMarkerStyle(matchingPointerBadges[0]!.name);
-                      cellBgStyle = `${firstMarker.border} ${firstMarker.bg} ${firstMarker.textCol} font-black shadow-md ring-2 ${firstMarker.ring} z-10 scale-105`;
-                    } else if (isDependencyCell) {
-                      cellBgStyle = "border-purple-400/70 bg-purple-950/40 text-purple-200 ring-1 ring-purple-400/40";
-                    } else if (isIslandMode) {
-                      if (isCurrentActiveIsland) {
-                        cellBgStyle =
-                          "border-emerald-400/80 bg-emerald-500/25 text-emerald-200 font-bold ring-1 ring-emerald-500/40 shadow-xs";
-                      } else if (isVisited && isLand) {
-                        cellBgStyle =
-                          "border-teal-400/80 bg-teal-800/60 text-teal-100 font-bold shadow-sm shadow-teal-900/40 ring-1 ring-teal-400/50";
-                      } else if (isLand) {
-                        cellBgStyle =
-                          "border-amber-400/80 bg-amber-500/25 text-amber-200 font-bold ring-1 ring-amber-500/40 shadow-xs";
-                      } else if (isWater) {
-                        cellBgStyle = "border-slate-800/80 bg-slate-950/60 text-slate-500/60 hover:bg-slate-900/60";
-                      }
-                    } else {
-                      // Universal Matrix Non-Island Mode
-                      if (isVisited) {
-                        cellBgStyle = "border-primary/40 bg-primary/10 text-primary font-bold ring-1 ring-primary/20 shadow-xs";
-                      } else if (val === 0 || val === "0") {
-                        cellBgStyle = "border-amber-500/40 bg-amber-500/10 text-amber-300 font-bold shadow-xs";
-                      }
-                    }
+                    // For general matrix transformations:
+                    const isNegativeSentinel = !isIslandMode && typeof val === "number" && val < 0;
+                    const isZeroVal = !isIslandMode && (val === 0 || val === "0");
 
                     return (
                       <div
                         key={`cell-${r}-${c}`}
-                        className={`relative flex size-12 flex-col items-center justify-center rounded-xl border font-mono transition-all duration-300 select-none ${cellBgStyle}`}
+                        className={`relative flex size-12 flex-col items-center justify-center rounded-xl border font-mono transition-all duration-300 select-none ${
+                          isQueen
+                            ? "z-20 scale-110 border-amber-400 bg-amber-500 text-slate-950 shadow-xl shadow-amber-500/50 ring-4 ring-amber-300 font-black animate-bounce-short"
+                            : isConflictCell
+                              ? "z-20 scale-110 border-rose-500 bg-rose-600 text-white shadow-xl shadow-rose-500/60 ring-4 ring-rose-400 font-black animate-pulse"
+                              : isRetractedBacktrack
+                                ? "z-20 scale-105 border-rose-500 bg-rose-500/30 text-rose-200 shadow-lg shadow-rose-500/40 ring-2 ring-rose-400 font-bold"
+                                : isOrbitCell
+                                  ? "z-20 scale-105 border-purple-400 bg-purple-600/40 text-purple-100 shadow-lg shadow-purple-500/40 ring-2 ring-purple-300 font-black"
+                                  : isKernelCenter
+                                    ? "z-20 scale-110 border-emerald-400 bg-emerald-500 text-slate-950 shadow-xl shadow-emerald-500/50 ring-4 ring-emerald-300 font-black"
+                                    : isDirectionRayTarget
+                                      ? directionRay?.status === "valid"
+                                        ? "z-20 scale-105 border-emerald-400 bg-emerald-500/30 text-emerald-100 ring-2 ring-emerald-400 font-bold"
+                                        : directionRay?.status === "wall"
+                                          ? "z-20 scale-105 border-rose-500 bg-rose-500/30 text-rose-100 ring-2 ring-rose-400 font-bold"
+                                          : "z-20 scale-105 border-sky-400 bg-sky-500/30 text-sky-100 ring-2 ring-sky-300 font-bold"
+                                      : isDirectionRaySource
+                                        ? "z-20 scale-105 border-sky-400 bg-sky-600/40 text-white ring-2 ring-sky-300 font-black"
+                                        : isActive
+                                          ? isWater
+                                            ? "z-20 scale-110 border-amber-400 bg-amber-500/30 text-amber-200 shadow-xl shadow-amber-500/40 ring-4 ring-amber-400/40 font-black animate-bounce-short"
+                                            : "z-20 scale-110 border-primary bg-primary text-primary-foreground shadow-xl shadow-primary/50 ring-4 ring-primary/40 font-black animate-bounce-short"
+                                          : isQueenAttackRay
+                                            ? "border-amber-500/40 bg-amber-950/25 text-amber-200/80 ring-1 ring-amber-500/30"
+                                            : isFrontier
+                                              ? "z-10 border-cyan-400 bg-cyan-500/30 text-cyan-100 shadow-lg shadow-cyan-500/30 ring-2 ring-cyan-400/70 font-bold scale-[1.04] animate-pulse"
+                                              : isInTrail
+                                                ? "z-10 border-amber-400 bg-amber-500/35 text-amber-100 shadow-md shadow-amber-500/30 ring-2 ring-amber-400/80 font-black scale-[1.03]"
+                                                : isKernelCell
+                                                  ? "border-emerald-500/50 bg-emerald-950/30 text-emerald-200 ring-1 ring-emerald-400/40"
+                                                  : isWaveCell
+                                                    ? "border-cyan-500/60 bg-cyan-950/30 text-cyan-200 font-bold ring-1 ring-cyan-400/40 shadow-xs"
+                                                    : isRottenOrange && !isIslandMode
+                                                      ? "border-orange-500/80 bg-orange-600/30 text-orange-200 font-bold ring-1 ring-orange-500/50 shadow-sm"
+                                                      : isDependencyCell
+                                                        ? "z-10 border-indigo-400/90 bg-indigo-500/25 text-indigo-200 shadow-md shadow-indigo-500/20 ring-2 ring-indigo-400/50 font-bold scale-[1.03]"
+                                                        : isIslandMode && isCurrentActiveIsland
+                                                          ? "z-10 border-emerald-400 bg-gradient-to-br from-emerald-500/40 via-emerald-600/35 to-teal-500/30 text-emerald-100 shadow-md shadow-emerald-500/30 ring-2 ring-emerald-400/80 font-bold scale-[1.03]"
+                                                          : isIslandMode && isVisited
+                                                            ? "border-teal-400/80 bg-teal-800/60 text-teal-100 font-bold shadow-sm shadow-teal-900/40 ring-1 ring-teal-400/50"
+                                                            : isIslandMode && isLand
+                                                              ? "border-amber-400/80 bg-amber-500/25 text-amber-200 font-bold hover:border-amber-300 hover:bg-amber-500/35 ring-1 ring-amber-500/40 shadow-xs"
+                                                              : isIslandMode && isWater
+                                                                ? "border-slate-800/80 bg-slate-950/60 text-slate-500/60 hover:bg-slate-900/60"
+                                                                : isMarkedZero
+                                                                  ? "border-rose-500/60 bg-rose-950/40 text-rose-300 font-semibold ring-1 ring-rose-500/40"
+                                                                  : isSpiralPerimeter
+                                                                    ? "border-indigo-400/70 bg-indigo-950/30 text-indigo-200 font-semibold ring-1 ring-indigo-400/30"
+                                                                    : isNegativeSentinel
+                                                                      ? "z-10 border-amber-400 bg-amber-500/25 text-amber-200 font-bold ring-1 ring-amber-400/50 shadow-xs scale-[1.02]"
+                                                                      : isVisited
+                                                                        ? "border-sky-500/50 bg-sky-950/25 text-sky-200 font-medium ring-1 ring-sky-500/30"
+                                                                        : "border-border/60 bg-card/60 text-muted-foreground hover:border-border"
+                        }`}
                       >
-                        {/* Floating Pointer Badges with Accurate Semantic Colors */}
-                        {matchingPointerBadges.length > 0 && (
-                          <div className="absolute -top-3 z-20 flex gap-0.5 pointer-events-none">
-                            {matchingPointerBadges.map((badge, bi) => {
-                              const s = getMarkerStyle(badge.name, badge.isMatch);
-                              return (
-                                <span
-                                  key={bi}
-                                  className={`rounded px-1.5 py-0.2 font-mono text-[8px] font-black uppercase border shadow-xs ${s.bg} ${s.textCol} ${s.border}`}
-                                >
-                                  {badge.name.slice(0, 6)}
-                                </span>
-                              );
-                            })}
-                          </div>
+                        {/* Queen Icon */}
+                        {isQueen && (
+                          <Crown className="size-5 text-slate-950 drop-shadow-xs" />
+                        )}
+
+                        {/* Conflict Alert Icon */}
+                        {isConflictCell && (
+                          <ShieldAlert className="size-5 text-white animate-bounce-short" />
                         )}
 
                         {/* Active Cell Notification Dot */}
-                        {isActive && (
+                        {isActive && !isQueen && !isConflictCell && (
                           <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center">
                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
                             <span className="relative inline-flex size-2 rounded-full bg-primary-foreground" />
                           </span>
                         )}
 
-                        {/* Visited Check Dot */}
-                        {isVisited && !isCurrentActiveIsland && !isActive && (
-                          <span
-                            className="absolute -top-1 -right-1 size-2 rounded-full bg-teal-400 shadow-xs shadow-teal-400/80 ring-1 ring-background"
-                            title="Explored / Visited Cell"
-                          />
+                        {/* Trail Order Index Badge (Word Search / Path) */}
+                        {isInTrail && (
+                          <span className="absolute -top-1.5 -left-1.5 flex size-4 items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[9px] font-black shadow-xs ring-1 ring-background">
+                            {trailIdx}
+                          </span>
                         )}
 
-                        {/* Coordinate subscript */}
+                        {/* Wave Ring Badge */}
+                        {isWaveCell && !isInTrail && !isActive && (
+                          <span className="absolute -top-1 -left-1 flex size-3.5 items-center justify-center rounded-full bg-cyan-500 text-slate-950 text-[8px] font-black shadow-xs">
+                            d{cellWaveDist}
+                          </span>
+                        )}
+
+                        {/* BFS Frontier Wave Indicator */}
+                        {isFrontier && !isActive && (
+                          <span className="absolute -top-1 -right-1 flex size-2.5 items-center justify-center">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+                            <span className="relative inline-flex size-2 rounded-full bg-cyan-300" />
+                          </span>
+                        )}
+
+                        {/* Predecessor DP Arrow indicator */}
+                        {cellPredecessors && cellPredecessors.length > 0 && (
+                          <div className="absolute -top-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5">
+                            {cellPredecessors.map((p, pIdx) => (
+                              <span
+                                key={`dp-p-${pIdx}`}
+                                className="bg-indigo-500 text-white rounded-full p-0.5 text-[8px] font-black shadow-xs"
+                              >
+                                {p.direction === "top" ? (
+                                  <ArrowDown className="size-2.5" />
+                                ) : p.direction === "left" ? (
+                                  <ArrowRight className="size-2.5" />
+                                ) : (
+                                  <ArrowDownRight className="size-2.5" />
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Explored/Visited Land Check Dot */}
+                        {isVisited &&
+                          !isCurrentActiveIsland &&
+                          !isActive &&
+                          !isInTrail &&
+                          !isQueen &&
+                          !isConflictCell && (
+                            <span
+                              className={`absolute -top-1 -right-1 size-2.5 rounded-full shadow-xs ring-1 ring-background ${
+                                isIslandMode
+                                  ? "bg-teal-400 shadow-teal-400/80"
+                                  : "bg-sky-400 shadow-sky-400/80"
+                              }`}
+                              title="Explored / Visited Cell"
+                            />
+                          )}
+
+                        {/* Small coordinate subscript */}
                         <span
-                          className={`text-[8px] leading-none mb-0.5 opacity-70 ${
-                            isActive
-                              ? "text-primary-foreground font-semibold"
-                              : isCurrentActiveIsland
-                                ? "text-emerald-200 font-medium"
-                                : isVisited
-                                  ? "text-teal-300"
-                                  : "text-muted-foreground"
+                          className={`text-[8px] leading-none mb-0.5 font-mono ${
+                            isQueen
+                              ? "text-slate-900 font-bold"
+                              : isActive
+                                ? "text-primary-foreground font-bold drop-shadow-xs"
+                                : isFrontier
+                                  ? "text-cyan-200 font-semibold"
+                                  : isInTrail
+                                    ? "text-amber-200 font-semibold"
+                                    : isCurrentActiveIsland
+                                      ? "text-emerald-200 font-medium"
+                                      : isVisited
+                                        ? isIslandMode
+                                          ? "text-teal-200"
+                                          : "text-sky-200"
+                                        : "text-muted-foreground/80"
                           }`}
                         >
                           {r},{c}
                         </span>
 
-                        {/* Value Display (preserves authentic scalar/string values) */}
-                        <span className="text-sm font-bold leading-none">
-                          {toText(val)}
-                        </span>
+                        {/* Value Display with High-Contrast Color Pairings */}
+                        {!isQueen && (
+                          <span className="text-sm font-black leading-none drop-shadow-xs">
+                            {isIslandMode ? (
+                              isWater ? (
+                                <span
+                                  className={
+                                    isActive
+                                      ? "text-amber-200 font-black"
+                                      : "text-slate-400/70 font-semibold"
+                                  }
+                                >
+                                  0
+                                </span>
+                              ) : isCurrentActiveIsland ? (
+                                <span
+                                  className={
+                                    isActive
+                                      ? "text-primary-foreground font-black"
+                                      : "text-emerald-100 font-black"
+                                  }
+                                >
+                                  {val !== undefined && val !== null ? toText(val) : "1"}
+                                </span>
+                              ) : isVisited ? (
+                                <span className="text-teal-100 font-black">
+                                  {val !== undefined && val !== null ? toText(val) : "1"}
+                                </span>
+                              ) : isLand ? (
+                                <span className="text-amber-100 font-black">
+                                  {val !== undefined && val !== null ? toText(val) : "1"}
+                                </span>
+                              ) : (
+                                toText(val)
+                              )
+                            ) : (
+                              <span
+                                className={
+                                  isActive
+                                    ? "text-primary-foreground font-black"
+                                    : isConflictCell
+                                      ? "text-white font-black"
+                                      : isFrontier
+                                        ? "text-cyan-100 font-black"
+                                        : isInTrail
+                                          ? "text-amber-100 font-black"
+                                          : isNegativeSentinel
+                                            ? "text-amber-300 font-black"
+                                            : isZeroVal || isMarkedZero
+                                              ? "text-rose-200 font-black"
+                                              : isSpiralPerimeter
+                                                ? "text-indigo-100 font-black"
+                                                : isVisited
+                                                  ? "text-sky-100 font-bold"
+                                                  : "text-foreground font-bold"
+                                }
+                              >
+                                {toText(val)}
+                              </span>
+                            )}
+                          </span>
+                        )}
 
-                        {/* Island Area Dot on Active Island Cells */}
-                        {isIslandMode && isCurrentActiveIsland && !isActive && (
+                        {/* Island Area Badge on Active Shaded Island Cells */}
+                        {isCurrentActiveIsland && !isActive && (
                           <span className="absolute -bottom-1 -right-1 size-2 rounded-full bg-emerald-400 shadow-xs shadow-emerald-400/80 ring-1 ring-background" />
                         )}
                       </div>
@@ -642,54 +1209,60 @@ export function MatrixVisualizer({
         )}
       </div>
 
-      {/* Visual Legend (Mode-aware) */}
-      {isIslandMode ? (
-        <div className="flex flex-wrap items-center justify-center gap-4 rounded-xl border border-border/60 bg-card/30 px-4 py-2 text-[11px] font-mono text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-slate-800/80 bg-slate-950/60" />
-            <span>Water (0)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-amber-400/80 bg-amber-500/25 shadow-xs" />
-            <span className="text-amber-300 font-bold">Unvisited Land (1)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-primary bg-primary shadow-xs" />
-            <span className="text-primary font-bold">Active Cell (r, c)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-emerald-400 bg-emerald-500/40 shadow-xs" />
-            <span className="text-emerald-400 font-bold">Current Island</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-teal-400/80 bg-teal-800/60 shadow-xs" />
-            <span className="text-teal-300 font-bold">Visited Land</span>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center justify-center gap-4 rounded-xl border border-border/60 bg-card/30 px-4 py-2 text-[11px] font-mono text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-border/70 bg-card/85 shadow-xs" />
-            <span>Grid Cell</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-primary bg-primary shadow-xs" />
-            <span className="text-primary font-bold">Active Cell (r, c)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-primary/40 bg-primary/10 shadow-xs" />
-            <span className="text-primary font-bold">Visited Cell</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-amber-500/40 bg-amber-500/10 shadow-xs" />
-            <span className="text-amber-300 font-bold">Zero / Sentinel</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-purple-400/70 bg-purple-950/40 shadow-xs" />
-            <span className="text-purple-300 font-bold">Dependency Cell</span>
-          </div>
-        </div>
-      )}
+      {/* Visual Legend */}
+      <div className="flex flex-wrap items-center justify-center gap-4 rounded-xl border border-border/60 bg-card/30 px-4 py-2 text-[11px] font-mono text-muted-foreground">
+        {isIslandMode ? (
+          <>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-slate-800/80 bg-slate-950/60" />
+              <span>Water (0)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-amber-400/80 bg-amber-500/25 shadow-xs" />
+              <span className="text-amber-300 font-bold">Unvisited Land (1)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-primary bg-primary shadow-xs" />
+              <span className="text-primary font-bold">Active Cell (r, c)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-emerald-400 bg-emerald-500/40 shadow-xs" />
+              <span className="text-emerald-400 font-bold">Current Island (DFS Active)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-teal-400/80 bg-teal-800/60 shadow-xs" />
+              <span className="text-teal-300 font-bold">Visited Island (Explored)</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-primary bg-primary shadow-xs" />
+              <span className="text-primary font-bold">Active Focus (r, c)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-cyan-400 bg-cyan-500/30 shadow-xs" />
+              <span className="text-cyan-300 font-bold">Frontier / Wave</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-amber-400 bg-amber-500/35 shadow-xs" />
+              <span className="text-amber-300 font-bold">Search Path / Trail</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-sky-500/50 bg-sky-950/25 shadow-xs" />
+              <span className="text-sky-300 font-bold">Scanned (Visited)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-rose-500/60 bg-rose-950/30 shadow-xs" />
+              <span className="text-rose-300 font-bold">Zero / Marked (0)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-3 rounded border border-border/60 bg-card/60" />
+              <span>Standard Value</span>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

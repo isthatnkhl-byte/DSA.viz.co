@@ -202,13 +202,12 @@ export type VizType =
 export interface CallStackFrame {
   id: string;
   name: string;
-  functionName?: string;
   depth: number;
-  args: Record<string, any>;
-  status: "active" | "base_case" | "backtracking" | "pruned" | "returned" | "memo_hit";
+  args?: Record<string, any> | null;
+  status?: "active" | "in-flight" | "base_case" | "completed" | "green" | "backtracking" | "pruned" | "red" | "returned" | "memo_hit";
   returnValue?: any;
-  pruneReason?: string;
   isMemoHit?: boolean;
+  pruneReason?: string;
 }
 
 export interface RecursionTreeNode {
@@ -216,39 +215,760 @@ export interface RecursionTreeNode {
   parentId: string | null;
   label: string;
   depth: number;
-  state: "running" | "success" | "pruned" | "backtracked" | "memo_hit";
+  state?: "running" | "active" | "in-flight" | "success" | "completed" | "green" | "pruned" | "red" | "backtracked" | "memo_hit";
   decision?: string;
   returnValue?: any;
-  pruneReason?: string;
   isMemoHit?: boolean;
+  pruneReason?: string;
+  cachedValue?: any;
 }
 
 export interface IntervalItem {
-  id: string;
   start: number;
   end: number;
+  id?: string;
   label?: string;
-  status?: "unprocessed" | "comparing" | "active" | "merged" | "finalized" | "conflict";
   lane?: number;
+  room?: number | string;
+  status?: "unprocessed" | "active" | "merged" | "conflict" | "retained" | "comparing" | "inserted";
+  mergedFrom?: (string | number)[];
+  color?: string;
+}
+
+export interface IntervalCollisionState {
+  comparingIntervals?: [IntervalItem, IntervalItem] | null;
+  overlapSpan?: [number, number] | null;
+  isOverlapping?: boolean;
+  mergedOutput?: IntervalItem[];
+  activeRoomHeap?: { roomId: number | string; endTime: number }[];
+  maxConcurrency?: number;
+  newInterval?: IntervalItem | null;
+  activeEvent?: { time: number; type: "start" | "end"; intervalId?: string; roomCount: number } | null;
+}
+
+export interface BitRegisterState {
+  primaryValue: number;
+  secondaryValue?: number | null;
+  mask?: number | null;
+  resultValue?: number | null;
+  activeBitIndex?: number | null;
+  operationType?: "AND" | "OR" | "XOR" | "NOT" | "SHL" | "SHR" | "USHR" | "POPCNT" | "REVERSE" | "TOGGLE" | "CLEAR" | "SET" | string;
+  bitWidth?: 32 | 64 | 16 | 8;
+  operandLabels?: [string, string];
+  stepExplanation?: string;
+  highlightIndices?: number[];
+  transferredBits?: { fromBit: number; toBit: number; val: number }[];
+}
+
+export type CompositeLayoutMode =
+  | "single"
+  | "dual-array"
+  | "array-stack"
+  | "array-hashmap"
+  | "tree-stack"
+  | "matrix-queue"
+  | "matrix-stack"
+  | "graph-table";
+
+export interface CompositeLayoutState {
+  mode: CompositeLayoutMode;
+  primaryTitle?: string;
+  secondaryTitle?: string;
+  crossPointers?: {
+    fromIndex?: number | string | [number, number];
+    toIndex?: number | string | [number, number];
+    label?: string;
+    color?: string;
+  }[];
+  activeRelation?: {
+    type: "lookup" | "push" | "pop" | "enqueue" | "dequeue" | "compare" | "match" | "relax" | "partition";
+    description?: string;
+    sourceKey?: string | number;
+    targetKey?: string | number;
+  };
 }
 
 export interface Sightline {
   fromIdx: number;
   toIdx: number;
   resolved: boolean;
-  type?: "next-greater" | "next-smaller";
-  fromIndex?: number;
-  toIndex?: number;
-  resolvedValue?: number | string;
+  distance?: number;
+}
+
+export interface HistogramSpan {
+  left: number;
+  right: number;
+  height: number;
+  width: number;
+  area: number;
+  maxArea?: number;
+  poppedIndex?: number;
+}
+
+export interface WaterTrapped {
+  currentWater: number;
+  totalWater: number;
+  waterLevels?: number[];
+  leftMax?: number;
+  rightMax?: number;
+}
+
+export interface BracketPair {
+  open: string;
+  close: string;
+  matched: boolean;
+  mismatch?: boolean;
+  openIndex?: number;
+  closeIndex?: number;
+}
+
+export interface EvalExpression {
+  op: string;
+  leftOperand: number | string;
+  rightOperand: number | string;
+  result: number | string;
 }
 
 export interface HeapSwap {
   parentIdx: number;
   childIdx: number;
-  reason: string;
-  direction: "up" | "down" | "sift-up" | "sift-down";
-  fromIndex?: number;
-  toIndex?: number;
+  type?: "sift-up" | "sift-down" | "swap";
+  reason?: string;
+}
+
+/** Top-K Bounded Heap Tracking State */
+export interface TopKState {
+  k: number;
+  mode?: "largest" | "smallest";
+  incomingVal?: number | string | null;
+  heapCapacity?: number;
+  evictedItems?: (number | string)[];
+  currentTopK?: (number | string)[];
+  action?: "push_direct" | "evict_and_push" | "reject" | "extract_kth" | string;
+  reason?: string;
+  kthResult?: number | string | null;
+}
+
+/** Two-Heap Stream Partition State (Find Median from Data Stream) */
+export interface TwoHeapsState {
+  maxHeap: (number | string)[]; // lower half (max-heap)
+  minHeap: (number | string)[]; // upper half (min-heap)
+  median?: number | string | null;
+  incomingVal?: number | string | null;
+  rebalanceAction?: "balanced" | "shift_to_min" | "shift_to_max" | "insert_max" | "insert_min" | string;
+  rebalanceReason?: string;
+  activeSide?: "max_heap" | "min_heap" | "both" | null;
+  streamHistory?: (number | string)[];
+}
+
+/** Graph Edge Representation */
+export interface GraphEdgeItem {
+  from: string | number;
+  to: string | number;
+  weight?: number | string;
+  directed?: boolean;
+}
+
+/** Graph Search Frontier & Traversal State (BFS / DFS) */
+export interface GraphSearchState {
+  algorithm?: "bfs" | "dfs" | "dijkstra" | "astar" | string;
+  frontier?: (string | number)[];
+  activePath?: (string | number)[];
+  discoveryEdges?: { from: string | number; to: string | number }[];
+  nodeStates?: Record<string | number, "unvisited" | "frontier" | "exploring" | "visited">;
+  currentDepth?: number;
+}
+
+/** Topological Sort & Kahn's Algorithm State */
+export interface TopologicalSortState {
+  inDegrees: Record<string | number, number>;
+  zeroInDegreeQueue: (string | number)[];
+  processedOrder: (string | number)[];
+  activeNode?: string | number | null;
+  hasCycle?: boolean;
+  cycleNodes?: (string | number)[];
+  decrementedEdge?: { from: string | number; to: string | number } | null;
+}
+
+/** Disjoint Set Union (Union-Find) State */
+export interface UnionFindState {
+  parents: Record<string | number, string | number>;
+  ranks?: Record<string | number, number>;
+  sizes?: Record<string | number, number>;
+  activeEdge?: { u: string | number; v: string | number };
+  rootU?: string | number;
+  rootV?: string | number;
+  action?: "find" | "union" | "path_compression" | "cycle_detected" | "connected" | string;
+  isRedundant?: boolean;
+  redundantEdge?: [string | number, string | number] | null;
+  numComponents?: number;
+  components?: Record<string | number, (string | number)[]>;
+}
+
+/** Word Ladder & State-Space Transformation Graph State */
+export interface WordLadderState {
+  beginWord?: string;
+  endWord?: string;
+  wordList?: string[];
+  currentWord?: string;
+  activePath?: string[];
+  mutations?: { from: string; to: string; diffCharIdx?: number; newChar?: string }[];
+  distance?: number;
+  visitedWords?: string[];
+  frontierWords?: string[];
+}
+
+/** Shortest Path Algorithm State (Dijkstra's / Bellman-Ford / A* / Floyd-Warshall) */
+export interface ShortestPathAlgorithmState {
+  algorithm?: "dijkstra" | "bellman_ford" | "floyd_warshall" | "astar" | string;
+  sourceNode?: string | number;
+  targetNode?: string | number | null;
+  distances: Record<string | number, number | string | null>; // dist[v]
+  predecessors?: Record<string | number, string | number | null>; // prev[v] = u
+  priorityQueue?: { node: string | number; dist: number | string; hops?: number }[];
+  activeEdge?: {
+    from: string | number;
+    to: string | number;
+    weight: number | string;
+    candidateDist?: number | string;
+    currentDist?: number | string;
+    status: "relaxed" | "kept" | "unvisited" | "cycle_negative" | string;
+    formula?: string; // e.g. "dist[u] + w = 3 + 2 = 5 < 8 ➔ RELAX"
+  } | null;
+  currentPass?: number; // For Bellman-Ford (Pass k of V-1)
+  totalPasses?: number;
+  hasNegativeCycle?: boolean;
+  shortestPathTree?: { from: string | number; to: string | number }[];
+  reconstructedPath?: (string | number)[];
+  stopsRemaining?: number | null; // For K-stops / flights constraints
+}
+
+/** Minimum Spanning Tree (MST) State (Kruskal's / Prim's Algorithms) */
+export interface MstAlgorithmState {
+  algorithm: "kruskal" | "prim" | string;
+  totalWeight: number | string;
+  mstEdges: { from: string | number; to: string | number; weight: number | string }[];
+  sortedEdges?: {
+    from: string | number;
+    to: string | number;
+    weight: number | string;
+    status: "accepted" | "rejected_cycle" | "considering" | "pending";
+    reason?: string;
+  }[];
+  activeEdge?: {
+    from: string | number;
+    to: string | number;
+    weight: number | string;
+    status: "accepted" | "rejected_cycle" | "considering";
+    rootU?: string | number;
+    rootV?: string | number;
+    reason?: string;
+  } | null;
+  visitedCutSet?: (string | number)[]; // Prim's S
+  unvisitedCutSet?: (string | number)[]; // Prim's V \ S
+  cutCrossingEdges?: { from: string | number; to: string | number; weight: number | string; isMin?: boolean }[];
+  targetEdgeCount: number; // |V| - 1
+  isMstComplete?: boolean;
+}
+
+/** KMP (Knuth-Morris-Pratt) Algorithm & LPS / Pi-Table State */
+export interface KmpAlgorithmState {
+  pattern: string;
+  text?: string;
+  lpsTable: number[];
+  textIndex?: number | null; // i in text
+  patternIndex?: number | null; // j in pattern
+  lpsComputingIndex?: number | null; // index being computed in LPS table (1..m-1)
+  lpsLength?: number | null; // length of previous longest prefix suffix (len)
+  matchedIndices?: number[]; // starting indices in text where full pattern matched
+  isMatch?: boolean;
+  isMismatch?: boolean;
+  phase?: "building_lps" | "searching" | "match_found" | "mismatch_shift" | "completed" | string;
+  mismatchFallback?: {
+    fromJ: number;
+    toJ: number;
+    reason?: string;
+  } | null;
+  alignmentOffset?: number; // textIndex - patternIndex
+  longestProperPrefix?: string;
+  longestProperSuffix?: string;
+  comparisonFormula?: string;
+}
+
+/** Rabin-Karp Algorithm & Polynomial Rolling Hash State */
+export interface RabinKarpAlgorithmState {
+  pattern: string;
+  text: string;
+  patternHash: number | string;
+  windowHash: number | string;
+  windowStart: number;
+  windowLength: number;
+  base: number; // e.g. 26, 31, 256
+  modulus: number; // e.g. 101, 1000000007, 2147483647
+  highestPower?: number; // (base^(m-1)) % modulus
+  rollingFormula?: string; // (prevHash - charOut*B^(m-1))*B + charIn (mod M)
+  hashComparisonFormula?: string;
+  isHashMatch?: boolean;
+  isSpuriousHit?: boolean; // True when hash matches but characters mismatch
+  matchedIndices?: number[];
+  activeCharIn?: { char: string; code: number; index: number } | null;
+  activeCharOut?: { char: string; code: number; index: number } | null;
+  charComparisons?: { index: number; textChar: string; patChar: string; isMatch: boolean }[];
+  phase?: "init_hash" | "comparing" | "rolling_step" | "verified_match" | "spurious_collision" | "completed" | string;
+}
+
+/** Aho-Corasick Automaton Node with Trie Goto, Failure, and Dictionary Output Links */
+export interface AhoCorasickNode {
+  id: string | number;
+  char: string;
+  parentId?: string | number | null;
+  failNodeId?: string | number | null; // Suffix failure link
+  dictLinkNodeId?: string | number | null; // Dictionary / output link
+  outputPatterns?: string[]; // Keywords that end at this state or via dict links
+  children?: Record<string, string | number>;
+  depth?: number;
+  isRoot?: boolean;
+  isTerminal?: boolean;
+}
+
+/** Aho-Corasick Multi-Pattern Automaton Execution State */
+export interface AhoCorasickState {
+  keywords: string[];
+  text?: string;
+  textIndex?: number | null;
+  currentStateId: string | number;
+  activeChar?: string | null;
+  transitionType?: "goto" | "fail" | "root" | "dict_match" | string;
+  transitionFormula?: string;
+  emittedMatches?: { pattern: string; startIndex: number; endIndex: number }[];
+  nodes: AhoCorasickNode[];
+  activeFailureLink?: { from: string | number; to: string | number } | null;
+  activeDictLink?: { from: string | number; to: string | number } | null;
+}
+
+/** Unified String Pattern Matching & Automata State */
+export interface StringPatternState {
+  algorithm: "kmp" | "rabin_karp" | "aho_corasick" | "z_algorithm" | string;
+  kmpState?: KmpAlgorithmState | null;
+  rabinKarpState?: RabinKarpAlgorithmState | null;
+  ahoCorasickState?: AhoCorasickState | null;
+}
+
+/** 1D DP Dependency Arc & Recurrence Step */
+export interface DpDependencyArc {
+  fromIndex: number;
+  toIndex: number;
+  delta?: number;
+  label?: string;
+  value?: number | string;
+  isOptimal?: boolean;
+}
+
+/** 1D Dynamic Programming Substructure & Memoization State */
+export interface Dp1DState {
+  dpArray: (number | string | null)[];
+  inputArray?: (number | string)[];
+  inputLabel?: string;
+  currentIndex: number;
+  dependencies: DpDependencyArc[];
+  transitionFormula?: string;
+  evaluatedFormula?: string;
+  decisionReason?: string;
+  optimalChoiceIndex?: number | null;
+  optimalAnswer?: number | string | null;
+  reconstructedPath?: number[];
+}
+
+/** 2D DP Transition Sightline Candidate */
+export interface DpTransitionChoice {
+  direction: "diagonal" | "top" | "left" | "custom" | string;
+  sourceCoord: [number, number];
+  label: string;
+  value: number | string;
+  formula?: string;
+  isChosen: boolean;
+}
+
+/** 2D Dynamic Programming Alignment & Grid Path State */
+export interface Dp2DState {
+  matrix: (number | string | null)[][];
+  rowLabels?: string[];
+  colLabels?: string[];
+  rowHeader?: string;
+  colHeader?: string;
+  activeCell?: [number, number] | null;
+  choices?: DpTransitionChoice[];
+  transitionFormula?: string;
+  evaluatedFormula?: string;
+  decisionReason?: string;
+  backtrackPath?: [number, number][];
+  optimalAnswer?: number | string | null;
+}
+
+/** 1D Array Dutch National Flag / Sort Colors Partition */
+export interface DnfPartition {
+  low: number;
+  mid: number;
+  high: number;
+  regions?: { label: string; range: [number, number]; color: string }[];
+}
+
+/** 1D Array Binary Search Discarded & Range Formula */
+export interface BinarySearchPartition {
+  low: number;
+  high: number;
+  mid: number;
+  target?: number | string;
+  discarded?: [number, number][];
+  formula?: string;
+  comparison?: string;
+}
+
+/** 1D Array Sliding Window Span Ribbon */
+export interface SlidingWindowSpan {
+  left: number;
+  right: number;
+  length: number;
+  sum?: number | string;
+  target?: number | string;
+  status?: "valid" | "invalid" | "expanding" | "shrinking" | "optimal";
+  conditionLabel?: string;
+}
+
+/** 1D Array Prefix Sum & Range Query Projection */
+export interface PrefixSumProjection {
+  prefixArray: (number | string)[];
+  queryRange: [number, number];
+  prefixIndices: [number, number];
+  formula?: string;
+  rangeSum?: number | string;
+}
+
+/** 1D Array Cyclic Sort & Jump Flight Curve */
+export interface CyclicSortJump {
+  fromIdx: number;
+  targetIdx: number;
+  val: number | string;
+  correctVal?: number | string;
+  isDuplicate?: boolean;
+  isMissing?: boolean;
+  action?: "swap" | "placed" | "duplicate_found" | "inspect";
+}
+
+/** 1D Array In-Place Swap Flight */
+export interface ArraySwapFlight {
+  idx1: number;
+  idx2: number;
+  val1: number | string;
+  val2: number | string;
+  reason?: string;
+}
+
+/** 2D Grid Directional Ray & Neighbor Probe */
+export interface DirectionRay {
+  from: [number, number];
+  to: [number, number];
+  direction: "UP" | "DOWN" | "LEFT" | "RIGHT" | "UP_LEFT" | "UP_RIGHT" | "DOWN_LEFT" | "DOWN_RIGHT" | string;
+  status: "valid" | "wall" | "visited" | "oob" | "exploring";
+  neighborVal?: number | string;
+}
+
+/** 2D Grid Multi-Source BFS Wave Rings */
+export interface WaveDistance {
+  currentDistance: number;
+  waveRings?: { distance: number; cells: [number, number][] }[];
+  frontierCount?: number;
+}
+
+/** 2D Grid Backtracking Path Ribbon */
+export interface BacktrackingPathRibbon {
+  path: [number, number][];
+  retractedNode?: [number, number];
+  wordSoFar?: string;
+  targetWord?: string;
+}
+
+/** 2D Grid N-Queens Line-of-Sight Conflict Rays */
+export interface NQueensConflictRay {
+  queenPos: [number, number];
+  attackRays?: { r: number; c: number; type: "row" | "col" | "main_diag" | "anti_diag" }[];
+  conflictCell?: [number, number];
+}
+
+/** 2D Grid 4-Way Rotation Orbit Swaps */
+export interface MatrixRotationOrbit {
+  ringLayer: number;
+  orbit4: [ [number, number], [number, number], [number, number], [number, number] ];
+  orbitValues?: (number | string)[];
+  activeCycleStep?: number;
+}
+
+/** 2D Grid 3x3 Cellular Automata Kernel (Game of Life) */
+export interface Kernel8Neighbor {
+  center: [number, number];
+  aliveCount: number;
+  ruleTriggered?: string;
+  nextState?: number | string;
+}
+
+/** 2D DP Grid Predecessor Backpointer */
+export interface GridPredecessorArrow {
+  cell: [number, number];
+  from: [number, number];
+  direction: "top" | "left" | "diag";
+  cost?: number | string;
+}
+
+/** Monotonic Deque State (Sliding Window Maximum) */
+export interface MonotonicDequeState {
+  deque: (number | string | { index: number; val: number | string })[];
+  windowRange?: [number, number];
+  k?: number;
+  incomingVal?: number | string;
+  incomingIdx?: number;
+  frontEviction?: { index?: number; val?: number | string; reason?: string } | null;
+  backEvictions?: { index?: number; val?: number | string; reason?: string }[] | null;
+  windowMax?: number | string;
+  status?: "push_back" | "pop_front_expired" | "pop_back_smaller" | "max_recorded" | string;
+}
+
+/** Circular Buffer / Ring Buffer State */
+export interface CircularBufferState {
+  capacity: number;
+  front: number;
+  rear: number;
+  size: number;
+  buffer: (number | string | null)[];
+  isFull?: boolean;
+  isEmpty?: boolean;
+  lastOperation?: "enqueue" | "dequeue" | "wrap_around" | "lookup" | string;
+  reason?: string;
+}
+
+/** Level-Order BFS Queue State */
+export interface QueueBfsLevel {
+  level: number;
+  levelNodes?: (number | string)[];
+  levelSize?: number;
+  processedInLevel?: number;
+  isLevelComplete?: boolean;
+}
+
+/** Fast & Slow Pointer Cycle Detection State (Floyd's Tortoise and Hare) */
+export interface LinkedListCycleState {
+  hasCycle: boolean;
+  cycleEntryIndex?: number | null;
+  cycleEntryVal?: number | string | null;
+  slowIndex?: number | null;
+  fastIndex?: number | null;
+  slowVal?: number | string | null;
+  fastVal?: number | string | null;
+  collisionIndex?: number | null;
+  collisionVal?: number | string | null;
+  phase?: "phase1_detection" | "phase2_entry_find" | "cycle_detected" | "no_cycle" | string;
+  reason?: string;
+}
+
+/** Node-by-Node Pointer Reversal State */
+export interface LinkedListReversalState {
+  prevNode?: number | string | null;
+  currNode?: number | string | null;
+  nextNode?: number | string | null;
+  reversedIndices?: number[]; // indices where next arrow points reversed (leftward)
+  action?: "advance_next" | "reverse_pointer" | "advance_prev" | "advance_curr" | "completed" | string;
+}
+
+/** LRU Cache State (Synchronized Hash Map + Doubly Linked List) */
+export interface LruCacheState {
+  capacity: number;
+  hashMap: Record<string, number | string>;
+  dllOrder: { key: string | number; val: number | string; isHead?: boolean; isTail?: boolean }[];
+  mruKey?: string | number | null;
+  lruKey?: string | number | null;
+  evictedKey?: string | number | null;
+  evictedVal?: string | number | null;
+  action?: "get" | "put" | "evict" | "mru_promote" | "cache_miss" | "cache_hit" | string;
+  hitOrMiss?: "hit" | "miss" | null;
+}
+
+/** LFU (Least Frequently Used) Cache State with Frequency Buckets */
+export interface LfuCacheState {
+  capacity: number;
+  size: number;
+  minFreq: number;
+  keyTable: Record<string | number, { val: number | string; freq: number }>;
+  freqTable: Record<number, { key: string | number; val: number | string; isHead?: boolean; isTail?: boolean }[]>;
+  activeKey?: string | number | null;
+  activeVal?: string | number | null;
+  activeFreq?: number | null;
+  evictedKey?: string | number | null;
+  evictedVal?: string | number | null;
+  evictedFreq?: number | null;
+  action?: "get" | "put" | "evict" | "freq_increment" | "cache_hit" | "cache_miss" | string;
+  hitOrMiss?: "hit" | "miss" | null;
+  reason?: string;
+}
+
+/** Skip List State with Multi-Level Probabilistic Expressways */
+export interface SkipListNode {
+  val: number | string;
+  span?: number;
+  isHead?: boolean;
+  isTail?: boolean;
+  isMatch?: boolean;
+  isPath?: boolean;
+}
+
+export interface SkipListLevel {
+  levelIndex: number;
+  nodes: SkipListNode[];
+}
+
+export interface SkipListState {
+  maxLevel: number;
+  currentLevel: number;
+  levels: SkipListLevel[];
+  searchPath?: { level: number; val: number | string; action?: "drop_down" | "step_forward" | "match" }[];
+  targetVal?: number | string | null;
+  found?: boolean | null;
+  operation?: "search" | "add" | "erase" | "build" | string;
+  probabilisticHeight?: number | null;
+  reason?: string;
+}
+
+/** Disjoint Interval Sets State */
+export interface DisjointIntervalSetState {
+  intervals: [number, number][];
+  queryPoint?: number | null;
+  insertedInterval?: [number, number] | null;
+  overlappingIntervals?: [number, number][];
+  mergedInterval?: [number, number] | null;
+  operation?: "addNum" | "getIntervals" | "findInterval" | "merge" | "removeRange" | string;
+  explanation?: string;
+}
+
+/** Traversal Path State for Binary Trees */
+export interface TreeTraversalState {
+  order: "preorder" | "inorder" | "postorder" | "levelorder" | "morris" | string;
+  output: (number | string)[];
+  currentVisited?: number | string | null;
+  stackOrQueue?: (number | string)[];
+}
+
+/** Binary Tree Structural Telemetry (Depth, LCA, Inversion, Diameter, Symmetric) */
+export interface TreeStructuralState {
+  maxDepth?: number;
+  currentDepth?: number;
+  currentHeight?: number;
+  diameter?: number;
+  diameterPath?: (number | string)[];
+  isInverted?: boolean;
+  invertedNodes?: (number | string)[];
+  lcaNodes?: { p: number | string; q: number | string; lca?: number | string | null };
+  ancestorPathP?: (number | string)[];
+  ancestorPathQ?: (number | string)[];
+  treeProperties?: {
+    isSymmetric?: boolean;
+    isBalanced?: boolean;
+    isSubtree?: boolean;
+  };
+}
+
+/** Binary Search Tree (BST) State */
+export interface BstState {
+  target?: number | string | null;
+  searchPath?: (number | string)[];
+  decision?: "go_left" | "go_right" | "found" | "insert_left" | "insert_right" | "not_found" | string;
+  comparison?: string; // e.g. "6 > 4 ➔ Go Right"
+  rangeBounds?: { min: number | string | null; max: number | string | null };
+  nodeRanges?: Record<number | string, { min: number | string | null; max: number | string | null }>;
+  isValidBst?: boolean;
+  violationNode?: number | string | null;
+  successor?: number | string | null;
+  predecessor?: number | string | null;
+}
+
+/** Specialized Trie / Prefix Tree State */
+export interface TrieNodeInfo {
+  id: string | number;
+  char: string;
+  isEndOfWord?: boolean;
+  word?: string | null;
+  parentId?: string | number | null;
+  children?: Record<string, string | number>;
+}
+
+export interface TrieState {
+  word?: string | null;
+  prefix?: string | null;
+  operation?: "insert" | "search" | "startsWith" | "traverse" | string;
+  matchedChars?: string[];
+  activeChar?: string | null;
+  activeCharIndex?: number | null;
+  remainingChars?: string[];
+  dictionary?: string[];
+  isFound?: boolean | null;
+  isPrefixFound?: boolean | null;
+  activePath?: (string | number)[];
+  endOfWordNodes?: (string | number)[];
+  nodes?: TrieNodeInfo[];
+}
+
+/** Segment Tree State for Range Queries and Point Updates */
+export interface SegmentTreeNodeInfo {
+  treeIndex: number;
+  val: number | string;
+  range: [number, number]; // [L, R] covered by this node
+  leftChildIndex?: number;
+  rightChildIndex?: number;
+  status?: "active" | "full_overlap" | "partial_overlap" | "no_overlap" | "updated" | "propagated" | "query_match";
+}
+
+export interface SegmentTreeState {
+  originalArray: (number | string)[];
+  treeArray: (number | string | null)[];
+  queryRange?: [number, number] | null; // e.g. [L, R]
+  updateIndex?: number | null; // point update index in original array
+  updateValue?: number | string | null; // new value
+  operation?: "build" | "query" | "update" | "range_sum" | "range_min" | "range_max";
+  aggregateResult?: number | string | null;
+  activeTreeIndices?: number[];
+  propagatedIndices?: number[];
+  nodes?: Record<number, SegmentTreeNodeInfo>;
+}
+
+/** Fenwick Tree / Binary Indexed Tree (BIT) State */
+export interface FenwickTreeState {
+  originalArray: (number | string)[];
+  treeArray: (number | string)[]; // 1-indexed BIT array
+  operation?: "build" | "query_prefix" | "query_range" | "update_point";
+  activeBitIndex?: number | null;
+  jumpPath?: number[]; // indices visited via idx += (idx & -idx) or idx -= (idx & -idx)
+  queryRange?: [number, number] | null;
+  prefixSum?: number | string | null;
+  formula?: string; // e.g. "idx += (idx & -idx) -> 4 += 4 = 8"
+}
+
+/** N-ary Tree Node representation with arbitrary children */
+export interface NaryTreeNode {
+  id: string | number;
+  val: number | string;
+  parentId?: string | number | null;
+  children: (NaryTreeNode | string | number)[];
+  isLeaf?: boolean;
+}
+
+/** N-ary Tree State for Traversal, Serialization & Multi-Child Operations */
+export interface NaryTreeState {
+  root?: NaryTreeNode | null;
+  flatNodes?: Record<string | number, { id: string | number; val: number | string; parentId?: string | number | null; childIds: (string | number)[] }>;
+  activeNodeId?: string | number | null;
+  activePath?: (string | number)[];
+  visitedNodeIds?: (string | number)[];
+  levelOrderResult?: (number | string)[][];
+  currentLevel?: number;
+  serializedString?: string;
+  operation?: "levelorder" | "preorder" | "postorder" | "serialize" | "deserialize" | "search";
 }
 
 export type ShiftInfo = {
@@ -312,28 +1032,133 @@ export type VizStep = {
   activeDataset?: string | null;
   shiftInfo?: ShiftInfo | null;
   datasetLabels?: Record<string, string> | null;
-  /** 2D Grid / Island specific enhancements */
+  /** 2D Grid / Island / Matrix specific enhancements */
   direction?: string | null;
   currentArea?: number | null;
   maxArea?: number | null;
   islandCells?: (string | [number, number])[] | null;
+  spiralBounds?: { top: number; bottom: number; left: number; right: number } | null;
+  frontier?: (string | [number, number])[] | null;
+  distanceLayer?: number | null;
+  highlightRows?: number[] | null;
+  highlightCols?: number[] | null;
+  trail?: (string | [number, number])[] | null;
+  rotationLayer?: number | null;
   /** Variable tracker state */
   variables?: Record<string, any> | null;
-  /** Recursion / Backtracking call stack & tree */
+  /** Recursion and Call Stack */
   callStack?: CallStackFrame[] | null;
   recursionTree?: RecursionTreeNode[] | null;
   activeFrameId?: string | null;
-  /** Live Memoization Cache */
   memoTable?: Record<string, any> | null;
   memoHitKey?: string | null;
-  /** 1D Timeline Intervals */
+  prunedBranchId?: string | null;
+  /** Intervals Timeline */
   intervals?: IntervalItem[] | null;
   sweepLine?: number | null;
-  /** Monotonic Stack enhancements */
+  activeIntervalIndex?: number | null;
+  /** Monotonic Stack & Geometric Spans */
   stackInvariant?: "increasing" | "decreasing" | null;
   sightlines?: Sightline[] | null;
-  /** Binary Heap Sift-Up / Down swap */
+  histogramSpan?: HistogramSpan | null;
+  waterTrapped?: WaterTrapped | null;
+  bracketPair?: BracketPair | null;
+  evalExpression?: EvalExpression | null;
+  resultArray?: (number | string | null)[] | null;
+  stream?: (number | string)[] | null;
+  /** Binary Heap Dual View */
   heapSwap?: HeapSwap | null;
+  topKState?: TopKState | null;
+  twoHeapsState?: TwoHeapsState | null;
+  isMinHeap?: boolean;
+  /** Dijkstra Shortest Path and Graph Edge Relaxation */
+  distances?: Record<string, number | string | null> | null;
+  priorityQueue?: { node: string | number; dist: number | string }[] | null;
+  relaxedEdge?: {
+    from: string;
+    to: string;
+    weight: number | string;
+    oldDist?: number | string;
+    newDist?: number | string;
+  } | null;
+  shortestPathTree?: { from: string; to: string }[] | null;
+  shortestPathState?: ShortestPathAlgorithmState | null;
+  mstState?: MstAlgorithmState | null;
+  /** Specialized Graph Engine States */
+  graphEdges?: GraphEdgeItem[] | null;
+  isDirected?: boolean;
+  graphSearchState?: GraphSearchState | null;
+  topologicalSortState?: TopologicalSortState | null;
+  unionFindState?: UnionFindState | null;
+  wordLadderState?: WordLadderState | null;
+  /** Dynamic Programming Engine States */
+  dp1dState?: Dp1DState | null;
+  dp2dState?: Dp2DState | null;
+  /** Intervals and Timeline Collision States */
+  intervalCollisionState?: IntervalCollisionState | null;
+  /** Bit Manipulation & Register Engine */
+  bitRegisterState?: BitRegisterState | null;
+  /** Synchronized Composite Data Structure Engine */
+  compositeLayoutState?: CompositeLayoutState | null;
+  /** Segment Tree and Interval Decomposition */
+  segmentRange?: [number, number] | null;
+  segmentNodeRanges?: Record<number | string, [number, number]> | null;
+  segmentTreeState?: SegmentTreeState | null;
+  fenwickTreeState?: FenwickTreeState | null;
+  naryTreeState?: NaryTreeState | null;
+  /** KMP Pattern Matching and LPS Array */
+  lps?: number[] | null;
+  patternStr?: string | null;
+  textStr?: string | null;
+  patternIndex?: number | null;
+  textIndex?: number | null;
+  kmpState?: KmpAlgorithmState | null;
+  rabinKarpState?: RabinKarpAlgorithmState | null;
+  ahoCorasickState?: AhoCorasickState | null;
+  stringPatternState?: StringPatternState | null;
+  label1?: string;
+  label2?: string;
+  /** 1D Array Specialized Visualizations */
+  dnfPartition?: DnfPartition | null;
+  binarySearchPartition?: BinarySearchPartition | null;
+  slidingWindowSpan?: SlidingWindowSpan | null;
+  prefixSumProjection?: PrefixSumProjection | null;
+  cyclicSortJump?: CyclicSortJump | null;
+  swapFlight?: ArraySwapFlight | null;
+  /** 2D Matrix Specialized Visualizations */
+  directionRay?: DirectionRay | null;
+  waveDistance?: WaveDistance | null;
+  backtrackingRibbon?: BacktrackingPathRibbon | null;
+  nQueensConflict?: NQueensConflictRay | null;
+  rotationOrbit?: MatrixRotationOrbit | null;
+  kernel8Neighbor?: Kernel8Neighbor | null;
+  predecessorArrows?: GridPredecessorArrow[] | null;
+  /** Queue & Deque Specialized Visualizations */
+  monotonicDeque?: MonotonicDequeState | null;
+  circularBuffer?: CircularBufferState | null;
+  bfsLevel?: QueueBfsLevel | null;
+  /** Linked List & LRU / LFU / SkipList Specialized Visualizations */
+  secondaryList?: (number | string)[] | null;
+  linkedListCycle?: LinkedListCycleState | null;
+  linkedListReversal?: LinkedListReversalState | null;
+  lruCache?: LruCacheState | null;
+  lfuCache?: LfuCacheState | null;
+  skipList?: SkipListState | null;
+  disjointIntervals?: DisjointIntervalSetState | null;
+  isDoubly?: boolean;
+  dummyNodeVal?: number | string | null;
+  fastPointer?: number | string | null;
+  slowPointer?: number | string | null;
+  prevPointer?: number | string | null;
+  currPointer?: number | string | null;
+  nextPointer?: number | string | null;
+  /** Tree & BST Specialized Visualizations */
+  treeTraversal?: TreeTraversalState | null;
+  treeStructural?: TreeStructuralState | null;
+  bstState?: BstState | null;
+  trieState?: TrieState | null;
+  lcaNodes?: { p: number | string; q: number | string; lca?: number | string | null } | null;
+  invertedTree?: (number | string | null)[] | null;
 };
 
 /** Structured test dataset specification for multi-dataset algorithmic walkthroughs */
@@ -344,7 +1169,6 @@ export interface TestDataset {
   array?: (number | string)[];
   secondaryArray?: (number | string)[];
   matrix?: (number | string)[][];
-  cols?: number;
   tree?: (number | string | null)[];
   target?: number | string;
   k?: number;
@@ -429,6 +1253,7 @@ const CANONICAL_EXAMPLES: Record<string, (number | string | null)[]> = {
   "dota2-senate": ["R", "D", "D"],
   "design-circular-queue": [1, 2, 3, 4],
   "number-of-recent-calls": [1, 100, 3001, 3002],
+  "logger-rate-limiter": ["foo", "bar", "foo", "bar", "foo", "foo"],
   "time-needed-to-buy-tickets": [2, 3, 2],
 };
 
@@ -473,11 +1298,6 @@ export const CANONICAL_MATRICES: Record<string, (number | string)[][]> = {
     [0, 0, 0, 1, 1, 0],
     [1, 1, 0, 0, 0, 1],
     [1, 0, 0, 1, 1, 1],
-  ],
-  "number-of-islands-ii": [
-    [0, 0, 0],
-    [0, 0, 0],
-    [0, 0, 0],
   ],
   "rotting-oranges": [
     [2, 1, 1, 0, 1, 1],
@@ -602,67 +1422,27 @@ export const CANONICAL_MATRICES: Record<string, (number | string)[][]> = {
   ],
 };
 
-/** Helper to identify island and connected-component graph problems */
+/** Helper to identify island and 2D flood-fill graph problems */
 export function isIslandOrGridProblem(slug: string, topics: string[] = []): boolean {
   const s = (slug ?? "").toLowerCase();
   const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
   return (
-    /island|area-of-island|max-area|flood-fill|rotting-oranges|surrounded-regions|walls-and-gates|pacific-atlantic|01-matrix|shortest-path-in-binary|making-a-large-island|count-sub-islands|as-far-from-land|number-of-enclaves|number-of-closed-islands|minesweeper/.test(
+    /island|area-of-island|max-area|flood-fill|rotting-oranges|surrounded-regions|walls-and-gates|pacific-atlantic|01-matrix|shortest-path-in-binary|making-a-large-island|count-sub-islands/.test(
       s,
-    ) || /number of islands|max area of island|flood fill/.test(t)
+    ) || /number of islands|max area of island|flood fill|rotting oranges|surrounded regions/.test(t)
   );
 }
 
-/** Helper to identify 2D matrix transformation & in-place grid iteration problems */
-export function isMatrixTransformationProblem(slug: string, topics: string[] = []): boolean {
+/** Helper to identify general 2D matrix transformation / cell traversal problems */
+export function isMatrixProblem(slug: string, topics: string[] = []): boolean {
   const s = (slug ?? "").toLowerCase();
   const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
-  if (isIslandOrGridProblem(slug, topics)) return false;
   return (
-    /set-matrix-zeroes|rotate-image|spiral-matrix|spiral-matrix-ii|game-of-life|valid-sudoku|diagonal-traverse|reshape-the-matrix|matrix-block-sum|shift-2d-grid|transpose-matrix|toeplitz-matrix|image-overlap|flipping-an-image|lucky-numbers-in-a-matrix|search-a-2d-matrix|search-a-2d-matrix-ii|kth-smallest-element-in-a-sorted-matrix/.test(
+    Boolean(CANONICAL_MATRICES[slug]) ||
+    /matrix|rotate-image|spiral-matrix|game-of-life|valid-sudoku|sudoku-solver|diagonal-traverse|reshape-the-matrix|transpose-matrix|toeplitz-matrix|image-smoother/.test(
       s,
     ) ||
-    ((t.includes("matrix") || t.includes("grid")) &&
-      !t.includes("depth-first search") &&
-      !t.includes("breadth-first search") &&
-      !t.includes("dynamic programming") &&
-      !t.includes("graph"))
-  );
-}
-
-/** Helper to identify dynamic / variable-size sliding window problems */
-export function isDynamicSlidingWindowProblem(slug: string, topics: string[] = []): boolean {
-  const s = (slug ?? "").toLowerCase();
-  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
-  return (
-    /longest-substring-without-repeating|minimum-window-substring|longest-repeating-character-replacement|permutation-in-string|max-consecutive-ones-iii|fruit-into-baskets|subarray-product-less-than-k|minimum-size-subarray-sum/.test(
-      s,
-    ) ||
-    ((t.includes("sliding window") || t.includes("string")) &&
-      /substring|longest-substring|window|repeating/i.test(s))
-  );
-}
-
-/** Helper to identify same-direction in-place read/write / fast-slow pointer problems */
-export function isInPlacePointerProblem(slug: string, topics: string[] = []): boolean {
-  const s = (slug ?? "").toLowerCase();
-  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
-  return (
-    /remove-duplicates-from-sorted-array|remove-duplicates-from-sorted-array-ii|move-zeroes|remove-element|sort-colors|duplicate-zeros/.test(
-      s,
-    ) ||
-    (t.includes("two pointers") && /remove|move|zero|duplicate/i.test(s))
-  );
-}
-
-/** Helper to identify prefix sum and running sum complement problems */
-export function isPrefixSumProblem(slug: string, topics: string[] = []): boolean {
-  const s = (slug ?? "").toLowerCase();
-  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
-  return (
-    /subarray-sum-equals-k|contiguous-array|subarray-sums-divisible-by-k|range-sum-query-immutable|running-sum-of-1d-array|product-of-array-except-self|find-pivot-index/.test(
-      s,
-    ) || t.includes("prefix sum")
+    ((t.includes("matrix") || /matrix|grid/i.test(s)) && !isIslandOrGridProblem(slug, topics) && !/dynamic programming|breadth-first|depth-first/i.test(t))
   );
 }
 
@@ -671,7 +1451,7 @@ export function sampleMatrixFor(slug: string): (number | string)[][] {
   if (CANONICAL_MATRICES[slug]) {
     return CANONICAL_MATRICES[slug]!.map((r) => [...r]);
   }
-  const isIsland = /island|flood|surround|rotting|enclave/.test(slug);
+  const isIsland = /island|area|flood|surround|rotting|grid|matrix/.test(slug);
   if (isIsland) {
     return [
       [0, 1, 1, 0, 0, 0],
@@ -683,8 +1463,8 @@ export function sampleMatrixFor(slug: string): (number | string)[][] {
     ];
   }
   const rnd = seeded(slug);
-  const rows = 4;
-  const cols = 4;
+  const rows = 6;
+  const cols = 6;
   return Array.from({ length: rows }, () =>
     Array.from({ length: cols }, () => 1 + Math.floor(rnd() * 99)),
   );
@@ -841,19 +1621,19 @@ export function isTwoSequenceProblem(slug: string, topics: string[] = []): boole
   const s = (slug ?? "").toLowerCase();
   const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
   return (
-    /profitable-schemes|0-1-knapsack|longest-common-subsequence|common-subsequence|edit-distance|merge-sorted-array|intersection-of-two|is-subsequence|find-the-difference|backspace-string|permutation-in-string|find-all-anagrams|minimum-window-substring/.test(
+    /logger-rate-limiter|profitable-schemes|0-1-knapsack|longest-common-subsequence|common-subsequence|edit-distance|merge-sorted-array|intersection-of-two|is-subsequence|find-the-difference|backspace-string|permutation-in-string|find-all-anagrams|minimum-window-substring/.test(
       s,
     ) ||
-    /two arrays|two strings|intersection of two/.test(t)
+    /two arrays|two strings|intersection of two|logger|rate limit/.test(t)
   );
 }
 
 export const CANONICAL_DUAL_SEQUENCES: Record<
   string,
   {
-    d1: { array: (number | string)[]; secondaryArray: (number | string)[]; target?: number | string; k?: number; desc?: string };
-    d2: { array: (number | string)[]; secondaryArray: (number | string)[]; target?: number | string; k?: number; desc?: string };
-    d3: { array: (number | string)[]; secondaryArray: (number | string)[]; target?: number | string; k?: number; desc?: string };
+    d1: { array: (number | string)[]; secondaryArray: (number | string)[]; target?: number | string; k?: number; desc?: string; datasetLabels?: Record<string, string> };
+    d2: { array: (number | string)[]; secondaryArray: (number | string)[]; target?: number | string; k?: number; desc?: string; datasetLabels?: Record<string, string> };
+    d3: { array: (number | string)[]; secondaryArray: (number | string)[]; target?: number | string; k?: number; desc?: string; datasetLabels?: Record<string, string> };
   }
 > = {
   "profitable-schemes": {
@@ -1013,6 +1793,26 @@ export const CANONICAL_DUAL_SEQUENCES: Record<
       array: ["a", "b", "#", "c"],
       secondaryArray: ["b"],
       desc: "Mismatched final strings: s = 'ab#c' -> 'ac', t = 'b'.",
+    },
+  },
+  "logger-rate-limiter": {
+    d1: {
+      array: ["foo", "bar", "foo", "bar", "foo", "foo"],
+      secondaryArray: [1, 2, 8, 10, 11, 12],
+      datasetLabels: { primary: "Messages (s1)", secondaryArray: "Timestamps (t1)" },
+      desc: "Standard message stream with 10-second sliding cooldown window.",
+    },
+    d2: {
+      array: ["msg1", "msg2", "msg1", "msg3", "msg2", "msg4", "msg1", "msg5", "msg2", "msg6"],
+      secondaryArray: [1, 2, 3, 5, 8, 10, 12, 14, 18, 25],
+      datasetLabels: { primary: "Messages (s1)", secondaryArray: "Timestamps (t1)" },
+      desc: "Extended multi-message logging stream with burst arrivals.",
+    },
+    d3: {
+      array: ["foo", "foo", "bar", "foo"],
+      secondaryArray: [1, 10, 10, 11],
+      datasetLabels: { primary: "Messages (s1)", secondaryArray: "Timestamps (t1)" },
+      desc: "Exact 10-second boundary collision testing inclusive timestamp limits.",
     },
   },
 };
@@ -1547,10 +2347,9 @@ export function isUnionFindProblem(slug: string, topics: string[] = []): boolean
   const s = (slug ?? "").toLowerCase();
   const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
   return (
-    !/island|area-of-island|max-area|flood-fill|rotting-oranges|surrounded-regions/.test(s) &&
-    (/redundant-connection|number-of-provinces|accounts-merge|satisfiability-of-equality|earliest-moment|graph-valid-tree|number-of-operations-to-make-network-connected|min-cost-to-connect/.test(
+    /redundant-connection|number-of-provinces|accounts-merge|satisfiability-of-equality|earliest-moment|graph-valid-tree|number-of-operations-to-make-network-connected|min-cost-to-connect/.test(
       s,
-    ) || /union[- ]?find|disjoint[- ]?set|dsu/.test(t))
+    ) || /union[- ]?find|disjoint[- ]?set|dsu/.test(t)
   );
 }
 
@@ -1856,6 +2655,183 @@ export const CANONICAL_WORD_LADDER_DATASETS: Record<
         ["AACCGGTA", "AAACGGTA"],
       ],
       desc: "Unreachable target DNA string not present in gene bank ➔ returns -1.",
+    },
+  },
+};
+
+/** Identifies String Pattern Matching, KMP, Rabin-Karp & Aho-Corasick Automata problems */
+export function isStringPatternProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return (
+    /find-the-index-of-the-first-occurrence-in-a-string|strstr|repeated-substring-pattern|longest-happy-prefix|shortest-palindrome|stream-of-characters|kmp|rabin-karp|aho-corasick|string-matching|pattern-matching/.test(
+      s,
+    ) || /kmp|rabin-karp|rolling hash|aho-corasick|string pattern|lps/.test(t)
+  );
+}
+
+export function isKmpProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return (
+    /find-the-index-of-the-first-occurrence-in-a-string|strstr|repeated-substring-pattern|longest-happy-prefix|shortest-palindrome/.test(
+      s,
+    ) || /kmp|lps|prefix-function/.test(t)
+  );
+}
+
+export function isRabinKarpProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return (
+    /rabin-karp|rolling-hash|repeated-dna-sequences|longest-duplicate-substring/.test(
+      s,
+    ) || /rabin-karp|rolling hash/.test(t)
+  );
+}
+
+export function isAhoCorasickProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return (
+    /stream-of-characters|multi-pattern|aho-corasick|word-search-ii/.test(s) ||
+    /aho-corasick|trie automaton|dictionary matching/.test(t)
+  );
+}
+
+export const CANONICAL_STRING_PATTERN_DATASETS: Record<
+  string,
+  {
+    d1: { text: string; pattern?: string; keywords?: string[]; desc: string };
+    d2: { text: string; pattern?: string; keywords?: string[]; desc: string };
+    d3: { text: string; pattern?: string; keywords?: string[]; desc: string };
+  }
+> = {
+  "find-the-index-of-the-first-occurrence-in-a-string": {
+    d1: {
+      text: "sadbutsad",
+      pattern: "sad",
+      desc: "Standard match at index 0: 'sad' appears as prefix of 'sadbutsad'.",
+    },
+    d2: {
+      text: "mississippi",
+      pattern: "issip",
+      desc: "Extended repetitive substring testing partial LPS backtrack shifts: 'issip' found at index 4.",
+    },
+    d3: {
+      text: "leetcode",
+      pattern: "leeto",
+      desc: "Mismatch boundary: 'leeto' does not occur in 'leetcode' -> returns -1.",
+    },
+  },
+  "repeated-substring-pattern": {
+    d1: {
+      text: "abab",
+      pattern: "ab",
+      desc: "Standard 2-period repetition: 'abab' is formed by repeating 'ab' twice (true).",
+    },
+    d2: {
+      text: "abcabcabcabc",
+      pattern: "abc",
+      desc: "Extended 4-period repetition: 'abc' repeated 4 times (LPS length = 9, n - LPS = 3, 12 % 3 = 0 -> true).",
+    },
+    d3: {
+      text: "aba",
+      desc: "Non-periodic boundary: 'aba' cannot be formed by repeating a substring (false).",
+    },
+  },
+  "longest-happy-prefix": {
+    d1: {
+      text: "level",
+      desc: "Prefix 'l' equals suffix 'l' (length 1) -> returns 'l'.",
+    },
+    d2: {
+      text: "ababab",
+      desc: "Extended prefix-suffix: 'abab' is longest proper prefix which is also suffix -> length 4.",
+    },
+    d3: {
+      text: "leetcode",
+      desc: "No common non-empty prefix-suffix -> returns ''.",
+    },
+  },
+};
+
+/** Identifies LFU Cache (Least Frequently Used) design problems */
+export function isLfuCacheProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return /lfu-cache|least-frequently-used/.test(s) || /lfu cache|frequency bucket/i.test(t);
+}
+
+/** Identifies Skip List / Probabilistic Multi-Level Express List problems */
+export function isSkipListProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return /skiplist|skip-list|design-skiplist/.test(s) || /skiplist|skip list|probabilistic list/i.test(t);
+}
+
+/** Identifies Disjoint Interval Sets & Range Module problems */
+export function isDisjointIntervalProblem(slug: string, topics: string[] = []): boolean {
+  const s = (slug ?? "").toLowerCase();
+  const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  return (
+    /data-stream-as-disjoint-intervals|summary-ranges|range-module|merge-intervals|insert-interval/.test(
+      s,
+    ) || /disjoint interval|interval set|summary ranges/i.test(t)
+  );
+}
+
+export const CANONICAL_DESIGN_DS_DATASETS: Record<
+  string,
+  {
+    d1: { capacity?: number; operations?: string[]; targets?: (number | string)[]; desc: string };
+    d2: { capacity?: number; operations?: string[]; targets?: (number | string)[]; desc: string };
+    d3: { capacity?: number; operations?: string[]; targets?: (number | string)[]; desc: string };
+  }
+> = {
+  "lfu-cache": {
+    d1: {
+      capacity: 2,
+      operations: ["put(1, 1)", "put(2, 2)", "get(1)", "put(3, 3)", "get(2)", "get(3)", "put(4, 4)", "get(1)", "get(3)", "get(4)"],
+      desc: "Standard 2-capacity LFU Cache: put(1,1), put(2,2), get(1)->freq(1)=2. put(3,3) evicts key 2 (min_freq=1).",
+    },
+    d2: {
+      capacity: 3,
+      operations: ["put(1, 10)", "put(2, 20)", "put(3, 30)", "get(1)", "get(2)", "get(1)", "put(4, 40)"],
+      desc: "Extended 3-capacity with frequency promotion: key 1 (freq 3), key 2 (freq 2), key 3 (freq 1) -> evicts key 3.",
+    },
+    d3: {
+      capacity: 0,
+      operations: ["put(0, 0)", "get(0)"],
+      desc: "Zero-capacity boundary: all puts fail, all gets return -1.",
+    },
+  },
+  "design-skiplist": {
+    d1: {
+      operations: ["add(1)", "add(2)", "add(3)", "search(0)", "add(4)", "search(1)", "erase(0)", "erase(1)", "search(1)"],
+      desc: "Standard multi-level Skip List: adds 1, 2, 3, 4 with probabilistic expressways, searches and erases elements in O(log N).",
+    },
+    d2: {
+      operations: ["add(5)", "add(10)", "add(15)", "add(20)", "add(25)", "search(15)", "erase(10)"],
+      desc: "Extended 7-element expressway traversal demonstrating downward level shifts.",
+    },
+    d3: {
+      operations: ["erase(1)", "search(1)"],
+      desc: "Empty Skip List boundary: erasing or searching missing element returns false.",
+    },
+  },
+  "data-stream-as-disjoint-intervals": {
+    d1: {
+      targets: [1, 3, 7, 2, 6],
+      desc: "Standard stream coalescing: add 1 -> [1,1]; add 3 -> [1,1],[3,3]; add 7 -> [1,1],[3,3],[7,7]; add 2 -> merges [1,3],[7,7]; add 6 -> merges [1,3],[6,7].",
+    },
+    d2: {
+      targets: [6, 2, 4, 3, 5],
+      desc: "Full bridge merging: adding numbers bridges [2,2] and [6,6] step-by-step into one unified [2,6] span.",
+    },
+    d3: {
+      targets: [10],
+      desc: "Single-element stream boundary -> [[10, 10]].",
     },
   },
 };
@@ -2271,71 +3247,6 @@ export function getCanonicalMultiDatasets(
   _title = "",
   topics: string[] = [],
 ): TestDataset[] {
-  if (slug === "number-of-islands-ii") {
-    return [
-      {
-        id: "d1",
-        label: "Dataset 1",
-        category: "standard",
-        matrix: [
-          [0, 0, 0],
-          [0, 0, 0],
-          [0, 0, 0],
-        ],
-        secondaryArray: [
-          [0, 0],
-          [0, 1],
-          [1, 2],
-          [2, 1],
-        ],
-        target: 3,
-        cols: 3,
-        description: "Standard 3×3 water grid with 4 dynamic addLand operations: [[0,0],[0,1],[1,2],[2,1]].",
-      },
-      {
-        id: "d2",
-        label: "Dataset 2",
-        category: "longer",
-        matrix: Array.from({ length: 5 }, () => Array(6).fill(0)),
-        secondaryArray: [
-          [0, 0],
-          [0, 1],
-          [1, 1],
-          [1, 2],
-          [2, 2],
-          [2, 3],
-          [3, 4],
-          [3, 5],
-          [4, 4],
-          [4, 0],
-          [0, 5],
-          [4, 2],
-        ],
-        target: 5,
-        cols: 6,
-        description: "Extended 5×6 grid with 12 addLand operations producing multiple island creations, merges, and component unions.",
-      },
-      {
-        id: "d3",
-        label: "Dataset 3",
-        category: "edge",
-        matrix: [
-          [0, 0],
-          [0, 0],
-        ],
-        secondaryArray: [
-          [0, 0],
-          [0, 0],
-          [0, 1],
-          [1, 1],
-        ],
-        target: 2,
-        cols: 2,
-        description: "Edge-case 2×2 grid testing duplicate land addition at [0,0] and boundary unions.",
-      },
-    ];
-  }
-
   const CUSTOM_DATASETS: Record<string, TestDataset[]> = {
     "check-preorder-is-valid-or-not": [
       { id: "d1", label: "Dataset 1", category: "standard", array: [1, 5, 3, 4, 2], target: 3, description: "Standard dataset for Check Preorder Is Valid Or Not." }
@@ -3163,20 +4074,7 @@ export function getCanonicalMultiDatasets(
       { id: "d1", label: "Dataset 1", category: "standard", matrix: [[1,0,0],[-1,0,3]], description: "Actual Example 1 from LeetCode Premium." }
     ],
     "number-of-islands-ii": [
-      {
-        id: "d1",
-        label: "Dataset 1",
-        category: "standard",
-        matrix: [
-          [0, 0, 0],
-          [0, 0, 0],
-          [0, 0, 0],
-        ],
-        secondaryArray: [[0, 0], [0, 1], [1, 2], [2, 1]],
-        target: 3,
-        cols: 3,
-        description: "Standard 3×3 water grid with 4 dynamic addLand operations: [[0,0],[0,1],[1,2],[2,1]].",
-      },
+      { id: "d1", label: "Dataset 1", category: "standard", matrix: [[0,0],[0,1],[1,2],[2,1]], target: 3, description: "Actual Example 1 from LeetCode Premium." }
     ],
     "binary-tree-longest-consecutive-sequence": [
       { id: "d1", label: "Dataset 1", category: "standard", array: [1,null,3,2,4,null,null,null,5], description: "Actual Example 1 from LeetCode Premium." }
@@ -5717,7 +6615,7 @@ export function getCanonicalMultiDatasets(
       { id: "d1", label: "Dataset 1", category: "standard", array: [1,2,3,0,0,0], secondaryArray: [2,5,6], target: 3, description: "Actual Example 1 from LeetCode." }
     ],
     "longest-substring-without-repeating-characters": [
-      { id: "d1", label: "Dataset 1", category: "standard", array: ["a", "b", "c", "a", "b", "c", "b", "b"], description: "Actual Example 1 from LeetCode." }
+      { id: "d1", label: "Dataset 1", category: "standard", array: ["abcabcbb"], description: "Actual Example 1 from LeetCode." }
     ],
     "powx-n": [
       { id: "d1", label: "Dataset 1", category: "standard", target: 10, description: "Actual Example 1 from LeetCode." }
@@ -5945,7 +6843,7 @@ export function getCanonicalMultiDatasets(
   };
 
   const isIsland = isIslandOrGridProblem(slug, topics);
-  const isMatrixTransform = isMatrixTransformationProblem(slug, topics);
+  const isMatrix = isMatrixProblem(slug, topics) || Boolean(CANONICAL_MATRICES[slug]);
   const isTwoSeq = isTwoSequenceProblem(slug, topics);
   const isInterval = isIntervalProblem(slug, topics);
   const isBit = isBitManipulationProblem(slug, topics);
@@ -5957,9 +6855,6 @@ export function getCanonicalMultiDatasets(
   const isWordLadder = isWordLadderProblem(slug, topics);
   const isQueueSim = isQueueSimulationProblem(slug, topics);
   const isDesign = isDesignProblem(slug, topics);
-  const isDynamicWindow = isDynamicSlidingWindowProblem(slug, topics);
-  const isInPlacePointers = isInPlacePointerProblem(slug, topics);
-  const isPrefixSum = isPrefixSumProblem(slug, topics);
   const primaryType = pickShape(slug, topics);
   const isGraph =
     primaryType === "graph" ||
@@ -6128,6 +7023,7 @@ export function getCanonicalMultiDatasets(
         description: dual.d1.desc ?? "Standard two-sequence canonical example.",
         array: dual.d1.array,
         secondaryArray: dual.d1.secondaryArray,
+        datasetLabels: dual.d1.datasetLabels,
         target: dual.d1.target,
         k: dual.d1.k,
         category: "standard",
@@ -6138,6 +7034,7 @@ export function getCanonicalMultiDatasets(
         description: dual.d2.desc ?? "Extended two-sequence alignment.",
         array: dual.d2.array,
         secondaryArray: dual.d2.secondaryArray,
+        datasetLabels: dual.d2.datasetLabels,
         target: dual.d2.target,
         k: dual.d2.k,
         category: "longer",
@@ -6148,6 +7045,7 @@ export function getCanonicalMultiDatasets(
         description: dual.d3.desc ?? "Edge-case boundary sequence comparison.",
         array: dual.d3.array,
         secondaryArray: dual.d3.secondaryArray,
+        datasetLabels: dual.d3.datasetLabels,
         target: dual.d3.target,
         k: dual.d3.k,
         category: "edge",
@@ -6437,129 +7335,37 @@ export function getCanonicalMultiDatasets(
     return [d1, d2, d3];
   }
 
-  let baseArray!: (number | string)[];
+  let baseArray: (number | string)[];
   let baseMatrix: (number | string)[][] | undefined;
   let baseTree: (number | string | null)[] | undefined;
   let baseTarget: number | string | undefined;
-  let baseSecondaryArray: (number | string)[] | undefined;
-  let baseDescription: string | undefined;
 
-  const isGenericDummyDataset = (d: TestDataset | undefined): boolean => {
-    if (!d || !d.array) return false;
-    const arr = d.array;
-    if (
-      arr.length === 5 &&
-      arr[0] === 1 &&
-      arr[1] === 5 &&
-      arr[2] === 3 &&
-      arr[3] === 4 &&
-      arr[4] === 2 &&
-      d.target === 3
-    ) {
-      return true;
-    }
-    if (
-      arr.length === 7 &&
-      arr[0] === 4 &&
-      arr[1] === 2 &&
-      arr[2] === 6 &&
-      arr[3] === 1 &&
-      arr[4] === 3 &&
-      arr[5] === 5 &&
-      arr[6] === 7 &&
-      d.target === 3
-    ) {
-      return true;
-    }
-    return false;
-  };
-
-  const rawCustomD1 = isParentheses ? undefined : CUSTOM_DATASETS[slug]?.[0];
-  const customD1 = isGenericDummyDataset(rawCustomD1) ? undefined : rawCustomD1;
-  if (customD1) {
-    if (customD1.array && customD1.array.length > 0) baseArray = customD1.array;
-    if (customD1.secondaryArray && customD1.secondaryArray.length > 0) baseSecondaryArray = customD1.secondaryArray;
-    if (customD1.matrix && customD1.matrix.length > 0) baseMatrix = customD1.matrix;
-    if (customD1.tree && customD1.tree.length > 0) baseTree = customD1.tree;
-    if (customD1.target !== undefined) baseTarget = customD1.target;
-    if (customD1.description) baseDescription = customD1.description;
-  }
-
-  if (!baseArray) {
-    if (isGraph) {
-      baseMatrix = CANONICAL_MATRICES[slug] ?? [
-        [0, 1, 1, 0],
-        [0, 0, 0, 1],
-        [0, 0, 0, 1],
-        [0, 0, 0, 0],
-      ];
-      baseArray = Array.from({ length: baseMatrix.length }, (_, i) => i);
-    } else if (isIsland) {
-      baseMatrix = sampleMatrixFor(slug);
-      baseArray = baseMatrix.flat().filter((x): x is number => typeof x === "number");
-    } else if (isMatrixTransform) {
-      baseMatrix = CANONICAL_MATRICES[slug]
-        ? CANONICAL_MATRICES[slug]!.map((r) => [...r])
-        : [
-            [1, 1, 1],
-            [1, 0, 1],
-            [1, 1, 1],
-          ];
-      baseArray = baseMatrix.flat().filter((x): x is number => typeof x === "number");
-    } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
-      baseTree = sampleTreeFor(slug);
-      baseArray = baseTree.filter((x): x is number | string => x !== null && x !== undefined && String(x) !== "null");
-    } else if (isParentheses) {
-      baseArray = ["(", "{", "[", "]", "}", ")"];
-    } else if (isDynamicWindow) {
-      if (slug === "longest-substring-without-repeating-characters") {
-        baseArray = ["a", "b", "c", "a", "b", "c", "b", "b"];
-        baseDescription = "Canonical string 'abcabcbb' testing window shrink on duplicate characters.";
-      } else if (slug === "minimum-window-substring") {
-        baseArray = ["A", "D", "O", "B", "E", "C", "O", "D", "E", "B", "A", "N", "C"];
-        baseSecondaryArray = ["A", "B", "C"];
-        baseDescription = "String S and pattern T='ABC'.";
-      } else if (slug === "max-consecutive-ones-iii") {
-        baseArray = [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0];
-        baseTarget = 2;
-        baseDescription = "Binary sequence with k=2 zero-flips permitted.";
-      } else {
-        baseArray = sampleInputFor(slug, undefined, topics);
-      }
-    } else if (isInPlacePointers) {
-      if (slug === "move-zeroes") {
-        baseArray = [0, 1, 0, 3, 12];
-        baseDescription = "Standard array with interleaved zeroes for slow/fast in-place compaction.";
-      } else if (slug === "remove-duplicates-from-sorted-array") {
-        baseArray = [0, 0, 1, 1, 1, 2, 2, 3, 3, 4];
-        baseDescription = "Sorted array with duplicate runs for in-place unique compaction.";
-      } else if (slug === "sort-colors") {
-        baseArray = [2, 0, 2, 1, 1, 0];
-        baseDescription = "Dutch National Flag 3-pointer partition array (0=red, 1=white, 2=blue).";
-      } else {
-        baseArray = sampleInputFor(slug, undefined, topics);
-      }
-    } else if (isPrefixSum) {
-      if (slug === "subarray-sum-equals-k") {
-        baseArray = [1, 1, 1];
-        baseTarget = 2;
-        baseDescription = "Standard array testing prefix sum count for k=2.";
-      } else if (slug === "contiguous-array") {
-        baseArray = [0, 1, 0, 1, 1, 1, 0, 0];
-        baseDescription = "Binary array finding maximum contiguous subarray with equal 0s and 1s.";
-      } else {
-        baseArray = sampleInputFor(slug, undefined, topics);
-      }
-    } else {
-      baseArray = sampleInputFor(slug, undefined, topics);
-    }
+  if (isGraph) {
+    baseMatrix = CANONICAL_MATRICES[slug] ?? [
+      [0, 1, 1, 0],
+      [0, 0, 0, 1],
+      [0, 0, 0, 1],
+      [0, 0, 0, 0],
+    ];
+    baseArray = Array.from({ length: baseMatrix.length }, (_, i) => i);
+  } else if (isIsland) {
+    baseMatrix = sampleMatrixFor(slug);
+    baseArray = baseMatrix.flat().filter((x): x is number => typeof x === "number");
+  } else if (isMatrix) {
+    baseMatrix = CANONICAL_MATRICES[slug] ?? sampleMatrixFor(slug);
+    baseArray = baseMatrix.flat().filter((x): x is number => typeof x === "number");
+  } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
+    baseTree = sampleTreeFor(slug);
+    baseArray = baseTree.filter((x): x is number | string => x !== null && x !== undefined && String(x) !== "null");
+  } else if (isParentheses) {
+    baseArray = ["(", "{", "[", "]", "}", ")"];
+  } else {
+    baseArray = sampleInputFor(slug, undefined, topics);
   }
 
   if (slug === "two-sum") baseTarget = 9;
   else if (slug === "3sum") baseTarget = 0;
-  else if (slug === "subarray-sum-equals-k") baseTarget = 2;
-  else if (slug === "max-consecutive-ones-iii") baseTarget = 2;
-  else if (baseTarget === undefined && !isGraph && !isIsland && !isMatrixTransform && !isParentheses && !isString && !isDynamicWindow && typeof baseArray[Math.floor(baseArray.length / 2)] === "number") {
+  else if (!isGraph && !isIsland && !isParentheses && !isString && typeof baseArray[Math.floor(baseArray.length / 2)] === "number") {
     baseTarget = baseArray[Math.floor(baseArray.length / 2)];
   }
 
@@ -6567,13 +7373,12 @@ export function getCanonicalMultiDatasets(
   const d1: TestDataset = {
     id: "dataset_1",
     label: "Dataset 1: Standard Case",
-    description: baseDescription ?? (isGraph
+    description: isGraph
       ? "Standard 4-node directed acyclic graph (DAG) verifying path traversal and topological ordering."
       : isParentheses
         ? "Balanced parentheses sequence with nested bracket pairs."
-        : "Standard canonical problem example verifying baseline correctness."),
+        : "Standard canonical problem example verifying baseline correctness.",
     array: baseArray,
-    secondaryArray: baseSecondaryArray,
     matrix: baseMatrix,
     tree: baseTree,
     target: baseTarget,
@@ -6613,70 +7418,6 @@ export function getCanonicalMultiDatasets(
     d2Array = d2Matrix.flat().filter((x): x is number => typeof x === "number");
     d2Desc =
       "Expansive 8×10 archipelago grid with multiple landmasses (including a 10-cell giant island) producing a rich multi-step DFS/BFS animation.";
-  } else if (isMatrixTransform) {
-    if (slug === "set-matrix-zeroes") {
-      d2Matrix = [
-        [1, 2, 3, 4, 5, 6],
-        [7, 0, 9, 10, 11, 12],
-        [13, 14, 15, 16, 17, 18],
-        [19, 20, 21, 0, 23, 24],
-        [25, 26, 27, 28, 29, 30],
-      ];
-      d2Desc =
-        "Extended 5×6 matrix with multiple distributed zeroes (at [1,1] and [3,3]) producing a rich, comprehensive cell-by-cell row and column transformation trace.";
-    } else {
-      const baseR = baseMatrix?.length ?? 3;
-      const baseC = baseMatrix?.[0]?.length ?? 3;
-      const rows = Math.max(5, baseR + 2);
-      const cols = Math.max(6, baseC + 2);
-      d2Matrix = Array.from({ length: rows }, (_, r) =>
-        Array.from({ length: cols }, (_, c) => ((r * cols + c + 1) % 40) + 1),
-      );
-      d2Desc = `Extended ${rows}×${cols} matrix for comprehensive in-place 2D grid iteration and transformation.`;
-    }
-    d2Array = d2Matrix.flat().filter((x): x is number => typeof x === "number");
-  } else if (isDynamicWindow) {
-    if (slug === "longest-substring-without-repeating-characters") {
-      d2Array = ["p", "w", "w", "k", "e", "w", "a", "b", "c", "d", "e", "f", "k", "e", "w"];
-      d2Desc = "Extended 15-character sequence with multiple duplicate boundaries for a longer window animation.";
-    } else if (slug === "minimum-window-substring") {
-      d2Array = ["A", "A", "B", "D", "E", "C", "O", "D", "E", "B", "A", "N", "C", "X", "Y", "Z", "A", "B", "C"];
-      d2Desc = "Extended search sequence testing multiple candidate windows.";
-    } else if (slug === "max-consecutive-ones-iii") {
-      d2Array = [0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1];
-      d2Target = 3;
-      d2Desc = "Extended 19-element binary sequence with k=3 zero-flips.";
-    } else {
-      d2Array = ["a", "b", "c", "d", "b", "c", "e", "f", "g", "h", "c", "d", "i", "j", "k"];
-      d2Desc = "Extended 15-character sequence for in-depth sliding window traversal.";
-    }
-  } else if (isInPlacePointers) {
-    if (slug === "move-zeroes") {
-      d2Array = [0, 1, 0, 3, 12, 0, 0, 5, 8, 0, 9, 0, 14, 15];
-      d2Desc = "Extended 14-element array with multiple adjacent and trailing zeroes for fast/slow write-pointer trace.";
-    } else if (slug === "remove-duplicates-from-sorted-array") {
-      d2Array = [1, 1, 1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 7, 7, 8];
-      d2Desc = "Extended 17-element sorted array with repeated duplicate clusters for in-place compaction.";
-    } else if (slug === "sort-colors") {
-      d2Array = [2, 0, 1, 2, 1, 0, 0, 2, 1, 2, 0, 1, 1, 2, 0];
-      d2Desc = "Extended 15-element 3-color array testing Dutch National Flag multi-swap partitioning.";
-    } else {
-      d2Array = [0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 6, 7, 8];
-      d2Desc = "Extended array for in-place pointer simulation.";
-    }
-  } else if (isPrefixSum) {
-    if (slug === "subarray-sum-equals-k") {
-      d2Array = [3, 4, 7, 2, -3, 1, 4, 2, 0, 1];
-      d2Target = 7;
-      d2Desc = "Extended sequence with mixed positives, negatives, and zeroes yielding multiple sum=7 subarrays.";
-    } else if (slug === "contiguous-array") {
-      d2Array = [0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1];
-      d2Desc = "Extended 16-element binary sequence with fluctuating prefix sum balance.";
-    } else {
-      d2Array = [2, -1, 3, 1, -2, 4, -3, 5, -1, 2];
-      d2Target = 5;
-      d2Desc = "Extended array with mixed signs for comprehensive prefix sum tracking.";
-    }
   } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
     d2Tree = [
       10,
@@ -6716,18 +7457,30 @@ export function getCanonicalMultiDatasets(
     ];
     d2Desc =
       "Deep 23-node multi-level binary tree structure generating an extensive hierarchical DFS/BFS traversal animation.";
-  } else if (primaryType === "matrix") {
-    d2Matrix = [
-      [1, 2, 3, 4, 5, 6],
-      [7, 8, 9, 10, 11, 12],
-      [13, 14, 15, 16, 17, 18],
-      [19, 20, 21, 22, 23, 24],
-      [25, 26, 27, 28, 29, 30],
-      [31, 32, 33, 34, 35, 36],
-    ];
+  } else if (isMatrix || primaryType === "matrix") {
+    if (slug === "set-matrix-zeroes") {
+      d2Matrix = [
+        [1, 2, 0, 4, 5, 6],
+        [7, 8, 9, 10, 11, 12],
+        [13, 0, 15, 16, 17, 18],
+        [19, 20, 21, 22, 0, 24],
+        [25, 26, 27, 28, 29, 30],
+      ];
+      d2Desc =
+        "Expansive 5×6 matrix with 3 distributed zeros testing multi-row and multi-column zeroing and sentinel marking.";
+    } else {
+      d2Matrix = [
+        [1, 2, 3, 4, 5, 6],
+        [7, 8, 9, 10, 11, 12],
+        [13, 14, 15, 16, 17, 18],
+        [19, 20, 21, 22, 23, 24],
+        [25, 26, 27, 28, 29, 30],
+        [31, 32, 33, 34, 35, 36],
+      ];
+      d2Desc =
+        "Expansive 6×6 coordinate matrix (36 cells) providing a comprehensive multi-row traversal and search animation.";
+    }
     d2Array = d2Matrix.flat() as number[];
-    d2Desc =
-      "Expansive 6×6 coordinate matrix (36 cells) providing a comprehensive multi-row traversal and search animation.";
   } else if (primaryType === "linkedlist") {
     d2Array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     d2Desc =
@@ -6750,26 +7503,6 @@ export function getCanonicalMultiDatasets(
       "Extended 16-element sequence demonstrating multi-step pointer convergence, window scaling, and partition dynamics.";
   }
 
-  // Ensure Dataset 2 is strictly longer and larger than Dataset 1
-  if (d2Array && baseArray && d2Array.length <= baseArray.length) {
-    if (typeof baseArray[0] === "number") {
-      const step = 2;
-      const start = Number(baseArray[baseArray.length - 1] ?? 0) + 1;
-      const extra = Array.from({ length: baseArray.length + 8 }, (_, i) => start + i * step);
-      d2Array = [...baseArray, ...extra];
-    } else {
-      d2Array = [...baseArray, ...baseArray];
-    }
-  }
-  if (d2Matrix && baseMatrix && (d2Matrix.length * (d2Matrix[0]?.length ?? 0)) <= (baseMatrix.length * (baseMatrix[0]?.length ?? 0))) {
-    const r = Math.max(6, baseMatrix.length + 2);
-    const c = Math.max(6, (baseMatrix[0]?.length ?? 0) + 2);
-    d2Matrix = Array.from({ length: r }, (_, rowIdx) =>
-      Array.from({ length: c }, (_, colIdx) => (rowIdx * c + colIdx + 1))
-    );
-    d2Array = d2Matrix.flat() as number[];
-  }
-
   const d2: TestDataset = {
     id: "dataset_2",
     label: "Dataset 2: Longer & Complex Trace ⚡",
@@ -6786,7 +7519,6 @@ export function getCanonicalMultiDatasets(
   let d3Matrix: (number | string)[][] | undefined;
   let d3Tree: (number | string | null)[] | undefined;
   let d3Target: number | string | undefined;
-  let d3SecondaryArray: (number | string)[] | undefined;
   let d3Desc =
     "Boundary conditions testing edge cases, duplicates, negative numbers, or tight constraints.";
 
@@ -6810,66 +7542,24 @@ export function getCanonicalMultiDatasets(
     ];
     d3Array = d3Matrix.flat().filter((x): x is number => typeof x === "number");
     d3Desc = "Boundary 6×6 grid with isolated corner singletons and a central 2×2 square island.";
-  } else if (isMatrixTransform) {
+  } else if (isMatrix || primaryType === "matrix") {
     if (slug === "set-matrix-zeroes") {
       d3Matrix = [
         [0, 1, 2, 0],
         [3, 4, 5, 2],
         [1, 3, 1, 5],
       ];
-      d3Desc = "Boundary 3×4 matrix with multiple corner and edge zeroes (LeetCode Example 2).";
+      d3Desc =
+        "Boundary 3×4 matrix with multiple zeros in the top row and corners from LeetCode Example 2.";
     } else {
       d3Matrix = [
-        [1, 2, 3, 4],
-        [5, 6, 7, 8],
+        [1, 0, 3, 4],
+        [5, 6, 7, 0],
         [9, 10, 11, 12],
       ];
-      d3Desc = "Boundary 3×4 rectangular matrix testing edge dimension and boundary conditions.";
+      d3Desc = "Boundary 3×4 matrix testing edge coordinates and sparse zeros.";
     }
-    d3Array = d3Matrix.flat().filter((x): x is number => typeof x === "number");
-  } else if (isDynamicWindow) {
-    if (slug === "longest-substring-without-repeating-characters") {
-      d3Array = ["b", "b", "b", "b", "b"];
-      d3Desc = "Edge case with all identical characters where window size never exceeds 1.";
-    } else if (slug === "minimum-window-substring") {
-      d3Array = ["a"];
-      d3SecondaryArray = ["a"];
-      d3Desc = "Edge case with single-character exact match.";
-    } else if (slug === "max-consecutive-ones-iii") {
-      d3Array = [0, 0, 0, 0, 0];
-      d3Target = 0;
-      d3Desc = "Edge case with all zeroes and k=0 flips.";
-    } else {
-      d3Array = ["z", "z", "z"];
-      d3Desc = "Boundary edge case for sliding window.";
-    }
-  } else if (isInPlacePointers) {
-    if (slug === "move-zeroes") {
-      d3Array = [0, 0, 0, 0, 1];
-      d3Desc = "Edge case with leading zeroes and single non-zero value.";
-    } else if (slug === "remove-duplicates-from-sorted-array") {
-      d3Array = [1, 1, 1, 1, 1];
-      d3Desc = "Edge case where all elements are identical, reducing to length 1.";
-    } else if (slug === "sort-colors") {
-      d3Array = [2, 2, 1, 1, 0, 0];
-      d3Desc = "Reverse-sorted edge case testing maximum displacement.";
-    } else {
-      d3Array = [0, 0, 0];
-      d3Desc = "Homogeneous boundary array.";
-    }
-  } else if (isPrefixSum) {
-    if (slug === "subarray-sum-equals-k") {
-      d3Array = [-1, -1, 1];
-      d3Target = 0;
-      d3Desc = "Edge case with negative values summing to target zero.";
-    } else if (slug === "contiguous-array") {
-      d3Array = [0, 0, 0, 0];
-      d3Desc = "Edge case with only zeroes (no valid balance).";
-    } else {
-      d3Array = [-5, 5, -5, 5];
-      d3Target = 0;
-      d3Desc = "Oscillating prefix sums around zero.";
-    }
+    d3Array = d3Matrix.flat() as number[];
   } else if (primaryType === "tree" || primaryType === "bst" || primaryType === "heap" || primaryType === "trie") {
     d3Tree = [1, null, 2, null, null, null, 3, null, null, null, null, null, null, null, 4];
     d3Array = [1, 2, 3, 4];
@@ -6899,7 +7589,6 @@ export function getCanonicalMultiDatasets(
     matrix: d3Matrix,
     tree: d3Tree,
     target: d3Target,
-    secondaryArray: d3SecondaryArray,
     category: "edge",
   };
 
@@ -7172,7 +7861,7 @@ export function getProblemDatasets(slug: string, topics: string[] = []): Problem
   }
 
   // 12. Sliding Window + Hash Set / Frequency Map
-  if (sig.pattern === "sliding-window" || sig.pattern === "sliding-window-dynamic") {
+  if (sig.pattern === "sliding-window") {
     return [
       {
         name: "array",
@@ -7224,39 +7913,6 @@ export function getProblemDatasets(slug: string, topics: string[] = []): Problem
     ];
   }
 
-  // 15. Recursion & Decision Tree Backtracking / Memoization
-  if (sig.category === "recursion-backtracking" || (sig.category as string) === "recursion-memoization" || primaryType === "recursion-tree") {
-    return [
-      {
-        name: "tree",
-        label: "Recursion & Decision Tree",
-        type: "recursion-tree",
-        role: "primary",
-        description: "Visualizes the state-space decision tree and branch choices.",
-      },
-      {
-        name: "stack",
-        label: "Call Stack Frames",
-        type: "stack",
-        role: "auxiliary",
-        description: "LIFO stack frames with arguments and return states.",
-      },
-    ];
-  }
-
-  // 16. 1D Intervals & Sweep-Line
-  if (sig.category === "intervals" || primaryType === "intervals") {
-    return [
-      {
-        name: "intervals",
-        label: "1D Interval Timeline",
-        type: "intervals",
-        role: "primary",
-        description: "1D continuous timeline with sweep-line laser and lane compaction.",
-      },
-    ];
-  }
-
   // Default Single Structure with clean contextual labels
   let defaultLabel = "Input Array";
   let defaultName = "array";
@@ -7278,12 +7934,6 @@ export function getProblemDatasets(slug: string, topics: string[] = []): Problem
   } else if (primaryType === "matrix") {
     defaultLabel = "Grid Matrix";
     defaultName = "matrix";
-  } else if (primaryType === "intervals") {
-    defaultLabel = "1D Interval Timeline";
-    defaultName = "intervals";
-  } else if (primaryType === "recursion-tree") {
-    defaultLabel = "Recursion & Decision Tree";
-    defaultName = "tree";
   }
 
   return [
@@ -7311,9 +7961,6 @@ export const VALID_VIZ_TYPES = [
   "set",
   "trie",
   "matrix",
-  "dp",
-  "bit",
-  "math",
   "recursion-tree",
   "intervals",
 ] as const;
@@ -7463,6 +8110,7 @@ function normalizeVizStep(
   }
   const current = typeof rawCurrent === "string" || typeof rawCurrent === "number" ? rawCurrent : null;
 
+  const rawStepObj = step as Record<string, unknown>;
   const base: VizStep = {
     type,
     line:
@@ -7470,38 +8118,150 @@ function normalizeVizStep(
         ? Math.min(step.line, Math.max(0, codeLineCount - 1))
         : 0,
     desc: typeof step.desc === "string" && step.desc.trim() ? step.desc.trim() : "Executing step.",
+    ...(rawStepObj.datasetLabels && typeof rawStepObj.datasetLabels === "object"
+      ? { datasetLabels: rawStepObj.datasetLabels as Record<string, string> }
+      : {}),
+    ...(typeof rawStepObj.activeDataset === "string"
+      ? { activeDataset: rawStepObj.activeDataset }
+      : {}),
+    ...(rawStepObj.shiftInfo && typeof rawStepObj.shiftInfo === "object"
+      ? { shiftInfo: rawStepObj.shiftInfo as any }
+      : {}),
+    ...(rawStepObj.compositeLayoutState && typeof rawStepObj.compositeLayoutState === "object"
+      ? { compositeLayoutState: rawStepObj.compositeLayoutState as CompositeLayoutState }
+      : {}),
   };
 
   if (type === "stack" || type === "queue" || type === "deque") {
+    const rawObj = step as Record<string, unknown>;
     return {
       ...base,
       ...(type === "stack" ? { stack: sanitizeScalarArray(step.stack ?? []) } : {}),
+      ...(rawObj.secondaryStack ? { secondaryStack: sanitizeScalarArray(rawObj.secondaryStack) } : {}),
       ...(type === "queue" ? { queue: sanitizeScalarArray(step.queue ?? []) } : {}),
+      ...(rawObj.secondaryQueue ? { secondaryQueue: sanitizeScalarArray(rawObj.secondaryQueue) } : {}),
       ...(type === "deque" ? { deque: sanitizeScalarArray(step.deque ?? []) } : {}),
+      ...(step.array ? { array: sanitizeScalarArray(step.array) } : {}),
+      ...(rawObj.stream ? { stream: sanitizeScalarArray(rawObj.stream) } : {}),
+      ...(typeof rawObj.stackInvariant === "string" ? { stackInvariant: rawObj.stackInvariant as "increasing" | "decreasing" } : {}),
+      ...(Array.isArray(rawObj.sightlines) ? { sightlines: rawObj.sightlines as Sightline[] } : {}),
+      ...(rawObj.histogramSpan && typeof rawObj.histogramSpan === "object" ? { histogramSpan: rawObj.histogramSpan as HistogramSpan } : {}),
+      ...(rawObj.waterTrapped && typeof rawObj.waterTrapped === "object" ? { waterTrapped: rawObj.waterTrapped as WaterTrapped } : {}),
+      ...(rawObj.bracketPair && typeof rawObj.bracketPair === "object" ? { bracketPair: rawObj.bracketPair as BracketPair } : {}),
+      ...(rawObj.evalExpression && typeof rawObj.evalExpression === "object" ? { evalExpression: rawObj.evalExpression as EvalExpression } : {}),
+      ...(Array.isArray(rawObj.resultArray) ? { resultArray: rawObj.resultArray as (number | string | null)[] } : {}),
+      ...(rawObj.monotonicDeque && typeof rawObj.monotonicDeque === "object" ? { monotonicDeque: rawObj.monotonicDeque as MonotonicDequeState } : {}),
+      ...(rawObj.circularBuffer && typeof rawObj.circularBuffer === "object" ? { circularBuffer: rawObj.circularBuffer as CircularBufferState } : {}),
+      ...(rawObj.bfsLevel && typeof rawObj.bfsLevel === "object" ? { bfsLevel: rawObj.bfsLevel as QueueBfsLevel } : {}),
+      left: typeof step.left === "number" ? step.left : null,
+      right: typeof step.right === "number" ? step.right : null,
       current,
       visited: sanitizeScalarArray(step.visited ?? []),
     };
   }
 
   if (type === "linkedlist") {
+    const rawObj = step as Record<string, unknown>;
+    const list = sanitizeScalarArray(step.list ?? (Array.isArray(step.array) ? step.array : []));
+    const secondaryList = rawObj.secondaryList ? sanitizeScalarArray(rawObj.secondaryList as any[]) : null;
+
+    // Fast and slow pointers
+    const slowVal = rawObj.slowPointer ?? rawObj.slow ?? (rawObj.linkedListCycle as any)?.slowVal ?? null;
+    const fastVal = rawObj.fastPointer ?? rawObj.fast ?? (rawObj.linkedListCycle as any)?.fastVal ?? null;
+    const prevVal = rawObj.prevPointer ?? rawObj.prev ?? step.predecessor ?? (rawObj.linkedListReversal as any)?.prevNode ?? null;
+    const currVal = rawObj.currPointer ?? rawObj.curr ?? current ?? (rawObj.linkedListReversal as any)?.currNode ?? null;
+    const nextVal = rawObj.nextPointer ?? rawObj.next ?? (rawObj.linkedListReversal as any)?.nextNode ?? null;
+
     return {
       ...base,
-      list: sanitizeScalarArray(step.list ?? []),
-      current,
-      predecessor:
-        typeof step.predecessor === "string" || typeof step.predecessor === "number"
-          ? step.predecessor
-          : null,
+      list,
+      ...(secondaryList ? { secondaryList } : {}),
+      current: currVal !== null && currVal !== undefined ? (typeof currVal === "object" ? (currVal as any).val : currVal) : current,
+      predecessor: prevVal !== null && prevVal !== undefined ? (typeof prevVal === "object" ? (prevVal as any).val : prevVal) : null,
       visited: sanitizeScalarArray(step.visited ?? []),
+      isDoubly: Boolean(rawObj.isDoubly || rawObj.doubly),
+      dummyNodeVal: rawObj.dummyNodeVal !== undefined ? (rawObj.dummyNodeVal as any) : null,
+      slowPointer: slowVal !== null && slowVal !== undefined ? (typeof slowVal === "object" ? (slowVal as any).val : slowVal) : null,
+      fastPointer: fastVal !== null && fastVal !== undefined ? (typeof fastVal === "object" ? (fastVal as any).val : fastVal) : null,
+      prevPointer: prevVal !== null && prevVal !== undefined ? (typeof prevVal === "object" ? (prevVal as any).val : prevVal) : null,
+      currPointer: currVal !== null && currVal !== undefined ? (typeof currVal === "object" ? (currVal as any).val : currVal) : null,
+      nextPointer: nextVal !== null && nextVal !== undefined ? (typeof nextVal === "object" ? (nextVal as any).val : nextVal) : null,
+      ...(rawObj.linkedListCycle && typeof rawObj.linkedListCycle === "object"
+        ? { linkedListCycle: rawObj.linkedListCycle as LinkedListCycleState }
+        : {}),
+      ...(rawObj.linkedListReversal && typeof rawObj.linkedListReversal === "object"
+        ? { linkedListReversal: rawObj.linkedListReversal as LinkedListReversalState }
+        : {}),
+      ...(rawObj.lruCache && typeof rawObj.lruCache === "object"
+        ? { lruCache: rawObj.lruCache as LruCacheState }
+        : {}),
     };
   }
 
-  if (type === "tree" || type === "bst" || type === "heap" || type === "trie") {
+  if (type === "heap") {
+    const rawObj = step as Record<string, unknown>;
+    const rawTree = step.tree ?? (Array.isArray(step.array) ? step.array : []);
+    const tree = sanitizeTreeArray(rawTree);
+    const array = Array.isArray(step.array) ? sanitizeScalarArray(step.array) : tree.filter((x): x is number | string => x !== null && x !== undefined);
+    const stream = rawObj.stream ? sanitizeScalarArray(rawObj.stream as any[]) : undefined;
+
+    return {
+      ...base,
+      tree,
+      array,
+      ...(stream ? { stream } : {}),
+      current,
+      visited: sanitizeScalarArray(step.visited ?? []),
+      activeNodeId: rawObj.activeNodeId !== undefined ? (rawObj.activeNodeId as any) : current,
+      isMinHeap: typeof rawObj.isMinHeap === "boolean" ? rawObj.isMinHeap : undefined,
+      ...(rawObj.heapSwap && typeof rawObj.heapSwap === "object"
+        ? { heapSwap: rawObj.heapSwap as HeapSwap }
+        : {}),
+      ...(rawObj.topKState && typeof rawObj.topKState === "object"
+        ? { topKState: rawObj.topKState as TopKState }
+        : {}),
+      ...(rawObj.twoHeapsState && typeof rawObj.twoHeapsState === "object"
+        ? { twoHeapsState: rawObj.twoHeapsState as TwoHeapsState }
+        : {}),
+    };
+  }
+
+  if (type === "tree" || type === "bst" || type === "trie") {
+    const rawObj = step as Record<string, unknown>;
     return {
       ...base,
       tree: sanitizeTreeArray(step.tree ?? []),
       current,
       visited: sanitizeScalarArray(step.visited ?? []),
+      segmentRange: Array.isArray(rawObj.segmentRange) && rawObj.segmentRange.length === 2 ? [Number(rawObj.segmentRange[0]), Number(rawObj.segmentRange[1])] : null,
+      segmentNodeRanges: rawObj.segmentNodeRanges && typeof rawObj.segmentNodeRanges === "object" ? (rawObj.segmentNodeRanges as Record<number | string, [number, number]>) : null,
+      ...(rawObj.treeTraversal && typeof rawObj.treeTraversal === "object"
+        ? { treeTraversal: rawObj.treeTraversal as TreeTraversalState }
+        : {}),
+      ...(rawObj.treeStructural && typeof rawObj.treeStructural === "object"
+        ? { treeStructural: rawObj.treeStructural as TreeStructuralState }
+        : {}),
+      ...(rawObj.bstState && typeof rawObj.bstState === "object"
+        ? { bstState: rawObj.bstState as BstState }
+        : {}),
+      ...(rawObj.trieState && typeof rawObj.trieState === "object"
+        ? { trieState: rawObj.trieState as TrieState }
+        : {}),
+      ...(rawObj.segmentTreeState && typeof rawObj.segmentTreeState === "object"
+        ? { segmentTreeState: rawObj.segmentTreeState as SegmentTreeState }
+        : {}),
+      ...(rawObj.fenwickTreeState && typeof rawObj.fenwickTreeState === "object"
+        ? { fenwickTreeState: rawObj.fenwickTreeState as FenwickTreeState }
+        : {}),
+      ...(rawObj.naryTreeState && typeof rawObj.naryTreeState === "object"
+        ? { naryTreeState: rawObj.naryTreeState as NaryTreeState }
+        : {}),
+      ...(rawObj.lcaNodes && typeof rawObj.lcaNodes === "object"
+        ? { lcaNodes: rawObj.lcaNodes as { p: number | string; q: number | string; lca?: number | string | null } }
+        : {}),
+      ...(Array.isArray(rawObj.invertedTree)
+        ? { invertedTree: sanitizeTreeArray(rawObj.invertedTree) }
+        : {}),
     };
   }
 
@@ -7524,7 +8284,90 @@ function normalizeVizStep(
     };
   }
 
-  if (type === "graph" || type === "matrix") {
+  if (type === "graph") {
+    const rawObj = step as Record<string, unknown>;
+    const matrix = sanitizeMatrix(step.matrix ?? fallback.steps[0]?.matrix ?? []);
+    return {
+      ...base,
+      matrix,
+      cols: typeof step.cols === "number" && step.cols > 0 ? step.cols : (matrix[0]?.length ?? 1),
+      current,
+      visited: sanitizeScalarArray(step.visited ?? []),
+      distances: rawObj.distances ? (rawObj.distances as Record<string, number | string | null>) : null,
+      priorityQueue: Array.isArray(rawObj.priorityQueue) ? (rawObj.priorityQueue as any[]) : null,
+      relaxedEdge: rawObj.relaxedEdge ? (rawObj.relaxedEdge as any) : null,
+      shortestPathTree: Array.isArray(rawObj.shortestPathTree) ? (rawObj.shortestPathTree as any[]) : null,
+      shortestPathState: rawObj.shortestPathState && typeof rawObj.shortestPathState === "object" ? (rawObj.shortestPathState as ShortestPathAlgorithmState) : null,
+      mstState: rawObj.mstState && typeof rawObj.mstState === "object" ? (rawObj.mstState as MstAlgorithmState) : null,
+      isDirected: typeof rawObj.isDirected === "boolean" ? rawObj.isDirected : undefined,
+      graphEdges: Array.isArray(rawObj.graphEdges) ? (rawObj.graphEdges as GraphEdgeItem[]) : null,
+      graphSearchState: rawObj.graphSearchState ? (rawObj.graphSearchState as GraphSearchState) : null,
+      topologicalSortState: rawObj.topologicalSortState ? (rawObj.topologicalSortState as TopologicalSortState) : null,
+      unionFindState: rawObj.unionFindState ? (rawObj.unionFindState as UnionFindState) : null,
+      wordLadderState: rawObj.wordLadderState ? (rawObj.wordLadderState as WordLadderState) : null,
+    };
+  }
+
+  if (type === "dp") {
+    const rawObj = step as Record<string, unknown>;
+    const rawMat = step.matrix ?? fallback.steps[0]?.matrix ?? null;
+    const matrix = rawMat ? sanitizeMatrix(rawMat) : null;
+    return {
+      ...base,
+      matrix,
+      cols: typeof step.cols === "number" && step.cols > 0 ? step.cols : (matrix?.[0]?.length ?? fallback.array.length),
+      array: Array.isArray(step.array) ? sanitizeScalarArray(step.array) : (matrix ? null : sanitizeScalarArray(fallback.array)),
+      secondaryArray: Array.isArray(rawObj.secondaryArray) ? sanitizeScalarArray(rawObj.secondaryArray) : null,
+      left: typeof step.left === "number" ? step.left : null,
+      right: typeof step.right === "number" ? step.right : null,
+      left2: typeof rawObj.left2 === "number" ? rawObj.left2 : null,
+      right2: typeof rawObj.right2 === "number" ? rawObj.right2 : null,
+      wSum: typeof step.wSum === "number" ? step.wSum : null,
+      mSum: typeof step.mSum === "number" ? step.mSum : null,
+      current,
+      visited: sanitizeScalarArray(step.visited ?? []),
+      pointer_labels: rawObj.pointer_labels && typeof rawObj.pointer_labels === "object" ? (rawObj.pointer_labels as Record<string, string>) : null,
+      dp1dState: rawObj.dp1dState ? (rawObj.dp1dState as Dp1DState) : null,
+      dp2dState: rawObj.dp2dState ? (rawObj.dp2dState as Dp2DState) : null,
+    };
+  }
+
+  if (type === "intervals") {
+    const rawObj = step as Record<string, unknown>;
+    const rawIntervals = Array.isArray(step.intervals)
+      ? step.intervals
+      : Array.isArray(rawObj.intervals)
+      ? (rawObj.intervals as IntervalItem[])
+      : null;
+    return {
+      ...base,
+      intervals: rawIntervals,
+      matrix: step.matrix ? sanitizeMatrix(step.matrix) : null,
+      sweepLine: typeof step.sweepLine === "number" ? step.sweepLine : (typeof rawObj.sweepLine === "number" ? rawObj.sweepLine : null),
+      activeIntervalIndex: typeof step.activeIntervalIndex === "number" ? step.activeIntervalIndex : (typeof rawObj.activeIntervalIndex === "number" ? rawObj.activeIntervalIndex : null),
+      intervalCollisionState: rawObj.intervalCollisionState ? (rawObj.intervalCollisionState as IntervalCollisionState) : null,
+      current,
+      visited: sanitizeScalarArray(step.visited ?? []),
+    };
+  }
+
+  if (type === "bit") {
+    const rawObj = step as Record<string, unknown>;
+    return {
+      ...base,
+      array: Array.isArray(step.array) ? sanitizeScalarArray(step.array) : (fallback.array ? sanitizeScalarArray(fallback.array) : []),
+      secondaryArray: Array.isArray(rawObj.secondaryArray) ? sanitizeScalarArray(rawObj.secondaryArray) : null,
+      left: typeof step.left === "number" ? step.left : null,
+      right: typeof step.right === "number" ? step.right : null,
+      wSum: typeof step.wSum === "number" ? step.wSum : null,
+      mSum: typeof step.mSum === "number" ? step.mSum : null,
+      current,
+      visited: sanitizeScalarArray(step.visited ?? []),
+      bitRegisterState: rawObj.bitRegisterState ? (rawObj.bitRegisterState as BitRegisterState) : null,
+    };
+  }
+
+  if (type === "matrix") {
     const fallbackMatrix =
       fallback.steps[0]?.matrix ??
       sampleMatrixFor(fallback.steps[0]?.type === "matrix" ? "matrix" : "");
@@ -7542,18 +8385,52 @@ function normalizeVizStep(
       islandCells: Array.isArray(rawObj.islandCells) ? (rawObj.islandCells as string[]) : null,
       wSum: typeof step.wSum === "number" ? step.wSum : null,
       mSum: typeof step.mSum === "number" ? step.mSum : null,
+      spiralBounds: rawObj.spiralBounds ? (rawObj.spiralBounds as any) : null,
+      frontier: Array.isArray(rawObj.frontier) ? (rawObj.frontier as any) : null,
+      distanceLayer: typeof rawObj.distanceLayer === "number" ? rawObj.distanceLayer : null,
+      highlightRows: Array.isArray(rawObj.highlightRows) ? (rawObj.highlightRows as number[]) : null,
+      highlightCols: Array.isArray(rawObj.highlightCols) ? (rawObj.highlightCols as number[]) : null,
+      trail: Array.isArray(rawObj.trail) ? (rawObj.trail as any) : null,
+      rotationLayer: typeof rawObj.rotationLayer === "number" ? rawObj.rotationLayer : null,
+      directionRay: rawObj.directionRay ? (rawObj.directionRay as DirectionRay) : null,
+      waveDistance: rawObj.waveDistance ? (rawObj.waveDistance as WaveDistance) : null,
+      backtrackingRibbon: rawObj.backtrackingRibbon ? (rawObj.backtrackingRibbon as BacktrackingPathRibbon) : null,
+      nQueensConflict: rawObj.nQueensConflict ? (rawObj.nQueensConflict as NQueensConflictRay) : null,
+      rotationOrbit: rawObj.rotationOrbit ? (rawObj.rotationOrbit as MatrixRotationOrbit) : null,
+      kernel8Neighbor: rawObj.kernel8Neighbor ? (rawObj.kernel8Neighbor as Kernel8Neighbor) : null,
+      predecessorArrows: Array.isArray(rawObj.predecessorArrows) ? (rawObj.predecessorArrows as GridPredecessorArrow[]) : null,
     };
   }
 
+  const rawObj = step as Record<string, unknown>;
   return {
     ...base,
     array: sanitizeScalarArray(step.array ?? fallback.array),
+    secondaryArray: Array.isArray(rawObj.secondaryArray) ? sanitizeScalarArray(rawObj.secondaryArray) : null,
     left: typeof step.left === "number" ? step.left : null,
     right: typeof step.right === "number" ? step.right : null,
+    left2: typeof rawObj.left2 === "number" ? rawObj.left2 : null,
+    right2: typeof rawObj.right2 === "number" ? rawObj.right2 : null,
     wSum: typeof step.wSum === "number" ? step.wSum : null,
     mSum: typeof step.mSum === "number" ? step.mSum : null,
     current,
     visited: sanitizeScalarArray(step.visited ?? []),
+    dnfPartition: rawObj.dnfPartition ? (rawObj.dnfPartition as DnfPartition) : null,
+    binarySearchPartition: rawObj.binarySearchPartition ? (rawObj.binarySearchPartition as BinarySearchPartition) : null,
+    slidingWindowSpan: rawObj.slidingWindowSpan ? (rawObj.slidingWindowSpan as SlidingWindowSpan) : null,
+    prefixSumProjection: rawObj.prefixSumProjection ? (rawObj.prefixSumProjection as PrefixSumProjection) : null,
+    cyclicSortJump: rawObj.cyclicSortJump ? (rawObj.cyclicSortJump as CyclicSortJump) : null,
+    swapFlight: rawObj.swapFlight ? (rawObj.swapFlight as ArraySwapFlight) : null,
+    pointer_labels: rawObj.pointer_labels && typeof rawObj.pointer_labels === "object" ? (rawObj.pointer_labels as Record<string, string>) : null,
+    lps: Array.isArray(rawObj.lps) ? (rawObj.lps as number[]) : null,
+    patternStr: typeof rawObj.patternStr === "string" ? rawObj.patternStr : null,
+    textStr: typeof rawObj.textStr === "string" ? rawObj.textStr : null,
+    patternIndex: typeof rawObj.patternIndex === "number" ? rawObj.patternIndex : null,
+    textIndex: typeof rawObj.textIndex === "number" ? rawObj.textIndex : null,
+    kmpState: rawObj.kmpState && typeof rawObj.kmpState === "object" ? (rawObj.kmpState as KmpAlgorithmState) : null,
+    rabinKarpState: rawObj.rabinKarpState && typeof rawObj.rabinKarpState === "object" ? (rawObj.rabinKarpState as RabinKarpAlgorithmState) : null,
+    ahoCorasickState: rawObj.ahoCorasickState && typeof rawObj.ahoCorasickState === "object" ? (rawObj.ahoCorasickState as AhoCorasickState) : null,
+    stringPatternState: rawObj.stringPatternState && typeof rawObj.stringPatternState === "object" ? (rawObj.stringPatternState as StringPatternState) : null,
   };
 }
 
@@ -8035,7 +8912,7 @@ export function localFallbackViz(
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          if (steps.length >= 22) break;
+          if (steps.length >= 120) break;
           const k = `${r},${c}`;
           if (Number(matrix[r]?.[c]) !== 1 || visited.includes(k)) continue;
 
@@ -8060,7 +8937,7 @@ export function localFallbackViz(
 
           // Stack-based DFS simulating recursion
           const stack: [number, number][] = [[r, c]];
-          while (stack.length && steps.length < 22) {
+          while (stack.length && steps.length < 120) {
             const [cr, cc] = stack.pop()!;
             const ck = `${cr},${cc}`;
             if (!inBounds(cr, cc) || Number(matrix[cr]?.[cc]) !== 1 || visited.includes(ck)) {
@@ -8093,7 +8970,7 @@ export function localFallbackViz(
               const nk = `${nr},${nc}`;
               if (inBounds(nr, nc) && Number(matrix[nr]?.[nc]) === 1 && !visited.includes(nk)) {
                 stack.push([nr, nc]);
-                if (steps.length < 20) {
+                if (steps.length < 120) {
                   steps.push({
                     type: "matrix",
                     matrix,

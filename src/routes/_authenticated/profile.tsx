@@ -24,8 +24,6 @@ import {
   Check,
   ShieldCheck,
   UserCheck,
-  LayoutDashboard,
-  Radio,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -35,7 +33,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
 import {
   getOrCreateUserProfile,
-  updateUserProfile,
   getUserSubmissions,
 } from "@/lib/firestore-service";
 import {
@@ -43,7 +40,6 @@ import {
   updateLeetcodeUsername,
   updateProfileUsername,
 } from "@/lib/submissions.functions";
-import { getLocalInterviewRating, getLocalInterviewHistory } from "@/lib/interview-rating";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/profile")({
@@ -118,22 +114,22 @@ function ProfilePage() {
     queryFn: async () => {
       const auth = getAuth();
       const currentUser = auth.currentUser;
-      const currentToken = currentUser ? await currentUser.getIdToken() : token;
+      const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
 
       let clientProfile: any = null;
       let clientSubs: any[] = [];
-      if (currentUser) {
+      if (currentUser && currentUser.uid !== "guest-developer") {
         try {
           clientProfile = await getOrCreateUserProfile(currentUser.uid, currentUser.email, currentUser.photoURL);
           clientSubs = await getUserSubmissions(currentUser.uid);
         } catch (e) {
-          console.warn("Client Firestore read fallback:", e);
+          console.warn("Client Firestore read fallback in profile:", e);
         }
       }
 
       let serverProfile: any = null;
       let serverSubs: any[] = [];
-      if (currentToken) {
+      if (currentToken && currentToken !== "mock-guest-token-dev") {
         try {
           const [profileRes, subsRes] = await Promise.all([
             fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
@@ -142,45 +138,17 @@ function ProfilePage() {
           if (profileRes.ok) serverProfile = await profileRes.json();
           if (subsRes.ok) serverSubs = await subsRes.json();
         } catch (e) {
-          console.warn("Server profile read fallback:", e);
+          console.warn("Server profile stats read error:", e);
         }
       }
 
-      const effectiveDisplayName =
-        clientProfile?.displayName ||
-        clientProfile?.display_name ||
-        serverProfile?.displayName ||
-        serverProfile?.display_name ||
-        currentUser?.displayName ||
-        currentUser?.email?.split("@")[0] ||
-        "Explorer";
+      const profile = serverProfile || clientProfile || {};
+      const subsArray = (serverSubs && serverSubs.length > 0)
+        ? serverSubs
+        : (clientSubs && clientSubs.length > 0)
+          ? clientSubs
+          : [];
 
-      const effectiveLcStats =
-        clientProfile?.leetcodeStats ||
-        clientProfile?.leetcode_stats ||
-        serverProfile?.leetcodeStats ||
-        serverProfile?.leetcode_stats ||
-        null;
-
-      const effectiveLcUsername =
-        clientProfile?.leetcodeUsername ||
-        clientProfile?.leetcode_username ||
-        serverProfile?.leetcodeUsername ||
-        serverProfile?.leetcode_username ||
-        null;
-
-      const mergedProfile = {
-        ...(serverProfile || {}),
-        ...(clientProfile || {}),
-        displayName: effectiveDisplayName,
-        display_name: effectiveDisplayName,
-        leetcodeStats: effectiveLcStats,
-        leetcode_stats: effectiveLcStats,
-        leetcodeUsername: effectiveLcUsername,
-        leetcode_username: effectiveLcUsername,
-      };
-
-      const subsArray = (clientSubs && clientSubs.length > 0 ? clientSubs : serverSubs) || [];
       const completeRows = subsArray.filter((r: any) => r.classification !== "Incomplete");
       const solved = new Set(completeRows.map((r: any) => r.slug));
       const optimal = new Set(
@@ -192,7 +160,7 @@ function ProfilePage() {
         Hard: new Set(completeRows.filter((r: any) => r.difficulty === "Hard").map((r: any) => r.slug)),
       };
       return {
-        profile: mergedProfile,
+        profile,
         attempts: subsArray.length,
         solved: solved.size,
         optimal: optimal.size,
@@ -201,7 +169,7 @@ function ProfilePage() {
         hard: byDifficulty.Hard.size,
       };
     },
-    enabled: !!user,
+    enabled: !!token,
   });
 
   const { token: authContextToken } = useAuth();
@@ -215,14 +183,13 @@ function ProfilePage() {
         throw new Error("Authentication error: No valid token available. Please try logging out and back in.");
       }
       
-      const clean = username.trim().replace(/^@+/, "");
       const res = await fetch("/api/sync-leetcode", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${currentToken}`
         },
-        body: JSON.stringify({ username: clean })
+        body: JSON.stringify({ username })
       });
       if (!res.ok) {
         let errStr = "Sync failed";
@@ -232,47 +199,11 @@ function ProfilePage() {
         } catch {}
         throw new Error(errStr);
       }
-      const data = await res.json();
-      const stats = data?.stats;
-
-      // Persist directly to authenticated client Firestore
-      if (auth.currentUser && stats) {
-        try {
-          await updateUserProfile(auth.currentUser.uid, {
-            leetcodeUsername: clean,
-            leetcode_username: clean,
-            leetcodeStats: stats,
-            leetcode_stats: stats,
-          });
-        } catch (dbErr) {
-          console.warn("Client Firestore leetcode persist warning:", dbErr);
-        }
-      }
-
-      return { ...data, targetUsername: clean };
+      return await res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       toast.success("LeetCode profile & heatmap synced successfully!");
-      const clean = data.targetUsername;
-
-      if (data?.stats) {
-        const updater = (old: any) => {
-          if (!old) return old;
-          return {
-            ...old,
-            profile: {
-              ...old.profile,
-              leetcodeUsername: clean,
-              leetcode_username: clean,
-              leetcodeStats: data.stats,
-              leetcode_stats: data.stats,
-            },
-          };
-        };
-        queryClient.setQueryData(["profile-stats"], updater);
-        queryClient.setQueryData(["profileStats"], updater);
-      }
-
+      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
       refreshProfile();
       setEditingLc(false);
       setInputUsername("");
@@ -284,55 +215,25 @@ function ProfilePage() {
 
   const updateProfileUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
-      const clean = username.trim().replace(/^@+/, "");
-      const auth = getAuth();
-      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : token;
-
-      // 1. Direct write to authenticated client Firestore
-      if (auth.currentUser) {
-        try {
-          await updateUserProfile(auth.currentUser.uid, {
-            displayName: clean,
-            display_name: clean,
-          });
-        } catch (dbErr) {
-          console.warn("Client Firestore username update warning:", dbErr);
-        }
-      }
-
-      // 2. Also update AuthContext & Firebase Auth user profile
-      await updateNickname(clean).catch((e) => console.warn("updateNickname warn:", e));
-
-      // 3. Notify backend API
-      if (currentToken) {
-        await fetch("/api/profile/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${currentToken}` },
-          body: JSON.stringify({ username: clean })
-        }).catch(() => null);
-      }
-
-      return { ok: true, username: clean };
+      await updateNickname(username);
+      if (!token) throw new Error("No token");
+      const res = await fetch("/api/profile/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username })
+      });
+      if (!res.ok) throw new Error("Failed to update username");
+      return res.json();
     },
-    onSuccess: (res: any) => {
-      const clean = res.username;
-      toast.success("Username handle updated successfully! 🎉");
-      
-      const updater = (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          profile: {
-            ...old.profile,
-            displayName: clean,
-            display_name: clean,
-          },
-        };
-      };
-      queryClient.setQueryData(["profile-stats"], updater);
-      queryClient.setQueryData(["profileStats"], updater);
-      refreshProfile();
-      setEditingUsername(false);
+    onSuccess: (res) => {
+      if (res.ok) {
+        toast.success("Username handle updated successfully!");
+        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+        refreshProfile();
+        setEditingUsername(false);
+      } else {
+        toast.error(res.error || "Could not update username.");
+      }
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to update username.");
@@ -340,28 +241,14 @@ function ProfilePage() {
   });
 
   const profile = data?.profile;
-  const leetcodeStats = (profile as any)?.leetcode_stats || (profile as any)?.leetcodeStats;
-  const leetcodeUsername = (profile as any)?.leetcode_username || (profile as any)?.leetcodeUsername;
-
-  const interviewRating = useMemo(() => {
-    const raw = (profile as any)?.interviewRating ?? (profile as any)?.interview_rating;
-    if (typeof raw === "number" && !isNaN(raw)) return raw;
-    return getLocalInterviewRating();
-  }, [profile]);
-
-  const interviewHistory = useMemo(() => {
-    const raw = (profile as any)?.interviewHistory ?? (profile as any)?.interview_history;
-    if (Array.isArray(raw) && raw.length > 0) return raw;
-    return getLocalInterviewHistory();
-  }, [profile]);
+  const leetcodeStats = (profile as any)?.leetcode_stats;
+  const leetcodeUsername = (profile as any)?.leetcode_username;
 
   const currentHandle = useMemo(() => {
     if (profile?.display_name) return profile.display_name;
-    if (profile?.displayName) return profile.displayName;
-    if (user?.displayName) return user.displayName;
     if (user?.email) return user.email.split("@")[0];
     return "explorer";
-  }, [profile?.display_name, profile?.displayName, user?.displayName, user?.email]);
+  }, [profile?.display_name, user?.email]);
 
   function handleSaveUsername() {
     const trimmed = usernameInput.trim().replace(/^@+/, "");
@@ -393,23 +280,13 @@ function ProfilePage() {
     <div className="min-h-screen pb-20">
       <SiteHeader />
       <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
-        <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
-          <Link
-            to="/"
-            className="group inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
-          >
-            <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
-            <span>Back to Problem Explorer</span>
-          </Link>
-
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-1.5 font-mono text-xs font-bold text-primary hover:bg-primary/20 transition-all active:scale-95 shadow-xs"
-          >
-            <LayoutDashboard className="size-3.5" />
-            <span>Saved Submissions &amp; LeetCode Dashboard →</span>
-          </Link>
-        </div>
+        <Link
+          to="/"
+          className="group mb-6 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
+        >
+          <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
+          <span>Back to Problem Explorer</span>
+        </Link>
 
         {isLoading || !data ? (
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/80 bg-card/40 p-8 text-center animate-pulse">
@@ -534,165 +411,6 @@ function ProfilePage() {
                   </span>
                 </div>
               </div>
-            </div>
-
-            {/* ------------------------------------------------------------------ */}
-            {/* LIVE AI TECHNICAL INTERVIEW RATING & READINESS                     */}
-            {/* ------------------------------------------------------------------ */}
-            <div className="flex flex-col gap-5 rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-card/85 via-card/75 to-cyan-950/20 p-6 shadow-sm backdrop-blur-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-400">
-                    <Award className="size-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-foreground">
-                        Technical Interview Readiness Rating
-                      </h3>
-                      <span className="rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2.5 py-0.5 font-mono text-[10px] font-black text-cyan-300">
-                        {interviewRating} / 100 RATING
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Maintained across proctored live AI mock interviews, cadence evaluations, and algorithmic solutions.
-                    </p>
-                  </div>
-                </div>
-
-                <Button asChild size="sm" className="h-8 gap-1.5 font-mono text-xs bg-cyan-600 hover:bg-cyan-500 text-white shadow-xs">
-                  <Link to="/live-interview">
-                    <Radio className="size-3.5 animate-pulse" />
-                    <span>Launch Live Mock Interview</span>
-                  </Link>
-                </Button>
-              </div>
-
-              {/* Rating Gauge and Tier Breakdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-                <div className="sm:col-span-4 rounded-xl border border-cyan-500/30 bg-black/40 p-4 flex flex-col items-center justify-center text-center gap-1">
-                  <span className="text-[10px] uppercase font-mono font-bold text-muted-foreground">
-                    Interview Rating
-                  </span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black font-display text-cyan-300">
-                      {interviewRating}
-                    </span>
-                    <span className="font-mono text-xs text-muted-foreground">/ 100</span>
-                  </div>
-                  <span
-                    className={`mt-1 rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold border ${
-                      interviewRating >= 85
-                        ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
-                        : interviewRating >= 70
-                          ? "bg-cyan-950/60 border-cyan-500/50 text-cyan-300"
-                          : interviewRating >= 55
-                            ? "bg-amber-950/60 border-amber-500/50 text-amber-300"
-                            : "bg-rose-950/60 border-rose-500/50 text-rose-300"
-                    }`}
-                  >
-                    {interviewRating >= 85
-                      ? "Senior Ready (Top 10%)"
-                      : interviewRating >= 70
-                        ? "Mid-Level Standard"
-                        : interviewRating >= 55
-                          ? "Leaning Hire"
-                          : "Needs Practice (-Penalty)"}
-                  </span>
-                </div>
-
-                <div className="sm:col-span-8 flex flex-col gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex justify-between text-xs font-mono">
-                      <span className="text-muted-foreground">Readiness Progress Bar</span>
-                      <span className="font-bold text-foreground">{interviewRating}%</span>
-                    </div>
-                    <div className="h-2.5 w-full rounded-full bg-black/50 overflow-hidden border border-border/70">
-                      <div
-                        className={`h-full transition-all duration-500 ${
-                          interviewRating >= 85
-                            ? "bg-emerald-400"
-                            : interviewRating >= 70
-                              ? "bg-cyan-400"
-                              : interviewRating >= 55
-                                ? "bg-amber-400"
-                                : "bg-rose-400"
-                        }`}
-                        style={{ width: `${interviewRating}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
-                    <div className="rounded-lg border border-border/60 bg-muted/20 p-2 text-center">
-                      <div className="text-[10px] text-muted-foreground">Interviews</div>
-                      <div className="text-sm font-bold text-foreground">{interviewHistory.length}</div>
-                    </div>
-                    <div className="rounded-lg border border-border/60 bg-muted/20 p-2 text-center">
-                      <div className="text-[10px] text-muted-foreground">Passed</div>
-                      <div className="text-sm font-bold text-emerald-400">
-                        {interviewHistory.filter((h: any) => h.status === "PASSED").length}
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-border/60 bg-muted/20 p-2 text-center">
-                      <div className="text-[10px] text-muted-foreground">3-Strike Drops</div>
-                      <div className="text-sm font-bold text-rose-400">
-                        {interviewHistory.filter((h: any) => h.isDisqualified || h.strikes >= 3).length}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent Interview History */}
-              {interviewHistory.length > 0 && (
-                <div className="flex flex-col gap-2 border-t border-border/60 pt-3">
-                  <span className="font-mono text-xs font-bold text-foreground uppercase tracking-wider">
-                    Recent Interview Sessions &amp; Integrity Logs
-                  </span>
-                  <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto">
-                    {interviewHistory.slice(0, 5).map((h: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-card/60 p-2.5 font-mono text-xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`size-2 rounded-full ${
-                              h.status === "PASSED" ? "bg-emerald-400" : "bg-rose-400"
-                            }`}
-                          />
-                          <span className="font-bold text-foreground">{h.problemTitle || "Live Interview"}</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {new Date(h.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {h.strikes > 0 && (
-                            <span className="text-[10px] text-rose-400 font-bold">
-                              {h.strikes} strike{h.strikes > 1 ? "s" : ""}
-                            </span>
-                          )}
-                          <span
-                            className={`font-bold ${
-                              h.ratingDelta > 0
-                                ? "text-emerald-400"
-                                : h.ratingDelta < 0
-                                  ? "text-rose-400"
-                                  : "text-muted-foreground"
-                            }`}
-                          >
-                            {h.ratingDelta > 0 ? `+${h.ratingDelta}` : h.ratingDelta} pts
-                          </span>
-                          <span className="text-muted-foreground text-[10px]">
-                            ({h.newRating ?? interviewRating}/100)
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* ------------------------------------------------------------------ */}

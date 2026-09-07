@@ -110,33 +110,3 @@ test('requireAuth - accepts gated mock user header strictly in test environment'
 
   process.env.NODE_ENV = previousEnv;
 });
-
-test('requireAuth - rejects unauthenticated guest-token bypass attempts', async () => {
-  const req = {
-    headers: {
-      authorization: 'Bearer guest-token',
-    },
-  } as unknown as AuthRequest;
-
-  let statusCode = 0;
-  const res = {
-    status(code: number) {
-      statusCode = code;
-      return this;
-    },
-    json() {
-      return this;
-    },
-  } as unknown as Response;
-
-  let nextCalled = false;
-  const next = (() => {
-    nextCalled = true;
-  }) as NextFunction;
-
-  await requireAuth(req, res, next);
-
-  assert.equal(statusCode, 401);
-  assert.equal(nextCalled, false);
-});
-

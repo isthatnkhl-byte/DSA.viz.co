@@ -58,7 +58,6 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
   showSubmitButton = true,
   submitButtonText = "Review & Step-by-Step Trace",
 }: MonacoCodeEditorProps) {
-
   const { mode } = useThemeColor();
   const isLight = mode === "light";
 
@@ -91,8 +90,6 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
       }
     });
   };
-
-
 
   const handleLanguageChange = (newLang: SupportedLanguage) => {
     setLanguage(newLang);
@@ -317,8 +314,6 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
             fontFamily: "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
             lineNumbers: "on",
             roundedSelection: true,
-
-
             scrollBeyondLastLine: false,
             automaticLayout: true,
             tabSize: 4,

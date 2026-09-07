@@ -25,8 +25,7 @@ import { useChat, type ChatContextPayload } from "@/context/ChatContext";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
 import { toast } from "sonner";
-import { formatMathAndMarkdown } from "@/lib/formatMath";
-
+import { generateClientOfflineSocraticReply } from "@/lib/client-socratic-chat";
 
 interface Message {
   id: string;
@@ -59,27 +58,8 @@ export function GeminiChatbot() {
     "gemini-3.8-flash" | "gemini-3.5-flash" | "gemini-3.1-pro-preview" | "gemini-3.1-flash-lite"
   >("gemini-3.8-flash");
   const [selectedRole, setSelectedRole] = useState<
-    "interviewer" | "step_doubts" | "evaluator" | "mistake_analyzer" | "general"
+    "interviewer" | "step_doubts" | "evaluator" | "mistake_analyzer"
   >("interviewer");
-  const [isContextDismissed, setIsContextDismissed] = useState(false);
-
-  const handleRemoveContext = () => {
-    setIsContextDismissed(true);
-    if (selectedRole === "step_doubts") {
-      setSelectedRole("general");
-    }
-    toast.info("Context removed. Coach can now answer any general questions without problem constraints.", {
-      duration: 3000,
-    });
-  };
-
-  const handleReattachContext = () => {
-    setIsContextDismissed(false);
-    toast.success("Problem context re-attached.", {
-      duration: 2500,
-    });
-  };
-
 
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -163,48 +143,95 @@ export function GeminiChatbot() {
           content: m.content,
         }));
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-        },
-        body: JSON.stringify({
-          messages: apiMessages.length ? apiMessages : [{ role: "user", content: text }],
-          model: selectedModel,
+      let data: any = null;
+      let fetchError: any = null;
+
+      // Attempt fetch with a 15-second timeout and 1 immediate retry on network glitch
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 18000);
+
+          const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+            },
+            body: JSON.stringify({
+              messages: apiMessages.length ? apiMessages : [{ role: "user", content: text }],
+              model: selectedModel,
+              role: selectedRole,
+              context: activeContext || {},
+              sessionId,
+            }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || `Server responded with ${res.status}`);
+          }
+
+          data = await res.json();
+          fetchError = null;
+          break;
+        } catch (attemptErr: any) {
+          fetchError = attemptErr;
+          if (attempt === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 600));
+          }
+        }
+      }
+
+      if (data && data.content) {
+        if (data.sessionId) {
+          setSessionId(data.sessionId);
+        }
+
+        const botMsg: Message = {
+          id: "bot_" + Date.now(),
+          role: "assistant",
+          content: data.content,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          modelUsed: data.modelUsed || selectedModel,
+        };
+
+        setMessages((prev) => [...prev, botMsg]);
+      } else {
+        // Network failure or fetch exception: seamless offline Socratic reply fallback
+        console.warn("API communication notice, deploying client offline Socratic mentor:", fetchError);
+        const fallbackReply = generateClientOfflineSocraticReply({
           role: selectedRole,
-          context: isContextDismissed ? {} : (activeContext || {}),
+          lastUserMessage: text,
+          context: activeContext || {},
+        });
 
-          sessionId,
-        }),
-      });
+        const fallbackMsg: Message = {
+          id: "bot_offline_" + Date.now(),
+          role: "assistant",
+          content: `${fallbackReply}\n\n*Note: Operating in offline Socratic mode. Guidance generated instantly via local invariant analyzer.*`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          modelUsed: "offline-socratic-mode",
+        };
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to communicate with Gemini assistant");
+        setMessages((prev) => [...prev, fallbackMsg]);
       }
-
-      if (data.sessionId) {
-        setSessionId(data.sessionId);
-      }
-
-      const botMsg: Message = {
-        id: "bot_" + Date.now(),
-        role: "assistant",
-        content: data.content || "I couldn't process that. Please try again.",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        modelUsed: data.modelUsed || selectedModel,
-      };
-
-      setMessages((prev) => [...prev, botMsg]);
     } catch (err: any) {
-      console.error("Chat error:", err);
+      console.error("Chat handler caught error:", err);
+      const fallbackReply = generateClientOfflineSocraticReply({
+        role: selectedRole,
+        lastUserMessage: text,
+        context: activeContext || {},
+      });
       const errMsg: Message = {
         id: "err_" + Date.now(),
         role: "assistant",
-        content: `⚠️ **Notice**: ${err.message || "An error occurred while contacting the Gemini AI service. Please try again."}`,
+        content: `${fallbackReply}\n\n*Note: Operating in offline Socratic mode.*`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        modelUsed: "offline-socratic-mode",
       };
       setMessages((prev) => [...prev, errMsg]);
     } finally {
@@ -295,16 +322,6 @@ export function GeminiChatbot() {
             Socratic Interviewer
           </button>
           <button
-            onClick={() => setSelectedRole("general")}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-              selectedRole === "general"
-                ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            General Coach
-          </button>
-          <button
             onClick={() => setSelectedRole("step_doubts")}
             className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
               selectedRole === "step_doubts"
@@ -349,10 +366,10 @@ export function GeminiChatbot() {
         </select>
       </div>
 
-      {/* Active Context Banner (if tied to a problem or simulation step and not dismissed) */}
-      {!isContextDismissed && (activeContext?.problemTitle || activeContext?.currentStep !== undefined) && (
-        <div className="flex items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-1.5 text-[11px] text-primary shrink-0 animate-fade">
-          <div className="flex items-center gap-1.5 truncate mr-2">
+      {/* Active Context Banner (if tied to a problem or simulation step) */}
+      {(activeContext?.problemTitle || activeContext?.currentStep !== undefined) && (
+        <div className="flex items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-1.5 text-[11px] text-primary shrink-0">
+          <div className="flex items-center gap-1.5 truncate">
             <Sparkles className="size-3 shrink-0" />
             <span className="font-semibold truncate">
               {activeContext.problemTitle || activeContext.problemSlug}
@@ -363,37 +380,11 @@ export function GeminiChatbot() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider hidden sm:inline">
-              Context Attached
-            </span>
-            <button
-              type="button"
-              onClick={handleRemoveContext}
-              className="flex size-4.5 items-center justify-center rounded-full bg-primary/10 hover:bg-destructive/20 text-primary hover:text-destructive transition-colors cursor-pointer"
-              title="Remove context (switch to unrestricted general mode)"
-              aria-label="Remove attached context"
-            >
-              <X className="size-3" />
-            </button>
-          </div>
+          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+            Context Attached
+          </span>
         </div>
       )}
-
-      {/* Detached Context Banner with Quick Re-attach */}
-      {isContextDismissed && (activeContext?.problemTitle || activeContext?.currentStep !== undefined) && (
-        <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-4 py-1 text-[10px] text-muted-foreground shrink-0 animate-fade">
-          <span className="truncate">General Mode • Problem context detached</span>
-          <button
-            type="button"
-            onClick={handleReattachContext}
-            className="flex items-center gap-1 text-primary hover:underline font-mono text-[10px] font-semibold shrink-0 cursor-pointer ml-2"
-          >
-            <Sparkles className="size-2.5" /> Re-attach Context
-          </button>
-        </div>
-      )}
-
 
       {/* Scrollable Messages Thread */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
@@ -414,7 +405,7 @@ export function GeminiChatbot() {
               </div>
 
               <div
-                className={`group relative w-fit max-w-[94%] min-w-0 rounded-2xl p-3.5 leading-relaxed shadow-sm ${
+                className={`group relative max-w-[88%] rounded-2xl p-3.5 leading-relaxed shadow-sm ${
                   isUser
                     ? "bg-primary text-primary-foreground font-medium rounded-br-xs"
                     : "bg-muted/80 text-foreground border border-border/70 rounded-bl-xs"
@@ -433,43 +424,31 @@ export function GeminiChatbot() {
                   )}
                 </button>
 
-                <div className="prose prose-invert prose-xs max-w-none text-xs min-w-0">
+                <div className="prose prose-invert prose-xs max-w-none text-xs break-words">
                   <ReactMarkdown
                     components={{
-                      p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-                      pre: ({ children }: any) => (
-                        <div className="relative my-3 w-full max-w-full overflow-hidden rounded-xl border border-border/80 bg-zinc-950 text-zinc-100 shadow-md">
-                          <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/90 px-3 py-1 text-[10px] font-mono text-zinc-400 select-none">
-                            <span className="font-semibold text-zinc-300">Code Snippet</span>
-                            <span className="text-[9px] text-zinc-500">Scroll horizontally ↔</span>
-                          </div>
-                          <pre className="w-full overflow-x-auto p-3 font-mono text-[11px] leading-relaxed text-zinc-100 scrollbar-thin">
-                            {children}
-                          </pre>
-                        </div>
-                      ),
-                      code: ({ node, inline, className, children, ...props }: any) => {
-                        const isInline = inline || !className;
+                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                      code: ({ className, children, ...props }: any) => {
+                        const isInline = !className;
                         return isInline ? (
-                          <code className="rounded bg-background/70 px-1.5 py-0.5 font-mono text-[11px] text-primary font-bold border border-border/40" {...props}>
+                          <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-[11px] text-primary font-bold">
                             {children}
                           </code>
                         ) : (
-                          <code className="block w-max min-w-full font-mono text-[11px] leading-relaxed" {...props}>
-                            {children}
-                          </code>
+                          <pre className="my-2 overflow-x-auto rounded-lg bg-background/90 p-2.5 font-mono text-[11px] text-foreground border border-border/60">
+                            <code>{children}</code>
+                          </pre>
                         );
                       },
                       ul: ({ children }) => <ul className="my-1.5 ml-4 list-disc space-y-1">{children}</ul>,
                       ol: ({ children }) => <ol className="my-1.5 ml-4 list-decimal space-y-1">{children}</ol>,
-                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                      li: ({ children }) => <li>{children}</li>,
                     }}
                   >
-                    {formatMathAndMarkdown(msg.content)}
+                    {msg.content}
                   </ReactMarkdown>
                 </div>
               </div>
-
             </div>
           );
         })}

@@ -124,10 +124,10 @@ Hard rules:
    - NEVER abort, cut off, or stop halfway through the dataset. Traverse every element or pointer transition completely.
    - The final step must highlight the final return value and termination state.
 6. SMART MULTI-DATASET SUPPORT:
-   - When an algorithm uses multiple data structures (e.g. Array + Hash Table, Array + Monotonic Stack, Array + Min-Heap, Dual Arrays), POPULATE BOTH the primary and auxiliary structure fields in the step!
-   - Structure fields: "array", "secondaryArray", "map", "stack", "queue", "tree", "list", "matrix", "set".
-   - "activeDataset": string identifying the active structure in focus ("array", "map", "stack", "secondaryArray", "tree").
-   - "shiftInfo": { "from": "...", "to": "...", "action": "lookup" | "write" | "push" | "pop" | "merge" | "shift", "reason": "Detailed explanation with user variable names" }
+   - When an algorithm uses multiple data structures (e.g. Array + Hash Table, Array + Monotonic Stack, Array + Min-Heap, Dual Arrays, Cache + DLL), POPULATE BOTH the primary and auxiliary structure fields in the step!
+   - Structure fields: "array", "secondaryArray", "map", "stack", "queue", "deque", "tree", "list", "matrix", "set", "intervals", "graphEdges", "lruCache", "lfuCache", "skipList", "disjointIntervals", "bstState", "topKState", "twoHeapsState", "trieState", "segmentTreeState", "fenwickTreeState", "kmpState", "rabinKarpState", "ahoCorasickState", "bitRegisterState", "dp1dState", "dp2dState", "callStack", "recursionTree".
+   - "activeDataset": string identifying the active structure in focus ("array", "map", "stack", "queue", "secondaryArray", "tree", "list", "matrix").
+   - "shiftInfo": { "from": "...", "to": "...", "action": "lookup" | "write" | "push" | "pop" | "merge" | "shift" | "evict" | "swap", "reason": "Detailed explanation with user variable names" }
 7. CRITICAL — STRICT DATA-LINE SYNCHRONIZATION (ZERO PREMATURE UPDATES):
    - The data payload in each step MUST strictly represent the state AFTER executing that specific "line".
    - Never update array values or data structures before their mutating line executes.
@@ -422,7 +422,7 @@ export const reviewPlaygroundPseudocode = createServerFn({ method: "POST" })
           return await res.json();
         }
       } catch (err) {
-        console.warn("Server playground review request failed, fallback to local:", err);
+        console.log("Server playground review request failed, fallback to local:", err);
       }
     }
     return await processPlaygroundReview(data);

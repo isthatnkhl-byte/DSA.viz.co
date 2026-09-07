@@ -388,3 +388,61 @@ export async function logUserActivity(userId: string, activity: { type: string; 
   }
 }
 
+export interface TaskRecordData {
+  taskId: string;
+  problemSlug: string;
+  datasetId: string;
+  status: "idle" | "pending" | "generating" | "completed" | "force_completed" | "failed" | "cancelled";
+  loopCount: number;
+  maxLoops: number;
+  stepCount: number;
+  totalExpectedSteps?: number;
+  lastStepLine?: number;
+  lastStepDesc?: string;
+  isTerminalLine?: boolean;
+  forceCompletedReason?: string;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Persists an AI pseudocode task status record to Firestore.
+ */
+export async function saveTaskStatusRecord(userId: string, record: TaskRecordData): Promise<void> {
+  const path = `users/${userId}/tasks/${record.taskId}`;
+  try {
+    const docRef = doc(db, "users", userId, "tasks", record.taskId);
+    const cleanRecord: Record<string, any> = {};
+    for (const [k, v] of Object.entries(record)) {
+      if (v !== undefined) {
+        cleanRecord[k] = v;
+      }
+    }
+    await setDoc(docRef, {
+      ...cleanRecord,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  } catch (error) {
+    console.warn(`Could not save task record to Firestore at ${path}:`, error);
+  }
+}
+
+/**
+ * Retrieves an AI pseudocode task status record from Firestore.
+ */
+export async function getTaskStatusRecord(userId: string, taskId: string): Promise<TaskRecordData | null> {
+  const path = `users/${userId}/tasks/${taskId}`;
+  try {
+    const docRef = doc(db, "users", userId, "tasks", taskId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as TaskRecordData;
+    }
+    return null;
+  } catch (error) {
+    console.warn(`Could not fetch task record from Firestore at ${path}:`, error);
+    return null;
+  }
+}
+

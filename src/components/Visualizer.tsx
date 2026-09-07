@@ -14,6 +14,8 @@ import { RecursionVisualizer } from "./visualizer/RecursionVisualizer";
 import { BinaryHeapVisualizer } from "./visualizer/BinaryHeapVisualizer";
 import { MonotonicStackVisualizer } from "./visualizer/MonotonicStackVisualizer";
 import { IntervalVisualizer } from "./visualizer/IntervalVisualizer";
+import { DesignDataStructureVisualizer } from "./visualizer/DesignDataStructureVisualizer";
+import { CompositeVisualizer } from "./visualizer/CompositeVisualizer";
 import { StepDiffInspector } from "./visualizer/StepDiffInspector";
 import { VariableWatchTable } from "./visualizer/VariableWatchTable";
 import { KeyboardShortcutsModal } from "./visualizer/KeyboardShortcutsModal";
@@ -30,151 +32,29 @@ import { useChat } from "@/context/ChatContext";
 import { usePlaybackOrchestrator } from "@/hooks/usePlaybackOrchestrator";
 import {
   detectOperation,
-  parse2DCoord,
   safeArray,
   safeTreeArray,
   toText,
   type Val,
 } from "./visualizer/VisualizerTypes";
-
-/**
- * Universal pointer synthesizer that guarantees every visualizer component receives
- * normalized, fully resolved active pointer locations and variable labels.
- */
-export function resolveStepActivePointers(
-  step?: VizStep | null,
-): Record<string, number | string | [number, number]> {
-  if (!step) return {};
-
-  const pointers: Record<string, number | string | [number, number]> = {};
-
-  // 1. Inherit any existing activePointers, normalizing 2D coordinates if present
-  if (step.activePointers && typeof step.activePointers === "object") {
-    for (const [k, v] of Object.entries(step.activePointers)) {
-      if (v !== null && v !== undefined && v !== "") {
-        const coord = parse2DCoord(v);
-        pointers[k] = coord ?? v;
-      }
-    }
-  }
-
-  // 2. Synthesize left / right / left2 / right2 pointers
-  const leftLabel = step.pointer_labels?.left || "left";
-  if (typeof step.left === "number" && pointers[leftLabel] === undefined && pointers["L"] === undefined) {
-    pointers[leftLabel] = step.left;
-  }
-
-  const rightLabel = step.pointer_labels?.right || "right";
-  if (typeof step.right === "number" && pointers[rightLabel] === undefined && pointers["R"] === undefined) {
-    pointers[rightLabel] = step.right;
-  }
-
-  const left2Label = step.pointer_labels?.left2 || "left2";
-  if (typeof step.left2 === "number" && pointers[left2Label] === undefined && pointers["L2"] === undefined) {
-    pointers[left2Label] = step.left2;
-  }
-
-  const right2Label = step.pointer_labels?.right2 || "right2";
-  if (typeof step.right2 === "number" && pointers[right2Label] === undefined && pointers["R2"] === undefined) {
-    pointers[right2Label] = step.right2;
-  }
-
-  // 3. Synthesize current pointer
-  const currLabel = step.pointer_labels?.current || "curr";
-  if (
-    step.current !== null &&
-    step.current !== undefined &&
-    pointers[currLabel] === undefined &&
-    pointers["curr"] === undefined &&
-    pointers["current"] === undefined
-  ) {
-    const coord = parse2DCoord(step.current);
-    pointers[currLabel] = coord ?? (typeof step.current === "object" ? JSON.stringify(step.current) : step.current);
-  }
-
-  // 4. Extract from step.variables if available
-  if (step.variables && typeof step.variables === "object") {
-    for (const [vName, vVal] of Object.entries(step.variables)) {
-      if (vVal === null || vVal === undefined || vVal === "") continue;
-      const lower = vName.toLowerCase();
-      if (
-        [
-          "i", "j", "k", "u", "v", "left", "right", "mid", "curr", "node", "top",
-          "head", "tail", "front", "rear", "src", "dest", "row", "col", "r", "c",
-          "ptr", "pos", "neighbor", "nbr", "next", "land", "merge", "root", "parent"
-        ].includes(lower)
-      ) {
-        if (pointers[vName] === undefined && pointers[lower] === undefined) {
-          const coord = parse2DCoord(vVal);
-          pointers[vName] = coord ?? vVal;
-        }
-      }
-    }
-  }
-
-  // 5. Dynamic extraction from step description if activePointers is still minimal
-  if (step.desc && typeof step.desc === "string") {
-    const regex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*[:=]\s*(\[[0-9]+,\s*[0-9]+\]|\([0-9]+,\s*[0-9]+\)|-?[0-9]+)/g;
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(step.desc)) !== null) {
-      const varName = match[1];
-      const rawVal = match[2];
-      if (!varName || !rawVal) continue;
-      const lowerVar = varName.toLowerCase();
-      if (
-        [
-          "i", "j", "k", "u", "v", "left", "right", "mid", "curr", "node", "top",
-          "head", "tail", "front", "rear", "src", "dest", "row", "col", "r", "c",
-          "ptr", "pos", "neighbor", "nbr", "next", "land", "merge", "root", "parent"
-        ].includes(lowerVar)
-      ) {
-        if (pointers[varName] === undefined && pointers[lowerVar] === undefined) {
-          const coord = parse2DCoord(rawVal);
-          if (coord) {
-            pointers[varName] = coord;
-          } else {
-            const num = parseInt(rawVal, 10);
-            pointers[varName] = Number.isNaN(num) ? rawVal : num;
-          }
-        }
-      }
-    }
-
-    // Dynamic extraction of semantic natural language coordinate phrases
-    const neighborMatch = step.desc.match(/neighbor(?:\s+at)?\s*(\([0-9]+,\s*[0-9]+\)|\[[0-9]+,\s*[0-9]+\])/i);
-    if (neighborMatch?.[1] && !pointers["neighbor"]) {
-      const nCoord = parse2DCoord(neighborMatch[1]);
-      if (nCoord) pointers["neighbor"] = nCoord;
-    }
-
-    const originMatch = step.desc.match(/(?:origin|from(?:\s+origin)?|addLand(?:\s+at)?|turning)\s*(\([0-9]+,\s*[0-9]+\)|\[[0-9]+,\s*[0-9]+\])/i);
-    if (originMatch?.[1] && !pointers["pos"]) {
-      const oCoord = parse2DCoord(originMatch[1]);
-      if (oCoord) pointers["pos"] = oCoord;
-    }
-
-    const mergeMatch = step.desc.match(/(?:connected|merging|union)\s*\([^)]+\)\s*with\s*(\([0-9]+,\s*[0-9]+\)|\[[0-9]+,\s*[0-9]+\])/i);
-    if (mergeMatch?.[1] && !pointers["merge"]) {
-      const mCoord = parse2DCoord(mergeMatch[1]);
-      if (mCoord) pointers["merge"] = mCoord;
-    }
-  }
-
-  return pointers;
-}
-
 export const Visualizer = memo(function Visualizer({
   array,
   codeLines = [],
   steps = [],
-  onStepChange,
+  liveStatus = null,
 }: {
   array: (number | string)[];
   codeLines: string[];
   steps: VizStep[];
-  onStepChange?: (stepIndex: number, lineIndex: number) => void;
+  liveStatus?: {
+    datasetId: string;
+    datasetLabel: string;
+    loopCount: number;
+    stepCount: number;
+    isComplete: boolean;
+    statusText: string;
+  } | null;
 }) {
-
 
   const safeSteps = useMemo(() => (Array.isArray(steps) ? steps.filter(Boolean) : []), [steps]);
   const [motionBlurEnabled, setMotionBlurEnabled] = useState(false);
@@ -216,7 +96,7 @@ export const Visualizer = memo(function Visualizer({
     playback.reset();
   }, [traceSignature]);
 
-  // Synchronize current simulation step into ChatContext and parent listeners
+  // Synchronize current simulation step into ChatContext
   useEffect(() => {
     if (safeSteps.length > 0 && safeSteps[step]) {
       updateContext({
@@ -225,10 +105,8 @@ export const Visualizer = memo(function Visualizer({
         stepDesc: toText(safeSteps[step]?.desc),
         stepVariables: safeSteps[step]?.variables || {},
       });
-      onStepChange?.(step, safeSteps[step]?.line ?? 0);
     }
-  }, [step, safeSteps, updateContext, onStepChange]);
-
+  }, [step, safeSteps, updateContext]);
 
   // Toggle breakpoint on a line index
   const toggleBreakpoint = useCallback((lineIdx: number) => {
@@ -312,17 +190,11 @@ export const Visualizer = memo(function Visualizer({
 
   const current: VizStep = safeSteps[step] ?? safeSteps[0] ?? ({} as VizStep);
 
-  const unifiedActivePointers = useMemo(() => resolveStepActivePointers(current), [current]);
-
   // Infer the active visualization type
   const type: VizType = useMemo(() => {
     if (current.type) return current.type;
     const stepWithType = safeSteps.find((s) => s.type);
     if (stepWithType?.type) return stepWithType.type;
-    if (current.callStack && current.callStack.length > 0) return "recursion-tree";
-    if (current.intervals && current.intervals.length > 0) return "intervals";
-    if (safeSteps.some((s) => s.callStack && s.callStack.length > 0)) return "recursion-tree";
-    if (safeSteps.some((s) => s.intervals && s.intervals.length > 0)) return "intervals";
     if (current.matrix && current.matrix.length > 0) return "matrix";
     if (current.tree && current.tree.length > 0) return "tree";
     if (current.stack && current.stack.length > 0) return "stack";
@@ -410,9 +282,7 @@ export const Visualizer = memo(function Visualizer({
             type === "queue" ||
             type === "hashmap" ||
             type === "heap" ||
-            type === "tree" ||
-            type === "recursion-tree" ||
-            type === "intervals"),
+            type === "tree"),
       ),
     [safeSteps, type],
   );
@@ -493,8 +363,7 @@ export const Visualizer = memo(function Visualizer({
       const queueLen = Array.isArray(s.queue) ? s.queue.length : 0;
       const mapLen = s.map ? Object.keys(s.map).length : 0;
       const visitedLen = Array.isArray(s.visited) ? s.visited.length : 0;
-      const callStackLen = Array.isArray(s.callStack) ? s.callStack.length : 0;
-      const currentMem = Math.max(stackLen, queueLen, mapLen, visitedLen, callStackLen);
+      const currentMem = Math.max(stackLen, queueLen, mapLen, visitedLen);
       if (currentMem > peak) peak = currentMem;
     }
     return peak;
@@ -503,8 +372,6 @@ export const Visualizer = memo(function Visualizer({
   const estimatedBigO = useMemo(() => {
     if (type === "bst") return "O(log N)";
     if (type === "heap" || (safeSteps.length > 10 && cells.length > 5 && isMathMode)) return "O(N log N)";
-    if (type === "recursion-tree") return "O(2ⁿ / N!)";
-    if (type === "intervals") return "O(N log N)";
     if (type === "matrix" || type === "dp") return "O(M × N)";
     if (type === "graph") return "O(V + E)";
     if (type === "tree") return "O(N)";
@@ -526,7 +393,57 @@ export const Visualizer = memo(function Visualizer({
   let primaryBody: React.ReactNode = null;
   let readouts: ReadoutItem[] = [];
 
-  if (type === "dp") {
+  // 0. Synchronized Composite Data Structure Mode
+  const activeCompositeMode = current.compositeLayoutState?.mode;
+  if (activeCompositeMode && activeCompositeMode !== "single") {
+    const cs = current.compositeLayoutState;
+    readouts = [
+      { label: "Engine", value: `Composite: ${activeCompositeMode.toUpperCase()}`, highlight: true },
+      { label: "Active Pivot", value: current.current ?? "—", highlight: true },
+      { label: "Cross Links", value: `${cs?.crossPointers?.length ?? 0} Pointers` },
+      { label: "Action", value: cs?.activeRelation?.type ? cs.activeRelation.type.toUpperCase() : "Synchronized" },
+    ];
+    primaryBody = (
+      <CompositeVisualizer
+        mode={activeCompositeMode}
+        compositeState={cs}
+        array={current.array ?? cells}
+        secondaryArray={current.secondaryArray}
+        left={typeof current.left === "number" ? current.left : null}
+        right={typeof current.right === "number" ? current.right : null}
+        left2={typeof current.left2 === "number" ? current.left2 : null}
+        right2={typeof current.right2 === "number" ? current.right2 : null}
+        stack={current.stack}
+        secondaryStack={current.secondaryStack}
+        queue={current.queue}
+        secondaryQueue={current.secondaryQueue}
+        map={current.map}
+        set={current.set}
+        tree={current.tree}
+        matrix={current.matrix ?? traceMatrix}
+        cols={current.cols}
+        graphEdges={current.graphEdges}
+        current={current.current ?? null}
+        predecessor={current.predecessor ?? null}
+        visited={visited}
+        wSum={current.wSum}
+        mSum={current.mSum}
+        desc={current.desc}
+        variables={current.variables}
+        pointer_labels={current.pointer_labels}
+        direction={current.direction}
+        frontier={current.frontier}
+        distanceLayer={current.distanceLayer}
+        trail={current.trail}
+        distances={current.distances}
+        priorityQueue={current.priorityQueue}
+        topologicalSortState={current.topologicalSortState}
+        unionFindState={current.unionFindState}
+        treeTraversal={current.treeTraversal}
+        bstState={current.bstState}
+      />
+    );
+  } else if (type === "dp") {
     const activeMat = current.matrix ?? traceMatrix;
     const rows = Array.isArray(activeMat) ? activeMat.length : 1;
     const cols =
@@ -541,12 +458,20 @@ export const Visualizer = memo(function Visualizer({
         ? activeMat[activeMat.length - 1]?.[(activeMat[0]?.length ?? 1) - 1]
         : "—");
 
+    const is1D = Boolean(
+      current.dp1dState ||
+        /climb|house-robber|coin-change|longest-increasing-subsequence|\blis\b|word-break|decode-ways|fibonacci|min-cost-climbing|maximum-subarray|jump-game/i.test(
+          current.desc ?? ""
+        ) ||
+        (rows <= 1 && ((current.array?.length ?? 0) > 0 || cells.length > 0))
+    );
+
     readouts = [
-      { label: "DP Table Size", value: `${rows} × ${cols}` },
-      { label: "Active State", value: current.current ?? null, highlight: true },
-      { label: "Computed Cells", value: visited.length },
+      { label: "Engine", value: is1D ? "1D Optimal Substructure" : "2D Transition Alignment", highlight: true },
+      { label: is1D ? "Active State" : "Active Cell", value: current.current ?? (typeof current.left === "number" ? `dp[${current.left}]` : "dp[0]"), highlight: true },
+      { label: "Table / Array Size", value: is1D ? `N = ${current.array?.length ?? cells.length ?? cols}` : `${rows} × ${cols}` },
       {
-        label: "Optimal Result",
+        label: "Optimal Subproblem Result",
         value: dpResult,
         highlight: true,
       },
@@ -561,22 +486,33 @@ export const Visualizer = memo(function Visualizer({
         right2={typeof current.right2 === "number" ? current.right2 : null}
         current={current.current ?? null}
         visited={visited}
+        array={current.array ?? cells}
+        secondaryArray={current.secondaryArray}
         rowLabels={current.secondaryArray ? current.secondaryArray.map(String) : null}
         colLabels={current.array ? current.array.map(String) : null}
         direction={current.direction}
         wSum={current.wSum}
         mSum={current.mSum}
         pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
+        dp1dState={current.dp1dState}
+        dp2dState={current.dp2dState}
+        desc={current.desc}
+        variables={current.variables}
       />
     );
   } else if (type === "bit") {
+    const rawVal = current.current ?? cells[0] ?? 0;
+    const num = Number(rawVal);
+    const ones = (num >>> 0).toString(2).split("").filter((b) => b === "1").length;
 
     readouts = [
-      { label: "Bit Value", value: current.current ?? cells[0] ?? null, highlight: true },
-      { label: "Active Bit Index", value: current.left ?? 0 },
-      { label: "Operands", value: cells.length },
-      { label: "Result / Mask", value: current.mSum ?? current.wSum ?? "—" },
+      { label: "Engine", value: "32-Bit ALU Register", highlight: true },
+      { label: "Decimal Value", value: !isNaN(num) ? num : String(rawVal), highlight: true },
+      { label: "Hamming Weight", value: `${ones} / 32 set` },
+      {
+        label: "Active Bit Position",
+        value: typeof current.left === "number" ? `Bit #${current.left}` : "Bit #0",
+      },
     ];
     primaryBody = (
       <BitVisualizer
@@ -588,149 +524,70 @@ export const Visualizer = memo(function Visualizer({
         wSum={current.wSum}
         mSum={current.mSum}
         operation={current.desc}
-      />
-    );
-  } else if (type === "recursion-tree") {
-    const stackSize = current.callStack?.length ?? 0;
-    const treeNodes = current.recursionTree?.length ?? 0;
-    const activeFrame = current.callStack?.[current.callStack.length - 1];
-    const depth = activeFrame?.depth ?? 0;
-    const returnVal =
-      activeFrame?.returnValue !== undefined && activeFrame?.returnValue !== null
-        ? String(activeFrame.returnValue)
-        : current.current !== null && current.current !== undefined
-          ? String(current.current)
-          : "—";
-
-    const prunedCount = current.recursionTree?.filter((n) => n.state === "pruned").length ?? 0;
-    const memoHits = current.recursionTree?.filter((n) => n.state === "memo_hit" || n.isMemoHit).length ?? 0;
-    const hasMemo = Boolean(current.memoTable && Object.keys(current.memoTable).length > 0);
-
-    readouts = [
-      {
-        label: "Active Frame",
-        value: activeFrame
-          ? `${activeFrame.functionName || activeFrame.name}(${Object.entries(activeFrame.args ?? {})
-              .map(([k, v]) => `${k}=${v}`)
-              .join(", ")})`
-          : "idle",
-        highlight: true,
-      },
-      { label: "Call Depth", value: depth },
-      { label: hasMemo ? "Memo Cache" : "Pruned Cuts", value: hasMemo ? `${Object.keys(current.memoTable ?? {}).length} entries` : prunedCount, highlight: prunedCount > 0 || hasMemo },
-      { label: memoHits > 0 ? "⚡ Memo Hits" : "Tree States", value: memoHits > 0 ? `${memoHits} O(1)` : treeNodes, highlight: memoHits > 0 },
-    ];
-    primaryBody = (
-      <RecursionVisualizer
-        callStack={current.callStack}
-        recursionTree={current.recursionTree}
-        activeFrameId={current.activeFrameId}
-        currentValue={current.current}
-        explanation={current.desc}
-        memoTable={current.memoTable}
-        memoHitKey={current.memoHitKey}
-      />
-    );
-  } else if (type === "intervals") {
-    const rawIntervals =
-      current.intervals ??
-      (Array.isArray(current.matrix)
-        ? current.matrix.map((row, idx) => ({
-            id: `iv_${idx}`,
-            start: Number(row[0] ?? 0),
-            end: Number(row[1] ?? 0),
-            label: `[${row[0]}, ${row[1]}]`,
-            status: "unprocessed" as const,
-          }))
-        : []);
-    const activeCount = rawIntervals.filter(
-      (iv) => iv.status === "active" || iv.status === "comparing",
-    ).length;
-    readouts = [
-      { label: "Intervals Count", value: rawIntervals.length },
-      {
-        label: "Sweep-Line Pos",
-        value: current.sweepLine !== undefined ? current.sweepLine : (current.left ?? "—"),
-        highlight: true,
-      },
-      { label: "Active Overlaps", value: activeCount },
-      {
-        label: "Merged / Result",
-        value:
-          current.wSum !== null && current.wSum !== undefined
-            ? `${current.wSum} non-overlapping`
-            : current.current !== null && current.current !== undefined
-              ? String(current.current)
-              : "—",
-        highlight: true,
-      },
-    ];
-    primaryBody = (
-      <IntervalVisualizer
-        intervals={rawIntervals}
-        sweepLine={current.sweepLine}
-        explanation={current.desc}
+        bitRegisterState={current.bitRegisterState}
+        desc={current.desc}
+        variables={current.variables}
       />
     );
   } else if (type === "stack" || type === "queue" || type === "deque") {
-    const isMonotonic = Boolean(
-      current.stackInvariant ||
-        (current.sightlines && current.sightlines.length > 0) ||
-        safeSteps.some((s) => s.stackInvariant || (s.sightlines && s.sightlines.length > 0)),
+    const items = safeArray(
+      type === "stack"
+        ? current.stack
+        : type === "queue"
+          ? current.queue
+          : current.deque ?? current.monotonicDeque?.deque,
     );
+    const secondaryItems =
+      type === "stack"
+        ? current.secondaryStack
+        : type === "queue"
+          ? current.secondaryQueue
+          : undefined;
 
-    if (type === "stack" && isMonotonic) {
-      const stackItems = safeArray(current.stack);
-      const currIdx = typeof current.left === "number" ? current.left : null;
+    const isMonotonicStack =
+      type === "stack" &&
+      (Boolean(current.stackInvariant) ||
+        Boolean(current.sightlines && current.sightlines.length > 0) ||
+        Boolean(current.histogramSpan) ||
+        Boolean(current.waterTrapped) ||
+        Boolean(current.resultArray && current.resultArray.length > 0));
+
+    if (current.monotonicDeque) {
       readouts = [
+        { label: "Structure", value: "Monotonic Deque", highlight: true },
         {
-          label: "Stack Invariant",
-          value: current.stackInvariant ? `Monotonic ${current.stackInvariant}` : "Monotonic",
+          label: "Window [L .. R]",
+          value: current.monotonicDeque.windowRange
+            ? `[${current.monotonicDeque.windowRange[0]} .. ${current.monotonicDeque.windowRange[1]}]`
+            : "—",
+        },
+        { label: "Deque Size", value: current.monotonicDeque.deque?.length ?? items.length },
+        {
+          label: "Window Max",
+          value: current.monotonicDeque.windowMax ?? current.current ?? items[0] ?? "—",
           highlight: true,
-        },
-        {
-          label: "Sightlines Resolved",
-          value: current.sightlines?.length ?? 0,
-        },
-        {
-          label: "Current Target",
-          value:
-            current.current !== null && current.current !== undefined
-              ? String(current.current)
-              : currIdx !== null
-                ? `idx ${currIdx}`
-                : "—",
-          highlight: true,
-        },
-        {
-          label: "Top Element",
-          value: stackItems.length > 0 ? stackItems[stackItems.length - 1] : "Empty",
         },
       ];
-      primaryBody = (
-        <MonotonicStackVisualizer
-          array={current.array ?? cells}
-          stack={current.stack}
-          currentIndex={currIdx}
-          currentValue={current.current}
-          stackInvariant={current.stackInvariant}
-          sightlines={current.sightlines}
-          explanation={current.desc}
-          pointer_labels={current.pointer_labels}
-          activePointers={unifiedActivePointers}
-        />
-      );
+    } else if (current.circularBuffer) {
+      const cb = current.circularBuffer;
+      readouts = [
+        { label: "Structure", value: "Circular Ring Buffer", highlight: true },
+        { label: "Front / Rear", value: `F: [${cb.front}] ➔ R: [${cb.rear}]` },
+        { label: "Occupancy", value: `${cb.size} / ${cb.capacity}`, highlight: cb.isFull || cb.isEmpty },
+        { label: "Status", value: cb.isFull ? "FULL" : cb.isEmpty ? "EMPTY" : "READY", highlight: cb.isFull },
+      ];
+    } else if (current.bfsLevel) {
+      const bfs = current.bfsLevel;
+      readouts = [
+        { label: "Queue Mode", value: "Level-Order BFS", highlight: true },
+        { label: "Current Level", value: `Level ${bfs.level}`, highlight: true },
+        { label: "Queue Size", value: items.length },
+        {
+          label: "Level Progress",
+          value: bfs.levelSize ? `${bfs.processedInLevel ?? 0} / ${bfs.levelSize}` : `${items.length} nodes`,
+        },
+      ];
     } else {
-      const items = safeArray(
-        type === "stack" ? current.stack : type === "queue" ? current.queue : current.deque,
-      );
-      const secondaryItems =
-        type === "stack"
-          ? current.secondaryStack
-          : type === "queue"
-            ? current.secondaryQueue
-            : undefined;
-
       readouts = [
         { label: secondaryItems ? "Primary Size" : "Size", value: items.length },
         { label: "Current", value: current.current ?? null, highlight: true },
@@ -739,75 +596,271 @@ export const Visualizer = memo(function Visualizer({
           value: secondaryItems ? secondaryItems.length : visited.length,
         },
         {
-          label: type === "stack" ? "Top Element" : "Front Element",
+          label: type === "stack" ? "Top Element (TOS)" : type === "deque" ? "Front (Head)" : "Front (Head)",
           value: type === "stack" ? (items[items.length - 1] ?? null) : (items[0] ?? null),
         },
       ];
+    }
+
+    if (isMonotonicStack) {
+      primaryBody = (
+        <MonotonicStackVisualizer
+          array={safeArray(current.array ?? cells)}
+          stack={items}
+          current={current.current ?? null}
+          left={typeof current.left === "number" ? current.left : null}
+          right={typeof current.right === "number" ? current.right : null}
+          stackInvariant={current.stackInvariant}
+          sightlines={current.sightlines}
+          histogramSpan={current.histogramSpan}
+          waterTrapped={current.waterTrapped}
+          resultArray={current.resultArray}
+          desc={current.desc}
+          variables={current.variables}
+        />
+      );
+    } else {
       primaryBody = (
         <StackQueueVisualizer
           items={items}
           secondaryItems={secondaryItems}
-          label1={
-            current.datasetLabels?.primary ??
-            (secondaryItems ? "In-Stack (Input)" : "Primary Buffer")
-          }
-          label2={
-            current.datasetLabels?.secondaryArray ??
-            (secondaryItems ? "Out-Stack (Output)" : "Secondary Buffer")
-          }
+          label1={current.datasetLabels?.primary ?? (secondaryItems ? "In-Stack (Input)" : "Primary Buffer")}
+          label2={current.datasetLabels?.secondaryArray ?? (secondaryItems ? "Out-Stack (Output)" : "Secondary Buffer")}
           current={current.current ?? null}
           visited={visited}
           type={type}
-          pointer_labels={current.pointer_labels}
-          activePointers={unifiedActivePointers}
+          stream={current.stream ?? current.array}
+          bracketPair={current.bracketPair}
+          evalExpression={current.evalExpression}
+          variables={current.variables}
+          desc={current.desc}
+          left={typeof current.left === "number" ? current.left : null}
+          monotonicDeque={current.monotonicDeque}
+          circularBuffer={current.circularBuffer}
+          bfsLevel={current.bfsLevel}
         />
       );
     }
-  } else if (type === "linkedlist") {
-    const list = safeArray(current.list ?? cells);
+  } else if (type === "recursion-tree" || (current.callStack && current.callStack.length > 0)) {
+    const memoHitsCount = current.recursionTree?.filter((n) => n.state === "memo_hit" || n.isMemoHit).length ?? 0;
+    const prunedCount = current.recursionTree?.filter((n) => n.state === "pruned").length ?? 0;
     readouts = [
-      { label: "Length", value: list.length },
-      { label: "Current Node", value: current.current ?? null, highlight: true },
-      { label: "Prev / Target", value: current.predecessor ?? null },
-      { label: "Traversed", value: visited.length },
+      { label: "Stack Depth", value: current.callStack?.length ?? 1, highlight: true },
+      { label: "Tree Explored", value: current.recursionTree?.length ?? 1 },
+      { label: "Pruned", value: prunedCount, highlight: prunedCount > 0 },
+      { label: "Memo Hits", value: memoHitsCount, highlight: memoHitsCount > 0 },
     ];
+    primaryBody = (
+      <RecursionVisualizer
+        callStack={current.callStack}
+        recursionTree={current.recursionTree}
+        activeFrameId={current.activeFrameId}
+        variables={current.variables}
+        desc={current.desc}
+        memoTable={current.memoTable}
+        memoHitKey={current.memoHitKey}
+        prunedBranchId={current.prunedBranchId}
+      />
+    );
+  } else if (type === "intervals" || (current.intervals && current.intervals.length > 0)) {
+    const ivList = current.intervals ?? [];
+    const isMeetingRooms =
+      /meeting-room|conference|rooms|min-meeting/i.test(current.desc ?? "") ||
+      current.variables?.rooms !== undefined;
+
+    readouts = [
+      {
+        label: "Engine",
+        value: isMeetingRooms ? "Meeting Rooms & Concurrency" : "Interval Collision & Merge",
+        highlight: true,
+      },
+      { label: "Intervals", value: `${ivList.length} Spans`, highlight: true },
+      {
+        label: "Sweep Cursor",
+        value:
+          current.sweepLine !== null && current.sweepLine !== undefined
+            ? `T = ${current.sweepLine}`
+            : current.variables?.t !== undefined
+            ? `T = ${current.variables.t}`
+            : "—",
+      },
+      {
+        label: "Active Span",
+        value:
+          current.current ??
+          (current.activeIntervalIndex !== null && current.activeIntervalIndex !== undefined && ivList[current.activeIntervalIndex]
+            ? `[${ivList[current.activeIntervalIndex]?.start}, ${ivList[current.activeIntervalIndex]?.end}]`
+            : "Scanning"),
+        highlight: true,
+      },
+    ];
+    primaryBody = (
+      <IntervalVisualizer
+        intervals={current.intervals}
+        matrix={current.matrix}
+        sweepLine={current.sweepLine}
+        activeIntervalIndex={current.activeIntervalIndex}
+        intervalCollisionState={current.intervalCollisionState}
+        desc={current.desc}
+        variables={current.variables}
+      />
+    );
+  } else if (type === "heap" || current.heapSwap || current.topKState || current.twoHeapsState) {
+    const heapItems = safeArray(
+      current.tree && current.tree.length > 0 ? current.tree : current.array ?? cells,
+    );
+    const inputStream =
+      current.stream && current.stream.length > 0
+        ? current.stream
+        : current.tree && current.tree.length > 0 && Array.isArray(current.array) && current.array !== current.tree
+        ? current.array
+        : undefined;
+
+    if (current.twoHeapsState) {
+      const th = current.twoHeapsState;
+      readouts = [
+        { label: "Engine", value: "Two-Heap Partition", highlight: true },
+        { label: "Median", value: th.median ?? "—", highlight: true },
+        { label: "Max-Heap (Lower)", value: `${th.maxHeap.length} items (root: ${th.maxHeap[0] ?? "—"})` },
+        { label: "Min-Heap (Upper)", value: `${th.minHeap.length} items (root: ${th.minHeap[0] ?? "—"})` },
+      ];
+    } else if (current.topKState) {
+      const tk = current.topKState;
+      readouts = [
+        { label: "Engine", value: `Top-K Heap (K=${tk.k})`, highlight: true },
+        { label: `K-th ${tk.mode === "smallest" ? "Smallest" : "Largest"}`, value: tk.kthResult ?? heapItems[0] ?? "—", highlight: true },
+        { label: "Capacity", value: `${heapItems.length} / ${tk.k}` },
+        { label: "Action", value: tk.action ?? "Active" },
+      ];
+    } else {
+      readouts = [
+        { label: "Heap Size", value: heapItems.length, highlight: true },
+        { label: "Active Node", value: current.activeNodeId ?? current.current ?? "Root [0]" },
+        { label: "Swap State", value: current.heapSwap ? `${current.heapSwap.type || "SWAP"}` : "Balanced", highlight: Boolean(current.heapSwap) },
+        { label: "Root Val", value: heapItems[0] ?? "-" },
+      ];
+    }
+
+    primaryBody = (
+      <BinaryHeapVisualizer
+        items={heapItems}
+        inputStream={inputStream}
+        heapSwap={current.heapSwap}
+        topKState={current.topKState}
+        twoHeapsState={current.twoHeapsState}
+        activeNodeId={current.activeNodeId ?? current.current}
+        desc={current.desc}
+        isMinHeap={current.isMinHeap}
+        variables={current.variables}
+      />
+    );
+  } else if (Boolean(current.lfuCache || current.skipList || current.disjointIntervals)) {
+    if (current.lfuCache) {
+      const lfu = current.lfuCache;
+      readouts = [
+        { label: "Engine", value: "LFU Cache (Bucket DLL)", highlight: true },
+        { label: "Capacity", value: `${lfu.size ?? Object.keys(lfu.keyTable || {}).length} / ${lfu.capacity}`, highlight: (lfu.size ?? 0) >= lfu.capacity },
+        { label: "min_freq", value: lfu.minFreq, highlight: true },
+        { label: "Verdict", value: lfu.hitOrMiss?.toUpperCase() ?? lfu.action?.toUpperCase() ?? "READY" },
+      ];
+    } else if (current.skipList) {
+      const skl = current.skipList;
+      readouts = [
+        { label: "Engine", value: "Skip List Expressways", highlight: true },
+        { label: "Max Levels", value: skl.maxLevel },
+        { label: "Active Level", value: `L${skl.currentLevel}`, highlight: true },
+        { label: "Result", value: skl.found === true ? "FOUND" : skl.found === false ? "NOT FOUND" : (skl.operation?.toUpperCase() ?? "SEARCH") },
+      ];
+    } else if (current.disjointIntervals) {
+      const ivs = current.disjointIntervals;
+      readouts = [
+        { label: "Engine", value: "Disjoint Interval Sets", highlight: true },
+        { label: "Disjoint Ranges", value: `${ivs.intervals.length} Segments`, highlight: true },
+        { label: "Query / Insert", value: ivs.insertedInterval ? `[${ivs.insertedInterval[0]}, ${ivs.insertedInterval[1]}]` : ivs.queryPoint !== undefined && ivs.queryPoint !== null ? `q=${ivs.queryPoint}` : "—" },
+        { label: "Operation", value: ivs.operation?.toUpperCase() ?? "MAINTAIN" },
+      ];
+    }
+
+    primaryBody = (
+      <DesignDataStructureVisualizer
+        lfuCache={current.lfuCache}
+        skipList={current.skipList}
+        disjointIntervals={current.disjointIntervals}
+        desc={current.desc}
+        variables={current.variables}
+      />
+    );
+  } else if (type === "linkedlist" || Boolean(current.lruCache)) {
+    const list = safeArray(current.list ?? current.array ?? cells);
+    const secList = current.secondaryList ? safeArray(current.secondaryList) : null;
+
+    if (current.lruCache) {
+      const lru = current.lruCache;
+      readouts = [
+        { label: "Engine", value: "LRU Cache", highlight: true },
+        { label: "Capacity", value: `${lru.dllOrder.length} / ${lru.capacity}`, highlight: lru.dllOrder.length >= lru.capacity },
+        { label: "MRU Key", value: lru.mruKey ?? (lru.dllOrder[0]?.key ?? "—") },
+        { label: "LRU Key", value: lru.lruKey ?? (lru.dllOrder[lru.dllOrder.length - 1]?.key ?? "—") },
+      ];
+    } else if (current.linkedListCycle) {
+      const cyc = current.linkedListCycle;
+      readouts = [
+        { label: "Algorithm", value: "Floyd Cycle Detection", highlight: true },
+        { label: "Slow (1x)", value: cyc.slowIndex !== null && cyc.slowIndex !== undefined ? `Node [${cyc.slowIndex}]` : "—" },
+        { label: "Fast (2x)", value: cyc.fastIndex !== null && cyc.fastIndex !== undefined ? `Node [${cyc.fastIndex}]` : "—" },
+        {
+          label: "Status",
+          value: cyc.collisionIndex !== null && cyc.collisionIndex !== undefined
+            ? `Collision [${cyc.collisionIndex}]`
+            : cyc.hasCycle
+              ? "Cycle Present"
+              : "Advancing",
+          highlight: Boolean(cyc.collisionIndex !== null && cyc.collisionIndex !== undefined),
+        },
+      ];
+    } else if (current.linkedListReversal) {
+      const rev = current.linkedListReversal;
+      readouts = [
+        { label: "Operation", value: "Pointer Reversal", highlight: true },
+        { label: "PREV", value: rev.prevNode ?? current.predecessor ?? "NULL" },
+        { label: "CURR", value: rev.currNode ?? current.current ?? "NULL", highlight: true },
+        { label: "NEXT", value: rev.nextNode ?? "NULL" },
+      ];
+    } else if (secList) {
+      readouts = [
+        { label: "List 1 (L1)", value: `${list.length} nodes` },
+        { label: "List 2 (L2)", value: `${secList.length} nodes` },
+        { label: "Active Node", value: current.current ?? "—", highlight: true },
+        { label: "Merged", value: visited.length },
+      ];
+    } else {
+      readouts = [
+        { label: "Length", value: list.length },
+        { label: "Current Node", value: current.current ?? null, highlight: true },
+        { label: "Prev / Target", value: current.predecessor ?? null },
+        { label: "Traversed", value: visited.length },
+      ];
+    }
+
     primaryBody = (
       <LinkedListVisualizer
         list={list}
+        secondaryList={secList}
         current={current.current ?? null}
         predecessor={current.predecessor ?? null}
         visited={visited}
-        pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
-      />
-    );
-  } else if (type === "heap") {
-    const rawHeap = current.tree ?? current.array ?? cells;
-    const heapArr = safeTreeArray(rawHeap);
-    const activeIdx =
-      typeof current.left === "number"
-        ? current.left
-        : typeof current.current === "number"
-          ? current.current
-          : null;
-    const swapDesc = current.heapSwap
-      ? `${current.heapSwap.direction}: [${current.heapSwap.fromIndex}] ↔ [${current.heapSwap.toIndex}]`
-      : "Balanced";
-
-    readouts = [
-      { label: "Heap Size", value: heapArr.filter((x) => x !== null && x !== undefined).length },
-      { label: "Active Index", value: activeIdx !== null ? `i = ${activeIdx}` : "—", highlight: true },
-      { label: "Swap Operation", value: swapDesc, highlight: Boolean(current.heapSwap) },
-      { label: "Peak (Root)", value: heapArr[0] ?? "—", highlight: true },
-    ];
-    primaryBody = (
-      <BinaryHeapVisualizer
-        heap={heapArr}
-        heapSwap={current.heapSwap}
-        activeIndex={activeIdx}
-        explanation={current.desc}
-        pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
+        isDoubly={current.isDoubly}
+        dummyNodeVal={current.dummyNodeVal}
+        slowPointer={current.slowPointer}
+        fastPointer={current.fastPointer}
+        prevPointer={current.prevPointer}
+        currPointer={current.currPointer}
+        nextPointer={current.nextPointer}
+        linkedListCycle={current.linkedListCycle}
+        linkedListReversal={current.linkedListReversal}
+        lruCache={current.lruCache}
+        desc={current.desc}
+        variables={current.variables}
       />
     );
   } else if (type === "tree" || type === "bst" || type === "trie") {
@@ -827,25 +880,85 @@ export const Visualizer = memo(function Visualizer({
         : rawTree,
     );
     const nonNullNodes = tree.filter((v) => v !== null && v !== undefined && String(v) !== "null");
-    readouts = [
-      { label: "Nodes Count", value: nonNullNodes.length },
-      { label: "Current Node", value: current.current ?? null, highlight: true },
-      { label: "Visited", value: visited.length },
-      {
-        label: hasAuxQueueInTrace ? "Queue Buffer" : "Type",
-        value: hasAuxQueueInTrace ? (current.queue?.length ?? 0) : type.toUpperCase(),
-      },
-    ];
+
+    if (current.trieState || type === "trie") {
+      const trie = current.trieState;
+      readouts = [
+        { label: "Structure", value: "Trie (Prefix Tree)", highlight: true },
+        { label: "Operation", value: (trie?.operation ?? "LOOKUP").toUpperCase(), highlight: true },
+        { label: "Query / Word", value: trie?.word ?? current.current ?? "—" },
+        { label: "Result", value: trie?.isFound === true ? "Found ✓" : trie?.isFound === false ? "Not Found ✗" : "Traversing..." },
+      ];
+    } else if (current.bstState || type === "bst") {
+      const bst = current.bstState;
+      readouts = [
+        { label: "Structure", value: "Binary Search Tree", highlight: true },
+        { label: "Target Key", value: bst?.target ?? current.current ?? "—", highlight: true },
+        { label: "Invariant", value: bst?.isValidBst !== false ? "Valid BST ✓" : "Violation ⚠", highlight: bst?.isValidBst === false },
+        { label: "Descent / Op", value: bst?.decision ? bst.decision.replace(/_/g, " ").toUpperCase() : "SEARCH" },
+      ];
+    } else if (current.treeTraversal) {
+      readouts = [
+        { label: "Traversal", value: current.treeTraversal.order.toUpperCase(), highlight: true },
+        { label: "Emitted Nodes", value: `${current.treeTraversal.output.length} / ${nonNullNodes.length}`, highlight: true },
+        { label: "Current Node", value: current.current ?? null },
+        { label: "Remaining", value: Math.max(0, nonNullNodes.length - current.treeTraversal.output.length) },
+      ];
+    } else if (current.treeStructural) {
+      const struc = current.treeStructural;
+      readouts = [
+        { label: "Tree Metric", value: struc.isInverted ? "Inverted Tree" : struc.lcaNodes ? "LCA Convergence" : "Depth / Diameter", highlight: true },
+        { label: "Max Depth", value: struc.maxDepth ?? Math.floor(Math.log2(nonNullNodes.length + 1)) + 1 },
+        { label: "Current Node", value: current.current ?? "—", highlight: true },
+        { label: "Visited", value: visited.length },
+      ];
+    } else if (current.segmentRange || current.segmentNodeRanges || current.segmentTreeState) {
+      const seg = current.segmentTreeState;
+      readouts = [
+        { label: "Segment Tree", value: `${nonNullNodes.length} nodes`, highlight: true },
+        { label: "Query Range", value: current.segmentRange ? `[${current.segmentRange[0]}, ${current.segmentRange[1]}]` : (seg?.queryRange ? `[${seg.queryRange[0]}, ${seg.queryRange[1]}]` : "—") },
+        { label: "Range Sum / Aggregate", value: seg?.aggregateResult ?? current.wSum ?? current.current ?? "—", highlight: true },
+        { label: "Active Node", value: current.current ?? "—" },
+      ];
+    } else if (current.fenwickTreeState) {
+      const bit = current.fenwickTreeState;
+      readouts = [
+        { label: "Fenwick Tree (BIT)", value: `${bit.treeArray.length} entries`, highlight: true },
+        { label: "Active Bit Index", value: bit.activeBitIndex ?? current.current ?? "—", highlight: true },
+        { label: "Prefix Sum", value: bit.prefixSum ?? current.current ?? "—", highlight: true },
+        { label: "Operation", value: bit.operation?.toUpperCase() ?? "BIT QUERY" },
+      ];
+    } else {
+      readouts = [
+        { label: "Nodes Count", value: nonNullNodes.length },
+        { label: "Current Node", value: current.current ?? null, highlight: true },
+        { label: "Visited", value: visited.length },
+        {
+          label: hasAuxQueueInTrace ? "Queue Buffer" : "Type",
+          value: hasAuxQueueInTrace ? (current.queue?.length ?? 0) : type.toUpperCase(),
+        },
+      ];
+    }
+
     primaryBody = (
       <TreeVisualizer
         treeData={tree}
         current={current.current ?? null}
         visited={visited}
         type={type}
-        left={typeof current.left === "number" ? current.left : null}
-        right={typeof current.right === "number" ? current.right : null}
-        pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
+        segmentRange={current.segmentRange}
+        segmentNodeRanges={current.segmentNodeRanges}
+        segmentTreeState={current.segmentTreeState}
+        fenwickTreeState={current.fenwickTreeState}
+        naryTreeState={current.naryTreeState}
+        treeTraversal={current.treeTraversal}
+        treeStructural={current.treeStructural}
+        bstState={current.bstState}
+        trieState={current.trieState}
+        lcaNodes={current.lcaNodes}
+        invertedTree={current.invertedTree}
+        desc={current.desc}
+        variables={current.variables}
       />
     );
   } else if (type === "hashmap" || type === "set") {
@@ -864,64 +977,61 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type={type}
-        pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
+        desc={current.desc}
       />
     );
   } else if (type === "matrix") {
     const rows = Array.isArray(current.matrix) ? current.matrix.length : 1;
     const cols =
       current.cols ?? (Array.isArray(current.matrix?.[0]) ? current.matrix[0].length : 1);
-    const hasAreaMetric =
+    const hasAreaStats =
       (current.currentArea !== null && current.currentArea !== undefined) ||
-      (current.maxArea !== null && current.maxArea !== undefined);
-    const isIslandProblem =
-      hasAreaMetric ||
-      /island|islands|land|component/i.test(current.desc || "") ||
-      Boolean(current.islandCells && current.islandCells.length > 0);
+      (current.wSum !== null && current.wSum !== undefined);
 
-    const stat3Label = hasAreaMetric
-      ? "Current Area"
-      : isIslandProblem && current.wSum !== null && current.wSum !== undefined
-        ? "Island Count"
-        : typeof current.wSum === "number"
-          ? "Value / Sum"
-          : isIslandProblem
-            ? "Land Explored"
-            : "Visited Cells";
-    const stat3Value = current.currentArea ?? current.wSum ?? visited.length;
-
-    let stat4Label = "Direction";
-    let stat4Value: string | number | null =
-      current.direction ?? (visited.length > 0 ? visited.length : "None");
-    if (current.maxArea !== null && current.maxArea !== undefined) {
-      stat4Label = "Max Area";
-      stat4Value = current.maxArea;
-    } else if (
-      current.mSum !== null &&
-      current.mSum !== undefined &&
-      current.mSum !== current.wSum
-    ) {
-      stat4Label = hasAreaMetric ? "Max Area" : isIslandProblem ? "Max Islands" : "Target";
-      stat4Value = current.mSum;
-    } else if (current.direction) {
-      stat4Label = "Direction";
-      stat4Value = current.direction;
+    if (current.spiralBounds) {
+      const b = current.spiralBounds;
+      readouts = [
+        { label: "Matrix Size", value: `${rows} × ${cols}` },
+        { label: "Active Cell", value: current.current ?? null, highlight: true },
+        { label: "Bounds (T/B/L/R)", value: `[${b.top}, ${b.bottom}, ${b.left}, ${b.right}]`, highlight: true },
+        { label: "Perimeter Visited", value: visited.length },
+      ];
+    } else if (typeof current.distanceLayer === "number") {
+      readouts = [
+        { label: "Grid Size", value: `${rows} × ${cols}` },
+        { label: "Active Cell", value: current.current ?? null, highlight: true },
+        { label: "Wave Layer", value: `Layer ${current.distanceLayer}`, highlight: true },
+        { label: "Queue Frontier", value: current.frontier ? `${current.frontier.length} cells` : "—" },
+      ];
+    } else if (current.trail && current.trail.length > 0) {
+      readouts = [
+        { label: "Grid Size", value: `${rows} × ${cols}` },
+        { label: "Active Cell", value: current.current ?? null, highlight: true },
+        { label: "Path Length", value: current.trail.length, highlight: true },
+        { label: "Direction", value: current.direction ?? "DFS" },
+      ];
+    } else {
+      readouts = [
+        { label: "Grid Size", value: `${rows} × ${cols}` },
+        { label: "Active Cell", value: current.current ?? null, highlight: true },
+        {
+          label: hasAreaStats ? "Current Area" : "Explored Land",
+          value: current.currentArea ?? current.wSum ?? visited.length,
+          highlight: hasAreaStats,
+        },
+        {
+          label:
+            current.maxArea !== null && current.maxArea !== undefined
+              ? "Max Area"
+              : current.mSum !== null && current.mSum !== undefined
+                ? "Max Area"
+                : current.direction
+                  ? "Direction"
+                  : "Explored",
+          value: current.maxArea ?? current.mSum ?? current.direction ?? visited.length,
+        },
+      ];
     }
-
-    readouts = [
-      { label: "Grid Size", value: `${rows} × ${cols}` },
-      { label: "Active Cell", value: current.current ?? null, highlight: true },
-      {
-        label: stat3Label,
-        value: stat3Value,
-        highlight: typeof stat3Value === "number" && stat3Value > 0,
-      },
-      {
-        label: stat4Label,
-        value: stat4Value,
-      },
-    ];
     const activeMat = current.matrix ?? traceMatrix;
     primaryBody = (
       <MatrixVisualizer
@@ -937,8 +1047,20 @@ export const Visualizer = memo(function Visualizer({
         islandCells={current.islandCells}
         wSum={current.wSum}
         mSum={current.mSum}
-        activePointers={unifiedActivePointers}
-        pointer_labels={current.pointer_labels}
+        spiralBounds={current.spiralBounds}
+        frontier={current.frontier}
+        distanceLayer={current.distanceLayer}
+        highlightRows={current.highlightRows}
+        highlightCols={current.highlightCols}
+        trail={current.trail}
+        rotationLayer={current.rotationLayer}
+        directionRay={current.directionRay}
+        waveDistance={current.waveDistance}
+        backtrackingRibbon={current.backtrackingRibbon}
+        nQueensConflict={current.nQueensConflict}
+        rotationOrbit={current.rotationOrbit}
+        kernel8Neighbor={current.kernel8Neighbor}
+        predecessorArrows={current.predecessorArrows}
       />
     );
   } else if (type === "graph") {
@@ -946,12 +1068,46 @@ export const Visualizer = memo(function Visualizer({
     const cols =
       current.cols ?? (Array.isArray(current.matrix?.[0]) ? current.matrix[0].length : 1);
 
-    readouts = [
-      { label: "Nodes / Rows", value: rows },
-      { label: "Cols", value: cols },
-      { label: "Active Node", value: current.current ?? null, highlight: true },
-      { label: "Visited", value: visited.length },
-    ];
+    if (current.topologicalSortState || /course-schedule|alien-dictionary|topological|kahn/i.test(current.desc ?? "")) {
+      const topo = current.topologicalSortState;
+      readouts = [
+        { label: "Engine", value: "Topological Sort (Kahn's BFS)", highlight: true },
+        { label: "Active Vertex", value: current.current ?? "—" },
+        { label: "Processed", value: `${topo?.processedOrder.length ?? 0} vertices` },
+        { label: "Cycle Status", value: topo?.hasCycle ? "DEADLOCK CYCLE" : "Acyclic (DAG)", highlight: Boolean(topo?.hasCycle) },
+      ];
+    } else if (current.unionFindState || /redundant-connection|number-of-provinces|accounts-merge|union-find|dsu/i.test(current.desc ?? "")) {
+      const dsu = current.unionFindState;
+      readouts = [
+        { label: "Engine", value: "Disjoint Set Union (DSU)", highlight: true },
+        { label: "Active Edge", value: dsu?.activeEdge ? `(${dsu.activeEdge.u}, ${dsu.activeEdge.v})` : "—" },
+        { label: "Components", value: dsu?.numComponents ?? "Forest", highlight: true },
+        { label: "Redundancy", value: dsu?.isRedundant ? "CYCLE DETECTED" : "Valid Tree", highlight: Boolean(dsu?.isRedundant) },
+      ];
+    } else if (current.wordLadderState || /word-ladder|word_ladder|mutation|gene/i.test(current.desc ?? "")) {
+      const wl = current.wordLadderState;
+      readouts = [
+        { label: "Engine", value: "Word Ladder State-Space", highlight: true },
+        { label: "Current Word", value: wl?.currentWord ?? (current.current ? String(current.current) : "—"), highlight: true },
+        { label: "Target", value: wl?.endWord ?? "Target" },
+        { label: "Path Length", value: wl?.distance ? `${wl.distance} steps` : "Searching" },
+      ];
+    } else if (current.distances || current.priorityQueue || current.relaxedEdge) {
+      readouts = [
+        { label: "Algorithm", value: "Dijkstra Shortest Path", highlight: true },
+        { label: "Active Vertex", value: current.current ?? "—" },
+        { label: "Min-Heap PQ", value: `${current.priorityQueue?.length ?? 0} items` },
+        { label: "Shortest Paths", value: current.shortestPathTree?.length ?? 0, highlight: true },
+      ];
+    } else {
+      readouts = [
+        { label: "Graph Mode", value: "Network & Search", highlight: true },
+        { label: "Nodes / Rows", value: rows },
+        { label: "Active Node", value: current.current ?? "—", highlight: true },
+        { label: "Visited", value: visited.length },
+      ];
+    }
+
     primaryBody = (
       <GraphVisualizer
         matrix={current.matrix}
@@ -959,46 +1115,152 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type={type}
-        map={current.map}
-        pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
+        distances={current.distances}
+        priorityQueue={current.priorityQueue}
+        relaxedEdge={current.relaxedEdge}
+        shortestPathTree={current.shortestPathTree}
+        graphEdges={current.graphEdges}
+        isDirected={current.isDirected}
+        graphSearchState={current.graphSearchState}
+        topologicalSortState={current.topologicalSortState}
+        unionFindState={current.unionFindState}
+        wordLadderState={current.wordLadderState}
+        desc={current.desc}
+        variables={current.variables}
       />
     );
   } else {
-    // Array / Two Pointers / Sliding Window / Binary Search / Sorting
+    // Array / Two Pointers / Sliding Window / Binary Search / Sorting / KMP
     const left = typeof current.left === "number" ? current.left : null;
     const right = typeof current.right === "number" ? current.right : null;
     const left2 = typeof current.left2 === "number" ? current.left2 : null;
     const rPointer = hasSecondaryArrayInTrace && left2 !== null ? left2 : right;
 
-    readouts = [
-      { label: hasSecondaryArrayInTrace ? "Pointer L (Seq 1)" : "Left (L)", value: left },
-      { label: hasSecondaryArrayInTrace ? "Pointer R (Seq 2)" : "Right (R)", value: rPointer },
-      {
-        label:
-          current.wSum !== null && current.wSum !== undefined
-            ? hasSecondaryArrayInTrace
-              ? "LCS Length"
-              : "Window Sum"
-            : "Current",
-        value: current.wSum ?? current.current ?? null,
-        highlight: true,
-      },
-      {
-        label: hasAuxMapInTrace
-          ? "Map Entries"
-          : hasAuxStackInTrace
-            ? "Stack Size"
-            : current.mSum !== null && current.mSum !== undefined
-              ? "Best / Max"
-              : "Array Size",
-        value: hasAuxMapInTrace
-          ? Object.keys(current.map ?? {}).length
-          : hasAuxStackInTrace
-            ? (current.stack?.length ?? 0)
-            : (current.mSum ?? cells.length),
-      },
-    ];
+    if (current.rabinKarpState) {
+      readouts = [
+        { label: "Algorithm", value: "Rabin-Karp Rolling Hash", highlight: true },
+        { label: "Window Start", value: current.rabinKarpState.windowStart },
+        { label: "Pattern Hash H(P)", value: String(current.rabinKarpState.patternHash), highlight: true },
+        { label: "Window Hash H(W)", value: String(current.rabinKarpState.windowHash) },
+      ];
+    } else if (current.ahoCorasickState) {
+      readouts = [
+        { label: "Algorithm", value: "Aho-Corasick Automaton", highlight: true },
+        { label: "Active State", value: `Node #${current.ahoCorasickState.currentStateId}`, highlight: true },
+        { label: "Input Text Idx", value: current.ahoCorasickState.textIndex },
+        { label: "Matches Emitted", value: current.ahoCorasickState.emittedMatches?.length ?? 0 },
+      ];
+    } else if (current.kmpState || current.patternStr || current.lps) {
+      readouts = [
+        { label: "Algorithm", value: "KMP Matching", highlight: true },
+        { label: "Text Idx (i)", value: current.kmpState?.textIndex ?? current.textIndex ?? 0 },
+        { label: "Pattern Idx (j)", value: current.kmpState?.patternIndex ?? current.patternIndex ?? 0 },
+        {
+          label: "Match Status",
+          value: current.kmpState?.isMatch ? "Character Match" : current.kmpState?.isMismatch ? "Mismatch / Fallback" : current.wSum ? `Match at ${current.left}` : "Searching...",
+          highlight: Boolean(current.kmpState?.isMatch || current.wSum),
+        },
+      ];
+    } else if (current.dnfPartition) {
+      readouts = [
+        { label: "Algorithm", value: "Dutch National Flag", highlight: true },
+        { label: "Low [0s end]", value: current.dnfPartition.low },
+        { label: "Mid [Scan]", value: current.dnfPartition.mid, highlight: true },
+        { label: "High [2s start]", value: current.dnfPartition.high },
+      ];
+    } else if (current.binarySearchPartition) {
+      readouts = [
+        { label: "Algorithm", value: "Binary Search", highlight: true },
+        { label: "Low", value: current.binarySearchPartition.low },
+        { label: "Mid", value: current.binarySearchPartition.mid, highlight: true },
+        { label: "High", value: current.binarySearchPartition.high },
+      ];
+    } else if (current.slidingWindowSpan) {
+      readouts = [
+        { label: "Algorithm", value: "Sliding Window", highlight: true },
+        { label: "Left (L)", value: current.slidingWindowSpan.left },
+        { label: "Right (R)", value: current.slidingWindowSpan.right },
+        {
+          label: "Window Sum/Len",
+          value:
+            current.slidingWindowSpan.sum ??
+            current.wSum ??
+            current.slidingWindowSpan.length,
+          highlight: true,
+        },
+      ];
+    } else if (current.prefixSumProjection) {
+      readouts = [
+        {
+          label: "Query Range",
+          value: `[${current.prefixSumProjection.queryRange[0]} .. ${current.prefixSumProjection.queryRange[1]}]`,
+          highlight: true,
+        },
+        { label: "Prefix Index R", value: current.prefixSumProjection.prefixIndices[1] },
+        { label: "Prefix Index L", value: current.prefixSumProjection.prefixIndices[0] },
+        { label: "Subarray Sum", value: current.prefixSumProjection.rangeSum ?? current.wSum ?? "—", highlight: true },
+      ];
+    } else if (current.cyclicSortJump) {
+      const isPlaced = current.cyclicSortJump.action === "placed" || current.cyclicSortJump.fromIdx === current.cyclicSortJump.targetIdx;
+      readouts = [
+        { label: "Algorithm", value: "Cyclic Sort", highlight: true },
+        { label: "Source [i]", value: current.cyclicSortJump.fromIdx },
+        { label: "Target [val-1]", value: current.cyclicSortJump.targetIdx, highlight: true },
+        {
+          label: "Status",
+          value: isPlaced ? "In Position" : current.cyclicSortJump.isDuplicate ? "Duplicate" : "Needs Swap",
+          highlight: isPlaced,
+        },
+      ];
+    } else if (current.swapFlight) {
+      readouts = [
+        { label: "Operation", value: "In-Place Swap", highlight: true },
+        { label: "Swap Indices", value: `[${current.swapFlight.idx1}] ↔ [${current.swapFlight.idx2}]`, highlight: true },
+        { label: "Values", value: `${current.swapFlight.val1} ↔ ${current.swapFlight.val2}` },
+        { label: "Array Size", value: cells.length },
+      ];
+    } else {
+      const pLeftLabel = current.pointer_labels?.left ?? (hasSecondaryArrayInTrace ? "Pointer L (Seq 1)" : "Left (L)");
+      const pRightLabel = current.pointer_labels?.right ?? (hasSecondaryArrayInTrace ? "Pointer R (Seq 2)" : "Right (R)");
+      const pMidLabel = current.pointer_labels?.mid ?? current.pointer_labels?.current ?? "Mid";
+
+      readouts = [
+        { label: pLeftLabel, value: left },
+        { label: pRightLabel, value: rPointer },
+        {
+          label:
+            current.wSum !== null && current.wSum !== undefined
+              ? hasSecondaryArrayInTrace
+                ? "LCS Length"
+                : "Window Sum"
+              : current.pointer_labels?.current
+                ? current.pointer_labels.current
+                : typeof left === "number" && typeof right === "number" && left <= right
+                  ? pMidLabel
+                  : "Current",
+          value:
+            current.wSum ??
+            (typeof left === "number" && typeof right === "number" && left <= right && !hasSecondaryArrayInTrace
+              ? Math.floor((left + right) / 2)
+              : current.current ?? null),
+          highlight: true,
+        },
+        {
+          label: hasAuxMapInTrace
+            ? "Map Entries"
+            : hasAuxStackInTrace
+              ? "Stack Size"
+              : current.mSum !== null && current.mSum !== undefined
+                ? "Best / Max"
+                : "Array Size",
+          value: hasAuxMapInTrace
+            ? Object.keys(current.map ?? {}).length
+            : hasAuxStackInTrace
+              ? (current.stack?.length ?? 0)
+              : (current.mSum ?? cells.length),
+        },
+      ];
+    }
     primaryBody = (
       <ArrayVisualizer
         cells={cells}
@@ -1007,11 +1269,19 @@ export const Visualizer = memo(function Visualizer({
         secondaryArray={current.secondaryArray}
         left2={current.left2}
         right2={current.right2}
-        label1={
-          current.datasetLabels?.primary ??
-          (current.secondaryArray ? "Primary Array (nums1)" : "Input Array")
-        }
-        label2={current.datasetLabels?.secondaryArray ?? "Secondary Array (nums2)"}
+        label1={(() => {
+          if (current.datasetLabels?.primary) return current.datasetLabels.primary;
+          if (current.datasetLabels?.array) return current.datasetLabels.array;
+          const isStr = Array.isArray(current.array) && current.array.some((x) => typeof x === "string" && isNaN(Number(x)));
+          if (current.secondaryArray) return isStr ? "Primary Sequence (arr1)" : "Primary Array (nums1)";
+          return isStr ? "Input Sequence" : "Input Array";
+        })()}
+        label2={(() => {
+          if (current.datasetLabels?.secondaryArray) return current.datasetLabels.secondaryArray;
+          if (current.datasetLabels?.nums2) return current.datasetLabels.nums2;
+          const isStr = Array.isArray(current.secondaryArray) && current.secondaryArray.some((x) => typeof x === "string" && isNaN(Number(x)));
+          return isStr ? "Secondary Sequence (arr2)" : "Secondary Array (nums2)";
+        })()}
         activeDataset={current.activeDataset}
         current={current.current ?? null}
         visited={current.visited ?? null}
@@ -1019,11 +1289,25 @@ export const Visualizer = memo(function Visualizer({
         mSum={current.mSum}
         isMathMode={isMathMode}
         pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
+        lps={current.lps}
+        patternStr={current.patternStr}
+        textStr={current.textStr}
+        patternIndex={current.patternIndex}
+        textIndex={current.textIndex}
+        kmpState={current.kmpState}
+        rabinKarpState={current.rabinKarpState}
+        ahoCorasickState={current.ahoCorasickState}
+        stringPatternState={current.stringPatternState}
+        dnfPartition={current.dnfPartition}
+        binarySearchPartition={current.binarySearchPartition}
+        slidingWindowSpan={current.slidingWindowSpan}
+        prefixSumProjection={current.prefixSumProjection}
+        cyclicSortJump={current.cyclicSortJump}
+        swapFlight={current.swapFlight}
+        motionBlurEnabled={motionBlurEnabled}
       />
     );
   }
-
 
   // -------------------------------------------------------------
   // AUXILIARY STRUCTURE COMPONENTS
@@ -1045,8 +1329,6 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type={hasAuxSetInTrace ? "set" : "hashmap"}
-        pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
       />
     </div>
   );
@@ -1067,8 +1349,6 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type={hasAuxStackInTrace ? "stack" : "queue"}
-        pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
       />
     </div>
   );
@@ -1086,10 +1366,7 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         predecessor={current.predecessor ?? null}
         visited={visited}
-        pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
       />
-
     </div>
   );
 
@@ -1109,8 +1386,6 @@ export const Visualizer = memo(function Visualizer({
         current={current.current ?? null}
         visited={visited}
         type="heap"
-        pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
       />
     </div>
   );
@@ -1140,13 +1415,80 @@ export const Visualizer = memo(function Visualizer({
         isMathMode={isMathMode}
         hideBars={true}
         pointer_labels={current.pointer_labels}
-        activePointers={unifiedActivePointers}
       />
     </div>
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      data-motion-blur={motionBlurEnabled ? "true" : "false"}
+      className={`flex flex-col gap-4 transition-all duration-300 ${
+        motionBlurEnabled ? "motion-blur-active" : ""
+      }`}
+    >
+      {/* SVG Motion Blur Filter Definition */}
+      {motionBlurEnabled && (
+        <svg className="sr-only" aria-hidden="true">
+          <defs>
+            <filter id="viz-motion-blur" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3 0" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+        </svg>
+      )}
+
+      {/* Live Trace Streaming Cycle Banner */}
+      {liveStatus && (
+        <div className="relative overflow-hidden flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/40 bg-gradient-to-r from-primary/15 via-primary/5 to-transparent p-3.5 sm:px-5 backdrop-blur-md shadow-sm animate-fade">
+          <div className="flex items-center gap-3">
+            <span className="relative flex size-3">
+              <span
+                className={`absolute inline-flex h-full w-full rounded-full ${
+                  liveStatus.isComplete
+                    ? "bg-emerald-400 opacity-75"
+                    : "bg-amber-400 animate-ping opacity-75"
+                }`}
+              />
+              <span
+                className={`relative inline-flex size-3 rounded-full ${
+                  liveStatus.isComplete ? "bg-emerald-500" : "bg-amber-500"
+                }`}
+              />
+            </span>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-foreground">
+                  {liveStatus.datasetLabel}
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-extrabold border transition-all ${
+                    liveStatus.isComplete
+                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                      : "bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse"
+                  }`}
+                >
+                  {liveStatus.isComplete
+                    ? "is_complete: true ✓"
+                    : `is_complete: false (streaming cycle ${liveStatus.loopCount})`}
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground">
+                {liveStatus.statusText}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 font-mono text-xs">
+            <span className="rounded-lg border border-border/80 bg-background/60 px-2.5 py-1 text-primary font-bold shadow-xs">
+              Cycle #{liveStatus.loopCount} • {safeSteps.length} Live Steps
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Live Asymptotic Telemetry HUD Ribbon */}
       <TelemetryMetricsBar
         step={step}

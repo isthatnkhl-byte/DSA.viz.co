@@ -73,20 +73,24 @@ export function VisualizerToolbar({
           <span>Watch Table: {showVariableWatch ? "ON" : "OFF"}</span>
         </Button>
 
-        {/* Motion Blur Effect Toggle */}
+        {/* Motion Blur & Gliding Animation Toggle */}
         <Button
           variant="ghost"
           size="sm"
           onClick={onToggleMotionBlur}
-          className={`h-7 gap-1.5 px-2.5 font-mono text-[11px] transition-all ${
+          className={`btn-glide h-7 gap-1.5 px-2.5 font-mono text-[11px] rounded-lg transition-all ${
             motionBlurEnabled
-              ? "bg-primary/20 text-primary font-bold border border-primary/40 shadow-xs"
-              : "text-muted-foreground hover:text-foreground"
+              ? "bg-primary/20 text-primary font-bold border border-primary/50 shadow-sm shadow-primary/25"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
           }`}
-          title="Toggle Cinematic Motion Blur & Glide Animation (M)"
+          title="Toggle Cinematic Motion Blur & Inertial Gliding Animations (M)"
         >
-          <Zap className={`size-3.5 ${motionBlurEnabled ? "fill-primary text-primary" : ""}`} />
-          <span>Motion Blur: {motionBlurEnabled ? "ON" : "OFF"}</span>
+          <Zap
+            className={`size-3.5 transition-transform duration-300 ${
+              motionBlurEnabled ? "fill-primary text-primary scale-110" : ""
+            }`}
+          />
+          <span>Gliding &amp; Blur: {motionBlurEnabled ? "ON" : "OFF"}</span>
         </Button>
 
         {/* Multi-Dataset Toggle */}

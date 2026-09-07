@@ -1,148 +1,129 @@
 {
-  "collections": [
-    {
-      "name": "users",
-      "path": "users/{userId}",
-      "rules": [
-        {
-          "allow": "read",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        },
-        {
-          "allow": "write",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        }
-      ],
-      "schema": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "timestamp"
-          },
-          "updatedAt": {
-            "type": "timestamp"
-          },
-          "preferences": {
-            "type": "object"
-          }
-        },
-        "required": ["email"]
-      }
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with display metadata, LeetCode stats, and preferences",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 255 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "avatarUrl": { "type": "string", "maxLength": 1024 },
+        "leetcodeUsername": { "type": "string", "maxLength": 100 },
+        "leetcodeStats": { "type": "object" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["email"]
     },
-    {
-      "name": "submissions",
-      "path": "users/{userId}/submissions/{submissionId}",
-      "rules": [
-        {
-          "allow": "read",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        },
-        {
-          "allow": "write",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        }
-      ],
-      "schema": {
-        "type": "object",
-        "properties": {
-          "problemSlug": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "language": {
-            "type": "string"
-          },
-          "metrics": {
-            "type": "object"
-          },
-          "createdAt": {
-            "type": "timestamp"
-          }
-        },
-        "required": ["problemSlug", "createdAt"]
-      }
+    "Submission": {
+      "title": "Submission",
+      "description": "Algorithmic code submission with review verdict, errors, and metrics",
+      "type": "object",
+      "properties": {
+        "problemSlug": { "type": "string", "maxLength": 255 },
+        "title": { "type": "string", "maxLength": 255 },
+        "code": { "type": "string", "maxLength": 50000 },
+        "pseudocode": { "type": "string", "maxLength": 50000 },
+        "lang": { "type": "string", "maxLength": 50 },
+        "classification": { "type": "string", "maxLength": 50 },
+        "difficulty": { "type": "string", "maxLength": 50 },
+        "timeComplexity": { "type": "string", "maxLength": 100 },
+        "spaceComplexity": { "type": "string", "maxLength": 100 },
+        "rating": { "type": "number" },
+        "review": { "type": "string", "maxLength": 10000 },
+        "praise": { "type": "string", "maxLength": 5000 },
+        "nudge": { "type": "string", "maxLength": 5000 },
+        "errorType": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["problemSlug", "createdAt"]
     },
-    {
-      "name": "bookmarks",
-      "path": "users/{userId}/bookmarks/{bookmarkId}",
-      "rules": [
-        {
-          "allow": "read",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        },
-        {
-          "allow": "write",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        }
-      ],
-      "schema": {
-        "type": "object",
-        "properties": {
-          "problemSlug": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "timestamp"
-          }
-        },
-        "required": ["problemSlug", "createdAt"]
-      }
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "Multi-turn Gemini chat conversation history with context",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 255 },
+        "problemSlug": { "type": "string", "maxLength": 255 },
+        "role": { "type": "string", "maxLength": 50 },
+        "messages": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "createdAt"]
     },
-    {
-      "name": "ai_reports",
-      "path": "users/{userId}/ai_reports/{reportId}",
-      "rules": [
-        {
-          "allow": "read",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        },
-        {
-          "allow": "write",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        }
-      ],
-      "schema": {
-        "type": "object",
-        "properties": {
-          "title": { "type": "string" },
-          "totalSubmissions": { "type": "number" },
-          "reportData": { "type": "object" },
-          "createdAt": { "type": "string" }
-        },
-        "required": ["title", "createdAt"]
-      }
+    "AiReport": {
+      "title": "AiReport",
+      "description": "Comprehensive diagnostics report of common syntax and logical mistakes",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 255 },
+        "totalSubmissions": { "type": "number" },
+        "reportData": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "createdAt"]
     },
-    {
-      "name": "chat_sessions",
-      "path": "users/{userId}/chat_sessions/{sessionId}",
-      "rules": [
-        {
-          "allow": "read",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        },
-        {
-          "allow": "write",
-          "condition": "request.auth != null && request.auth.uid == userId"
-        }
-      ],
-      "schema": {
-        "type": "object",
-        "properties": {
-          "title": { "type": "string" },
-          "messages": { "type": "array" },
-          "createdAt": { "type": "string" },
-          "updatedAt": { "type": "string" }
-        },
-        "required": ["title", "messages"]
-      }
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "User activity log for progress tracking",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "maxLength": 50 },
+        "problemSlug": { "type": "string", "maxLength": 255 },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["type", "createdAt"]
+    },
+    "TaskStatusRecord": {
+      "title": "TaskStatusRecord",
+      "description": "Tracks status, pending states, and loop counters of AI-generated pseudocode tasks",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string", "maxLength": 255 },
+        "problemSlug": { "type": "string", "maxLength": 255 },
+        "datasetId": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "maxLength": 50 },
+        "loopCount": { "type": "number" },
+        "maxLoops": { "type": "number" },
+        "stepCount": { "type": "number" },
+        "totalExpectedSteps": { "type": "number" },
+        "lastStepLine": { "type": "number" },
+        "lastStepDesc": { "type": "string", "maxLength": 1000 },
+        "isTerminalLine": { "type": "boolean" },
+        "forceCompletedReason": { "type": "string", "maxLength": 500 },
+        "error": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["taskId", "problemSlug", "status", "createdAt"]
     }
-  ]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Root user profile document"
+    },
+    "/users/{userId}/submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "User algorithmic submissions and evaluation records"
+    },
+    "/users/{userId}/chat_sessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "User multi-turn chat sessions with Gemini"
+    },
+    "/users/{userId}/ai_reports/{reportId}": {
+      "schema": "AiReport",
+      "description": "AI-generated diagnostic reports of common mistakes"
+    },
+    "/users/{userId}/activity/{activityId}": {
+      "schema": "ActivityLog",
+      "description": "User telemetry and activity events"
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "TaskStatusRecord",
+      "description": "AI-generated pseudocode task execution status and progress tracking"
+    }
+  }
 }

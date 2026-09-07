@@ -164,21 +164,23 @@ export const PseudocodeEditor = memo(function PseudocodeEditor({
             Pseudocode Draft
           </span>
         </div>
-        <Button
-          type="button"
-          onClick={onInsertStarter}
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1 font-mono text-[11px] text-muted-foreground hover:text-foreground"
-        >
-          <RotateCcw className="size-3" /> Starter Template
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            onClick={onInsertStarter}
+            variant="ghost"
+            size="sm"
+            className="btn-glide h-7 gap-1 font-mono text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className="size-3" /> Starter Template
+          </Button>
+        </div>
       </div>
 
-      <div className="relative flex rounded-xl border border-border/80 bg-background/90 font-mono text-xs shadow-inner focus-within:border-primary/60 focus-within:ring-1 focus-within:ring-primary/40">
+      <div className="relative flex rounded-2xl border border-border/70 bg-background/80 font-mono text-xs shadow-inner transition-all duration-300 focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20">
         <div
           aria-hidden="true"
-          className="select-none border-r border-border/50 bg-muted/20 px-2.5 py-3 text-right font-mono text-[11px] text-muted-foreground/60"
+          className="select-none border-r border-border/50 bg-muted/15 px-2.5 py-3 text-right font-mono text-[11px] text-muted-foreground/60"
         >
           {Array.from({ length: Math.max(1, lineCount) }, (_, i) => (
             <div key={i}>{i + 1}</div>
@@ -192,7 +194,7 @@ export const PseudocodeEditor = memo(function PseudocodeEditor({
           onBlur={flushChanges}
           onKeyDown={handleKeyDown}
           placeholder={`# Outline your algorithm step by step\ndef solve(input):\n    # 1. Initialize pointers / state\n    # 2. Iterate through elements\n    # 3. Apply state transitions\n    return result`}
-          rows={Math.max(8, Math.min(18, lineCount))}
+          rows={Math.max(8, Math.min(22, lineCount))}
           spellCheck={false}
           autoComplete="off"
           autoCorrect="off"
@@ -202,46 +204,53 @@ export const PseudocodeEditor = memo(function PseudocodeEditor({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <span className="font-mono text-[11px] text-muted-foreground">
-          {lineCount} lines • {localCode.length} chars • Ctrl+Enter to submit
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {lineCount} lines • {localCode.length} chars
+          </span>
+          <span className="hidden sm:inline-block rounded-md bg-muted/40 border border-border/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+            ⌘+Enter
+          </span>
+        </div>
 
-        {onPushToGithub && (
+        <div className="flex items-center gap-2">
+          {onPushToGithub && (
+            <Button
+              type="button"
+              onClick={() => {
+                flushChanges();
+                onPushToGithub(localCode);
+              }}
+              disabled={githubLoading || !localCode.trim()}
+              variant="outline"
+              className="btn-glide gap-2 font-mono text-xs font-bold shadow-xs hover:bg-[#24292e]/10 border-border"
+            >
+              {githubLoading ? (
+                <Brain className="size-3.5 animate-spin" />
+              ) : (
+                <Github className="size-3.5" />
+              )}
+              Push to GitHub
+            </Button>
+          )}
+
           <Button
             type="button"
-            onClick={() => {
-              flushChanges();
-              onPushToGithub(localCode);
-            }}
-            disabled={githubLoading || !localCode.trim()}
-            variant="outline"
-            className="gap-2 font-mono text-xs font-bold shadow-md hover:bg-[#24292e]/10 border-border"
+            onClick={handleSubmit}
+            disabled={loading || !localCode.trim()}
+            className="btn-glide gap-2 font-mono text-xs font-bold shadow-md shadow-primary/20 transition-all active:scale-95"
           >
-            {githubLoading ? (
-              <Brain className="size-3.5 animate-spin" />
+            {loading ? (
+              <>
+                <Brain className="size-3.5 animate-spin" /> Reviewing & Simulating...
+              </>
             ) : (
-              <Github className="size-3.5" />
+              <>
+                <Sparkles className="size-3.5" /> Review & Step-by-Step Trace
+              </>
             )}
-            Push to GitHub
           </Button>
-        )}
-
-        <Button
-          type="button"
-          onClick={handleSubmit}
-          disabled={loading || !localCode.trim()}
-          className="gap-2 font-mono text-xs font-bold shadow-md shadow-primary/20"
-        >
-          {loading ? (
-            <>
-              <Brain className="size-3.5 animate-spin" /> Reviewing & Simulating...
-            </>
-          ) : (
-            <>
-              <Sparkles className="size-3.5" /> Review & Step-by-Step Trace
-            </>
-          )}
-        </Button>
+        </div>
       </div>
     </div>
   );

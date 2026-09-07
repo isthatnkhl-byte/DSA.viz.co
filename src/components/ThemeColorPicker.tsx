@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Palette, Check, Sun, Moon } from "lucide-react";
-import { THEME_OPTIONS } from "@/lib/theme";
+import { Palette, Check, Sun, Moon, Sparkles } from "lucide-react";
+import { THEME_OPTIONS, ThemeOption } from "@/lib/theme";
 import { useThemeColor } from "@/hooks/useThemeColor";
 
 interface ThemeColorPickerProps {
@@ -11,9 +11,16 @@ interface ThemeColorPickerProps {
 export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColorPickerProps) {
   const { theme, setTheme, mode, setMode, toggleMode } = useThemeColor();
   const [isOpen, setIsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("All");
   const containerRef = useRef<HTMLDivElement>(null);
 
   const activeOption = THEME_OPTIONS.find((t) => t.id === theme) ?? THEME_OPTIONS[0]!;
+
+  const categories = ["All", "Vibrant", "Neon", "Monochrome", "Nature"];
+
+  const filteredOptions = activeTab === "All" 
+    ? THEME_OPTIONS 
+    : THEME_OPTIONS.filter(opt => opt.category === activeTab);
 
   // Close on outside click
   useEffect(() => {
@@ -30,7 +37,7 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
 
   return (
     <div className="relative inline-flex items-center gap-1 shrink-0" ref={containerRef}>
-      {/* 1. Dedicated Light / Dark Mode Toggle Button */}
+      {/* 1. Light / Dark Mode Toggle Button */}
       <button
         type="button"
         onClick={toggleMode}
@@ -49,35 +56,47 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`flex h-8 items-center gap-1.5 rounded-xl border border-border/70 bg-card/60 px-2 text-xs font-mono font-semibold transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0 ${
+        className={`flex h-8 items-center gap-1.5 rounded-xl border border-border/70 bg-card/60 px-2.5 text-xs font-mono font-semibold transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0 ${
           isOpen ? "ring-2 ring-primary/40 border-primary/50" : ""
         }`}
-        title={`Accent Color: ${activeOption.label}`}
+        title={`Theme Accent: ${activeOption.label}`}
       >
-        <span
-          className="size-3 rounded-full shadow-xs"
-          style={{ backgroundColor: activeOption.previewColor }}
-        />
+        <span className="relative flex items-center justify-center size-3.5">
+          <span
+            className="absolute size-3 rounded-full shadow-xs"
+            style={{ backgroundColor: activeOption.previewColor }}
+          />
+          <span
+            className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-background shadow-xs"
+            style={{ backgroundColor: activeOption.accentColor }}
+          />
+        </span>
         {!compact && (
-          <span className="hidden xl:inline text-[11px] text-muted-foreground hover:text-foreground font-sans">
+          <span className="hidden xl:inline text-[11px] text-muted-foreground hover:text-foreground font-sans font-medium">
             {activeOption.name}
           </span>
         )}
-        <Palette className="size-3 text-muted-foreground shrink-0" />
+        <Palette className="size-3 text-muted-foreground shrink-0 ml-0.5" />
       </button>
 
-      {/* Floating Theme & Appearance Selector Popover */}
+      {/* Expanded Theme Popover */}
       {isOpen && (
         <div
-          className={`absolute top-full mt-2 z-50 w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/80 bg-popover/95 p-3 shadow-2xl backdrop-blur-xl animate-fade ${
+          className={`absolute top-full mt-2 z-50 w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/80 bg-popover/98 p-3.5 shadow-2xl backdrop-blur-2xl animate-fade ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
-          {/* Section A: Appearance Mode (Dark vs Light) */}
-          <div className="mb-3 border-b border-border/60 pb-2.5">
-            <span className="mb-2 block text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
-              Appearance Mode
-            </span>
+          {/* Header & Appearance Mode Toggle */}
+          <div className="mb-3 border-b border-border/60 pb-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <Sparkles className="size-3 text-primary" /> Appearance & Theme
+              </span>
+              <span className="text-[10px] font-mono font-bold text-primary">
+                {THEME_OPTIONS.length} Themes
+              </span>
+            </div>
+
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
@@ -89,7 +108,7 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
                 }`}
               >
                 <Moon className="size-3.5" />
-                <span>Dark</span>
+                <span>Dark Mode</span>
               </button>
 
               <button
@@ -102,51 +121,72 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
                 }`}
               >
                 <Sun className="size-3.5" />
-                <span>Light</span>
+                <span>Light Mode</span>
               </button>
             </div>
           </div>
 
-          {/* Section B: Color Glow & Accent Palette */}
-          <div>
-            <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Palette className="size-3 text-primary" /> Accent Color
-              </span>
-              <span className="text-[10px] font-mono text-primary font-bold">
-                {activeOption.name}
-              </span>
-            </div>
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-none">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setActiveTab(cat)}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-mono whitespace-nowrap transition-all ${
+                  activeTab === cat
+                    ? "bg-primary/20 text-primary font-bold border border-primary/30"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
 
-            <div className="grid grid-cols-1 gap-1 max-h-56 overflow-y-auto pr-1">
-              {THEME_OPTIONS.map((opt) => {
-                const isSelected = opt.id === theme;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      setTheme(opt.id);
-                      setIsOpen(false);
-                    }}
-                    className={`flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs font-mono transition-all text-left ${
-                      isSelected
-                        ? "bg-primary/20 text-foreground font-bold border border-primary/40 shadow-xs"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground border border-transparent"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
+          {/* 12 Color Theme Options Grid */}
+          <div className="grid grid-cols-1 gap-1 max-h-64 overflow-y-auto pr-1">
+            {filteredOptions.map((opt) => {
+              const isSelected = opt.id === theme;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setTheme(opt.id);
+                    setIsOpen(false);
+                  }}
+                  className={`group flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-mono transition-all text-left ${
+                    isSelected
+                      ? "bg-primary/20 text-foreground font-bold border border-primary/40 shadow-xs"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground border border-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="relative flex items-center justify-center size-4 shrink-0">
                       <span
-                        className="size-3.5 rounded-full border border-white/20 shadow-xs"
+                        className="absolute size-3.5 rounded-full border border-white/20 shadow-xs transition-transform group-hover:scale-110"
                         style={{ backgroundColor: opt.previewColor }}
                       />
-                      <span>{opt.name}</span>
+                      <span
+                        className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-background shadow-xs"
+                        style={{ backgroundColor: opt.accentColor }}
+                      />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate font-sans font-semibold text-xs leading-tight">
+                        {opt.name}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground/80 font-mono truncate">
+                        {opt.label}
+                      </div>
                     </div>
-                    {isSelected && <Check className="size-3.5 text-primary" />}
-                  </button>
-                );
-              })}
-            </div>
+                  </div>
+
+                  {isSelected && <Check className="size-3.5 text-primary shrink-0 ml-2" />}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

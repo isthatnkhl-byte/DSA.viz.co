@@ -40,6 +40,9 @@ export function generateSynthesizedStatement(slug: string, customProblem?: any):
   const topics = p.topics && p.topics.length > 0 ? p.topics : ["Algorithms", "Data Structures"];
   const companies = p.companies && p.companies.length > 0 ? p.companies : [];
 
+  const isStreamOrLogger =
+    topics.some((t: string) => /data stream|logger|rate limit/i.test(t)) ||
+    /logger|rate-limit|hit-counter/i.test(s);
   const isString =
     topics.some((t: string) => /string|trie/i.test(t)) || /string|word|anagram|palindrome|parenthes/i.test(s);
   const isTree = topics.some((t: string) => /tree|bst|binary search tree|heap/i.test(t));
@@ -49,7 +52,11 @@ export function generateSynthesizedStatement(slug: string, customProblem?: any):
   let exampleInput = "[2, 7, 11, 15]";
   let exampleOutput = "9";
   let inputLabel = "nums";
-  if (isString) {
+  if (isStreamOrLogger) {
+    inputLabel = "messages";
+    exampleInput = '["foo", "bar", "foo"], timestamps = [1, 2, 8]';
+    exampleOutput = "[true, true, false]";
+  } else if (isString) {
     inputLabel = "s";
     exampleInput = '"abacaba"';
     exampleOutput = "true";

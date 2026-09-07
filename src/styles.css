@@ -463,6 +463,196 @@ html.light[data-theme="rose"] {
   --dsavizco-text-glow: rgba(219, 39, 119, 0.35);
 }
 
+/* 8. Cyberpunk Neon Theme */
+html[data-theme="cyberpunk"] {
+  --background: oklch(0.11 0.04 320);
+  --card: oklch(0.15 0.035 320 / 0.88);
+  --border: oklch(0.72 0.26 325 / 0.28);
+  --primary: oklch(0.72 0.26 325);
+  --primary-foreground: oklch(0.11 0.03 325);
+  --accent: oklch(0.80 0.18 195);
+  --ring: oklch(0.72 0.26 325);
+  --glow-primary: 0 0 36px oklch(0.72 0.26 325 / 0.45);
+  --glow-accent: 0 0 36px oklch(0.80 0.18 195 / 0.45);
+  --gradient-primary: linear-gradient(135deg, oklch(0.74 0.26 325), oklch(0.80 0.18 195));
+  --gradient-accent: linear-gradient(135deg, oklch(0.80 0.18 195), oklch(0.74 0.26 325));
+  --dsavizco-text-color: #ffffff;
+  --dsavizco-glow-core: rgba(244, 114, 182, 0.95);
+  --dsavizco-glow-mid: rgba(236, 72, 153, 0.8);
+  --dsavizco-glow-outer: rgba(56, 189, 248, 0.45);
+  --dsavizco-glow-intense: rgba(249, 168, 212, 0.95);
+  --dsavizco-text-glow: rgba(244, 114, 182, 0.9);
+}
+html.light[data-theme="cyberpunk"] {
+  --background: oklch(0.982 0.01 320);
+  --card: oklch(0.995 0.005 320 / 0.95);
+  --border: oklch(0.85 0.02 320);
+  --primary: oklch(0.52 0.26 325);
+  --primary-foreground: oklch(0.99 0.005 80);
+  --accent: oklch(0.48 0.18 195);
+  --ring: oklch(0.52 0.26 325);
+  --glow-primary: 0 8px 24px oklch(0.52 0.26 325 / 0.28);
+  --gradient-primary: linear-gradient(135deg, oklch(0.54 0.26 325), oklch(0.50 0.18 195));
+  --dsavizco-text-color: #701a75;
+  --dsavizco-glow-core: rgba(217, 70, 239, 0.45);
+  --dsavizco-glow-mid: rgba(14, 165, 233, 0.35);
+  --dsavizco-glow-outer: rgba(236, 72, 153, 0.2);
+  --dsavizco-glow-intense: rgba(240, 171, 252, 0.6);
+  --dsavizco-text-glow: rgba(217, 70, 239, 0.35);
+}
+
+/* 9. Midnight Obsidian / Stealth Theme */
+html[data-theme="obsidian"] {
+  --background: oklch(0.09 0.008 260);
+  --card: oklch(0.13 0.01 260 / 0.9);
+  --border: oklch(0.85 0.02 260 / 0.2);
+  --primary: oklch(0.88 0.02 260);
+  --primary-foreground: oklch(0.09 0.01 260);
+  --accent: oklch(0.70 0.05 250);
+  --ring: oklch(0.88 0.02 260);
+  --glow-primary: 0 0 30px oklch(0.88 0.02 260 / 0.3);
+  --glow-accent: 0 0 30px oklch(0.70 0.05 250 / 0.25);
+  --gradient-primary: linear-gradient(135deg, oklch(0.92 0.01 260), oklch(0.72 0.02 260));
+  --gradient-accent: linear-gradient(135deg, oklch(0.76 0.04 250), oklch(0.58 0.05 250));
+  --dsavizco-text-color: #ffffff;
+  --dsavizco-glow-core: rgba(241, 245, 249, 0.95);
+  --dsavizco-glow-mid: rgba(203, 213, 225, 0.7);
+  --dsavizco-glow-outer: rgba(148, 163, 184, 0.3);
+  --dsavizco-glow-intense: rgba(255, 255, 255, 0.95);
+  --dsavizco-text-glow: rgba(241, 245, 249, 0.85);
+}
+html.light[data-theme="obsidian"] {
+  --background: oklch(0.985 0.002 260);
+  --card: oklch(0.995 0.001 260 / 0.95);
+  --border: oklch(0.82 0.01 260);
+  --primary: oklch(0.20 0.02 260);
+  --primary-foreground: oklch(0.99 0.001 260);
+  --accent: oklch(0.38 0.03 250);
+  --ring: oklch(0.20 0.02 260);
+  --glow-primary: 0 8px 24px oklch(0.20 0.02 260 / 0.15);
+  --gradient-primary: linear-gradient(135deg, oklch(0.25 0.02 260), oklch(0.15 0.02 260));
+  --dsavizco-text-color: #020617;
+  --dsavizco-glow-core: rgba(30, 41, 59, 0.4);
+  --dsavizco-glow-mid: rgba(71, 85, 105, 0.25);
+  --dsavizco-glow-outer: rgba(100, 116, 139, 0.12);
+  --dsavizco-glow-intense: rgba(148, 163, 184, 0.45);
+  --dsavizco-text-glow: rgba(30, 41, 59, 0.3);
+}
+
+/* 10. Solar Flare / Golden Yellow Theme */
+html[data-theme="solar"] {
+  --background: oklch(0.12 0.03 85);
+  --card: oklch(0.16 0.025 85 / 0.88);
+  --border: oklch(0.85 0.19 90 / 0.25);
+  --primary: oklch(0.85 0.19 90);
+  --primary-foreground: oklch(0.12 0.03 85);
+  --accent: oklch(0.78 0.20 130);
+  --ring: oklch(0.85 0.19 90);
+  --glow-primary: 0 0 35px oklch(0.85 0.19 90 / 0.4);
+  --glow-accent: 0 0 35px oklch(0.78 0.20 130 / 0.35);
+  --gradient-primary: linear-gradient(135deg, oklch(0.88 0.19 95), oklch(0.78 0.21 70));
+  --gradient-accent: linear-gradient(135deg, oklch(0.82 0.20 135), oklch(0.72 0.18 110));
+  --dsavizco-text-color: #ffffff;
+  --dsavizco-glow-core: rgba(250, 204, 21, 0.95);
+  --dsavizco-glow-mid: rgba(234, 179, 8, 0.75);
+  --dsavizco-glow-outer: rgba(202, 138, 4, 0.35);
+  --dsavizco-glow-intense: rgba(254, 240, 138, 0.95);
+  --dsavizco-text-glow: rgba(250, 204, 21, 0.85);
+}
+html.light[data-theme="solar"] {
+  --background: oklch(0.985 0.008 85);
+  --card: oklch(0.995 0.004 85 / 0.95);
+  --border: oklch(0.88 0.015 85);
+  --primary: oklch(0.58 0.20 85);
+  --primary-foreground: oklch(0.99 0.005 80);
+  --accent: oklch(0.50 0.18 130);
+  --ring: oklch(0.58 0.20 85);
+  --glow-primary: 0 8px 24px oklch(0.58 0.20 85 / 0.25);
+  --gradient-primary: linear-gradient(135deg, oklch(0.62 0.20 90), oklch(0.52 0.21 70));
+  --dsavizco-text-color: #713f12;
+  --dsavizco-glow-core: rgba(202, 138, 4, 0.45);
+  --dsavizco-glow-mid: rgba(234, 179, 8, 0.3);
+  --dsavizco-glow-outer: rgba(250, 204, 21, 0.15);
+  --dsavizco-glow-intense: rgba(253, 224, 71, 0.55);
+  --dsavizco-text-glow: rgba(202, 138, 4, 0.35);
+}
+
+/* 11. Aether Violet / Lavender Theme */
+html[data-theme="aether"] {
+  --background: oklch(0.12 0.04 280);
+  --card: oklch(0.16 0.03 280 / 0.85);
+  --border: oklch(0.78 0.16 280 / 0.25);
+  --primary: oklch(0.78 0.16 280);
+  --primary-foreground: oklch(0.12 0.03 280);
+  --accent: oklch(0.76 0.22 320);
+  --ring: oklch(0.78 0.16 280);
+  --glow-primary: 0 0 35px oklch(0.78 0.16 280 / 0.4);
+  --glow-accent: 0 0 35px oklch(0.76 0.22 320 / 0.35);
+  --gradient-primary: linear-gradient(135deg, oklch(0.82 0.16 270), oklch(0.72 0.20 300));
+  --gradient-accent: linear-gradient(135deg, oklch(0.78 0.22 320), oklch(0.68 0.24 340));
+  --dsavizco-text-color: #ffffff;
+  --dsavizco-glow-core: rgba(192, 132, 252, 0.95);
+  --dsavizco-glow-mid: rgba(168, 85, 247, 0.75);
+  --dsavizco-glow-outer: rgba(147, 51, 234, 0.35);
+  --dsavizco-glow-intense: rgba(233, 213, 255, 0.9);
+  --dsavizco-text-glow: rgba(192, 132, 252, 0.85);
+}
+html.light[data-theme="aether"] {
+  --background: oklch(0.985 0.008 280);
+  --card: oklch(0.995 0.004 280 / 0.95);
+  --border: oklch(0.88 0.015 280);
+  --primary: oklch(0.54 0.22 280);
+  --primary-foreground: oklch(0.99 0.005 80);
+  --accent: oklch(0.50 0.22 320);
+  --ring: oklch(0.54 0.22 280);
+  --glow-primary: 0 8px 24px oklch(0.54 0.22 280 / 0.25);
+  --gradient-primary: linear-gradient(135deg, oklch(0.56 0.20 270), oklch(0.48 0.22 300));
+  --dsavizco-text-color: #581c87;
+  --dsavizco-glow-core: rgba(147, 51, 234, 0.45);
+  --dsavizco-glow-mid: rgba(168, 85, 247, 0.3);
+  --dsavizco-glow-outer: rgba(192, 132, 252, 0.15);
+  --dsavizco-glow-intense: rgba(216, 180, 254, 0.55);
+  --dsavizco-text-glow: rgba(147, 51, 234, 0.35);
+}
+
+/* 12. Forest Sage / Mint Theme */
+html[data-theme="sage"] {
+  --background: oklch(0.12 0.025 165);
+  --card: oklch(0.16 0.02 165 / 0.85);
+  --border: oklch(0.75 0.14 165 / 0.22);
+  --primary: oklch(0.75 0.14 165);
+  --primary-foreground: oklch(0.12 0.02 165);
+  --accent: oklch(0.72 0.18 140);
+  --ring: oklch(0.75 0.14 165);
+  --glow-primary: 0 0 32px oklch(0.75 0.14 165 / 0.35);
+  --glow-accent: 0 0 32px oklch(0.72 0.18 140 / 0.35);
+  --gradient-primary: linear-gradient(135deg, oklch(0.78 0.13 160), oklch(0.68 0.16 180));
+  --gradient-accent: linear-gradient(135deg, oklch(0.75 0.18 140), oklch(0.65 0.18 120));
+  --dsavizco-text-color: #ffffff;
+  --dsavizco-glow-core: rgba(45, 212, 191, 0.95);
+  --dsavizco-glow-mid: rgba(20, 184, 166, 0.75);
+  --dsavizco-glow-outer: rgba(13, 148, 136, 0.35);
+  --dsavizco-glow-intense: rgba(153, 246, 228, 0.9);
+  --dsavizco-text-glow: rgba(45, 212, 191, 0.85);
+}
+html.light[data-theme="sage"] {
+  --background: oklch(0.985 0.008 165);
+  --card: oklch(0.995 0.004 165 / 0.95);
+  --border: oklch(0.88 0.015 165);
+  --primary: oklch(0.46 0.14 165);
+  --primary-foreground: oklch(0.99 0.005 80);
+  --accent: oklch(0.44 0.16 140);
+  --ring: oklch(0.46 0.14 165);
+  --glow-primary: 0 8px 24px oklch(0.46 0.14 165 / 0.25);
+  --gradient-primary: linear-gradient(135deg, oklch(0.48 0.13 160), oklch(0.42 0.15 180));
+  --dsavizco-text-color: #115e59;
+  --dsavizco-glow-core: rgba(13, 148, 136, 0.45);
+  --dsavizco-glow-mid: rgba(45, 212, 191, 0.3);
+  --dsavizco-glow-outer: rgba(20, 184, 166, 0.15);
+  --dsavizco-glow-intense: rgba(94, 234, 212, 0.55);
+  --dsavizco-text-glow: rgba(13, 148, 136, 0.35);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -1458,19 +1648,7 @@ html.light .btn-moving-theme-gradient {
   transition: transform 0.3s ease, color 0.3s ease;
 }
 
-/* Optical weight reinforcement for letter 'S' in Silkscreen */
-.dsavizco-s-char {
-  display: inline-block;
-  font-weight: 900;
-  -webkit-text-stroke: 0.045em currentColor;
-  paint-order: stroke fill;
-  transform: scaleX(1.08);
-  transform-origin: center;
-  position: relative;
-}
-
 /* Light mode adaptation */
-
 html.light .dsavizco-purplish-bg-glow {
   background: radial-gradient(
     ellipse at center,
@@ -1585,3 +1763,102 @@ html.light .dsavizco-pixel-text {
     left: 200%;
   }
 }
+
+/* ==========================================================================
+   Motion Blur, Inertial Gliding & Dynamic Layout Animation Engine
+   ========================================================================== */
+
+:root {
+  --motion-glide-bezier: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-glide-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Gliding button interactive states */
+.btn-glide {
+  transition: transform 0.28s var(--motion-glide-bezier),
+              box-shadow 0.28s var(--motion-glide-bezier),
+              background-color 0.2s ease-out,
+              border-color 0.2s ease-out,
+              filter 0.2s ease-out;
+  will-change: transform;
+}
+
+.btn-glide:hover {
+  transform: translateY(-1px);
+}
+
+.btn-glide:active {
+  transform: translateY(1px) scale(0.97);
+}
+
+/* When Motion Blur & Gliding Mode is Active */
+[data-motion-blur="true"],
+.motion-blur-active {
+  /* Pointer glide & blur trail */
+}
+
+[data-motion-blur="true"] .btn-glide,
+.motion-blur-active .btn-glide,
+[data-motion-blur="true"] button,
+.motion-blur-active button {
+  transition: transform 0.35s var(--motion-glide-bezier),
+              box-shadow 0.35s var(--motion-glide-bezier),
+              filter 0.18s ease-out;
+}
+
+[data-motion-blur="true"] button:active,
+.motion-blur-active button:active,
+[data-motion-blur="true"] .btn-glide:active,
+.motion-blur-active .btn-glide:active {
+  transform: translateY(1.5px) scale(0.96);
+  filter: blur(0.4px);
+}
+
+/* Array elements and pointer transitions when motion blur is enabled */
+[data-motion-blur="true"] .viz-cell-glide,
+.motion-blur-active .viz-cell-glide {
+  transition: transform 0.45s var(--motion-glide-bezier),
+              opacity 0.3s ease-out,
+              box-shadow 0.35s var(--motion-glide-bezier),
+              background-color 0.3s ease-out,
+              border-color 0.3s ease-out !important;
+  will-change: transform, box-shadow;
+}
+
+[data-motion-blur="true"] .viz-pointer-pill,
+.motion-blur-active .viz-pointer-pill {
+  transition: transform 0.42s var(--motion-glide-bezier),
+              left 0.42s var(--motion-glide-bezier),
+              box-shadow 0.35s var(--motion-glide-bezier),
+              filter 0.2s ease-out !important;
+  box-shadow: 0 4px 14px -2px rgba(var(--primary), 0.45);
+}
+
+[data-motion-blur="true"] .viz-pointer-moving,
+.motion-blur-active .viz-pointer-moving {
+  filter: url(#viz-motion-blur) drop-shadow(0 0 10px rgba(var(--primary), 0.55));
+}
+
+/* Dynamic Live Step streaming glow & pulse */
+@keyframes live-cycle-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-live-cycle-sweep {
+  animation: live-cycle-sweep 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Fluid scroll container mask for longer datasets */
+.mask-edge-fade {
+  mask-image: linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
+}
+

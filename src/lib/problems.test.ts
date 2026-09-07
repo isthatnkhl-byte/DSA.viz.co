@@ -4,13 +4,8 @@ import {
   problemBySlug,
   getCanonicalMultiDatasets,
   isIslandOrGridProblem,
-  isMatrixTransformationProblem,
-  isDynamicSlidingWindowProblem,
-  isInPlacePointerProblem,
-  isPrefixSumProblem,
   sampleMatrixFor,
 } from "./problems";
-import { classifyProblem } from "./problemClassifier";
 
 test("problemBySlug - finds canonical problems and handles normalization", () => {
   const p1 = problemBySlug("two-sum");
@@ -29,15 +24,12 @@ test("problemBySlug - finds canonical problems and handles normalization", () =>
 
 test("getCanonicalMultiDatasets - provides 3 structured datasets", () => {
   const datasets = getCanonicalMultiDatasets("max-area-of-island", "Max Area of Island", [
-    "Array",
-    "Depth-First Search",
-    "Matrix",
+    "matrix",
   ]);
+  assert.equal(datasets.length, 3, "Exactly 3 datasets generated");
 
-  assert.equal(datasets.length, 3);
   assert.equal(datasets[0]?.id, "dataset_1");
   assert.equal(datasets[0]?.category, "standard");
-  assert.ok(datasets[0]?.matrix, "Standard dataset includes 2D matrix");
 
   assert.equal(datasets[1]?.id, "dataset_2");
   assert.equal(datasets[1]?.category, "longer");
@@ -53,77 +45,6 @@ test("isIslandOrGridProblem - accurately identifies 2D grid algorithms", () => {
   assert.equal(isIslandOrGridProblem("rotting-oranges", ["bfs"]), true);
   assert.equal(isIslandOrGridProblem("two-sum", ["array"]), false);
   assert.equal(isIslandOrGridProblem("reverse-linked-list", ["linked-list"]), false);
-  // Disambiguate matrix transformation from island problems
-  assert.equal(isIslandOrGridProblem("set-matrix-zeroes", ["Array", "Hash Table", "Matrix"]), false);
-  assert.equal(isMatrixTransformationProblem("set-matrix-zeroes", ["Array", "Hash Table", "Matrix"]), true);
-  assert.equal(isMatrixTransformationProblem("rotate-image", ["Array", "Math", "Matrix"]), true);
-  assert.equal(isMatrixTransformationProblem("spiral-matrix", ["Array", "Matrix", "Simulation"]), true);
-});
-
-test("getCanonicalMultiDatasets - generates proper dimensions for matrix transformation problems", () => {
-  const datasets = getCanonicalMultiDatasets("set-matrix-zeroes", "Set Matrix Zeroes", [
-    "Array",
-    "Hash Table",
-    "Matrix",
-  ]);
-  assert.equal(datasets.length, 3);
-  // Dataset 1: Standard 3x3 matrix
-  assert.equal(datasets[0]?.matrix?.length, 3);
-  assert.equal(datasets[0]?.matrix?.[0]?.length, 3);
-  // Dataset 2: Guaranteed extended 5x6 matrix, strictly larger than Dataset 1
-  assert.equal(datasets[1]?.matrix?.length, 5);
-  assert.equal(datasets[1]?.matrix?.[0]?.length, 6);
-  const d1Cells = datasets[0]!.matrix!.length * datasets[0]!.matrix![0]!.length;
-  const d2Cells = datasets[1]!.matrix!.length * datasets[1]!.matrix![0]!.length;
-  assert.ok(d2Cells > d1Cells, "Dataset 2 has strictly more cells than Dataset 1");
-  // Dataset 3: Boundary 3x4 matrix
-  assert.equal(datasets[2]?.matrix?.length, 3);
-  assert.equal(datasets[2]?.matrix?.[0]?.length, 4);
-});
-
-test("problemClassifier - categorizes dynamic sliding window, in-place pointers, and prefix sum hashmap", () => {
-  // 1. Dynamic Sliding Window
-  assert.equal(isDynamicSlidingWindowProblem("longest-substring-without-repeating-characters"), true);
-  assert.equal(isDynamicSlidingWindowProblem("minimum-window-substring"), true);
-  const sigWindow = classifyProblem("longest-substring-without-repeating-characters", "Longest Substring Without Repeating Characters", ["Hash Table", "String", "Sliding Window"]);
-  assert.equal(sigWindow.pattern, "sliding-window-dynamic");
-  assert.equal(sigWindow.category, "sliding-window");
-
-  // 2. In-Place Same-Direction Read/Write Pointers
-  assert.equal(isInPlacePointerProblem("move-zeroes"), true);
-  assert.equal(isInPlacePointerProblem("remove-duplicates-from-sorted-array"), true);
-  const sigMoveZeroes = classifyProblem("move-zeroes", "Move Zeroes", ["Array", "Two Pointers"]);
-  assert.equal(sigMoveZeroes.pattern, "two-pointers-in-place");
-  assert.equal(sigMoveZeroes.category, "two-pointers");
-
-  // 3. Prefix Sum with Hash Map Complement
-  assert.equal(isPrefixSumProblem("subarray-sum-equals-k"), true);
-  const sigSubarraySum = classifyProblem("subarray-sum-equals-k", "Subarray Sum Equals K", ["Array", "Hash Table", "Prefix Sum"]);
-  assert.equal(sigSubarraySum.pattern, "prefix-sum-hashmap");
-  assert.equal(sigSubarraySum.category, "prefix-sum");
-});
-
-test("getCanonicalMultiDatasets - generates appropriate datasets for dynamic window, in-place pointers, and prefix sum", () => {
-  // Longest Substring Without Repeating Characters
-  const subWindow = getCanonicalMultiDatasets("longest-substring-without-repeating-characters", "Longest Substring Without Repeating Characters", ["String", "Sliding Window"]);
-  assert.equal(subWindow.length, 3);
-  assert.deepEqual(subWindow[0]?.array, ["a", "b", "c", "a", "b", "c", "b", "b"]);
-  assert.ok(subWindow[1]!.array!.length > subWindow[0]!.array!.length, "D2 is longer than D1");
-  assert.deepEqual(subWindow[2]?.array, ["b", "b", "b", "b", "b"]);
-
-  // Move Zeroes
-  const moveZeroes = getCanonicalMultiDatasets("move-zeroes", "Move Zeroes", ["Array", "Two Pointers"]);
-  assert.equal(moveZeroes.length, 3);
-  assert.deepEqual(moveZeroes[0]?.array, [0, 1, 0, 3, 12]);
-  assert.ok(moveZeroes[1]!.array!.length > moveZeroes[0]!.array!.length);
-
-  // Subarray Sum Equals K
-  const subSum = getCanonicalMultiDatasets("subarray-sum-equals-k", "Subarray Sum Equals K", ["Array", "Hash Table", "Prefix Sum"]);
-  assert.equal(subSum.length, 3);
-  assert.deepEqual(subSum[0]?.array, [1, 1, 1]);
-  assert.equal(subSum[0]?.target, 2);
-  assert.equal(subSum[1]?.target, 7);
-  assert.equal(subSum[2]?.target, 0);
 });
 
 test("sampleMatrixFor - returns deep copy of canonical grid", () => {

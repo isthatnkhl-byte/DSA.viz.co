@@ -17,8 +17,7 @@ export type ProblemCategory =
   | "dp-2d"
   | "dp-1d"
   | "intervals"
-  | "recursion-backtracking"
-  | "recursion-memoization"
+  | "recursion-tree"
   | "prefix-sum"
   | "bit-manipulation"
   | "sorting"
@@ -118,9 +117,25 @@ export function classifyProblem(
     };
   }
 
-  // 4. GENERAL GRAPH TRAVERSAL & NETWORKS (Bipartite, Network Delay, All Paths, Keys & Rooms)
+  // 4. DIJKSTRA & WEIGHTED SHORTEST PATHS
   if (
-    /is-graph-bipartite|all-paths-from-source-to-target|keys-and-rooms|network-delay-time|clone-graph|cheapest-flights|reconstruct-itinerary|number-of-connected-components/.test(
+    /dijkstra|network-delay-time|cheapest-flights|path-with-minimum-effort|swim-in-rising-water|bellman-ford/.test(
+      s,
+    ) ||
+    hasTopic("shortest path")
+  ) {
+    return {
+      category: "graph",
+      primaryVizType: "graph",
+      pattern: "dijkstra",
+      isMultiEntity: false,
+      algorithmName: "Dijkstra's Shortest Path Algorithm (Priority Queue & Edge Relaxation)",
+    };
+  }
+
+  // 5. GENERAL GRAPH TRAVERSAL & NETWORKS (Bipartite, All Paths, Keys & Rooms)
+  if (
+    /is-graph-bipartite|all-paths-from-source-to-target|keys-and-rooms|clone-graph|reconstruct-itinerary|number-of-connected-components/.test(
       s,
     ) ||
     (hasTopic("graph", "graph theory") &&
@@ -153,15 +168,6 @@ export function classifyProblem(
       pattern: "island-max-area",
       isMultiEntity: false,
       algorithmName: "Max Area Island Flood-Fill (2D Matrix DFS)",
-    };
-  }
-  if (/number-of-islands-ii|islands-2/.test(s)) {
-    return {
-      category: "grid-matrix",
-      primaryVizType: "matrix",
-      pattern: "island-union-find",
-      isMultiEntity: true,
-      algorithmName: "Dynamic Island Addition & Union-Find (2D Disjoint Set)",
     };
   }
   if (/number-of-islands|count.*island|making-a-large-island/.test(s)) {
@@ -201,20 +207,30 @@ export function classifyProblem(
     };
   }
 
-  // 5b. 2D MATRIX IN-PLACE TRANSFORMATION & GRID LOOPS (Set Matrix Zeroes, Rotate Image, Spiral Matrix, Game of Life, Sudoku)
+  // 5a. WORD SEARCH & 2D GRID BACKTRACKING
+  if (/^word-search$/.test(s) || /word-search-i\b/.test(s)) {
+    return {
+      category: "grid-matrix",
+      primaryVizType: "matrix",
+      pattern: "word-search",
+      isMultiEntity: false,
+      algorithmName: "2D Grid Backtracking & Word Search",
+    };
+  }
+
+  // 5b. 2D MATRIX IN-PLACE TRANSFORMATION & CELL-BY-CELL LOOP TRAVERSAL
   if (
-    /set-matrix-zeroes|rotate-image|spiral-matrix|spiral-matrix-ii|game-of-life|valid-sudoku|diagonal-traverse|reshape-the-matrix|matrix-block-sum|shift-2d-grid|transpose-matrix|toeplitz-matrix|image-overlap|flipping-an-image|lucky-numbers-in-a-matrix|search-a-2d-matrix|search-a-2d-matrix-ii/.test(
+    /set-matrix-zeroes|rotate-image|spiral-matrix|spiral-matrix-ii|game-of-life|valid-sudoku|sudoku-solver|diagonal-traverse|reshape-the-matrix|transpose-matrix|toeplitz-matrix|image-smoother|shift-2d-grid/.test(
       s,
     ) ||
-    (hasTopic("matrix") &&
-      !hasTopic("depth-first search", "breadth-first search", "dynamic programming", "graph", "intervals"))
+    (hasTopic("matrix") && !hasTopic("depth-first search", "breadth-first search", "dynamic programming"))
   ) {
     return {
       category: "grid-matrix",
       primaryVizType: "matrix",
       pattern: "matrix-transform",
       isMultiEntity: false,
-      algorithmName: "2D Matrix In-Place Cell-by-Cell Transformation",
+      algorithmName: "2D Matrix In-Place Transformation & Cell-by-Cell Loop Traversal",
     };
   }
 
@@ -240,36 +256,6 @@ export function classifyProblem(
       pattern: "dp-2d",
       isMultiEntity: false,
       algorithmName: "2D Dynamic Programming Grid Optimization",
-    };
-  }
-
-  // 6b. RECURSION & STATE-SPACE BACKTRACKING
-  if (
-    /subsets|permutations|combination-sum|combinations|n-queens|sudoku-solver|palindrome-partitioning|letter-combinations-of-a-phone-number|restore-ip-addresses|matchsticks-to-square|beautiful-arrangement/.test(
-      s,
-    ) ||
-    (hasTopic("backtracking") && !hasTopic("matrix") && !/word-search-ii/.test(s))
-  ) {
-    return {
-      category: "recursion-backtracking",
-      primaryVizType: "recursion-tree",
-      pattern: "recursion-backtracking",
-      isMultiEntity: false,
-      algorithmName: "State-Space Backtracking & Recursion Tree Exploration",
-    };
-  }
-
-  // 6c. RECURSION WITH MEMOIZATION (Top-Down DP)
-  if (
-    /fibonacci-memo|climbing-stairs-memo|recursion-memo|top-down-recursion/.test(s) ||
-    (hasTopic("memoization") && !hasTopic("bottom-up", "tabulation"))
-  ) {
-    return {
-      category: "recursion-memoization",
-      primaryVizType: "recursion-tree",
-      pattern: "recursion-memoization",
-      isMultiEntity: false,
-      algorithmName: "Top-Down Recursion with Memoization (O(1) Cache Bypass)",
     };
   }
 
@@ -327,7 +313,7 @@ export function classifyProblem(
       s,
     ) ||
       hasTopic("binary tree", "tree")) &&
-    !/quad-tree/.test(s)
+    !/quad-tree|segment-tree|binary-indexed-tree|fenwick|range-sum-query-mutable/.test(s)
   ) {
     return {
       category: "tree",
@@ -338,7 +324,23 @@ export function classifyProblem(
     };
   }
 
-  // 11. HASH MAP & SET DATA STRUCTURE DESIGNS
+  // 11. SEGMENT TREE & BINARY INDEXED TREE (INTERVAL DECOMPOSITION)
+  if (
+    /segment-tree|binary-indexed-tree|fenwick|range-sum-query-mutable|count-of-smaller-numbers-after-self|falling-squares/.test(
+      s,
+    ) ||
+    hasTopic("segment tree", "binary indexed tree")
+  ) {
+    return {
+      category: "tree",
+      primaryVizType: "tree",
+      pattern: "segment-tree",
+      isMultiEntity: false,
+      algorithmName: "Segment Tree Interval Query & Point Update",
+    };
+  }
+
+  // 12. HASH MAP & SET DATA STRUCTURE DESIGNS
   if (/design-hashmap|myhashmap/.test(s)) {
     return {
       category: "hashmap",
@@ -412,7 +414,23 @@ export function classifyProblem(
     };
   }
 
-  // 16. INTERVALS & RANGE OVERLAPS
+  // 16. RECURSION & BACKTRACKING (Subsets, Permutations, Combinations, N-Queens, Sudoku)
+  if (
+    /subsets|permutations|combination-sum|combinations|n-queens|sudoku-solver|letter-combinations|restore-ip-addresses|palindrome-partitioning/.test(
+      s,
+    ) ||
+    hasTopic("backtracking")
+  ) {
+    return {
+      category: "recursion-tree",
+      primaryVizType: "recursion-tree",
+      pattern: "recursion-backtracking",
+      isMultiEntity: false,
+      algorithmName: "Depth-First Search Recursion Tree & State-Space Backtracking",
+    };
+  }
+
+  // 17. INTERVALS & RANGE OVERLAPS
   if (
     /merge-intervals|insert-interval|non-overlapping-intervals|meeting-rooms|minimum-number-of-arrows-to-burst-balloons|summary-ranges/.test(
       s,
@@ -424,7 +442,7 @@ export function classifyProblem(
       primaryVizType: "intervals",
       pattern: "intervals",
       isMultiEntity: false,
-      algorithmName: "Interval Sorting & Sweep-Line Merging",
+      algorithmName: "1D Interval Timeline & Sweep-Line Merging",
     };
   }
 
@@ -482,11 +500,11 @@ export function classifyProblem(
   // 20. HASH MAP PAIR & COMPLEMENT SEARCH
   if (
     !s.includes("two-sum-ii") &&
-    (/two-sum|3sum-with-multiplicity|4sum-ii/.test(
+    (/two-sum|3sum-with-multiplicity|4sum-ii|subarray-sum-equals-k|continuous-subarray-sum/.test(
       s,
     ) ||
       (hasTopic("hash table") &&
-        !hasTopic("two pointers", "sliding window", "binary search", "prefix sum") &&
+        !hasTopic("two pointers", "sliding window", "binary search") &&
         /sum|target|pair|complement|diff/i.test(s)))
   ) {
     return {
@@ -495,22 +513,6 @@ export function classifyProblem(
       pattern: "hashmap-pair",
       isMultiEntity: false,
       algorithmName: "Hash Map Complement Lookup (Two Sum O(n))",
-    };
-  }
-
-  // 20b. PREFIX SUM WITH HASH MAP COMPLEMENT LOOKUP (Subarray Sum Equals K, Contiguous Array)
-  if (
-    /subarray-sum-equals-k|continuous-subarray-sum|contiguous-array|subarray-sums-divisible-by-k/.test(
-      s,
-    ) ||
-    (hasTopic("prefix sum") && hasTopic("hash table"))
-  ) {
-    return {
-      category: "prefix-sum",
-      primaryVizType: "array",
-      pattern: "prefix-sum-hashmap",
-      isMultiEntity: false,
-      algorithmName: "Prefix Sum with Running Hash Map Complement Lookup",
     };
   }
 
@@ -530,24 +532,9 @@ export function classifyProblem(
     };
   }
 
-  // 21a. DYNAMIC VARIABLE-SIZE SLIDING WINDOW & SUBSTRINGS
+  // 21. SLIDING WINDOW
   if (
-    /longest-substring-without-repeating|minimum-window-substring|longest-repeating-character-replacement|permutation-in-string|max-consecutive-ones-iii|fruit-into-baskets|subarray-product-less-than-k|minimum-size-subarray-sum/.test(
-      s,
-    )
-  ) {
-    return {
-      category: "sliding-window",
-      primaryVizType: "array",
-      pattern: "sliding-window-dynamic",
-      isMultiEntity: false,
-      algorithmName: "Dynamic Variable-Size Window with Expanding Right & Shrinking Left",
-    };
-  }
-
-  // 21b. FIXED-WIDTH SLIDING WINDOW
-  if (
-    /sliding-window-maximum|maximum-average-subarray-i|find-all-anagrams-in-a-string/.test(
+    /longest-substring-without-repeating|minimum-window-substring|sliding-window-maximum|longest-repeating-character-replacement|permutation-in-string|max-consecutive-ones-iii|fruit-into-baskets|maximum-average-subarray-i|find-all-anagrams-in-a-string/.test(
       s,
     ) ||
     hasTopic("sliding window")
@@ -557,28 +544,13 @@ export function classifyProblem(
       primaryVizType: "array",
       pattern: "sliding-window",
       isMultiEntity: false,
-      algorithmName: "Fixed-Width K Sliding Window Scan",
+      algorithmName: "Dynamic Sliding Window with Expanding Right & Shrinking Left",
     };
   }
 
-  // 22a. IN-PLACE SAME-DIRECTION READ-WRITE / FAST-SLOW POINTERS
+  // 22. TWO POINTERS
   if (
-    /remove-duplicates-from-sorted-array|remove-duplicates-from-sorted-array-ii|move-zeroes|remove-element|sort-colors|duplicate-zeros/.test(
-      s,
-    )
-  ) {
-    return {
-      category: "two-pointers",
-      primaryVizType: "array",
-      pattern: "two-pointers-in-place",
-      isMultiEntity: false,
-      algorithmName: "Unidirectional Fast/Slow Read-Write In-Place Pointers",
-    };
-  }
-
-  // 22b. INWARD CONVERGING / OPPOSING TWO POINTERS
-  if (
-    /container-with-most-water|valid-palindrome|3sum|3sum-closest|reverse-string|squares-of-a-sorted-array|two-sum-ii-input-array-is-sorted|two-sum-ii|4sum|backspace-string-compare|boats-to-save-people/.test(
+    /container-with-most-water|valid-palindrome|3sum|3sum-closest|reverse-string|remove-duplicates-from-sorted-array|move-zeroes|squares-of-a-sorted-array|two-sum-ii-input-array-is-sorted|two-sum-ii|4sum|backspace-string-compare|boats-to-save-people/.test(
       s,
     ) ||
     hasTopic("two pointers")
@@ -667,7 +639,23 @@ export function classifyProblem(
     };
   }
 
-  // 27. SORTING ALGORITHMS
+  // 27. STRING PATTERN MATCHING & KMP (Knuth-Morris-Pratt / LPS Table)
+  if (
+    /kmp-algorithm|find-the-index-of-the-first-occurrence-in-a-string|repeated-substring-pattern|rabin-karp|shortest-palindrome|longest-happy-prefix/.test(
+      s,
+    ) ||
+    hasTopic("string matching")
+  ) {
+    return {
+      category: "array-scan",
+      primaryVizType: "array",
+      pattern: "kmp-lps",
+      isMultiEntity: true,
+      algorithmName: "Knuth-Morris-Pratt (KMP) Pattern Matching & LPS Table",
+    };
+  }
+
+  // 28. SORTING ALGORITHMS
   if (
     /sort-colors|merge-sorted-array|sort-an-array|insertion-sort-list|largest-number|sort-list/.test(
       s,
@@ -683,7 +671,7 @@ export function classifyProblem(
     };
   }
 
-  // 28. FALLBACK SEQUENTIAL ARRAY / STRING SCAN
+  // 29. FALLBACK SEQUENTIAL ARRAY / STRING SCAN
   return {
     category: "array-scan",
     primaryVizType: "array",

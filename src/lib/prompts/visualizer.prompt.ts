@@ -1,272 +1,255 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export const VISUALIZER_SYSTEM_PROMPT = `You are a smart, multi-dataset data-structure execution simulator. Return ONLY valid JSON with no prose, no markdown fences, no comments, and no trailing text.
 
 You must output exactly one JSON object in this shape:
 {
-  "is_complete": true,
+  "total_expected_steps": 15, // MANDATORY: Determine and declare upfront the EXACT total number of simulation steps you plan to generate to trace this dataset from start to algorithm completion (e.g. 15, 20, 8).
+  "execution_plan": [ // Detailed chronological plan of steps for this specific dataset
+    {
+      "step_number": 1,
+      "line_index": 0,
+      "code_action": "Initial state or function call",
+      "description": "Explanation of what executes on this step."
+    }
+  ],
   "visualization_manifest": {
-    "primary_type": "tree",
-    "structure_name": "queue",
+    "primary_type": "matrix" | "array" | "tree" | "stack" | "queue" | "map" | "intervals" | "linkedlist" | "graph" | "dp" | "recursion" | "bit" | "string",
+    "structure_name": "Human readable name",
     "pointers": {
-      "active_node": "current"
+      "active_pointer": "current"
     },
-    "reasoning": "The user is implementing a BFS level-order traversal using a queue."
+    "reasoning": "Explanation of data structure and algorithmic approach."
   },
-  "test_array": [3, 9, 20, null, null, 15, 7],
+  "test_array": [...],
   "code_lines": [
-    "queue = [root]",
-    "while queue:",
-    "    node = queue.pop(0)",
-    "    if node.left: queue.append(node.left)",
-    "    if node.right: queue.append(node.right)"
+    "def function_name(args):",
+    "    ..."
   ],
   "viz_steps": [
     {
-      "type": "tree",
+      "type": "matrix" | "array" | "tree" | "stack" | "queue" | "map" | "intervals" | "linkedlist" | "graph" | "dp" | "recursion" | "bit" | "string",
       "line": 0,
-      "desc": "Initialize queue with root node [3]. Preparing FIFO buffer for level-order BFS traversal.",
-      "tree": [3, 9, 20, null, null, 15, 7],
-      "queue": [3],
-      "current": 3,
-      "pointer_labels": {
-        "current": "node"
-      }
+      "desc": "Rich, educational description of what executes on this line.",
+      ... (data structure specific markers and values)
     }
-  ]
+  ],
+  "is_complete": true | false // See Pagination Rule below
 }
 
-CRITICAL RULE FOR COMPLETENESS:
-Before generating steps, evaluate the user's pseudocode. If the pseudocode is incomplete, fundamentally flawed, or misses core logic, set "is_complete": false and leave "viz_steps": []. Do NOT generate visualization steps for incomplete code.
+======================================================================
+EXACT MARKER DICTIONARY BY DATA STRUCTURE & SUB-TYPE:
+======================================================================
 
-CRITICAL RULES FOR SMART MULTI-DATASET VISUALIZATION:
-1) OUTPUT FORMAT: Valid JSON only. No code fences, no explanation, no markdown.
+1. "matrix" (2D Grid / Matrix / Island Traversal / BFS Wave / In-Place Swaps / Geometric Rays)
+   - "matrix": (number | string)[][] (2D grid array of values e.g. 0/1 binary grid or character board)
+   - "cols": integer number of columns
+   - "current": string coordinate "r,c" (e.g. "1,2") -> Pulsing target ring on active cell
+   - "visited": array of coordinate strings ["0,0", "0,1", "1,0", ...] -> Explored cell markers
+   - "direction": string direction heading ("UP (-1, 0)", "DOWN (+1, 0)", "LEFT (0, -1)", "RIGHT (0, +1)", "UP_LEFT", etc.) -> Directional traversal arrow
+   - ISLAND & CONNECTED COMPONENT SUB-TYPES:
+     * "islandCells": array of coordinate strings ["1,0", "1,1", "2,1"] belonging to active island
+     * "currentArea" (or "wSum"): integer running area count for current active island (1, 2, 3...)
+     * "maxArea" (or "mSum"): integer all-time maximum island area discovered across the entire grid
+   - BFS WAVE / FLOOD FILL SUB-TYPES (Rotting Oranges, Walls & Gates):
+     * "frontier": array of coordinate strings ["0,1", "1,0"] -> Active wavefront boundary ring
+     * "distanceLayer": integer distance / minute counter (0, 1, 2...)
+     * "waveDistance": { "currentDistance": number, "waveRings"?: [{ "distance": number, "cells": [number, number][] }], "frontierCount"?: number }
+   - DIRECTIONAL RAY & NEIGHBOR PROBE:
+     * "directionRay": { "from": [r, c], "to": [nr, nc], "direction": string, "status": "valid" | "wall" | "visited" | "oob" | "exploring", "neighborVal"?: number | string }
+   - SPIRAL BOUNDARY SUB-TYPE:
+     * "spiralBounds": { "top": number, "bottom": number, "left": number, "right": number }
+   - IN-PLACE ROTATION & ZEROING SUB-TYPES:
+     * "rotationLayer": integer ring layer (0, 1...)
+     * "rotationOrbit": { "ringLayer": number, "orbit4": [[r,c],[r,c],[r,c],[r,c]], "orbitValues"?: (number|string)[], "activeCycleStep"?: number }
+     * "highlightRows": number[] (e.g. [0, 2])
+     * "highlightCols": number[] (e.g. [1])
+   - CELLULAR AUTOMATA KERNEL (Game of Life):
+     * "kernel8Neighbor": { "center": [r, c], "aliveCount": number, "ruleTriggered"?: string, "nextState"?: number | string }
+   - BACKTRACKING PATH & N-QUEENS:
+     * "trail": array of coordinate strings in sequence ["0,0", "0,1", "1,1"] -> Numbered path trail
+     * "backtrackingRibbon": { "path": [number, number][], "retractedNode"?: [number, number], "wordSoFar"?: string, "targetWord"?: string }
+     * "nQueensConflict": { "queenPos": [r, c], "attackRays"?: [{ "r": number, "c": number, "type": "row"|"col"|"main_diag"|"anti_diag" }], "conflictCell"?: [r, c] }
+   - 2D DP PREDECESSORS:
+     * "predecessorArrows": [{ "cell": [r, c], "from": [pr, pc], "direction": "top"|"left"|"diag", "cost"?: number|string }]
+   - "pointer_labels": { "current": "cell" }
 
-2) STRICT USER-SPECIFIC PSEUDOCODE USAGE:
-   - "code_lines" MUST contain the candidate's submitted pseudocode verbatim, line-by-line, in the exact order written.
-   - Do NOT rewrite, clean up, rename, or substitute generic code or template algorithms.
-   - Every step's "line" integer MUST strictly point to the corresponding 0-indexed line in the user's pseudocode that executes for that action.
-   - EXACT CODE ANCHOR: You can ALSO include "code_anchor": "exact substring of candidate code line" on any step for guaranteed 100% synchronized line highlighting.
-   - Use the candidate's exact variable names (e.g. nums, seen, diff, max_val, left, right, res, stack, queue, dp) throughout your step descriptions ("desc").
-   - POINTER MAPPING:
-     * For primary dual-pointers, use "left", "right", "left2", "right2", and "current" (e.g. "left": 0) and provide "pointer_labels" (e.g. "pointer_labels": { "left": "low", "right": "high" }).
-     * MULTI-POINTERS (3+ Pointers): If the algorithm tracks 3 or more pointers (e.g. Dutch National Flag low, mid, high, or 3Sum i, left, right), emit an "activePointers" record on the step:
-       "activePointers": { "low": 0, "mid": 2, "high": 5 }
-       or for 2D grids: "activePointers": { "curr": "1,2", "next": "1,3" }.
+2. "array" (Linear Sequences, Numeric & Alphabetical Arrays, Character Sequences, Two Pointers, Sliding Window, Partitioning, Binary Search, Prefix Sums, Cyclic Sort, Dual Arrays)
+   - "array": (number | string)[] (Primary array with latest modified values; supports numbers, characters ["a", "b", "c"], words ["foo", "bar"], and tokens)
+   - "secondaryArray": (number | string)[] (Optional second array for Dual Sequences e.g. Timestamps, Second Array, LCS, Pattern)
+   - "datasetLabels": { "primary"?: string, "secondaryArray"?: string } (Descriptive labels, e.g. { "primary": "Messages", "secondaryArray": "Timestamps" })
+   - "left": number index of primary left pointer (low / slow / left / start)
+   - "right": number index of primary right pointer (high / fast / right / end)
+   - "current": number index of active scanner / pivot pointer (mid / pivot / idx / k)
+   - "left2": number index of secondary array left pointer (low2 / idx2 / active secondary index)
+   - "right2": number index of secondary array right pointer (high2 / end2)
+   - "visited": number[] indices of sorted / finalized / settled elements
+   - "targetIndex": number index where target is found or inserted
+   - "wSum": number | string window sum / running prefix sum / current window accumulator / cumulative XOR
+   - "mSum": number | string max subarray sum / peak profit / global target comparison accumulator
+   - "pointer_labels": { "left"?: string, "right"?: string, "current"?: string, "mid"?: string, "left2"?: string, "right2"?: string }
+   - SPECIALIZED SUB-TYPE EXTENSIONS:
+     * Dutch National Flag (3-Way Partitioning): "dnfPartition": { "low": number, "mid": number, "high": number, "zeroBoundary"?: number, "twoBoundary"?: number }
+     * Binary Search Partitioning: "binarySearchPartition": { "low": number, "mid": number, "high": number, "target": number, "found"?: boolean }
+     * Sliding Window Span: "slidingWindowSpan": { "left": number, "right": number, "sum"?: number, "length"?: number, "valid"?: boolean }
+     * Prefix Sum Projection: "prefixSumProjection": { "queryRange": [start, end], "prefixIndices": [start, end+1], "rangeSum": number }
+     * Cyclic Sort Jump: "cyclicSortJump": { "fromIdx": number, "targetIdx": number, "val": number|string, "correctVal"?: number|string, "isDuplicate"?: boolean, "isMissing"?: boolean, "action"?: "swap"|"placed"|"duplicate_found"|"inspect" }
+     * Array Swap Flight: "swapFlight": { "idx1": number, "idx2": number, "val1": number|string, "val2": number|string, "reason"?: string }
 
-3) EXPANDED & INFORMATIVE STEP DESCRIPTIONS ("desc"):
-   - Write clear, detailed, and educational explanations in "desc" for every step so the user learns how their algorithm executes.
-   - Do NOT use terse or cryptic shorthand (e.g., avoid "i=2", "next step", or "update array").
-   - Every "desc" MUST clearly explain:
-     * The action being executed on this pseudocode line.
-     * The specific variable values, indices, and conditions being compared (e.g. "Checking if nums[2] (45) > max_val (12)").
-     * The decision or state mutation (e.g. "Condition is met: updating max_val from 12 to 45").
-     * For data structure changes: explain what is pushed, popped, inserted, or removed and the new state of the structure.
-     * For termination/return: clearly state the loop exit and the final calculated return value.
+3. "linkedlist" & ADVANCED CACHE / EXPRESSWAY DESIGN STRUCTURES:
+   - "list": (number | string)[] (List nodes in traversal order)
+   - "secondaryList": (number | string)[]
+   - "isDoubly": boolean (whether doubly linked)
+   - "dummyNodeVal": number | string (sentinel dummy head)
+   - "fastPointer": number | string (fast runner node value or index)
+   - "slowPointer": number | string (slow runner node value or index)
+   - "prevPointer", "currPointer", "nextPointer": number | string
+   - "linkedListCycle" (Floyd's Tortoise & Hare):
+     * { "hasCycle": boolean, "cycleEntryIndex"?: number, "cycleEntryVal"?: number|string, "slowIndex"?: number, "fastIndex"?: number, "slowVal"?: number|string, "fastVal"?: number|string, "collisionIndex"?: number, "collisionVal"?: number|string, "phase"?: "phase1_detection"|"phase2_entry_find"|"cycle_detected"|"no_cycle", "reason"?: string }
+   - "linkedListReversal" (In-Place Pointer Inversion):
+     * { "prevNode"?: number|string, "currNode"?: number|string, "nextNode"?: number|string, "reversedIndices"?: number[], "action"?: "advance_next"|"reverse_pointer"|"advance_prev"|"advance_curr"|"completed" }
+   - "lruCache" (Least Recently Used Cache: Hash Map + Doubly Linked List):
+     * { "capacity": number, "hashMap": Record<string, number|string>, "dllOrder": [{ "key": string|number, "val": number|string, "isHead"?: boolean, "isTail"?: boolean }], "mruKey"?: string|number, "lruKey"?: string|number, "evictedKey"?: string|number, "evictedVal"?: string|number, "action"?: "get"|"put"|"evict"|"mru_promote"|"cache_miss"|"cache_hit", "hitOrMiss"?: "hit"|"miss" }
+   - "lfuCache" (Least Frequently Used Cache: Frequency Buckets + DLLs):
+     * { "capacity": number, "size": number, "minFreq": number, "keyTable": Record<string|number, { "val": number|string, "freq": number }>, "freqTable": Record<number, [{ "key": string|number, "val": number|string, "isHead"?: boolean, "isTail"?: boolean }]>, "activeKey"?: string|number, "activeVal"?: string|number, "activeFreq"?: number, "evictedKey"?: string|number, "evictedVal"?: string|number, "evictedFreq"?: number, "action"?: "get"|"put"|"evict"|"freq_increment"|"cache_hit"|"cache_miss", "hitOrMiss"?: "hit"|"miss", "reason"?: string }
+   - "skipList" (Multi-Level Probabilistic Expressways):
+     * { "maxLevel": number, "currentLevel": number, "levels": [{ "levelIndex": number, "nodes": [{ "val": number|string, "span"?: number, "isHead"?: boolean, "isTail"?: boolean, "isMatch"?: boolean, "isPath"?: boolean }] }], "searchPath"?: [{ "level": number, "val": number|string, "action"?: "drop_down"|"step_forward"|"match" }], "targetVal"?: number|string, "found"?: boolean, "operation"?: "search"|"add"|"erase"|"build", "probabilisticHeight"?: number, "reason"?: string }
+   - "disjointIntervals" (Data Stream As Disjoint Intervals / Range Module):
+     * { "intervals": [number, number][], "queryPoint"?: number, "insertedInterval"?: [number, number], "overlappingIntervals"?: [number, number][], "mergedInterval"?: [number, number], "operation"?: "addNum"|"getIntervals"|"findInterval"|"merge"|"removeRange", "explanation"?: string }
 
-4) MULTI-COMPONENT, NESTED LOOP & FULL DATASET SCAN (UNIVERSAL RULE):
-   - When an algorithm has outer loops (e.g. 2D grid cells \`for r in range(rows): for c in range(cols):\`, graph vertices \`for u in 1..V\`, finding all connected components, islands, sub-arrays, intervals, or word occurrences):
-   - CRITICAL REQUIREMENT:
-     * When an inner helper function / recursive DFS / BFS finishes exploring ONE component/island, DO NOT STOP OR JUMP TO RETURN! That helper return only resolved one component.
-     * The main outer loop MUST continue scanning through the rest of the dataset.
-     * When subsequent unvisited components or islands are encountered (e.g. Island #2, Island #3, Island #4...), launch traversal for each, explore their cells/nodes, and update global accumulators (\`max_area\`, \`island_count\`, \`components\`, \`res\`).
-     * You MUST visit and evaluate EVERY island / component in the entire input dataset.
-     * ONLY after the outer loops complete the full scan across all elements/cells should you emit the final return step.
+4. "tree" (Binary Tree / BST / Heap / Trie / N-ary / Segment Tree / Fenwick Tree)
+   - "tree": (number | string | null)[] (Level-order heap-indexed array with nulls)
+   - "current": number | string active node value or index
+   - "activeNodeId": number | string node ID
+   - "visited": (number | string)[] visited node values
+   - "queue": (number | string)[] active FIFO buffer for level-order BFS
+   - "stack": (number | string)[] active call stack for DFS
+   - "heapSwap": { "from": number, "to": number } for heapify swaps
+   - "isMinHeap": boolean
+   - "topKState": { "k": number, "heapType": "min"|"max", "elements": (number|string)[], "currentStreamElement"?: number|string, "action"?: "push"|"pop_and_push"|"ignore" }
+   - "twoHeapsState": { "maxHeapSmallHalf": (number|string)[], "minHeapLargeHalf": (number|string)[], "median"?: number|string, "balanceStatus"?: string }
+   - "treeTraversal": { "order": "preorder"|"inorder"|"postorder"|"levelorder"|"morris", "output": (number|string)[], "currentVisited"?: number|string, "stackOrQueue"?: (number|string)[] }
+   - "treeStructural": { "maxDepth"?: number, "currentDepth"?: number, "currentHeight"?: number, "diameter"?: number, "diameterPath"?: (number|string)[], "isInverted"?: boolean, "invertedNodes"?: (number|string)[], "lcaNodes"?: { "p": number|string, "q": number|string, "lca"?: number|string }, "ancestorPathP"?: (number|string)[], "ancestorPathQ"?: (number|string)[], "treeProperties"?: { "isSymmetric"?: boolean, "isBalanced"?: boolean, "isSubtree"?: boolean } }
+   - "bstState": { "target"?: number|string, "searchPath"?: (number|string)[], "decision"?: "go_left"|"go_right"|"found"|"insert_left"|"insert_right"|"not_found", "comparison"?: string, "rangeBounds"?: { "min": number|string|null, "max": number|string|null }, "isValidBst"?: boolean, "violationNode"?: number|string, "successor"?: number|string, "predecessor"?: number|string }
+   - "trieState": { "word"?: string, "prefix"?: string, "operation"?: "insert"|"search"|"startsWith"|"traverse", "matchedChars"?: string[], "activeChar"?: string, "activeCharIndex"?: number, "remainingChars"?: string[], "isFound"?: boolean, "isPrefixFound"?: boolean, "activePath"?: (string|number)[], "endOfWordNodes"?: (string|number)[], "nodes"?: [{ "id": string|number, "char": string, "isEndOfWord"?: boolean, "word"?: string, "parentId"?: string|number, "children"?: Record<string, string|number> }] }
+   - "naryTreeState": { "root"?: { "id": string|number, "val": number|string, "children": any[] }, "activeNodeId"?: string|number, "activePath"?: (string|number)[], "visitedNodeIds"?: (string|number)[], "levelOrderResult"?: (number|string)[][], "operation"?: "levelorder"|"preorder"|"postorder"|"serialize"|"deserialize"|"search" }
+   - "segmentTreeState": { "originalArray": (number|string)[], "treeArray": (number|string|null)[], "queryRange"?: [number, number], "updateIndex"?: number, "updateValue"?: number|string, "operation"?: "build"|"query"|"update"|"range_sum"|"range_min"|"range_max", "aggregateResult"?: number|string, "activeTreeIndices"?: number[] }
+   - "fenwickTreeState": { "originalArray": (number|string)[], "treeArray": (number|string)[], "operation"?: "build"|"query_prefix"|"query_range"|"update_point", "activeBitIndex"?: number, "jumpPath"?: number[], "queryRange"?: [number, number], "prefixSum"?: number|string, "formula"?: string }
 
-5) COMPLETE END-TO-END TRAVERSAL, STEP COUNT & OPTIMAL PACING INVARIANTS:
-   - You MUST simulate the algorithm completely from the first initialization line to the final return/termination statement.
-   - NEVER STOP HALFWAY, truncate, or end early. Traverse EVERY element, pointer step, node, or grid cell until the entire test input dataset has been completely processed according to the pseudocode.
-   - OPTIMAL STEP PACING & USER-UNDERSTANDABILITY LAW:
-     * BALANCE & CLARITY: Keep steps educational, intuitive, and easy for a human learner to absorb.
-       Avoid extreme laziness (only 4–9 macro steps is strictly forbidden).
-       Also avoid micro-bloat (do NOT generate 50+ tiny repetitive micro-steps for normal input, as 50+ steps becomes overwhelming and hard to follow).
-     * NORMAL / STANDARD DATASET: Target 20 to 30 well-paced, readable steps (e.g. 18–30 steps).
-       - Each step represents a clear algorithmic transition: advancing a pointer, testing a condition, placing land/node, mutating a queue/stack/map, or connecting components.
-       - Group minor sub-checks (e.g. out-of-bounds or direction check) into a single concise, informative step rather than 3 separate steps for the same direction.
-     * LONGER & EXTENDED DATASETS: Target 30 to 50 comprehensive steps demonstrating full scale and traversal depth so the learner has ample time to observe and understand the algorithm working through longer data.
-     * EDGE CASE DATASET: Target 8 to 15 focused steps highlighting boundary conditions.
-     * STEP DESCRIPTIONS ("desc"): Must be user-friendly, clear, and educational in plain English. State what line is executing, which values/indices are being inspected, and the exact state change in intuitive terms.
-   - UNIVERSAL FULL SINGLE-CELL & SINGLE-ELEMENT MOVEMENT LAW:
-     * You MUST NOT take macro skips across elements or cut traversals short.
-     * In 2D Grids / Islands / Matrices: Evaluate cell-by-cell!
-       - Outer loop scan: step through and evaluate cells (r, c) across rows and columns.
-       - Connected components / DFS / BFS / Union-Find: physically MOVE pointers to each probed neighbor or land cell so the visualizer marker visibly moves on screen.
-       - Never stop after only visiting 1 cell or 1 island! Process ALL separate components.
-     * In Arrays / Two-Pointers: evaluate element comparisons and pointer adjustments step-by-step.
-     * In Trees: traverse level-by-level or branch-by-branch through nodes in tree/queue.
-   - The final step MUST highlight the termination condition, the final return value, or the completed data structure state.
+5. "stack" & "queue" (LIFO, FIFO, Monotonic Stacks, Monotonic Deques, Circular Buffers, Geometric Spans)
+   - "stack": (number | string)[]
+   - "secondaryStack": (number | string)[]
+   - "queue": (number | string)[]
+   - "secondaryQueue": (number | string)[]
+   - "deque": (number | string)[]
+   - "stackInvariant": "increasing" | "decreasing"
+   - "current": number | string value pushed/popped/enqueued/dequeued
+   - "sightlines": [{ "fromIdx": number, "toIdx": number, "fromVal": number, "toVal": number, "status": "blocked"|"visible"|"settled" }]
+   - "histogramSpan": { "activeIndex": number, "leftBoundary": number, "rightBoundary": number, "width": number, "height": number, "calculatedArea": number, "maxAreaSoFar": number }
+   - "waterTrapped": { "currentIndex": number, "leftMax": number, "rightMax": number, "currentElevation": number, "waterTrappedAtCurrent": number, "totalWaterTrapped": number }
+   - "bracketPair": { "openIndex": number, "closeIndex": number, "openChar": string, "closeChar": string, "status": "matching"|"mismatch"|"unclosed" }
+   - "evalExpression": { "expression": string, "tokens": string[], "currentToken": string, "operatorStack": string[], "operandStack": (number|string)[], "lastOperation"?: string }
+   - "monotonicDeque": { "deque": (number|string|{ "index": number, "val": number|string })[], "windowRange"?: [number, number], "k"?: number, "incomingVal"?: number|string, "incomingIdx"?: number, "frontEviction"?: { "index"?: number, "val"?: number|string, "reason"?: string }, "backEvictions"?: [{ "index"?: number, "val"?: number|string, "reason"?: string }], "windowMax"?: number|string, "status"?: string }
+   - "circularBuffer": { "capacity": number, "front": number, "rear": number, "size": number, "buffer": (number|string|null)[], "isFull"?: boolean, "isEmpty"?: boolean, "lastOperation"?: string, "reason"?: string }
+   - "bfsLevel": { "level": number, "levelNodes"?: (number|string)[], "levelSize"?: number, "processedInLevel"?: number, "isLevelComplete"?: boolean }
 
-6) MULTI-DATASET & MULTI-STRUCTURE SUPPORT:
-   - When an algorithm operates on multiple structures or datasets (e.g. Grid + Visited Set + Call Stack, Tree + Queue, Array + Hash Table, Array + Monotonic Stack, List + Map, Dual Arrays), POPULATE ALL active structures simultaneously in each step!
-   - Available structure fields:
-     * "matrix": [[row1], [row2], ...] (2D grid of numbers or 0/1 binary land/water values)
-     * "cols": number of columns in the grid
-     * "tree": [level-order elements with nulls] (Binary tree or Min-Heap)
-     * "queue": [elements] (FIFO queue buffer)
-     * "stack": [elements] (LIFO stack buffer or call stack)
-     * "array": [elements] (Primary array / character sequence / stream of numbers or strings)
-     * "secondaryArray": [elements] (Second array / character sequence for multi-sequence algorithms)
-     * "map": { "key": value } (Hash table / frequency dictionary / complement map)
-     * "list": [elements] (Linked list nodes)
-     * "set": [elements] (Unique visited set)
-     * "callStack": [{ "id": string, "functionName": string, "depth": number, "args": { [key: string]: any }, "returnValue"?: any, "status": "active" | "returning" | "unwinding" }] (LIFO recursion frames)
-     * "recursionTree": [{ "id": string, "parentId": string | null, "label": string, "depth": number, "state": "running" | "success" | "backtracked" | "pruned", "decision"?: string }] (State-space tree nodes)
-     * "heapSwap": { "fromIndex": number, "toIndex": number, "direction": "sift-up" | "sift-down" } (Animated heap swap)
-     * "stackInvariant": "increasing" | "decreasing" (Monotonic stack invariant condition)
-     * "sightlines": [{ "fromIndex": number, "toIndex": number, "resolvedValue": number | string, "type": "next-greater" | "next-smaller" }] (Optical ray-cast sightlines)
-     * "intervals": [{ "id": string, "start": number, "end": number, "label": string, "status": "unprocessed" | "comparing" | "active" | "merged" | "finalized" }] (1D timeline intervals)
-     * "sweepLine": number (Current time playhead / laser position on continuous 1D timeline)
-   - FINE-GRAINED STRUCTURE-SPECIFIC STEPS & DATASET FOCUS:
-     * "activeDataset" & "shiftInfo": Every step tracks data transitions between structures (e.g. from matrix to visited, from array to map, or popping from queue to inspect a tree node).
-     * Independent Mutations: Each structure only updates on the exact line where it is mutated (e.g. queue enqueues/dequeues step-by-step, stack pushes/pops on recursive descent and backtracking, hash maps insert elements when processed).
-     * Synced Multi-Pointer UI: Pointers across primary and secondary arrays ("left", "right", "left2", "right2", "current") and cell coordinates ("r,c") highlight their respective structures in tandem on the canvas.
+6. "graph" (Graph Traversal, Shortest Path, MST, Topo Sort, Union-Find, Word Ladder)
+   - "graphEdges": [{ "from": string|number, "to": string|number, "weight"?: number|string, "directed"?: boolean, "color"?: string, "state"?: "active"|"mst"|"spt"|"rejected_cycle"|"cross_cut" }]
+   - "isDirected": boolean
+   - "distances": Record<string, number | string | null>
+   - "priorityQueue": [{ "node": string|number, "dist": number|string }]
+   - "relaxedEdge": { "from": string, "to": string, "weight": number|string, "oldDist"?: number|string, "newDist"?: number|string }
+   - "shortestPathTree": [{ "from": string, "to": string }]
+   - "shortestPathState": { "algorithm": "dijkstra"|"bellman-ford"|"a-star", "source": string|number, "target"?: string|number, "distances": Record<string, number>, "settledNodes": (string|number)[], "activeNode"?: string|number, "relaxingEdge"?: { "from": string|number, "to": string|number, "weight": number, "relaxed": boolean, "oldDist"?: number, "newDist"?: number }, "predecessorMap"?: Record<string, string|number>, "iteration"?: number, "hasNegativeCycle"?: boolean }
+   - "mstState": { "algorithm": "kruskal"|"prim", "mstEdges": [{ "from": string|number, "to": string|number, "weight": number }], "totalWeight": number, "sortedEdgesQueue"?: [{ "from": string|number, "to": string|number, "weight": number, "status"?: "selected"|"rejected_cycle"|"pending" }], "currentEdge"?: { "from": string|number, "to": string|number, "weight": number }, "inMstCutSet"?: (string|number)[], "isComplete"?: boolean }
+   - "topologicalSortState": { "inDegree": Record<string, number>, "zeroInDegreeQueue": (string|number)[], "topoOrder": (string|number)[], "hasCycle"?: boolean, "activeNode"?: string|number }
+   - "unionFindState": { "parent": Record<string, string|number>, "rank"?: Record<string, number>, "size"?: Record<string, number>, "count": number, "activeUnion"?: { "u": string|number, "v": string|number, "rootU": string|number, "rootV": string|number, "merged": boolean } }
+   - "wordLadderState": { "beginWord": string, "endWord": string, "currentWord": string, "ladder": string[], "queue": string[], "visited": string[] }
 
-7) 2D GRID, ISLANDS & AREA TRAVERSALS (Max Area of Island, Number of Islands, Flood Fill, Rotting Oranges):
-   - Set "type": "matrix".
-   - "matrix": 2D array of rows representing the binary grid (e.g. 0 = Water, 1 = Land).
-   - "cols": integer number of columns.
-   - "current": string "r,c" representing the active cell coordinate being evaluated.
-   - "visited": array of visited coordinate strings ["r1,c1", "r2,c2", ...] that updates as new cells are reached. NEVER leave "visited" frozen!
-   - "wSum": current island area integer (e.g. 1 -> 2 -> 3 ...) for area problems, or island count for component counting problems.
-   - "mSum": maximum island area integer found so far across the entire grid (ONLY for area problems).
-   - "direction": 4-directional step currently being explored matching candidate's pseudocode.
-   - "islandCells": list of coordinate strings belonging to the current island component for area shading.
-   - RECURSIVE DFS ORDER: Follow the candidate's exact recursive call-stack order (when recursing into an adjacent neighbor, dive into that neighbor's sub-tree BEFORE visiting sibling directions of the caller).
-   - FULL GRID SCAN: Systematically scan all rows and cols across the provided grid to discover and evaluate ALL islands in the dataset until the entire grid is traversed.
+7. "dp" (Dynamic Programming 1D & 2D Tables)
+   - "dp1dState": { "array": (number|string|null)[], "currentIndex"?: number, "targetIndex"?: number, "baseCaseIndices"?: number[], "dependencies"?: [{ "fromIdx": number, "toIdx": number, "label"?: string }], "currentFormula"?: string }
+   - "dp2dState": { "matrix": (number|string|null)[][], "currentRow"?: number, "currentCol"?: number, "dependencies"?: [{ "row": number, "col": number, "label"?: string }], "currentFormula"?: string, "transitionChoices"?: [{ "label": string, "cost": number|string, "isOptimal"?: boolean }], "optimalChoiceIdx"?: number }
 
-7b) 2D MATRIX IN-PLACE TRANSFORMATION & CELL-BY-CELL GRID LOOPS (Set Matrix Zeroes, Rotate Image, Spiral Matrix, Game of Life, Valid Sudoku, Diagonal Traverse):
-   - Set "type": "matrix".
-   - "matrix": 2D array of rows representing the current state of the matrix (e.g. [[1, 0, 1], [0, 0, 0], ...]), updated in-place on EVERY cell write, flag, or sentinel assignment.
-   - "cols": integer number of columns.
-   - "current": string "i,j" (e.g. "0,1") representing the EXACT coordinates of the cell currently being inspected, evaluated, or modified.
-   - "visited": optional array of coordinate strings ["0,0", "0,1", ...] that have been evaluated.
-   - MANDATORY CELL-BY-CELL LOOP TRAVERSAL:
-     * When the pseudocode has nested loops (for i in 0..n: for j in 0..m:) or row/column traversals, you MUST iterate cell-by-cell!
-     * NEVER skip or take macro jumps across entire rows or columns in a single step (e.g. do NOT set an entire row to zeroes in one step).
-     * For every cell (i, j) evaluated: emit a step setting current: "i,j" and describing the comparison in "desc" (e.g. "Checking matrix[1][1] (0) == 0: Found zero! Will propagate.").
-     * When marking or overwriting a row or column: step through each cell along that row or column one-by-one with "current": "r,c", showing the in-place matrix mutation on each step.
-     * When performing a second pass: step through cells individually, highlighting each conversion or update in-place.
-     * In "desc", explicitly reference indices i, j and cell values matrix[i][j].
+8. "recursion" (Call Stack Frames & Recursion Trees)
+   - "callStack": [{ "frameId": string, "functionName": string, "args": Record<string, any>, "localVars"?: Record<string, any>, "line": number }]
+   - "recursionTree": [{ "id": string, "name": string, "args": Record<string, any>, "state": "calling"|"active"|"returned"|"backtracking", "returnValue"?: any, "children"?: any[] }]
+   - "activeFrameId": string
+   - "memoTable": Record<string, any>
+   - "memoHitKey": string
+   - "prunedBranchId": string
 
-7c) DYNAMIC 2D GRID MUTATIONS & UNION-FIND (Number of Islands II, Dynamic Land Additions, DSU):
-   - Set "type": "matrix".
-   - Start with "matrix" initialized to all water (zeros): [[0,0,...], ...].
-   - When operations add land at (r, c):
-     * Physically MUTATE the matrix in-place: "matrix[r][c] = 1" (so the cell visually turns from water to land in real time).
-     * "wSum": count of active islands/components (e.g. 1 -> 1 -> 2 -> 3). Do NOT emit "currentArea" or "maxArea" as this problem does not track area.
-     * ACTIVE MOVING POINTERS & NEIGHBOR PROBING (NEVER KEEP POINTER FROZEN):
-       - When placing land: set "current": "r,c", "activePointers": { "pos": [r, c], "land": [r, c] }.
-       - When checking each of the 4 neighbors (dr, dc): PHYSICALLY ADVANCE the active marker to the neighbor cell:
-         "current": "nr,nc", "direction": "DOWN (+1, 0)", "activePointers": { "pos": [r, c], "neighbor": [nr, nc] }.
-         This guarantees the user clearly sees the pointer probe neighboring cells rather than staying frozen on the origin!
-       - When a neighbor is land and union succeeds: emit step with "activePointers": { "pos": [r, c], "neighbor": [nr, nc], "merge": [nr, nc] }, update DSU root map in "map", and decrement "wSum".
-   - PACING: Keep operations crisp and easy to understand (~18–25 steps total for 4 positions: 1 land addition step + 1 step per neighbor probe/union).
+9. "string" (Pattern Matching: KMP, Rabin-Karp, Aho-Corasick)
+   - "lps": number[]
+   - "patternStr": string
+   - "textStr": string
+   - "patternIndex": number
+   - "textIndex": number
+   - "kmpState": { "pattern": string, "text"?: string, "lpsTable": number[], "patternIndex"?: number, "textIndex"?: number, "alignmentOffset"?: number, "isMatch"?: boolean, "isMismatch"?: boolean, "matchedIndices"?: number[], "phase"?: "lps_construction"|"text_search"|"match_found", "mismatchFallback"?: { "fromJ": number, "toJ": number, "reason": string } }
+   - "rabinKarpState": { "pattern": string, "text": string, "patternHash": number|string, "windowHash": number|string, "windowStart": number, "windowLength": number, "base": number, "modulus": number, "highestPower"?: number, "isHashMatch"?: boolean, "isSpuriousHit"?: boolean, "rollingFormula"?: string }
+   - "ahoCorasickState": { "keywords": string[], "text"?: string, "textIndex"?: number, "currentStateId"?: string|number, "nodes": [{ "id": string|number, "char": string, "isRoot"?: boolean, "transitions": Record<string, string|number>, "failureLinkId": string|number, "dictionaryMatches": string[] }], "emittedMatches"?: [{ "pattern": string, "startIndex": number, "endIndex": number }], "activeLinkType"?: "goto"|"fail"|"dict" }
+   - "stringPatternState": { "algorithm": "kmp"|"rabin-karp"|"aho-corasick", "kmpState"?: any, "rabinKarpState"?: any, "ahoCorasickState"?: any }
 
-8) BINARY TREE BFS / LEVEL-ORDER:
-   - Set "type": "tree".
-   - "tree": Level-order array of the binary tree with nulls for missing nodes.
-   - "queue": The active FIFO queue containing current nodes waiting in buffer (e.g. [3] -> [] -> [9] -> [9, 20] -> [20] -> [] -> [15, 7]).
-   - The "queue" MUST be updated dynamically on EVERY enqueue and dequeue step. NEVER keep "queue" frozen!
+10. "bit" (Bit Manipulation & Register Engine)
+    - "bitRegisterState": { "value": number, "bitLength"?: number, "bits": [{ "index": number, "value": 0|1, "label"?: string, "isHighlighted"?: boolean }], "mask"?: number, "maskBits"?: (0|1)[], "operation"?: "AND"|"OR"|"XOR"|"NOT"|"SHL"|"SHR"|"POPCOUNT"|"BIT_CHECK"|"BIT_SET"|"BIT_CLEAR", "operand"?: number, "result"?: number, "explanation"?: string }
 
-9) SMART DATASET FOCUS & TRANSITION SHIFTS:
-   - "activeDataset": string identifying which dataset is currently being read/mutated (e.g. "matrix", "set", "tree", "queue", "array", "map", "stack").
-   - "shiftInfo": { "from": "matrix", "to": "visited", "action": "push" | "pop" | "lookup" | "write" | "compare" | "shift", "reason": "Detailed explanation using user variable names" }
+11. "intervals" (Intervals, Sweep Line, Collisions, Disjoint Sets)
+    - "intervals": Array<{ "start": number, "end": number, "label"?: string, "status"?: "active"|"merged"|"conflict" }>
+    - "sweepLine": number active vertical timeline scrubber position
+    - "activeIntervalIndex": number index of interval being evaluated
+    - "intervalCollisionState": { "intervalA": [number, number], "intervalB": [number, number], "isOverlapping": boolean, "overlapRange"?: [number, number], "resolution"?: "merged"|"skipped"|"conflict" }
+    - "disjointIntervals": { "intervals": [number, number][], "queryPoint"?: number, "insertedInterval"?: [number, number], "overlappingIntervals"?: [number, number][], "mergedInterval"?: [number, number], "operation"?: "addNum"|"getIntervals"|"findInterval"|"merge"|"removeRange", "explanation"?: string }
 
-10) DUAL POINTERS ACROSS MULTIPLE ARRAYS:
-   - For Array 1: use "left" and "right".
-   - For Array 2 ("secondaryArray"): use "left2" and "right2".
+12. "map" / "set" (Hash Maps & Hash Sets)
+    - "map": Record<string, number | string | null>
+    - "set": (number | string)[]
+    - "array": (number | string)[]
+    - "current": active value being looked up or inserted
+    - "left": current iteration index in array
+    - "targetIndex": matching complement index found
 
-10b) NESTED LOOPS & DUAL POINTERS ON ARRAYS (for i ... for j ..., e.g. Two Sum Brute Force / Pair Searches):
-   - When an algorithm uses nested loops over an array (e.g. "for i = 0 to n-1: for j = i + 1 to n-1:"):
-   - You MUST emit BOTH pointers simultaneously in every inner loop step:
-     * "left": integer index of the outer loop variable (e.g. i).
-     * "right": integer index of the inner loop variable (e.g. j).
-     * "pointer_labels": { "left": "i", "right": "j" } (or the candidate's exact loop variable names).
-   - "left" remains anchored at index i while "right" iterates through j = i + 1, i + 2, ...
-   - In "desc", state: "Checking nums[i] (X) + nums[j] (Y) = Sum vs target Target".
-   - NEVER collapse both into a single "current" pointer or omit "pointer_labels"!
+13. "composite" (Synchronized Multi-Data Structure Layouts)
+    - "compositeLayoutState": { "mode": "horizontal"|"vertical"|"grid", "leftStructure": { "type": string, "title"?: string }, "rightStructure": { "type": string, "title"?: string } }
+    - "activeDataset": string identifying active structure in focus ("array", "map", "stack", "queue", "tree", "list")
+    - "shiftInfo": { "from"?: string, "to"?: string, "action"?: "read"|"write"|"push"|"pop"|"lookup"|"compare"|"merge"|"shift"|"evict"|"swap", "reason"?: string }
 
-10c) DYNAMIC VARIABLE-SIZE SLIDING WINDOW (Longest Substring Without Repeating Characters, Minimum Window Substring, Max Consecutive Ones III, Subarray Product Less Than K):
-   - Set "type": "array".
-   - You MUST emit BOTH window boundary pointers on every step:
-     * "left": integer index of the window start pointer.
-     * "right": integer index of the window end pointer.
-     * "pointer_labels": { "left": "left", "right": "right" } (or candidate's exact pointer variable names).
-   - Dynamic Window Expansion & Contraction:
-     * EXPANSION: When right advances, add the character/element to the window and update auxiliary "map" (frequency or index) or "set".
-     * CONTRACTION: While the window condition is violated (e.g. duplicate character in set, or zeroes count > k), advance left step-by-step, removing characters or decrementing counts in "map"/"set" until the window is valid again.
-     * "wSum": active window length (right - left + 1).
-     * "mSum": running maximum or optimal window length found so far.
-   - In "desc", describe the character added/removed, window bounds [left..right], and the updated max length.
+======================================================================
+EXECUTION & PEDAGOGY RULES:
+======================================================================
+1. VERBATIM USER PSEUDOCODE:
+   - "code_lines" MUST contain the candidate's exact pseudocode lines verbatim in identical order.
+   - Set "line" (0-indexed) to the exact line executing for each step.
 
-10d) SAME-DIRECTION IN-PLACE READ/WRITE POINTERS (Move Zeroes, Remove Duplicates, Remove Element, Sort Colors):
-   - Set "type": "array".
-   - You MUST emit BOTH pointers simultaneously:
-     * "left": integer index of the slow / write pointer.
-     * "right": integer index of the fast / read pointer.
-     * "pointer_labels": { "left": "slow", "right": "fast" } (or "write" / "read").
-   - In-Place Mutation:
-     * When writing or swapping (e.g. nums[slow] = nums[fast]), update the "array" field in-place on that exact step so the UI reflects the modified elements.
-     * In "desc", explain: "nums[fast] (X) meets condition — overwrite/swap at nums[slow] (index Y) and advance slow."
+2. GRANULAR CELL-BY-CELL & STEP-BY-STEP SIMULATION:
+   - For all loops, 2D grids, pointer traversals, trees, queues, and caches:
+     * DO NOT collapse or summarize whole loops into a single step.
+     * Iterate cell-by-cell and node-by-node through EVERY iteration.
+     * For 2D matrices, ALWAYS set "current": "r,c" to highlight the exact cell being scanned or modified.
+     * When checking or zeroing rows/cols, update "highlightRows": [r] or "highlightCols": [c] dynamically.
+     * For 1D arrays, set "left", "right", and "current" indices on every single step.
 
-10e) PREFIX SUM WITH COMPLEMENT HASH MAP (Subarray Sum Equals K, Contiguous Array, Find Pivot Index):
-   - Set "type": "array".
-   - In every step:
-     * "left": integer index i of the current element being processed.
-     * "wSum": running cumulative prefix sum up to index i.
-     * "map": { [prefix_sum]: count } frequency dictionary of all prefix sums encountered so far (including initial { 0: 1 }).
-     * In "desc", explicitly state: "Running sum = S. Checking if (S - target) = Remainder exists in map. Found M matches so far."
+3. RICH STEP DESCRIPTIONS ("desc"):
+   - Clearly explain: (1) line executed, (2) live variable & pointer values, (3) condition checks (True/False), (4) exact mutations.
+   - Use candidate's exact variable names.
 
-10f) GEOMETRIC MONOTONIC STACK (Daily Temperatures, Next Greater Element, Online Stock Span, Largest Rectangle in Histogram):
-   - Set "type": "stack".
-   - "stackInvariant": "decreasing" (for Next Greater Element) or "increasing" (for Next Smaller Element).
-   - "stack": array of active elements or indices currently in stack in strictly monotonic order.
-   - When resolving elements:
-     * Emit "sightlines": [{ "fromIndex": poppedIdx, "toIndex": currentIdx, "resolvedValue": nums[currentIdx], "type": "next-greater" }]
-     * Show the popping of violated elements and optical sightline connection to the current resolver.
-   - Then emit a step pushing the incoming element onto "stack".
+4. FULL SCAN & MULTI-COMPONENT TRAVERSAL:
+   - For 2D grid/island or multi-component graph algorithms: You MUST evaluate ALL separate islands/components across the entire input dataset before ending.
 
-10g) BINARY SEARCH (Binary Search, Search in Rotated Sorted Array, Find Peak Element):
-   - Set "type": "array".
-   - In every step:
-     * "left": low boundary index.
-     * "right": high boundary index.
-     * "current": middle element index (mid = floor((low + high) / 2)).
-     * "pointer_labels": { "left": "low", "right": "high", "current": "mid" }.
-     * In "desc", state: "nums[mid] (X) vs target (Y). Search space reduced: discard half and set new bounds."
+5. PAGINATION & STEP LIMITS:
+   - You MUST generate NO MORE THAN 20 steps per response to prevent token truncation.
+   - If the algorithm has finished execution (reached the final return statement), set "is_complete": true at the end of the JSON.
+   - If the algorithm has NOT finished execution by step 20, set "is_complete": false.
+   - Never generate more than 20 items in the "viz_steps" array.
 
-10h) DUAL-VIEW BINARY HEAP & PRIORITY QUEUE (Kth Largest, Top K Frequent, Merge K Sorted Lists, Find Median from Data Stream):
-   - Set "type": "heap".
-   - "tree": Complete binary heap level-order array representation [root, left, right, left.left, ...] satisfying the heap invariant.
-   - During sift-up (insertion) or sift-down (extract/replace root):
-     * For every swap between parent and child, emit "heapSwap": { "fromIndex": childIdx, "toIndex": parentIdx, "direction": "sift-up" } (or "sift-down").
-     * In "desc", explicitly reference the heap indexing arithmetic: parent = floor((i-1)/2), left_child = 2i+1, right_child = 2i+2.
-
-10i) RECURSION TREE & DYNAMIC CALL STACK (Subsets, Permutations, Combination Sum, N-Queens, Sudoku Solver, Palindrome Partitioning):
-   - Set "type": "recursion-tree".
-   - "callStack": Dynamic LIFO array of active frames with function name, arguments, depth, and return value.
-   - "recursionTree": Array of state-space tree nodes representing the decision path and branching choices.
-   - Step through state-space expansion, base condition checks, leaf solutions, and backtracking stack unwinding.
-
-10j) 1D INTERVAL TIMELINE & SWEEP-LINE LASER (Merge Intervals, Insert Interval, Non-Overlapping Intervals, Meeting Rooms):
-   - Set "type": "intervals".
-   - "intervals": Array of structured interval items with id, start, end, label, and status.
-   - "sweepLine": Current continuous coordinate / timestamp of the vertical sweep-line laser.
-   - "wSum": Count of consolidated non-overlapping intervals.
-   - Animate the sweep line advancing, boundary comparison, overlap detection, and interval expansion/merging.
-
-11) ARRAY / STRING ALGORITHMS:
-   - For standard array/string problems, set "type": "array".
-   - Provide the array in "array". Use "left", "right", and "current" to track indices.
-   - Do NOT use "linkedlist" unless the problem explicitly operates on Linked List nodes.
-
-12) DYNAMIC PROGRAMMING (DP):
-   - For DP problems (Tabulation/Memoization), set "type": "dp" or "matrix".
-   - Place the DP table in the "matrix" field (if 1D DP, provide it as a 1-row matrix e.g. [[dp0, dp1, ...]]).
-   - Place the input array in the "array" field.
-   - Set "current" to "r,c" to highlight the active cell being computed.
-
-13) STRICT ACTION-TO-LINE SYNCHRONIZATION:
-   - The "line" integer MUST point to the EXACT statement executing for that specific action (0-indexed).
-   - Initial declarations must show empty/initial structures ({}, [], zeros) and MUST NOT contain future elements before mutating statements run.`;
+6. MANDATORY STEP GENERATION FOR ALL CHOSEN DATA STRUCTURES & DUAL SEQUENCES:
+   - When the algorithm operates on multiple data structures (e.g. primary "array" AND "secondaryArray", or array + hashmap / stack / queue):
+     * You MUST generate steps and update pointer positions / values for EVERY selected data structure across the trace!
+     * NEVER leave secondaryArray or any selected secondary structure dormant, static, or untraversed!
+     * For dual sequences / two arrays:
+       - Actively track and advance pointers on BOTH arrays on every step:
+         * Primary array: set "left", "right", and/or "current".
+         * Secondary array: set "left2" and/or "right2" on EVERY step where elements are inspected, compared, or processed.
+       - Use "pointer_labels" to clearly describe pointers on both arrays (e.g. { "current": "msg_i", "left2": "time_i" }).
+       - Provide "datasetLabels": { "primary": "Message Stream", "secondaryArray": "Timestamps" } (or descriptive names) to clearly indicate each dataset's role.`;
 
 export function buildVisualizerUserPrompt({
   title,
@@ -278,6 +261,10 @@ export function buildVisualizerUserPrompt({
   targetExample,
   datasetLabel,
   datasetDescription,
+  dataStructureType,
+  previousContext,
+  currentStepOffset,
+  executionPlan,
   pseudocode,
 }: {
   title: string;
@@ -289,264 +276,198 @@ export function buildVisualizerUserPrompt({
   targetExample?: number | string;
   datasetLabel?: string;
   datasetDescription?: string;
+  dataStructureType?: string;
+  previousContext?: string;
+  currentStepOffset?: number;
+  executionPlan?: Array<{
+    step_number: number;
+    line_index: number;
+    code_action: string;
+    description: string;
+  }>;
   pseudocode: string;
 }) {
-  const isIslandUnionFind =
-    /number[- ]of[- ]islands[- ]ii|islands[- ]2|union.*find.*island|dynamic.*island/i.test(title) ||
-    (/numIslands2|addLand|parent\s*=|find\(|union\(/i.test(pseudocode) &&
-      /island|grid|positions/i.test(pseudocode + title));
-
-  const isIsland =
-    !isIslandUnionFind &&
-    (/island|max.*area.*island|number[- ]of[- ]islands|flood[- ]fill|rotting.*orange|surrounded[- ]regions|walls[- ]and[- ]gates|pacific[- ]atlantic|count-sub-islands|making-a-large-island/i.test(
+  const isIslandOrFloodFill =
+    dataStructureType === "matrix" ||
+    /island|max.*area|number[- ]of[- ]islands|flood[- ]fill|rotting[- ]oranges|surrounded[- ]regions|walls[- ]and[- ]gates|pacific[- ]atlantic/i.test(
       title,
     ) ||
-      (/\bdr,\s*dc\b|\bdirections\b/i.test(pseudocode) &&
-        /dfs|bfs|connected|component|land|water/i.test(pseudocode)));
+    /in_bounds|\bdr,\s*dc\b|\bdirections\b|is_island/i.test(pseudocode);
 
-  const isMatrixTransform =
-    !isIsland &&
-    !isIslandUnionFind &&
-    (/set[- ]matrix|rotate[- ]image|spiral[- ]matrix|game[- ]of[- ]life|valid[- ]sudoku|diagonal[- ]traverse|matrix.*zero|zeroes/i.test(
-      title,
-    ) ||
-      Boolean(matrixExample && matrixExample.length > 0 && !isIsland));
+  const isMatrixTransformation =
+    !isIslandOrFloodFill &&
+    (Boolean(matrixExample && matrixExample.length > 0) ||
+      /matrix|rotate[- ]image|spiral|game[- ]of[- ]life|sudoku|grid|row.*col/i.test(title) ||
+      /matrix\[i\]\[j\]|matrix\[r\]\[c\]|matrix\[row\]\[col\]|setZeroes|sentinel/i.test(pseudocode));
 
   const isTree =
-    /tree|level[- ]order|zigzag|right-side-view|bst/i.test(title) ||
-    /TreeNode|node\.left|node\.right|root/i.test(pseudocode);
+    dataStructureType === "tree" ||
+    /tree|level[- ]order|zigzag|right-side-view|bst|heap|priority[- ]queue|trie|segment[- ]tree|fenwick|binary[- ]indexed/i.test(title) ||
+    /TreeNode|node\.left|node\.right|root|heapify|trie/i.test(pseudocode);
 
-  const isClassOrDesign =
-    /class\s+|def\s+put|def\s+get|def\s+remove|MyHashMap|MyHashSet|LRUCache|Trie/i.test(
-      pseudocode,
-    ) || /design/i.test(title);
-
-  const isQueueSimulation =
-    /reveal.*cards|deck.*reveal|dota2.*senate|circular.*queue|buy.*tickets/i.test(title) ||
-    /deck|revealed|permutation|queue\.enqueue|queue\.dequeue|simulateAndCheck/i.test(pseudocode);
-
-  const safeExample = Array.isArray(example) && example.length > 0 ? example : [1, 2, 3];
-  let sampleGuidance = `Suggested sample input: [${safeExample.join(", ")}].${targetExample !== undefined ? ` Target = ${targetExample}.` : ""}`;
-
-  if (isIslandUnionFind) {
-    const rows = matrixExample?.length ?? 3;
-    const cols = matrixExample?.[0]?.length ?? 3;
-    const emptyGrid = Array.from({ length: rows }, () => Array(cols).fill(0));
-    const positionsList =
-      secondaryArrayExample && secondaryArrayExample.length > 0
-        ? secondaryArrayExample
-        : [
-            [0, 0],
-            [0, 1],
-            [1, 2],
-            [2, 1],
-          ];
-
-    sampleGuidance = `Simulate Number of Islands II (Dynamic Land Additions with Union-Find Disjoint Set):
-- Start with ${rows}×${cols} empty water grid (all zeros): matrix = ${JSON.stringify(emptyGrid)}, cols = ${cols}.
-- Positions to add land: ${JSON.stringify(positionsList)}.
-- Set type='matrix'. Maintain DSU parent map in 'map', island count in 'wSum'. (Do NOT emit 'currentArea' or 'maxArea' as this is not an area problem).
-- For each position [r, c] in positions:
-  1) Land Placement: Mutate matrix in-place: matrix[r][c] = 1. Add pos to DSU parent map. Increment island count 'wSum'.
-     Set 'current': "r,c", 'activePointers': { "pos": [r, c], "land": [r, c] }.
-  2) Neighbor Probing (Moving Pointers): For each direction (DOWN, UP, RIGHT, LEFT):
-     Physically MOVE the active marker to the neighbor cell: 'current': "nr,nc", 'direction': dirName, 'activePointers': { "pos": [r, c], "neighbor": [nr, nc] }.
-     If in bounds and neighbor is land: call union. If union connects two components, decrement 'wSum' and highlight merge: 'activePointers': { "pos": [r, c], "neighbor": [nr, nc], "merge": [nr, nc] }.
-- PACING: Keep operations crisp, intuitive, and easy to understand (~18 to 25 steps total for 4 positions: 1 land addition step + 1 step per neighbor probe/union). Avoid micro-bloat.`;
-  } else if (secondaryArrayExample && secondaryArrayExample.length > 0) {
-    sampleGuidance = `Simulate dual-sequence / multi-attribute array execution using primary array (${JSON.stringify(safeExample)}) and secondaryArray (${JSON.stringify(secondaryArrayExample)}).${targetExample !== undefined ? ` Target / minProfit = ${targetExample}.` : ""} Track dual pointers ("left", "right" on primary array and "left2", "right2" on secondaryArray).`;
-  } else if (isIsland) {
-    const isMaxArea = /max.*area/i.test(title);
-    const gridRows =
-      matrixExample && matrixExample.length > 0
-        ? matrixExample
-        : [
-            [0, 0, 1, 0, 0, 0],
-            [0, 1, 1, 0, 1, 1],
-            [0, 1, 1, 0, 1, 1],
-            [0, 0, 0, 0, 1, 1],
-            [1, 1, 0, 0, 0, 0],
-            [1, 1, 0, 0, 0, 0],
-          ];
-    sampleGuidance = `Simulate 2D Grid Island traversal on this input binary grid (0 = Water, 1 = Land):
-matrix = ${JSON.stringify(gridRows)}
-cols = ${gridRows[0]?.length ?? 6}
-Set type='matrix'. Step through 4-directional DFS traversal based on candidate's exact pseudocode until ALL islands across the entire grid are evaluated.
-MANDATORY FOR GRID/ISLAND TRAVERSALS:
-- Step through connected land cells cleanly! Do NOT jump across islands or skip intermediate recursive steps.
-- For each step:
-  * Set 'current' to the active cell coordinates string "r,c" (e.g. "2,1").
-  * Follow true recursive DFS call stack: when recursing into an adjacent neighbor (dr, dc), explore that neighbor's connected cells BEFORE visiting sibling directions.
-  * Add newly visited cells to 'visited' as ["r1,c1", "r2,c2", ...] (cumulative across all islands).
-  * 'islandCells': Array of coordinates belonging to the CURRENT active island only.
-  ${
-    isMaxArea
-      ? "* 'currentArea' (or 'wSum'): Land cells discovered in the active island so far.\n  * 'maxArea' (or 'mSum'): Running maximum island area discovered across the entire grid so far."
-      : "* 'wSum': Running count of separate islands discovered so far across the grid (e.g. 1 -> 2 -> 3). Do NOT emit 'maxArea'."
-  }
-  * 'direction': Vector being traversed (e.g. "DOWN (+1, 0)", "UP (-1, 0)", "RIGHT (0, +1)", "LEFT (0, -1)").
-- When an island's DFS completes, continue the outer scan (for r... for c...) to discover and explore subsequent islands until the entire grid is complete.
-- PACING: Keep steps user-friendly (~20 to 30 steps for standard dataset).`;
-  } else if (isMatrixTransform) {
-    const gridRows =
-      matrixExample && matrixExample.length > 0
-        ? matrixExample
-        : [
-            [1, 1, 1],
-            [1, 0, 1],
-            [1, 1, 1],
-          ];
-    sampleGuidance = `Simulate 2D Matrix In-Place Transformation & Cell-by-Cell Traversal on this input matrix:
-matrix = ${JSON.stringify(gridRows)}
-cols = ${gridRows[0]?.length ?? 3}
-Set type='matrix'. Step through candidate's nested loops (for i = 0..n-1: for j = 0..m-1:) cell-by-cell!
-MANDATORY FOR 2D MATRIX CELL-BY-CELL LOOPS:
-- Step through loop iterations cell by cell! DO NOT take macro skips across entire rows or columns in a single step.
-- For every cell visited, set 'current' to the active cell coordinates string "i,j" (e.g. "0,0", "0,1", "1,1").
-- Mutate 'matrix' in-place on each step to reflect updated cell values, sentinels, or zeroes.
-- When scanning/marking a row or column, step through each cell along that row/column individually with 'current' set to each coordinate (e.g. (i, 0), (i, 1), ...).
-- Set 'line' to the exact line in candidate's pseudocode being executed.`;
-  } else if (isTree) {
-    const treeArr = treeExample ?? [3, 9, 20, null, null, 15, 7];
-    sampleGuidance = `Simulate binary tree traversal using 'tree' (level-order array with nulls: ${JSON.stringify(treeArr)}) and 'queue' (active FIFO buffer updated on every enqueue/dequeue step). Set type='tree'. Continue until the queue becomes empty and traversal completes.`;
-  } else if (isQueueSimulation) {
-    sampleGuidance = `Simulate Queue and Card Deck simulation on input: ${JSON.stringify(safeExample)}.
-Set type='queue' or 'array'.
-MANDATORY FOR QUEUE & CARD REVEAL SIMULATION:
-- If sorting/queue simulation: initialize the FIFO index queue [0, 1, 2, ... n-1] and sort cards in ascending order.
-- For each card, dequeue target slot index from the queue, assign result[targetSlot] = card, and if queue is not empty, dequeue and re-enqueue (move to back) the next slot index.
-- If simulating permutations: simulate the exact queue process (reveal top card, move next to bottom), verify if revealed order is strictly increasing, and return the permutation that matches.
-- Dynamically update the 'queue' array on EVERY step.
-- Set 'line' to the exact line in candidate's pseudocode being executed.`;
-  } else if (isClassOrDesign) {
-    sampleGuidance =
-      "Simulate candidate's methods (e.g. put, get, remove, or class methods) according to the problem's canonical example sequence through to the final method call. Do NOT emit a fake 'array' field if this is a pure HashMap/HashSet/Cache design.";
-  }
-
-  const isDynamicSlidingWindow =
-    !isIsland &&
-    !isMatrixTransform &&
-    (/longest.*substring|minimum.*window|sliding.*window|character.*replacement|consecutive.*ones|fruit.*basket|subarray.*product.*less/i.test(title) ||
-      (/\b(left|start)\b/i.test(pseudocode) && /\b(right|end)\b/i.test(pseudocode) && /window|shrink|expand|frequency/i.test(pseudocode)));
-
-  const isInPlacePointers =
-    !isIsland &&
-    !isMatrixTransform &&
-    (/move.*zero|remove.*duplicate|remove.*element|sort.*colors|duplicate.*zero/i.test(title) ||
-      (/\b(slow|write)\b/i.test(pseudocode) && /\b(fast|read)\b/i.test(pseudocode)));
-
-  const isPrefixSum =
-    !isIsland &&
-    !isMatrixTransform &&
-    (/subarray.*sum.*equals|contiguous.*array|pivot.*index|running.*sum|prefix.*sum/i.test(title) ||
-      (/prefix.*sum|running.*sum|curr.*sum/i.test(pseudocode) && /hash|map|dict/i.test(pseudocode)));
-
-  if (isDynamicSlidingWindow) {
-    sampleGuidance = `Simulate Dynamic Sliding Window execution on input sequence: ${JSON.stringify(safeExample)}.${targetExample !== undefined ? ` Target / k = ${targetExample}.` : ""}
-Set type='array'.
-MANDATORY FOR SLIDING WINDOW:
-- Emit both window boundary pointers on EVERY step: 'left' (window start) and 'right' (window end) with pointer_labels: { left: 'left', right: 'right' }.
-- Animate window expansion when 'right' advances, adding the element to active window and updating 'map' (frequency dictionary) or 'set'.
-- Animate window contraction when 'left' advances, removing elements from 'map'/'set' while condition is violated.
-- Track 'wSum' as active window width (right - left + 1) and 'mSum' as running maximum/optimal window width.
-- Set 'line' to the exact line in candidate's pseudocode being executed.`;
-  } else if (isInPlacePointers) {
-    sampleGuidance = `Simulate In-Place Read/Write Two-Pointer execution on input: ${JSON.stringify(safeExample)}.
-Set type='array'.
-MANDATORY FOR IN-PLACE READ/WRITE POINTERS:
-- Emit both pointers simultaneously on EVERY step: 'left' (slow / write pointer) and 'right' (fast / read pointer) with pointer_labels: { left: 'slow', right: 'fast' } (or 'write' / 'read').
-- When elements are overwritten or swapped (nums[slow] = nums[fast]), update the 'array' field in-place on that exact step so the UI reflects the modified elements.
-- In 'desc', explain the inspection and write: e.g. "nums[fast] (X) meets condition — overwrite at nums[slow] (index Y) and advance slow."
-- Set 'line' to the exact line in candidate's pseudocode being executed.`;
-  } else if (isPrefixSum) {
-    sampleGuidance = `Simulate Prefix Sum with Complement Hash Map on input: ${JSON.stringify(safeExample)}.${targetExample !== undefined ? ` Target k = ${targetExample}.` : ""}
-Set type='array'.
-MANDATORY FOR PREFIX SUM WITH HASH MAP:
-- On each step, emit 'left': index i of the current element being processed.
-- Track running cumulative sum in 'wSum' (curr_sum).
-- Track prefix sum frequencies in 'map' (e.g. { "0": 1, ... }), updated dynamically on every step.
-- In 'desc', detail the complement check: "Current prefix sum = S. Checking if (S - k) = Diff exists in map."
-- Set 'line' to the exact line in candidate's pseudocode being executed.`;
-  }
-
-  const isDp = /dp\[|dp_table|memo|tabulation|dynamic programming|longest common subsequence|knapsack|cost to merge/i.test(title + " " + (pseudocode || ""));
-  if (isDp && !isIsland && !isMatrixTransform && !isDynamicSlidingWindow && !isPrefixSum) {
-    sampleGuidance = `Simulate Dynamic Programming execution. Set type='dp' or 'matrix'. Track the active cell being computed using "current" set to "r,c" (or just the index if 1D). Put the DP table in "matrix" and the input array in "array".`;
-  }
-
-  const isIntervals =
-    /interval|meeting.*room|insert.*interval|merge.*interval/i.test(title) ||
-    (/\bintervals\b/i.test(pseudocode) && /start|end|overlap/i.test(pseudocode));
-  if (isIntervals && !isIsland && !isMatrixTransform) {
-    sampleGuidance = `Simulate Interval Merging & Overlap Analysis. Set type='matrix' or 'array'. Track previous interval vs current interval, showing whether they overlap (curr.start <= prev.end) and updating the merged interval.`;
-  }
+  const isDesignDs =
+    /lfu|least[- ]frequently[- ]used|lru|least[- ]recently[- ]used|skiplist|skip[- ]list|disjoint[- ]intervals|data[- ]stream[- ]as[- ]disjoint|range[- ]module/i.test(title) ||
+    /lfu|skiplist|freqTable|keyTable|dllOrder/i.test(pseudocode);
 
   const isGraph =
-    /graph|course.*schedule|alien.*dict|topological|bipartite|clone.*graph/i.test(title) ||
-    (/\b(?:adj|graph|indegree)\b/i.test(pseudocode) && /queue|stack|dfs|bfs/i.test(pseudocode));
-  if (isGraph && !isIsland && !isMatrixTransform && !isTree) {
-    sampleGuidance = `Simulate Graph & Topological Sort traversal. Set type='graph'. Track active vertex in 'current', visited vertices in 'visited', in-degrees in 'map', and BFS buffer in 'queue'.`;
-  }
+    dataStructureType === "graph" ||
+    /dijkstra|shortest[- ]path|bellman[- ]ford|kruskal|prim|spanning[- ]tree|topological|course[- ]schedule|union[- ]find|dsu|disjoint[- ]set|word[- ]ladder/i.test(title) ||
+    /in_degree|adj\[|visited\.add|find\(|union\(/i.test(pseudocode);
 
-  const isHeap =
-    /kth.*largest|heap|median.*data.*stream|merge.*k.*sorted/i.test(title) ||
-    /\b(?:heap|heappush|heappop|priority_queue)\b/i.test(pseudocode);
-  if (isHeap && !isTree) {
-    sampleGuidance = `Simulate Heap / Priority Queue operations. Set type='heap' or 'tree'. Track heap array representation in 'tree' and the active sifted element in 'current'.`;
-  }
+  const isStackQueue =
+    dataStructureType === "stack" ||
+    dataStructureType === "queue" ||
+    /monotonic[- ]stack|next[- ]greater|daily[- ]temperatures|largest[- ]rectangle|trapping[- ]rain[- ]water|sliding[- ]window[- ]max|circular[- ]queue|circular[- ]deque/i.test(title) ||
+    /stack\.pop|stack\.append|deque\.popleft|deque\.append/i.test(pseudocode);
 
-  const isTrie =
-    /trie|prefix.*tree|word.*search.*ii|replace.*words/i.test(title) ||
-    /\b(?:trie|children|is_end|end_of_word)\b/i.test(pseudocode);
-  if (isTrie) {
-    sampleGuidance = `Simulate Prefix Trie insertion/search. Set type='trie' or 'tree'. Track the active character node in 'current' and character dictionary in 'map'.`;
-  }
+  const isDp =
+    dataStructureType === "dp" ||
+    /dynamic[- ]programming|knapsack|longest[- ]common[- ]subsequence|edit[- ]distance|coin[- ]change|climbing[- ]stairs|house[- ]robber/i.test(title) ||
+    /dp\[i\]|dp\[r\]\[c\]|memo\[/i.test(pseudocode);
 
+  const isStringPattern =
+    dataStructureType === "string" ||
+    /kmp|knuth[- ]morris|lps|rabin[- ]karp|rolling[- ]hash|aho[- ]corasick|pattern[- ]match/i.test(title) ||
+    /compute_lps|rolling_hash/i.test(pseudocode);
+
+  const isBit =
+    dataStructureType === "bit" ||
+    /bit|bitwise|single[- ]number|counting[- ]bits|reverse[- ]bits|power[- ]of[- ]two/i.test(title) ||
+    /\^|&|<<|>>/i.test(pseudocode);
+
+  const safeExample = Array.isArray(example) && example.length > 0 ? example : [1, 2, 3];
+  let sampleGuidance = `Input: [${safeExample.join(", ")}].${targetExample !== undefined ? ` Target = ${targetExample}.` : ""}`;
+
+  if (secondaryArrayExample && secondaryArrayExample.length > 0) {
+    sampleGuidance = `Input primary array: ${JSON.stringify(safeExample)}, secondaryArray: ${JSON.stringify(secondaryArrayExample)}.${targetExample !== undefined ? ` Target = ${targetExample}.` : ""}
+MANDATORY DUAL-SEQUENCE TRAVERSAL:
+- You MUST actively traverse and update pointers on BOTH arrays in 'viz_steps'!
+- Primary array: set "left", "right", and/or "current" for each element processed.
+- Secondary array: set "left2" and/or "right2" (or active secondary index) corresponding to the element being checked/compared/stored.
+- NEVER leave secondaryArray stationary or untraversed!
+- Set "pointer_labels" (e.g. { "current": "msg", "left2": "timestamp" }) and "datasetLabels" (e.g. { "primary": "Messages", "secondaryArray": "Timestamps" }).`;
+  } else if (isIslandOrFloodFill || isMatrixTransformation) {
+    const gridRows =
+      matrixExample && matrixExample.length > 0
+        ? matrixExample
+        : [
+            [0, 0, 1, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 0, 0, 0, 1],
+            [0, 1, 1, 0, 1, 0, 0, 0],
+            [0, 1, 0, 0, 1, 1, 0, 0],
+          ];
+    sampleGuidance = `Input matrix = ${JSON.stringify(gridRows)}, cols = ${gridRows[0]?.length ?? 4}.
+For island/matrix problems:
+- "current": "r,c"
+- "visited": ["r1,c1", "r2,c2", ...]
+- "islandCells": ["r,c", ...] for active island
+- "currentArea" (or "wSum"): count of land cells in active island
+- "maxArea" (or "mSum"): all-time peak island area
+- "direction": "DOWN (+1, 0)" | "UP (-1, 0)" | "RIGHT (0, +1)" | "LEFT (0, -1)"
+- "frontier": ["r,c", ...] for BFS wavefront
+- "distanceLayer": integer distance level
+- "directionRay": { from: [r,c], to: [nr,nc], direction: "UP", status: "valid" }
+- "rotationOrbit": { ringLayer: 0, orbit4: [...] } for 90-deg rotations
+- "kernel8Neighbor": { center: [r,c], aliveCount: N } for Game of Life
+- "backtrackingRibbon": { path: [[r,c], ...] } for Word Search`;
+  } else if (isDesignDs) {
+    sampleGuidance = `Design Data Structure problem detected.
+- If LFU Cache: populate "lfuCache" with capacity, size, minFreq, keyTable, freqTable (bucket doubly-linked lists), activeKey, activeVal, activeFreq, evictedKey, action ("get"|"put"|"evict"|"freq_increment"), hitOrMiss ("hit"|"miss").
+- If Skip List: populate "skipList" with maxLevel, currentLevel, levels (array of level expressways with nodes), searchPath (traversal step_forward / drop_down drops), targetVal, found.
+- If Disjoint Intervals: populate "disjointIntervals" with intervals ([start, end] pairs), queryPoint, insertedInterval, mergedInterval, operation.
+- If LRU Cache: populate "lruCache" with capacity, hashMap, dllOrder, mruKey, lruKey, evictedKey, action, hitOrMiss.`;
+  } else if (isTree) {
+    const treeArr = treeExample ?? [3, 9, 20, null, null, 15, 7];
+    sampleGuidance = `Input tree = ${JSON.stringify(treeArr)}.
+- Update 'queue' and 'tree' dynamically across steps.
+- For BST: populate "bstState" with searchPath, decision ("go_left"|"go_right"|"found"), rangeBounds, isValidBst.
+- For Heap: populate "heapSwap": { from, to } and "twoHeapsState" / "topKState".
+- For Trie: populate "trieState" with activeChar, word, matchedChars, activePath.
+- For Segment Tree: populate "segmentTreeState" with queryRange, updateIndex, updateValue, activeTreeIndices.
+- For Fenwick Tree: populate "fenwickTreeState" with activeBitIndex, jumpPath, formula ("idx += idx & -idx").`;
+  } else if (isGraph) {
+    sampleGuidance = `Graph / Network problem detected.
+- Populate "graphEdges": [{ from, to, weight, state: "active"|"mst"|"spt" }]
+- For Dijkstra: populate "shortestPathState" with distances, settledNodes, activeNode, relaxingEdge, predecessorMap.
+- For Kruskal/Prim MST: populate "mstState" with mstEdges, totalWeight, sortedEdgesQueue, currentEdge.
+- For Topo Sort: populate "topologicalSortState" with inDegree, zeroInDegreeQueue, topoOrder.
+- For Union-Find: populate "unionFindState" with parent, rank, size, count, activeUnion.`;
+  } else if (isStackQueue) {
+    sampleGuidance = `Stack / Queue / Monotonic problem detected.
+- Populate "stack", "queue", or "deque" with items.
+- For Monotonic Stack: populate "stackInvariant" ("increasing"|"decreasing"), "sightlines", "histogramSpan", "waterTrapped", "bracketPair".
+- For Monotonic Deque: populate "monotonicDeque" with deque, windowRange, incomingVal, frontEviction, backEvictions, windowMax.
+- For Circular Queue: populate "circularBuffer" with capacity, front, rear, size, buffer, isFull, isEmpty.`;
+  } else if (isDp) {
+    sampleGuidance = `Dynamic Programming problem detected.
+- For 1D DP: populate "dp1dState" with array, currentIndex, targetIndex, dependencies [{ fromIdx, toIdx }], currentFormula.
+- For 2D DP: populate "dp2dState" with matrix, currentRow, currentCol, dependencies [{ row, col }], currentFormula, transitionChoices, optimalChoiceIdx.`;
+  } else if (isStringPattern) {
+    sampleGuidance = `String Pattern Matching problem detected.
+- For KMP: populate "kmpState" with pattern, text, lpsTable, patternIndex, textIndex, alignmentOffset, phase, mismatchFallback.
+- For Rabin-Karp: populate "rabinKarpState" with pattern, text, patternHash, windowHash, windowStart, windowLength, isHashMatch.
+- For Aho-Corasick: populate "ahoCorasickState" with keywords, text, textIndex, currentStateId, nodes, emittedMatches.`;
+  } else if (isBit) {
+    sampleGuidance = `Bit Manipulation problem detected.
+- Populate "bitRegisterState" with value, bitLength, bits ([{ index, value: 0|1, isHighlighted }]), mask, maskBits, operation ("AND"|"OR"|"XOR"|"SHL"|"SHR"|"POPCOUNT"), result, explanation.`;
+  }
 
   const isLongerDataset = /longer|complex|dataset\s*2/i.test(datasetLabel ?? "");
-  const isEdgeDataset = /edge|boundary|dataset\s*3/i.test(datasetLabel ?? "");
   const datasetContext = datasetLabel
     ? `\nActive Dataset: "${datasetLabel}" ${datasetDescription ? `(${datasetDescription})` : ""}\n${
         isLongerDataset
-          ? "CRITICAL INSTRUCTION FOR EXTENDED DATASET: This is an EXTENDED, LARGE-SCALE dataset designed for a deep, comprehensive animation (30–60+ steps). Step through ALL elements, matrix cells, tree nodes, or graph vertices systematically! In 2D grids, step through EVERY land cell of every island across all rows and columns (never exit after 4 or 9 steps). In arrays/heaps/trees, traverse all elements thoroughly to provide the user with a rich, long-running visualization of their pseudocode execution.\n"
-          : isEdgeDataset
-            ? "CRITICAL INSTRUCTION FOR EDGE DATASET: Simulate all boundary checks, empty conditions, single-element iterations, and return statements thoroughly (8–20 steps).\n"
-            : "CRITICAL INSTRUCTION FOR STANDARD DATASET: Simulate the ENTIRE dataset from the first element to the final return/completion step without stopping early. Generate at least 15–30 granular steps (never output only 4 or 8 macro-steps).\n"
+          ? "EXTENDED DATASET: This will require multiple generations. Generate exactly 10 rich steps, then set is_complete=false. I will call you back for the rest.\n"
+          : "Simulate the entire dataset from first line to final return. If it takes more than 10 steps, set is_complete=false.\n"
       }`
     : "";
+
+  const planContext =
+    executionPlan && executionPlan.length > 0
+      ? `\nAlgorithmic Execution Plan from Reviewer:\n${executionPlan
+          .map(
+            (p) =>
+              `- Step ${p.step_number} (Line ${p.line_index}): ${p.code_action} — ${p.description}`,
+          )
+          .join("\n")}\n`
+      : "";
+
+  const previousContextText = previousContext
+    ? `\n======================================================
+PREVIOUS EXECUTION CONTEXT (Rolling Window):
+======================================================
+The following steps were just generated in the previous batch. 
+CONTINUE exactly from where this left off, maintaining the same variables and state. DO NOT repeat these steps.
+${previousContext}
+======================================================\n`
+    : "";
+
+  const isContinuation = typeof currentStepOffset === "number" && currentStepOffset > 0;
+
+  const instructionsText = isContinuation
+    ? `CRITICAL CONTINUATION INSTRUCTIONS:
+1. Steps 1 through ${currentStepOffset} have ALREADY been simulated.
+2. DO NOT restart the algorithm or execute from line 0.
+3. DO NOT clear, reset, or reinitialize variables (e.g. visited sets, queue, cloned node hash maps, pointers, accumulators).
+4. Generate the NEXT sequence of steps starting from Step ${currentStepOffset + 1}.
+5. If the algorithm genuinely finishes (worklist/queue empty, loops complete, or final return line reached), set "is_complete": true. Otherwise set "is_complete": false.`
+    : `CRITICAL INSTRUCTIONS:
+1. "total_expected_steps": Estimate the total number of simulation steps required for this dataset from start to completion.
+2. "execution_plan": Output the list of execution steps specifically for this dataset ({ step_number, line_index, code_action, description }).
+3. If this dataset takes more than 10 steps, generate the first 10 steps with high quality and set "is_complete": false. If the entire simulation completes within 10 steps, set "is_complete": true.`;
 
   return `Problem: "${title}".
 Statement:
 ${statement}
 ${datasetContext}
-Simulate THE CANDIDATE'S EXACT submitted pseudocode below step by step with full multi-dataset tracking through to the very end of execution. ${sampleGuidance}
-
-CRITICAL INSTRUCTIONS FOR STEP ILLUSTRATION:
-1. STRICT USER-SPECIFIC PSEUDOCODE:
-   - Use the candidate's EXACT pseudocode lines below as "code_lines" verbatim, in identical order.
-   - Do NOT modify, replace, or template the pseudocode lines or variable names.
-   - In each step, set "line" (0-indexed) to the exact line of the user's pseudocode being executed.
-
-2. EXPANDED & INFORMATIVE STEP EXPLANATIONS ("desc"):
-   - Provide an expanded, highly readable, and educational description in "desc" for every step.
-   - Explicitly mention the candidate's exact variable names, the current values being evaluated, comparisons made, why a branch is taken or skipped, and what value is stored or popped.
-   - Avoid generic or ultra-short text. Make each step clear and insightful for the user.
-
-3. FULL END-TO-END TRAVERSAL ACROSS ALL COMPONENTS:
-   - For 2D grid/island or multi-component graph algorithms: You MUST traverse and evaluate ALL separate islands/components present in the input dataset. Do NOT stop after the first island/component.
-   - Continue generating steps until the pseudocode completely finishes processing the entire input dataset and reaches the final return/termination statement. Do NOT stop halfway or omit trailing iterations.
-
-4. MULTI-STRUCTURE SYNCHRONIZATION:
-   - If the algorithm uses 2D grid matrix / islands: emit "matrix", "cols", "current" ("r,c"), "visited" (growing list of "r,c"), "wSum" (current area), "mSum" (max area), and "direction".
-   - If the algorithm uses Tree + Queue: update the "queue" dynamically across every step: do NOT leave it frozen.
-   - Indicate "activeDataset" and "shiftInfo" when logic moves between datasets.
-   - Strict data-to-line synchronization: no premature mutations before the line runs.
-   - The final step MUST show the algorithm reaching the return statement with the final calculated result.
-
-Candidate Pseudocode (MUST be used verbatim as code_lines):
+${sampleGuidance}
+${planContext}${previousContextText}
+User Pseudocode to Trace:
 \`\`\`
 ${pseudocode}
 \`\`\`
 
-Now simulate complete execution step by step using the candidate's exact pseudocode lines and rich descriptive steps until the algorithm returns.`;
+Generate the step-by-step visualizer JSON object matching the data structure markers and direction tags for this dataset.
+
+${instructionsText}`;
 }
+

@@ -1,12 +1,29 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Sparkles, RotateCcw, BookOpen, Lightbulb, ExternalLink, Code2, Play } from "lucide-react";
+import {
+  Sparkles,
+  RotateCcw,
+  BookOpen,
+  Lightbulb,
+  ExternalLink,
+  Code2,
+  Play,
+  Square,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Columns,
+  Maximize2,
+  Monitor,
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Visualizer } from "@/components/Visualizer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
+import { taskCompletionManager, type TaskRecordData } from "@/lib/task-completion-manager";
 import {
   leetcodeUrl,
   problemBySlug,
@@ -16,10 +33,11 @@ import {
 } from "@/lib/problems";
 import { getStatement } from "@/lib/problem.functions";
 import { statementForSlug } from "@/lib/statements";
-import type { ReviewResult } from "@/lib/review.functions";
-import { apiReviewPseudocode, apiGenerateDatasetViz } from "@/lib/api-client";
+import type { ReviewResult, DatasetPlanResult, ExecutionPlanStep } from "@/lib/review.functions";
+import { apiReviewPseudocode, apiGenerateDatasetsAndPlan, apiGenerateDatasetViz, apiVerifyDatasetTrace } from "@/lib/api-client";
 import { saveSubmission, getProfileStats } from "@/lib/submissions.functions";
 import { toast } from "sonner";
+import { useSessionContextStore } from "@/hooks/useSessionContextStore";
 
 import { ProblemHeader } from "@/components/problem/ProblemHeader";
 import { ProblemStatementTab } from "@/components/problem/ProblemStatementTab";
@@ -28,6 +46,7 @@ import { MonacoCodeEditor } from "@/components/editor/MonacoCodeEditor";
 import { ReviewCard } from "@/components/problem/ReviewCard";
 import { DatasetToolbar } from "@/components/problem/DatasetToolbar";
 import { ProblemDiffNudgePanel } from "@/components/problem/ProblemDiffNudgePanel";
+import { TraceVerificationPanel } from "@/components/problem/TraceVerificationPanel";
 import { useChat } from "@/context/ChatContext";
 
 export const Route = createFileRoute("/problem/$slug")({
@@ -175,13 +194,49 @@ function ProblemPage() {
   const [userCode, setUserCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ReviewResult | null>(null);
+  const [datasetPlan, setDatasetPlan] = useState<DatasetPlanResult | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
   const [activeDatasetId, setActiveDatasetId] = useState<string>("dataset_1");
   const [datasetLoading, setDatasetLoading] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [taskStatus, setTaskStatus] = useState<TaskRecordData | null>(null);
+
+  useEffect(() => {
+    if (!activeTaskId) return;
+    const unsubscribe = taskCompletionManager.subscribe(activeTaskId, (record) => {
+      setTaskStatus({ ...record });
+    });
+    return () => unsubscribe();
+  }, [activeTaskId]);
+
+  const handleForceComplete = useCallback(async () => {
+    if (!activeTaskId) return;
+    try {
+      const updated = await taskCompletionManager.forceComplete(
+        activeTaskId,
+        "User manually forced completion (stopped infinite loop)",
+      );
+      setTaskStatus({ ...updated });
+      toast.info("Stopped generation loop. Visualizing steps collected so far!");
+    } catch (err) {
+      console.warn("Failed to force complete task:", err);
+    }
+  }, [activeTaskId]);
   const [customDataset, setCustomDataset] = useState<TestDataset | null>(null);
   const [saved, setSaved] = useState(false);
-
-
   const [copied, setCopied] = useState(false);
+  const [stageMode, setStageMode] = useState<"standard" | "expanded" | "cinema">("standard");
+  const [liveGenStatus, setLiveGenStatus] = useState<{
+    datasetId: string;
+    datasetLabel: string;
+    loopCount: number;
+    stepCount: number;
+    totalExpectedSteps?: number;
+    isComplete: boolean;
+    statusText: string;
+    category?: string;
+  } | null>(null);
+  const [datasetExecutionPlans, setDatasetExecutionPlans] = useState<Record<string, ExecutionPlanStep[]>>({});
   const reviewRef = useRef<HTMLDivElement>(null);
   const storageKey = `dsaviz:attempt:${problem?.slug ?? "unknown"}`;
 
@@ -311,10 +366,269 @@ function ProblemPage() {
     }
   }, [pseudocode, problem, user, token, queryClient, persist]);
 
+  const sessionStore = useSessionContextStore();
+
+  const onStartVisualization = useCallback(async () => {
+    if (!result || !problem || !pseudocode.trim()) return;
+    setPlanLoading(true);
+    sessionStore.resetSession();
+    try {
+      // Stage 2: Generate Datasets & Execution Plan
+      const planRes = await apiGenerateDatasetsAndPlan({
+        slug: problem.slug,
+        title: problem.title,
+        difficulty: problem.difficulty,
+        topics: problem.topics,
+        pseudocode: pseudocode.trim(),
+        classification: result.classification,
+        complexity: result.complexity,
+      });
+
+      setDatasetPlan(planRes);
+
+      const fallbackCanon = getCanonicalMultiDatasets(problem.slug, problem.title, problem.topics ?? []);
+      const datasets = planRes.datasets.length > 0 ? planRes.datasets : (result.datasets ?? fallbackCanon);
+      const primaryDataset = datasets[0] ?? fallbackCanon[0]!;
+
+      if (planRes.execution_plan && planRes.execution_plan.length > 0) {
+        setDatasetExecutionPlans({ [primaryDataset.id]: planRes.execution_plan });
+      }
+
+      // Stage 3: Generate Visualization for primary dataset
+      setDatasetLoading(true);
+
+      const task = await taskCompletionManager.startTask({
+        problemSlug: problem.slug,
+        datasetId: primaryDataset.id,
+        maxLoops: 10,
+        pseudocode: pseudocode.trim(),
+      });
+      setActiveTaskId(task.taskId);
+      setTaskStatus(task);
+      
+      let isComplete = false;
+      let currentContext = "";
+      let accumulatedSteps: VizStep[] = [];
+      let finalTrace: any = null;
+      let loopCount = 0;
+      let expectedTotalSteps: number | undefined = undefined;
+
+      while (!isComplete && loopCount < 10) {
+        if (taskCompletionManager.isForceCompleted(task.taskId)) {
+          break;
+        }
+
+        loopCount++;
+        await taskCompletionManager.setGenerating(task.taskId);
+        
+        let trace: any = null;
+        let retries = 0;
+        while (retries < 3) {
+          if (taskCompletionManager.isForceCompleted(task.taskId)) break;
+          try {
+            trace = await apiGenerateDatasetViz({
+              slug: problem.slug,
+              title: problem.title,
+              difficulty: problem.difficulty,
+              topics: problem.topics,
+              dataStructureType: planRes.data_structure_type,
+              executionPlan: planRes.execution_plan,
+              dataset: primaryDataset,
+              pseudocode: pseudocode.trim(),
+              previousContext: currentContext,
+              currentStepOffset: accumulatedSteps.length,
+            });
+            break; // Success, exit retry loop
+          } catch (err) {
+            if (taskCompletionManager.isForceCompleted(task.taskId)) break;
+            retries++;
+            console.warn(`Chunk generation failed, retrying (${retries}/3) with last 3 steps context...`, err);
+            if (retries >= 3) {
+              console.error("Max retries reached. Stopping chunked generation early.");
+              break;
+            }
+          }
+        }
+
+        if (taskCompletionManager.isForceCompleted(task.taskId)) {
+          break;
+        }
+
+        if (!trace) {
+          // If trace is still null here, it means all retries failed.
+          // We break the loop gracefully to preserve what we generated so far.
+          toast.error(`Generation halted midway at step ${accumulatedSteps.length} due to model failures. Displaying partial result.`);
+          isComplete = true;
+          break;
+        }
+
+        if (trace) {
+          // Sync step estimations dynamically
+          if (loopCount === 1) {
+            expectedTotalSteps =
+              trace.total_expected_steps ||
+              (trace.execution_plan && trace.execution_plan.length > 0 ? trace.execution_plan.length : undefined) ||
+              (planRes.execution_plan && planRes.execution_plan.length > 0 ? planRes.execution_plan.length : 15);
+          } else if (trace.total_expected_steps && (!expectedTotalSteps || trace.total_expected_steps > expectedTotalSteps)) {
+            expectedTotalSteps = trace.total_expected_steps;
+          }
+          await taskCompletionManager.setTotalExpectedSteps(task.taskId, expectedTotalSteps ?? (accumulatedSteps.length + 15));
+
+          finalTrace = { ...trace, viz_steps: [...accumulatedSteps, ...(trace.viz_steps || [])] };
+          if (trace.execution_plan && trace.execution_plan.length > 0) {
+             finalTrace.execution_plan = [...(finalTrace.execution_plan || []), ...trace.execution_plan].filter((v,i,a)=>a.findIndex(t=>(t.step_number === v.step_number))===i);
+          } else if (finalTrace.viz_steps) {
+             // Fallback mapping if model omits it during continuation
+             finalTrace.execution_plan = finalTrace.viz_steps.map((s: any, i: number) => ({
+                 step_number: i + 1,
+                 line_index: s.line,
+                 code_action: s.type || "EXECUTE",
+                 description: s.desc
+             }));
+          }
+          accumulatedSteps = finalTrace.viz_steps;
+          sessionStore.addBatch(trace.viz_steps || []);
+
+          // LIVE STREAMING: update datasetExecutionPlans as steps arrive
+          if (finalTrace.execution_plan) {
+            setDatasetExecutionPlans((prev) => ({
+              ...prev,
+              [primaryDataset.id]: finalTrace.execution_plan,
+            }));
+          }
+
+          const progress = await taskCompletionManager.updateProgress(task.taskId, {
+            loopCount,
+            newSteps: trace.viz_steps || [],
+            accumulatedSteps,
+            totalExpectedSteps: expectedTotalSteps,
+            codeLines: trace.code_lines,
+            pseudocode: pseudocode.trim(),
+            isCompleteFlag: trace.is_complete,
+          });
+
+          const isDone = progress.shouldStop || trace.is_complete !== false;
+
+          setLiveGenStatus({
+            datasetId: primaryDataset.id,
+            datasetLabel: primaryDataset.label || "Standard Dataset",
+            loopCount,
+            stepCount: accumulatedSteps.length,
+            totalExpectedSteps: expectedTotalSteps,
+            isComplete: isDone,
+            statusText: isDone
+              ? `Generated all ${accumulatedSteps.length} steps (is_complete: true ✓)`
+              : `Streaming step ${accumulatedSteps.length} live...`,
+            category: primaryDataset.category,
+          });
+
+          if (isDone) {
+            isComplete = true;
+          } else {
+            currentContext = sessionStore.getSerializedContext(accumulatedSteps);
+          }
+        } else {
+          break;
+        }
+      }
+
+      if (taskCompletionManager.isForceCompleted(task.taskId)) {
+        await taskCompletionManager.markCompleted(task.taskId, accumulatedSteps.length);
+        setLiveGenStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                isComplete: true,
+                statusText: `Manually completed (${accumulatedSteps.length} steps saved). is_complete: true ✓`,
+              }
+            : null
+        );
+      } else {
+        await taskCompletionManager.markCompleted(task.taskId, accumulatedSteps.length);
+        setLiveGenStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                isComplete: true,
+                statusText: `Visualization generated with all ${accumulatedSteps.length} steps. is_complete: true ✓`,
+              }
+            : null
+        );
+      }
+
+      setTimeout(() => {
+        setLiveGenStatus((prev) => (prev?.isComplete ? null : prev));
+      }, 3500);
+
+      if (!finalTrace) {
+        finalTrace = {
+          test_array: primaryDataset.array ?? [],
+          code_lines: [pseudocode.trim()],
+          viz_steps: accumulatedSteps,
+          visualization_failed: false,
+        };
+      }
+
+      // Update execution plan if returned by AI for this dataset
+      if (finalTrace.execution_plan && finalTrace.execution_plan.length > 0) {
+        setDatasetExecutionPlans((prev) => ({
+          ...prev,
+          [primaryDataset.id]: finalTrace.execution_plan,
+        }));
+      }
+
+      const updatedTraces = {
+        ...(result.dataset_traces ?? {}),
+        [primaryDataset.id]: {
+          test_array: finalTrace.test_array,
+          code_lines: finalTrace.code_lines,
+          viz_steps: finalTrace.viz_steps,
+          total_expected_steps: expectedTotalSteps,
+          execution_plan: finalTrace.execution_plan,
+          visualization_failed: finalTrace.visualization_failed,
+          visualization_error: finalTrace.visualization_error,
+        },
+      };
+
+      const updatedResult: ReviewResult = {
+        ...result,
+        datasets,
+        active_dataset_id: primaryDataset.id,
+        dataset_traces: updatedTraces,
+        test_array: finalTrace.test_array,
+        code_lines: finalTrace.code_lines,
+        viz_steps: finalTrace.viz_steps,
+        models: {
+          reviewer: result.models.reviewer,
+          visualizer: finalTrace.model || result.models.visualizer,
+        },
+      };
+
+      setResult(updatedResult);
+      setActiveDatasetId(primaryDataset.id);
+      persist(pseudocode, updatedResult);
+      toast.success("Visualization generated successfully!");
+      
+      // Auto verify after generation is done
+      handleVerifyTrace(primaryDataset, accumulatedSteps);
+    } catch (err) {
+      console.error("Start visualization failed:", err);
+      toast.error("Failed to generate plan and visualization.");
+    } finally {
+      setPlanLoading(false);
+      setDatasetLoading(false);
+    }
+  }, [result, problem, pseudocode, persist]);
+
   const handleSelectDataset = useCallback(
     async (targetDataset: TestDataset) => {
       if (!problem || !result) return;
       setActiveDatasetId(targetDataset.id);
+
+      // Auto-expand canvas layout if user chose a longer dataset
+      if (targetDataset.category === "longer" || targetDataset.id.includes("longer")) {
+        setStageMode("expanded");
+      }
 
       // If this dataset already has a generated trace in cache, no API roundtrip needed
       if (result.dataset_traces?.[targetDataset.id]?.viz_steps?.length) {
@@ -322,21 +636,231 @@ function ProblemPage() {
       }
 
       setDatasetLoading(true);
+      sessionStore.resetSession();
+
+      // Reset the execution plan table immediately so it clears previous steps for the chosen dataset
+      setDatasetExecutionPlans((prev) => ({
+        ...prev,
+        [targetDataset.id]: [],
+      }));
+
+      setLiveGenStatus({
+        datasetId: targetDataset.id,
+        datasetLabel: targetDataset.label || "Dataset",
+        loopCount: 1,
+        stepCount: 0,
+        isComplete: false,
+        statusText: `Initializing step generation for ${targetDataset.label ?? "selected dataset"}... (waiting for all steps)`,
+        category: targetDataset.category,
+      });
+
+      // Provide initial shell in dataset_traces with empty viz_steps so previous steps are cleared
+      setResult((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          active_dataset_id: targetDataset.id,
+          dataset_traces: {
+            ...(prev.dataset_traces || {}),
+            [targetDataset.id]: {
+              test_array: targetDataset.array ?? [],
+              code_lines: prev.code_lines ?? [pseudocode.trim()],
+              viz_steps: [],
+              visualization_failed: false,
+            },
+          },
+        };
+      });
+
+      const task = await taskCompletionManager.startTask({
+        problemSlug: problem.slug,
+        datasetId: targetDataset.id,
+        maxLoops: 10,
+        pseudocode: pseudocode.trim(),
+      });
+      setActiveTaskId(task.taskId);
+      setTaskStatus(task);
+
       try {
-        const trace = await apiGenerateDatasetViz({
-          slug: problem.slug,
-          pseudocode: pseudocode.trim(),
-          dataset: targetDataset,
-        });
+        let isComplete = false;
+        let currentContext = "";
+        let accumulatedSteps: VizStep[] = [];
+        let finalTrace: any = null;
+        let loopCount = 0;
+        let expectedTotalSteps: number | undefined = undefined;
+
+        while (!isComplete && loopCount < 10) {
+          if (taskCompletionManager.isForceCompleted(task.taskId)) {
+            break;
+          }
+
+          loopCount++;
+          await taskCompletionManager.setGenerating(task.taskId);
+          
+          let trace: any = null;
+          let retries = 0;
+          while (retries < 3) {
+            if (taskCompletionManager.isForceCompleted(task.taskId)) break;
+            try {
+              trace = await apiGenerateDatasetViz({
+                slug: problem.slug,
+                title: problem.title,
+                difficulty: problem.difficulty,
+                topics: problem.topics,
+                dataStructureType: datasetPlan?.data_structure_type,
+                executionPlan: datasetPlan?.execution_plan,
+                pseudocode: pseudocode.trim(),
+                dataset: targetDataset,
+                previousContext: currentContext,
+                currentStepOffset: accumulatedSteps.length,
+              });
+              break; // Success, exit retry loop
+            } catch (err) {
+              if (taskCompletionManager.isForceCompleted(task.taskId)) break;
+              retries++;
+              console.warn(`Chunk generation failed, retrying (${retries}/3) with last 3 steps context...`, err);
+              if (retries >= 3) {
+                console.error("Max retries reached on secondary dataset. Stopping early.");
+                break;
+              }
+            }
+          }
+
+          if (taskCompletionManager.isForceCompleted(task.taskId)) {
+            break;
+          }
+
+          if (!trace) {
+            toast.error(`Generation halted midway at step ${accumulatedSteps.length} due to model failures. Displaying partial result.`);
+            isComplete = true;
+            break;
+          }
+
+          if (trace) {
+            // Sync step estimations dynamically
+            if (loopCount === 1) {
+              expectedTotalSteps =
+                trace.total_expected_steps ||
+                (trace.execution_plan && trace.execution_plan.length > 0 ? trace.execution_plan.length : undefined) ||
+                (datasetPlan?.execution_plan && datasetPlan.execution_plan.length > 0 ? datasetPlan.execution_plan.length : 15);
+            } else if (trace.total_expected_steps && (!expectedTotalSteps || trace.total_expected_steps > expectedTotalSteps)) {
+              expectedTotalSteps = trace.total_expected_steps;
+            }
+            await taskCompletionManager.setTotalExpectedSteps(task.taskId, expectedTotalSteps ?? (accumulatedSteps.length + 15));
+
+            finalTrace = { ...trace, viz_steps: [...accumulatedSteps, ...(trace.viz_steps || [])] };
+            if (trace.execution_plan && trace.execution_plan.length > 0) {
+               finalTrace.execution_plan = [...(finalTrace.execution_plan || []), ...trace.execution_plan].filter((v:any,i:any,a:any)=>a.findIndex((t:any)=>(t.step_number === v.step_number))===i);
+            } else if (finalTrace.viz_steps) {
+               // Fallback mapping if model omits it during continuation
+               finalTrace.execution_plan = finalTrace.viz_steps.map((s: any, i: number) => ({
+                   step_number: i + 1,
+                   line_index: s.line,
+                   code_action: s.type || "EXECUTE",
+                   description: s.desc
+               }));
+            }
+            accumulatedSteps = finalTrace.viz_steps;
+            sessionStore.addBatch(trace.viz_steps || []);
+
+            // LIVE STREAMING: update datasetExecutionPlans as steps arrive
+            if (finalTrace.execution_plan) {
+              setDatasetExecutionPlans((prev) => ({
+                ...prev,
+                [targetDataset.id]: finalTrace.execution_plan,
+              }));
+            }
+
+            const progress = await taskCompletionManager.updateProgress(task.taskId, {
+              loopCount,
+              newSteps: trace.viz_steps || [],
+              accumulatedSteps,
+              totalExpectedSteps: expectedTotalSteps,
+              codeLines: trace.code_lines,
+              pseudocode: pseudocode.trim(),
+              isCompleteFlag: trace.is_complete,
+            });
+
+            const isDone = progress.shouldStop || trace.is_complete !== false;
+
+            setLiveGenStatus({
+              datasetId: targetDataset.id,
+              datasetLabel: targetDataset.label || "Dataset",
+              loopCount,
+              stepCount: accumulatedSteps.length,
+              totalExpectedSteps: expectedTotalSteps,
+              isComplete: isDone,
+              statusText: isDone
+                ? `Trace generation finalized with ${accumulatedSteps.length} steps (is_complete: true ✓)`
+                : `Streaming step ${accumulatedSteps.length} live...`,
+              category: targetDataset.category,
+            });
+
+            if (isDone) {
+              isComplete = true;
+            } else {
+              currentContext = sessionStore.getSerializedContext(accumulatedSteps);
+            }
+          } else {
+            break;
+          }
+        }
+
+        if (taskCompletionManager.isForceCompleted(task.taskId)) {
+          await taskCompletionManager.markCompleted(task.taskId, accumulatedSteps.length);
+          setLiveGenStatus((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  isComplete: true,
+                  statusText: `Manually completed (${accumulatedSteps.length} steps saved). is_complete: true ✓`,
+                }
+              : null
+          );
+        } else {
+          await taskCompletionManager.markCompleted(task.taskId, accumulatedSteps.length);
+          setLiveGenStatus((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  isComplete: true,
+                  statusText: `Trace finalized with ${accumulatedSteps.length} steps. is_complete: true ✓`,
+                }
+              : null
+          );
+        }
+
+        setTimeout(() => {
+          setLiveGenStatus((prev) => (prev?.isComplete ? null : prev));
+        }, 3500);
+
+        if (!finalTrace) {
+          finalTrace = {
+            test_array: targetDataset.array ?? [],
+            code_lines: [pseudocode.trim()],
+            viz_steps: accumulatedSteps,
+            visualization_failed: false,
+          };
+        }
+
+        // Update execution plan table to show the new steps for this chosen dataset
+        if (finalTrace.execution_plan && finalTrace.execution_plan.length > 0) {
+          setDatasetExecutionPlans((prev) => ({
+            ...prev,
+            [targetDataset.id]: finalTrace.execution_plan,
+          }));
+        }
 
         const updatedTraces = {
           ...(result.dataset_traces ?? {}),
           [targetDataset.id]: {
-            test_array: trace.test_array,
-            code_lines: trace.code_lines,
-            viz_steps: trace.viz_steps,
-            visualization_failed: trace.visualization_failed,
-            visualization_error: trace.visualization_error,
+            test_array: finalTrace.test_array,
+            code_lines: finalTrace.code_lines,
+            viz_steps: finalTrace.viz_steps,
+            total_expected_steps: accumulatedSteps.length, // Calibrate to actual final count
+            execution_plan: finalTrace.execution_plan,
+            visualization_failed: finalTrace.visualization_failed,
+            visualization_error: finalTrace.visualization_error,
           },
         };
 
@@ -348,13 +872,61 @@ function ProblemPage() {
 
         setResult(updatedResult);
         persist(pseudocode, updatedResult);
-      } catch {
-        toast.error("Failed to generate animation for this dataset.");
+
+        // Auto verify after generation is done
+        handleVerifyTrace(targetDataset, accumulatedSteps);
+      } catch (err: any) {
+        console.error("Dataset visualizer API error:", err);
+        toast.error("Failed to generate animation for this dataset: " + (err.message || "Unknown error"));
       } finally {
         setDatasetLoading(false);
       }
     },
-    [problem, result, pseudocode, persist],
+    [problem, result, datasetPlan, pseudocode, persist],
+  );
+
+  const [verificationLoading, setVerificationLoading] = useState(false);
+
+  const handleVerifyTrace = useCallback(
+    async (dataset: TestDataset, steps: VizStep[]) => {
+      if (!problem || !result || steps.length === 0) return;
+      setVerificationLoading(true);
+      try {
+        const verification = await apiVerifyDatasetTrace({
+          slug: problem.slug,
+          title: problem.title,
+          pseudocode: pseudocode.trim(),
+          datasetLabel: dataset.label || dataset.id,
+          traceSteps: steps,
+        });
+
+        const updatedTraces = {
+          ...(result.dataset_traces ?? {}),
+          [dataset.id]: {
+            ...result.dataset_traces?.[dataset.id],
+            test_array: result.dataset_traces?.[dataset.id]?.test_array || [],
+            code_lines: result.dataset_traces?.[dataset.id]?.code_lines || [],
+            viz_steps: result.dataset_traces?.[dataset.id]?.viz_steps || steps,
+            verification,
+          },
+        };
+
+        const updatedResult: ReviewResult = {
+          ...result,
+          dataset_traces: updatedTraces,
+        };
+
+        setResult(updatedResult);
+        persist(pseudocode, updatedResult);
+        toast.success("Trace verification complete.");
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Failed to verify trace: " + err.message);
+      } finally {
+        setVerificationLoading(false);
+      }
+    },
+    [problem, result, pseudocode, persist]
   );
 
   const onSubmitRef = useRef(onSubmit);
@@ -420,12 +992,14 @@ def solve(input_data):
   const currentTrace = result?.dataset_traces?.[activeDatasetId];
 
   const currentSteps: VizStep[] = useMemo(() => {
+    // Until all steps are generated, nothing is displayed
+    if (datasetLoading) return [];
     if (currentTrace?.viz_steps?.length) return currentTrace.viz_steps;
     if (activeDatasetId === availableDatasets[0]?.id && result?.viz_steps?.length) {
       return result.viz_steps;
     }
     return [];
-  }, [currentTrace?.viz_steps, activeDatasetId, availableDatasets, result?.viz_steps]);
+  }, [currentTrace?.viz_steps, activeDatasetId, availableDatasets, result?.viz_steps, datasetLoading]);
 
   const currentCodeLines = currentTrace?.code_lines ?? result?.code_lines ?? [];
   const currentTestArray =
@@ -449,10 +1023,81 @@ def solve(input_data):
     <div className="min-h-screen pb-20">
       <SiteHeader />
 
-      <main className="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-6 p-4 sm:p-6 lg:grid-cols-3 xl:grid-cols-3">
+      {/* Dynamic Stage Controls & Live Cycle Status Bar */}
+      <div className="mx-auto flex max-w-[1920px] flex-wrap items-center justify-between gap-3 px-4 pt-4 sm:px-6">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] font-semibold text-muted-foreground">
+            Stage Layout:
+          </span>
+          <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-card/60 p-1 font-mono text-xs backdrop-blur-md shadow-xs">
+            <button
+              type="button"
+              onClick={() => setStageMode("standard")}
+              className={`btn-glide inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                stageMode === "standard"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title="Standard 3-column layout"
+            >
+              <Columns className="size-3.5" />
+              <span>Standard</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStageMode("expanded")}
+              className={`btn-glide inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                stageMode === "expanded"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title="Expanded stage layout (ideal for longer datasets & matrices)"
+            >
+              <Maximize2 className="size-3.5" />
+              <span>Expanded Stage</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStageMode("cinema")}
+              className={`btn-glide inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                stageMode === "cinema"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title="Full-width cinema mode"
+            >
+              <Monitor className="size-3.5" />
+              <span>Cinema</span>
+            </button>
+          </div>
+        </div>
+
+        {liveGenStatus && !liveGenStatus.isComplete && (
+          <div className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-mono text-xs text-amber-300 backdrop-blur-md animate-fade">
+            <span className="size-2 rounded-full bg-amber-400 animate-ping" />
+            <span>
+              Streaming cycle {liveGenStatus.loopCount} for {liveGenStatus.datasetLabel} ({liveGenStatus.stepCount} live steps) • is_complete: false
+            </span>
+          </div>
+        )}
+      </div>
+
+      <main
+        className={`mx-auto grid w-full gap-6 p-4 sm:p-6 transition-all duration-300 ${
+          stageMode === "cinema"
+            ? "max-w-[1920px] grid-cols-1"
+            : stageMode === "expanded"
+              ? "max-w-[1920px] grid-cols-1 lg:grid-cols-12"
+              : "max-w-[1800px] grid-cols-1 lg:grid-cols-3 xl:grid-cols-3"
+        }`}
+      >
         {/* Column 1: Problem Details & Examples */}
-        <section className="flex flex-col gap-5">
-<div className="flex flex-col gap-4 rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm">
+        <section
+          className={`flex flex-col gap-5 ${
+            stageMode === "expanded" ? "lg:col-span-3 xl:col-span-3" : ""
+          }`}
+        >
+          <div className="flex flex-col gap-4 rounded-3xl border border-border/70 bg-card/60 p-6 shadow-sm backdrop-blur-md transition-all">
             <ProblemHeader problem={problem} copied={copied} onCopyLink={copyCode} />
 
             {/* Tab Navigation: Problem Statement vs Strategy */}
@@ -460,7 +1105,7 @@ def solve(input_data):
               <button
                 type="button"
                 onClick={() => setActiveTab("statement")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition-all ${
+                className={`btn-glide flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition-all ${
                   activeTab === "statement"
                     ? "bg-primary text-primary-foreground shadow-xs shadow-primary/20"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -471,7 +1116,7 @@ def solve(input_data):
               <button
                 type="button"
                 onClick={() => setActiveTab("strategy")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition-all ${
+                className={`btn-glide flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition-all ${
                   activeTab === "strategy"
                     ? "bg-primary text-primary-foreground shadow-xs shadow-primary/20"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -519,18 +1164,27 @@ def solve(input_data):
           </div>
         </section>
 
-        {/* Column 2: Pseudocode & Review & Visualizer */}
-        <section ref={reviewRef} className="flex flex-col gap-5">
-<div className="rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm flex flex-col gap-3">
+        {/* Column 2: Pseudocode & Review & Visualizer (Expands dynamically for longer datasets) */}
+        <section
+          ref={reviewRef}
+          className={`flex flex-col gap-5 ${
+            stageMode === "expanded"
+              ? "lg:col-span-9 xl:col-span-6"
+              : stageMode === "cinema"
+                ? "col-span-1"
+                : ""
+          }`}
+        >
+          <div className="rounded-3xl border border-border/70 bg-card/60 p-6 shadow-sm backdrop-blur-md flex flex-col gap-3">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="size-4 text-primary" />
                 <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
-                  Pseudocode & Algorithm Draft
+                  Pseudocode &amp; Algorithm Draft
                 </h3>
               </div>
               <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 font-mono text-[10px] font-bold text-primary">
-                For AI Reviewer & Visualizer
+                For AI Reviewer &amp; Visualizer
               </span>
             </div>
 
@@ -545,9 +1199,26 @@ def solve(input_data):
             />
           </div>
 
-          {result ? <ReviewCard result={result} saved={saved} /> : null}
+          {result ? (
+            <ReviewCard
+              result={result}
+              saved={saved}
+              onStartVisualization={onStartVisualization}
+              planLoading={planLoading}
+              executionPlan={
+                datasetExecutionPlans[activeDatasetId] ||
+                (activeDatasetId === availableDatasets[0]?.id ? datasetPlan?.execution_plan : undefined)
+              }
+              dataStructureName={datasetPlan?.data_structure_name}
+              hasVisualizationSteps={Boolean(currentSteps && currentSteps.length > 0 && !datasetLoading)}
+              isDatasetLoading={datasetLoading}
+              activeDatasetLabel={currentDataset?.label}
+              totalExpectedSteps={taskStatus?.totalExpectedSteps ?? liveGenStatus?.totalExpectedSteps}
+              preparedStepsCount={liveGenStatus?.stepCount}
+            />
+          ) : null}
 
-          {/* If review result is present, always keep DatasetToolbar visible */}
+          {/* Dataset Toolbar and Visualizer Box */}
           {result ? (
             <div className="flex flex-col gap-4">
               <DatasetToolbar
@@ -562,8 +1233,25 @@ def solve(input_data):
                 result={result}
               />
 
-              {datasetLoading ? (
-                <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-2xl border border-primary/30 bg-card/85 p-8 text-center shadow-lg shadow-primary/5 backdrop-blur-md animate-fade">
+              {/* If we have complete steps, render the Visualizer */}
+              {currentSteps.length > 0 ? (
+                <div className="rounded-3xl border border-border/70 bg-card/60 p-5 sm:p-6 shadow-sm backdrop-blur-md transition-all duration-300">
+                  <Visualizer
+                    key={`${activeDatasetId}-${currentSteps.length}`}
+                    array={currentTestArray}
+                    codeLines={currentCodeLines}
+                    steps={currentSteps}
+                    liveStatus={liveGenStatus}
+                  />
+                  <TraceVerificationPanel
+                    trace={currentTrace}
+                    onVerify={() => currentDataset && handleVerifyTrace(currentDataset, currentSteps)}
+                    loading={verificationLoading}
+                  />
+                </div>
+              ) : datasetLoading ? (
+                /* Generating all steps before rendering: Blocked partial rendering */
+                <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-3xl border border-primary/30 bg-card/60 p-8 text-center shadow-lg shadow-primary/5 backdrop-blur-md animate-fade">
                   <div className="relative flex size-16 items-center justify-center">
                     <div className="absolute inset-0 rounded-2xl bg-primary/20 animate-ping opacity-40" />
                     <div className="relative flex size-14 items-center justify-center rounded-2xl border border-primary/50 bg-primary/10 text-primary shadow-sm shadow-primary/20">
@@ -574,17 +1262,55 @@ def solve(input_data):
                   <div className="flex flex-col gap-1 max-w-md">
                     <div className="flex items-center justify-center gap-2">
                       <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/25 px-2.5 py-0.5 font-mono text-[10px] font-bold text-primary">
-                        ⚡ AI Trace Engine
+                        Step Manager • Firebase Synced
                       </span>
                     </div>
                     <h4 className="text-base font-bold text-foreground">
-                      Generating Trace for {currentDataset?.label ?? "Selected Dataset"}
+                      Generating Steps for {currentDataset?.label ?? "Selected Dataset"}
                     </h4>
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      {currentDataset?.description ||
-                        "Simulating multi-step execution walkthrough with your algorithm..."}
+                      {liveGenStatus?.statusText ||
+                        "Calculating total expected steps and generating complete execution walkthrough..."}
                     </p>
                   </div>
+
+                  {/* Progress bar tracking against total expected steps */}
+                  {(taskStatus?.totalExpectedSteps || liveGenStatus?.totalExpectedSteps) && (
+                    <div className="w-full max-w-xs flex flex-col gap-1.5 my-1">
+                      <div className="flex justify-between text-[11px] font-mono text-muted-foreground">
+                        <span>Generation Progress</span>
+                        <span>
+                          {liveGenStatus?.stepCount ?? 0} /{" "}
+                          {taskStatus?.totalExpectedSteps ?? liveGenStatus?.totalExpectedSteps} steps (
+                          {Math.min(
+                            100,
+                            Math.round(
+                              ((liveGenStatus?.stepCount ?? 0) /
+                                (taskStatus?.totalExpectedSteps ?? liveGenStatus?.totalExpectedSteps!)) *
+                                100
+                            )
+                          )}
+                          %)
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/60">
+                        <div
+                          className="h-full bg-primary transition-all duration-300 rounded-full"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(
+                                8,
+                                ((liveGenStatus?.stepCount ?? 0) /
+                                  (taskStatus?.totalExpectedSteps ?? liveGenStatus?.totalExpectedSteps!)) *
+                                  100
+                              )
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Dataset Quick Metrics Chip */}
                   {currentDataset && (
@@ -610,11 +1336,32 @@ def solve(input_data):
 
                   <div className="flex items-center gap-2 font-mono text-xs text-primary font-semibold mt-1">
                     <span className="size-2 rounded-full bg-primary animate-ping" />
-                    <span>Simulating full traversal steps...</span>
+                    <span>
+                      {taskStatus?.totalExpectedSteps || liveGenStatus?.totalExpectedSteps
+                        ? `Target: ${taskStatus?.totalExpectedSteps ?? liveGenStatus?.totalExpectedSteps} steps • Display held until all are ready`
+                        : "Predicting total expected steps on execution..."}
+                    </span>
+                  </div>
+
+                  {/* Manual Status Override Controls */}
+                  <div className="mt-2 flex flex-col items-center gap-1.5">
+                    <button
+                      id="force-complete-task-btn"
+                      type="button"
+                      onClick={handleForceComplete}
+                      className="btn-glide inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/15 hover:bg-amber-500/25 px-4 py-2 font-mono text-xs font-semibold text-amber-300 transition-all shadow-sm cursor-pointer active:scale-95"
+                      title="Force manual status update to stop and inspect generated steps immediately"
+                    >
+                      <Square className="size-3.5 fill-amber-400 text-amber-400" />
+                      <span>Stop &amp; Display Current Steps</span>
+                    </button>
+                    <p className="text-[11px] text-muted-foreground max-w-sm">
+                      Steps are buffered in the step manager until 100% generated, preventing partial rendering.
+                    </p>
                   </div>
                 </div>
               ) : !result.is_complete || result.classification === "Incomplete" ? (
-                <div className="flex min-h-[260px] flex-col items-center justify-center gap-3.5 rounded-2xl border border-dashed border-amber-500/40 bg-amber-950/10 p-7 text-center animate-fade">
+                <div className="flex min-h-[260px] flex-col items-center justify-center gap-3.5 rounded-3xl border border-dashed border-amber-500/40 bg-amber-950/10 p-7 text-center animate-fade">
                   <div className="relative flex size-14 items-center justify-center">
                     <div className="absolute inset-0 rounded-2xl bg-amber-500/20 blur-sm opacity-60" />
                     <div className="relative flex size-12 items-center justify-center rounded-2xl border border-amber-500/50 bg-card text-amber-400 shadow-xs">
@@ -637,25 +1384,14 @@ def solve(input_data):
                       type="button"
                       variant="outline"
                       onClick={insertStarterTemplate}
-                      className="gap-1.5 font-mono text-xs font-semibold border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
+                      className="btn-glide gap-1.5 font-mono text-xs font-semibold border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
                     >
                       <Sparkles className="size-3.5 text-amber-400" /> Insert Starter Template
                     </Button>
                   </div>
                 </div>
-              ) : currentSteps.length > 0 ? (
-                <div className="rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm">
-                  <Visualizer
-                    key={`${activeDatasetId}-${currentSteps.length}`}
-                    array={currentTestArray}
-                    codeLines={currentCodeLines}
-                    steps={currentSteps}
-                  />
-
-
-                </div>
               ) : (
-                <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/80 bg-card/40 p-6 text-center animate-fade">
+                <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border/80 bg-card/40 p-6 text-center animate-fade">
                   <div className="relative flex size-14 items-center justify-center">
                     <div className="absolute inset-0 rounded-2xl bg-primary/20 blur-sm opacity-50" />
                     <div className="relative flex size-12 items-center justify-center rounded-2xl border border-primary/40 bg-card text-primary shadow-xs">
@@ -673,7 +1409,7 @@ def solve(input_data):
                       if (currentDataset) void handleSelectDataset(currentDataset);
                     }}
                     disabled={datasetLoading}
-                    className="gap-1.5 font-mono text-xs font-semibold mt-1 shadow-xs"
+                    className="btn-glide gap-1.5 font-mono text-xs font-semibold mt-1 shadow-xs"
                   >
                     <RotateCcw className="size-3.5" /> Generate Animation
                   </Button>
@@ -681,7 +1417,7 @@ def solve(input_data):
               )}
             </div>
           ) : (
-            <div className="flex min-h-[260px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border/80 bg-card/40 p-8 text-center backdrop-blur-xs animate-fade">
+            <div className="flex min-h-[260px] flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-border/80 bg-card/40 p-8 text-center backdrop-blur-xs animate-fade">
               {/* Premium Icon Badge */}
               <div className="relative flex size-16 items-center justify-center">
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-primary/30 to-purple-500/20 blur-md opacity-60 animate-pulse" />
@@ -715,12 +1451,15 @@ def solve(input_data):
               </div>
             </div>
           )}
-        
         </section>
 
         {/* Column 3: VS Code Editor & Interview Agent */}
-        <section className="flex flex-col gap-5">
-<div className="rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm flex flex-col gap-3">
+        <section
+          className={`flex flex-col gap-5 ${
+            stageMode === "expanded" ? "lg:col-span-12 xl:col-span-3" : ""
+          }`}
+        >
+          <div className="rounded-3xl border border-border/70 bg-card/60 p-6 shadow-sm backdrop-blur-md flex flex-col gap-3">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
                 <Code2 className="size-4 text-primary" />
@@ -745,10 +1484,9 @@ def solve(input_data):
               height="380px"
               showSubmitButton={false}
             />
-
-
           </div>
-<ProblemDiffNudgePanel
+
+          <ProblemDiffNudgePanel
             problemSlug={problem.slug}
             problemTitle={problem.title}
             difficulty={problem.difficulty}
@@ -758,7 +1496,7 @@ def solve(input_data):
             isLoading={loading}
           />
         </section>
-</main>
+      </main>
     </div>
   );
 }

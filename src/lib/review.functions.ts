@@ -9,17 +9,16 @@ import {
   sampleInputFor,
   sampleMatrixFor,
   isIslandOrGridProblem,
-  isMatrixTransformationProblem,
-  isDynamicSlidingWindowProblem,
-  isInPlacePointerProblem,
-  isPrefixSumProblem,
+  isMatrixProblem,
   getCanonicalMultiDatasets,
   type TestDataset,
   type VizStep,
 } from "./problems";
 import { simulateProblem, simulateProblemWithDataset } from "./simulators";
 import { REVIEW_SYSTEM_PROMPT, buildReviewUserPrompt } from "./prompts/review.prompt";
+import { DATASET_PLAN_SYSTEM_PROMPT, buildDatasetPlanUserPrompt } from "./prompts/dataset-plan.prompt";
 import { VISUALIZER_SYSTEM_PROMPT, buildVisualizerUserPrompt } from "./prompts/visualizer.prompt";
+import { VERIFY_SYSTEM_PROMPT, buildVerifyUserPrompt } from "./prompts/verify.prompt";
 import { raceModels, REVIEW_MODELS, VIZ_MODELS } from "./openrouter.server";
 
 const Input = z.object({
@@ -30,12 +29,35 @@ const Input = z.object({
   pseudocode: z.string().min(1),
 });
 
+export interface ExecutionPlanStep {
+  step_number: number;
+  line_index: number;
+  code_action: string;
+  description: string;
+}
+
+export interface TraceVerification {
+  is_valid: boolean;
+  is_algorithm_complete?: boolean;
+  discrepancies: Array<{
+    step_number: number;
+    description: string;
+    expected_action: string;
+  }>;
+  summary: string;
+}
+
 export interface DatasetVizTrace {
   test_array: (number | string)[];
   code_lines: string[];
   viz_steps: VizStep[];
+  is_complete?: boolean;
+  total_expected_steps?: number;
+  execution_plan?: ExecutionPlanStep[];
   visualization_failed?: boolean;
   visualization_error?: string;
+  model?: string | null;
+  verification?: TraceVerification;
 }
 
 export type ReviewResult = {
@@ -65,31 +87,49 @@ export type ReviewResult = {
   dataset_traces?: Record<string, DatasetVizTrace>;
 };
 
+export interface DatasetPlanResult {
+  data_structure_type: string;
+  data_structure_name: string;
+  datasets: TestDataset[];
+  execution_plan: ExecutionPlanStep[];
+  model: string | null;
+  degraded?: boolean;
+}
+
 const CLASSES = ["Incomplete", "Brute Force", "Better", "Optimal"];
 
 function userCodeLinesFromPseudocode(pseudocode: string): string[] {
   if (!pseudocode || typeof pseudocode !== "string") return ["const result = solve(input);"];
 
-  // Split lines while preserving indentation
   const rawLines = pseudocode
     .split(/\r?\n/)
-    .map((line) => line.replace(/\s+$/, "")) // trim right only to preserve indentation
-    .filter((line) => line.trim().length > 0);
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
 
-  if (rawLines.length >= 2) {
-    return rawLines.slice(0, 200);
+  if (rawLines.length > 3) {
+    return rawLines.slice(0, 60);
   }
 
-  // Break single-line or compact semicolon-separated pseudocode only if single line
+  // Break compact or single-line pasted pseudocode into discrete logical lines
   let text = pseudocode;
-  text = text.replace(/;\s*(?=[a-zA-Z_])/g, ";\n");
-  text = text.replace(/(\/\/[^\n]*?\s+)(?=(?:prev\s*=|curr\s*=|m\s*=|n\s*=|for\s+[a-zA-Z_]|if\s+|return\b))/gi, "$1\n");
+  text = text.replace(
+    /(\/\/[^\n]*?\s+)(?=(?:prev\s*=|curr\s*=|m\s*=|n\s*=|for\s+[a-zA-Z_]|if\s+|return\b))/gi,
+    "$1\n",
+  );
+  text = text.replace(
+    /(\s{2,}|\s*;\s*)(?=(?:for\s+[a-zA-Z_]|if\s+|else:|return\b|while\s+|prev\s*=|curr\s*=|m\s*=|n\s*=|\/\/|function\b|def\b))/gi,
+    "\n",
+  );
+  text = text.replace(
+    /(:\s+)(?=(?:m\s*=|n\s*=|prev\s*=|curr\s*=|for\s+[a-zA-Z_]|if\s+|else:|return\b|while\s+|[a-zA-Z_]\w*\s*=|\/\/))/gi,
+    ":\n",
+  );
 
   const formatted = text
     .split(/\r?\n/)
-    .map((line) => line.replace(/\s+$/, ""))
-    .filter((line) => line.trim().length > 0)
-    .slice(0, 200);
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 60);
 
   return formatted.length > 0 ? formatted : ["const result = solve(input);"];
 }
@@ -104,18 +144,6 @@ function evaluatePseudocodeHeuristic(pseudocode: string): {
     .map((l) => l.trim())
     .filter((l) => l.length > 0 && !l.startsWith("#") && !l.startsWith("//") && !l.startsWith("/*") && !l.startsWith("*"));
 
-  // Check for recursive structure (e.g. dfs, helper, solve, backtrack, or function call inside body)
-  const isRecursive = lines.some((l) =>
-    /\b(?:dfs|bfs|helper|recur|backtrack|solve|traverse)\s*\(|\bdef\s+(\w+)\b.*:\s*.*\b\1\s*\(/i.test(l),
-  );
-
-  // Check for O(1) mathematical or bitwise expressions
-  const isMathBitwiseO1 = lines.some((l) =>
-    /\breturn\b.*(?:[&|^~]|>>|<<|\bpow\b|\bsqrt\b|\bmath\.)/i.test(l) ||
-    (/\breturn\b/i.test(l) && /[=<>!]=?|[+*/%-]/.test(l) && lines.length <= 4),
-  );
-
-  // Check for substantive algorithmic keywords and tokens
   const substantiveTokens = [
     /\b(for|while|loop|iterate|each|in|def|function|func|fn|class|void|int|auto|let|const|var)\b/i,
     /\b(if|elif|else|switch|case|match|when)\b/i,
@@ -142,26 +170,6 @@ function evaluatePseudocodeHeuristic(pseudocode: string): {
     );
   });
 
-  // If mathematical O(1) with return or self-contained recursive function with return and base case
-  if (isMathBitwiseO1 && lines.some((l) => /\breturn\b/i.test(l)) && !hasTrivialPlaceholdersOnly) {
-    return {
-      isComplete: true,
-      missing: [],
-      nudge: "Optimal mathematical / bitwise formula detected! Verifying execution steps.",
-    };
-  }
-
-  if (isRecursive && lines.some((l) => /\breturn\b/i.test(l)) && lines.some((l) => /\bif\b/i.test(l)) && !hasTrivialPlaceholdersOnly) {
-    return {
-      isComplete: true,
-      missing: [],
-      nudge: "Recursive approach detected! Verifying base cases and branch transitions.",
-    };
-  }
-
-  // Pseudocode is considered incomplete if it has fewer than 2 meaningful lines,
-  // fewer than 5 total words, matches fewer than 2 substantive syntax categories,
-  // or contains only trivial placeholders.
   if (lines.length < 2 || totalWords < 5 || matchedTokensCount < 2 || hasTrivialPlaceholdersOnly) {
     const missing: string[] = [];
     if (!lines.some((l) => /\b(for|while|loop|iterate|each|def|func)\b/i.test(l))) {
@@ -182,14 +190,14 @@ function evaluatePseudocodeHeuristic(pseudocode: string): {
         "Result extraction & return statement",
       ],
       nudge:
-        "Write your pseudocode approach (a complete flow with loops or recursion, state updates, and return value) to unlock the interactive step-by-step animation.",
+        "Write your pseudocode approach (a complete flow with loops, state updates, and return value) to unlock the interactive step-by-step animation.",
     };
   }
 
   return {
     isComplete: true,
     missing: [],
-    nudge: "Good job outlining your algorithm! Watch the step-by-step trace across datasets below.",
+    nudge: "Good job outlining your algorithm! You can now start the interactive visualization.",
   };
 }
 
@@ -197,9 +205,6 @@ function isValidMatrixForProblem(
   matrix: unknown,
   slug: string,
   topics: string[] = [],
-  isLongerDataset = false,
-  canonicalRows = 0,
-  canonicalCols = 0,
 ): matrix is (number | string)[][] {
   if (!Array.isArray(matrix) || matrix.length < 2) return false;
   if (!matrix.every((r) => Array.isArray(r) && r.length >= 2 && r.length === matrix[0].length)) {
@@ -208,7 +213,7 @@ function isValidMatrixForProblem(
   const isIsland = isIslandOrGridProblem(slug, topics);
   if (isIsland) {
     if (matrix.length < 3 || (matrix[0]?.length ?? 0) < 3) return false;
-    const isBinary = matrix.every((row: any) =>
+    return matrix.every((row: any) =>
       Array.isArray(row) &&
       row.every((cell: any) => {
         const n = Number(cell);
@@ -216,503 +221,130 @@ function isValidMatrixForProblem(
         return n === 0 || n === 1 || n === 2 || s === "0" || s === "1" || s === "X" || s === "O";
       }),
     );
-    if (!isBinary) return false;
-  }
-  // Enforce size invariant for Dataset 2 (Longer): must not be shrunken smaller than canonical
-  if (isLongerDataset && canonicalRows > 0 && canonicalCols > 0) {
-    const aiCells = matrix.length * matrix[0].length;
-    const canonCells = canonicalRows * canonicalCols;
-    if (aiCells < canonCells || matrix.length < canonicalRows || matrix[0].length < canonicalCols) {
-      return false;
-    }
   }
   return true;
 }
 
-function isValidArrayForProblem(
-  arr: unknown,
-  _slug: string,
-  _topics: string[] = [],
-  isLongerDataset = false,
-  canonicalLength = 0,
-): arr is (number | string)[] {
-  if (!Array.isArray(arr) || arr.length === 0) return false;
-  // If longer dataset, ensure AI didn't shrink it smaller than canonical
-  if (isLongerDataset && canonicalLength > 0 && arr.length < canonicalLength) {
-    return false;
-  }
-  return true;
-}
-
-export function expandMatrixToSize(
-  matrix: (number | string)[][],
-  targetRows: number,
-  targetCols: number,
-): (number | string)[][] {
-  if (!Array.isArray(matrix) || matrix.length === 0 || !Array.isArray(matrix[0]) || matrix[0].length === 0) {
-    return matrix;
-  }
-  const origR = matrix.length;
-  const origC = matrix[0].length;
-  const newR = Math.max(origR, targetRows);
-  const newC = Math.max(origC, targetCols);
-  return Array.from({ length: newR }, (_, r) =>
-    Array.from({ length: newC }, (_, c) => matrix[r % origR]![c % origC]!),
-  );
-}
-
-export function expandArrayToLength(
-  arr: (number | string)[],
-  targetLength: number,
-): (number | string)[] {
-  if (!Array.isArray(arr) || arr.length === 0 || arr.length >= targetLength) return arr;
-  if (typeof arr[0] === "number") {
-    const last = Number(arr[arr.length - 1] ?? 0);
-    const step = 2;
-    const needed = targetLength - arr.length;
-    const extra = Array.from({ length: needed }, (_, i) => last + (i + 1) * step);
-    return [...arr, ...extra];
-  }
-  // For strings / characters
-  const result: (number | string)[] = [...arr];
-  while (result.length < targetLength) {
-    result.push(...arr);
-  }
-  return result.slice(0, targetLength);
-}
-
+// =====================================================================
+// STAGE 1: Pure Pseudocode Review & Complexity Analysis
+// =====================================================================
 export async function processReviewPseudocode(data: z.infer<typeof Input>): Promise<ReviewResult> {
-    const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
-    const reviewKeyForRequest = geminiKey || reviewKey || openRouterKey;
-    const vizKeyForRequest = geminiKey || vizKey || openRouterKey;
-    const statement = statementForSlug(data.slug).slice(0, 3500);
+  const { reviewKey, geminiKey, openRouterKey } = getAiConfig();
+  const reviewKeyForRequest = geminiKey || reviewKey || openRouterKey;
+  const statement = statementForSlug(data.slug).slice(0, 3500);
 
-    const userCodeLines = userCodeLinesFromPseudocode(data.pseudocode);
-    const reviewSystem = REVIEW_SYSTEM_PROMPT;
+  const userCodeLines = userCodeLinesFromPseudocode(data.pseudocode);
+  const reviewSystem = REVIEW_SYSTEM_PROMPT;
 
-    const reviewUser = buildReviewUserPrompt({
-      title: data.title,
-      ...(data.difficulty ? { difficulty: data.difficulty } : {}),
-      topics: data.topics ?? [],
-      statement,
-      pseudocode: data.pseudocode,
-    });
+  const reviewUser = buildReviewUserPrompt({
+    title: data.title,
+    ...(data.difficulty ? { difficulty: data.difficulty } : {}),
+    topics: data.topics ?? [],
+    statement,
+    pseudocode: data.pseudocode,
+  });
 
-    let reviewOut: any = null;
-    let vizOut: any = null;
-    let reviewerModel: string | null = null;
-    let vizModel: string | null = null;
-    let lastError: string | null = null;
-    let visualizerFallbackUsed = false;
+  let reviewOut: any = null;
+  let reviewerModel: string | null = null;
+  let lastError: string | null = null;
 
-    // Step 1: Run AI Reviewer to evaluate logical completeness, quality, and datasets
-    if (reviewKeyForRequest) {
-      try {
-        const r = await raceModels(
-          REVIEW_MODELS,
-          reviewKeyForRequest,
-          reviewSystem,
-          reviewUser,
-          (j) => typeof j?.classification === "string" && typeof j?.review === "string",
-        );
-        if (r.json) {
-          reviewOut = r.json;
-          reviewerModel = r.model;
-        } else {
-          lastError = r.error;
-        }
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
-      }
-    }
-
-    const notices: string[] = [];
-    if (!reviewKey && !vizKey) {
-      notices.push("No AI keys configured — showing an offline reference review.");
-    }
-
-    // Determine completeness based on AI review verdict and strict syntactic/semantic heuristics
-    const heuristic = evaluatePseudocodeHeuristic(data.pseudocode);
-    let isComplete = heuristic.isComplete;
-    if (reviewOut) {
-      if (typeof reviewOut.is_complete === "boolean") {
-        isComplete = reviewOut.is_complete;
-      } else if (reviewOut.classification === "Incomplete") {
-        isComplete = false;
-      } else if (
-        typeof reviewOut.classification === "string" &&
-        ["Optimal", "Better", "Brute Force"].includes(reviewOut.classification)
-      ) {
-        isComplete = heuristic.isComplete;
-      }
-    } else if (reviewKeyForRequest) {
-      // If we called the AI and it failed, DO NOT assume it is complete.
-      isComplete = false;
-    }
-
-    const classification: ReviewResult["classification"] = isComplete
-      ? reviewOut &&
-        CLASSES.includes(reviewOut.classification) &&
-        reviewOut.classification !== "Incomplete"
-        ? (reviewOut.classification as ReviewResult["classification"])
-        : "Brute Force" // fallback if it is complete but AI didn't provide a valid classification
-      : "Incomplete";
-
-    const missingElements: string[] =
-      Array.isArray(reviewOut?.missing_elements) && reviewOut.missing_elements.length > 0
-        ? reviewOut.missing_elements
-        : !isComplete
-          ? heuristic.missing
-          : [];
-
-    // Multi-Dataset Resolution: Merge AI-generated datasets with rich canonical multi-datasets
-    const canonicalDatasets = getCanonicalMultiDatasets(data.slug, data.title, data.topics ?? []);
-    let datasets: TestDataset[] = canonicalDatasets;
-
-    if (Array.isArray(reviewOut?.test_datasets) && reviewOut.test_datasets.length > 0) {
-      const aiDatasets = reviewOut.test_datasets
-        .filter((d: any) => d && typeof d === "object")
-        .map((d: any, idx: number) => ({
-          id: typeof d?.id === "string" && d.id.trim() ? d.id.trim() : `dataset_${idx + 1}`,
-          label:
-            typeof d?.label === "string" && d.label.trim() ? d.label.trim() : `Dataset ${idx + 1}`,
-          description: typeof d?.description === "string" ? d.description : undefined,
-          array: Array.isArray(d?.array)
-            ? (d.array.length === 1 && typeof d.array[0] === "string" && d.array[0].length > 1 && isDynamicSlidingWindowProblem(data.slug, data.topics ?? []))
-                ? d.array[0].split("")
-                : d.array
-                    .map((x: any) =>
-                      typeof x === "number" || typeof x === "string" ? x : String(x),
-                    )
-                    .filter((x: any) => x !== null && x !== undefined)
-            : Array.isArray(d?.matrix)
-              ? d.matrix.flat().filter((x: any) => x !== null && x !== undefined && (typeof x === "number" || typeof x === "string"))
-              : undefined,
-          secondaryArray: Array.isArray(d?.secondaryArray)
-            ? d.secondaryArray
-                .map((x: any) =>
-                  typeof x === "number" || typeof x === "string" ? x : String(x),
-                )
-                .filter((x: any) => x !== null && x !== undefined)
-            : undefined,
-          matrix: Array.isArray(d?.matrix) ? d.matrix : undefined,
-          tree: Array.isArray(d?.tree) ? d.tree : undefined,
-          target:
-            typeof d?.target === "number" || typeof d?.target === "string"
-              ? d.target
-              : undefined,
-          k: typeof d?.k === "number" ? d.k : undefined,
-          category: d?.category ?? (idx === 1 ? "longer" : idx === 2 ? "edge" : "standard"),
-        }));
-
-      if (aiDatasets.length > 0) {
-        // Dataset 1: Standard Case
-        const d1Canon = canonicalDatasets[0]!;
-        const d1Ai = aiDatasets[0];
-
-        const d1Matrix =
-          d1Ai?.matrix && Array.isArray(d1Ai.matrix) && d1Ai.matrix.length > 0 && Array.isArray(d1Ai.matrix[0])
-            ? d1Ai.matrix
-            : d1Canon.matrix;
-
-        const d1Array =
-          d1Ai?.array && Array.isArray(d1Ai.array) && d1Ai.array.length > 0
-            ? d1Ai.array
-            : d1Matrix && (d1Ai?.matrix || d1Canon.matrix)
-              ? d1Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
-              : d1Canon.array;
-
-        const d1: TestDataset = {
-          id: "dataset_1",
-          label: d1Ai?.label || d1Canon.label || "Dataset 1: Standard Case",
-          description: d1Ai?.description || d1Canon.description,
-          category: "standard",
-          array: d1Array,
-          secondaryArray:
-            d1Ai?.secondaryArray && d1Ai.secondaryArray.length > 0
-              ? d1Ai.secondaryArray
-              : d1Canon.secondaryArray,
-          matrix: d1Matrix,
-          tree: d1Ai?.tree && d1Ai.tree.length > 0 ? d1Ai.tree : d1Canon.tree,
-          target: d1Ai?.target !== undefined ? d1Ai.target : d1Canon.target,
-          k: d1Ai?.k !== undefined ? d1Ai.k : d1Canon.k,
-        };
-
-        // Dataset 2: Longer & Complex Trace
-        const d2Canon = canonicalDatasets[1] ?? {
-          id: "dataset_2",
-          label: "Dataset 2: Longer & Complex Trace ⚡",
-          category: "longer" as const,
-          description: "Longer extended sequence for in-depth execution traversal.",
-        };
-        const d2Ai = aiDatasets[1];
-
-        const d2Matrix =
-          d2Ai?.matrix && Array.isArray(d2Ai.matrix) && d2Ai.matrix.length > 0 && Array.isArray(d2Ai.matrix[0])
-            ? d2Ai.matrix
-            : d2Canon.matrix;
-
-        const d2Array =
-          d2Ai?.array && Array.isArray(d2Ai.array) && d2Ai.array.length > 0
-            ? d2Ai.array
-            : d2Matrix && (d2Ai?.matrix || d2Canon.matrix)
-              ? d2Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
-              : d2Canon.array;
-
-        const d2: TestDataset = {
-          id: "dataset_2",
-          label: d2Ai?.label || d2Canon.label || "Dataset 2: Longer & Complex Trace ⚡",
-          description:
-            d2Ai?.description ||
-            d2Canon.description ||
-            "Longer extended sequence producing longer steps and more time to understand algorithm flow.",
-          category: "longer",
-          array: d2Array,
-          secondaryArray:
-            d2Ai?.secondaryArray && d2Ai.secondaryArray.length > 0
-              ? d2Ai.secondaryArray
-              : d2Canon.secondaryArray,
-          matrix: d2Matrix,
-          tree: d2Ai?.tree && d2Ai.tree.length > 0 ? d2Ai.tree : d2Canon.tree,
-          target: d2Ai?.target !== undefined ? d2Ai.target : d2Canon.target,
-          k: d2Ai?.k !== undefined ? d2Ai.k : d2Canon.k,
-        };
-
-        // Dataset 3: Edge & Boundary Case
-        const d3Canon = canonicalDatasets[2] ?? {
-          id: "dataset_3",
-          label: "Dataset 3: Edge & Boundary Case",
-          category: "edge" as const,
-          description: "Boundary condition testing edge cases, duplicates, negative numbers, or tight constraints.",
-        };
-        const d3Ai = aiDatasets[2];
-
-        const d3Matrix =
-          d3Ai?.matrix && Array.isArray(d3Ai.matrix) && d3Ai.matrix.length > 0 && Array.isArray(d3Ai.matrix[0])
-            ? d3Ai.matrix
-            : d3Canon.matrix;
-
-        const d3Array =
-          d3Ai?.array && Array.isArray(d3Ai.array) && d3Ai.array.length > 0
-            ? d3Ai.array
-            : d3Matrix && (d3Ai?.matrix || d3Canon.matrix)
-              ? d3Matrix.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
-              : d3Canon.array;
-
-        const d3: TestDataset = {
-          id: "dataset_3",
-          label: d3Ai?.label || d3Canon.label || "Dataset 3: Edge & Boundary Case",
-          description: d3Ai?.description || d3Canon.description,
-          category: "edge",
-          array: d3Array,
-          secondaryArray:
-            d3Ai?.secondaryArray && d3Ai.secondaryArray.length > 0
-              ? d3Ai.secondaryArray
-              : d3Canon.secondaryArray,
-          matrix: d3Matrix,
-          tree: d3Ai?.tree && d3Ai.tree.length > 0 ? d3Ai.tree : d3Canon.tree,
-          target: d3Ai?.target !== undefined ? d3Ai.target : d3Canon.target,
-          k: d3Ai?.k !== undefined ? d3Ai.k : d3Canon.k,
-        };
-
-        datasets = [d1, d2, d3];
-      }
-    }
-
-    const activeDataset = datasets[0] ?? canonicalDatasets[0]!;
-
-    // Step 2: ONLY generate visualization if the logic is complete
-    if (isComplete) {
-      const fallback = simulateProblemWithDataset(
-        data.slug,
-        data.title,
-        data.topics ?? [],
-        activeDataset,
+  if (reviewKeyForRequest) {
+    try {
+      const r = await raceModels(
+        REVIEW_MODELS,
+        reviewKeyForRequest,
+        reviewSystem,
+        reviewUser,
+        (j) => typeof j?.classification === "string" && typeof j?.review === "string",
       );
-      const preferredShape =
-        (typeof reviewOut?.primary_type === "string" ? reviewOut.primary_type : undefined) ??
-        (typeof reviewOut?.visualization_manifest?.primary_type === "string" ? reviewOut.visualization_manifest.primary_type : undefined) ??
-        fallback.steps[0]?.type ??
-        pickShape(data.slug, data.topics ?? []);
-
-      if (vizKeyForRequest) {
-        const vizSystem = VISUALIZER_SYSTEM_PROMPT;
-        const matrixExample =
-          activeDataset.matrix && activeDataset.matrix.length > 0
-            ? activeDataset.matrix
-            : isIslandOrGridProblem(data.slug, data.topics ?? []) ||
-              isMatrixTransformationProblem(data.slug, data.topics ?? [])
-              ? sampleMatrixFor(data.slug)
-              : undefined;
-
-        const vizUser = buildVisualizerUserPrompt({
-          title: data.title,
-          statement,
-          example:
-            activeDataset.array && activeDataset.array.length > 0
-              ? activeDataset.array
-              : sampleInputFor(data.slug),
-          secondaryArrayExample: activeDataset.secondaryArray,
-          matrixExample,
-          treeExample: activeDataset.tree,
-          targetExample: activeDataset.target,
-          datasetLabel: activeDataset.label,
-          datasetDescription: activeDataset.description,
-          pseudocode: data.pseudocode,
-        });
-
-        try {
-          const v = await raceModels(
-            VIZ_MODELS,
-            vizKeyForRequest,
-            vizSystem,
-            vizUser,
-            (j) => j?.is_complete === false || (Array.isArray(j?.viz_steps) && j.viz_steps.length > 0),
-          );
-          if (v.json) {
-            vizOut = v.json;
-            vizModel = v.model;
-          } else {
-            lastError = lastError ?? v.error;
-          }
-        } catch (err) {
-          lastError = lastError ?? (err instanceof Error ? err.message : String(err));
-        }
+      if (r.json) {
+        reviewOut = r.json;
+        reviewerModel = r.model;
+      } else {
+        lastError = r.error;
       }
-
-      const referenceSolution = {
-        code_lines: fallback.code,
-        viz_steps: fallback.steps,
-        test_array: fallback.array,
-      };
-
-      const normalizedViz = vizOut
-        ? validateAndNormalizeVizPayload(vizOut, fallback, preferredShape, userCodeLines)
-        : null;
-
-      const isLonger = activeDataset.category === "longer" || activeDataset.id === "dataset_2";
-      const isEdge = activeDataset.category === "edge" || activeDataset.id === "dataset_3";
-      const minAcceptableSteps = isLonger ? 18 : isEdge ? 3 : 10;
-      const isTooShallow =
-        fallback.steps.length >= 8 &&
-        Array.isArray(normalizedViz?.viz_steps) &&
-        normalizedViz.viz_steps.length < Math.min(minAcceptableSteps, Math.floor(fallback.steps.length * 0.55));
-
-      const isValidAiViz =
-        !!vizOut &&
-        !!normalizedViz &&
-        Array.isArray(normalizedViz.viz_steps) &&
-        normalizedViz.viz_steps.length > 0 &&
-        !isTooShallow &&
-        hasMeaningfulTraversal(normalizedViz.viz_steps);
-
-      if (!isValidAiViz) {
-        visualizerFallbackUsed = true;
-        vizModel = null;
-      }
-
-      const codeLines =
-        isValidAiViz && normalizedViz
-          ? normalizedViz.code_lines.some((line: string) =>
-              /^line\s+\d+$/i.test(String(line).trim()),
-            )
-            ? userCodeLines
-            : normalizedViz.code_lines
-          : userCodeLines.length > 0
-            ? userCodeLines
-            : fallback.code;
-
-      const vizSteps = vizOut?.is_complete === false ? [] : (isValidAiViz && normalizedViz ? normalizedViz.viz_steps : fallback.steps);
-      const testArray =
-        isValidAiViz && normalizedViz && normalizedViz.test_array.length
-          ? normalizedViz.test_array
-          : fallback.array;
-
-      const datasetTraces: Record<string, DatasetVizTrace> = {
-        [activeDataset.id]: {
-          test_array: testArray,
-          code_lines: codeLines,
-          viz_steps: vizSteps,
-          visualization_failed: vizOut?.is_complete === false,
-        },
-      };
-
-      return {
-        is_complete: true,
-        classification,
-        complexity: {
-          time: typeof reviewOut?.complexity?.time === "string" ? reviewOut.complexity.time : "—",
-          space:
-            typeof reviewOut?.complexity?.space === "string" ? reviewOut.complexity.space : "—",
-        },
-        review:
-          typeof reviewOut?.review === "string" && reviewOut.review.trim()
-            ? reviewOut.review
-            : "Your approach provides a complete algorithmic flow. Review the time and space complexity against optimal interview patterns.",
-        praise:
-          typeof reviewOut?.praise === "string" && reviewOut.praise.trim()
-            ? reviewOut.praise
-            : "You committed a full approach to paper before coding — that is exactly the habit strong interviewees have.",
-        nudge:
-          typeof reviewOut?.nudge === "string" && reviewOut.nudge.trim()
-            ? reviewOut.nudge
-            : heuristic.nudge,
-        missing_elements: [],
-        test_array: testArray,
-        code_lines: codeLines,
-        viz_steps: vizSteps,
-        models: {
-          reviewer: reviewerModel,
-          visualizer: isValidAiViz ? vizModel : "Simulator Engine",
-        },
-        degraded: notices.length > 0,
-        visualization_failed: vizOut?.is_complete === false,
-        reference_solution: referenceSolution,
-        datasets,
-        active_dataset_id: activeDataset.id,
-        dataset_traces: datasetTraces,
-        ...(notices.length ? { notice: notices.join(" ") } : {}),
-      };
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
     }
+  }
 
-    // Logic is INCOMPLETE: Do NOT visualize, provide clear hints on what more to add
-    const fallback = simulateProblem(data.slug, data.title, data.topics ?? []);
-    return {
-      is_complete: false,
-      classification: "Incomplete",
-      complexity: {
-        time: "—",
-        space: "—",
-      },
-      review:
-        typeof reviewOut?.review === "string" && reviewOut.review.trim()
-          ? reviewOut.review
-          : lastError
-            ? `### AI Reviewer Error\n\nThe AI model request failed: ${lastError}\n\nPlease try again or check your API keys.`
-            : "### Logic Not Yet Complete\n\nYour pseudocode is currently missing critical algorithmic steps. To visualize execution, complete the end-to-end logic (whether Brute Force, Better, or Optimal).",
-      praise:
-        typeof reviewOut?.praise === "string" && reviewOut.praise.trim()
-          ? reviewOut.praise
-          : lastError
-            ? "AI models are currently unreachable."
-            : "Good start on framing the problem setup and initial thoughts.",
-      nudge:
-        typeof reviewOut?.nudge === "string" && reviewOut.nudge.trim()
-          ? reviewOut.nudge
-          : lastError
-            ? "Ensure your API keys are valid and you have not hit a rate limit."
-            : heuristic.nudge,
-      missing_elements: missingElements,
-      test_array: fallback.array,
-      code_lines: userCodeLines,
-      viz_steps: [], // No visualization for incomplete pseudocode
-      models: { reviewer: reviewerModel, visualizer: null },
-      degraded: notices.length > 0,
-      datasets,
-      active_dataset_id: activeDataset.id,
-      dataset_traces: {},
-      ...(notices.length ? { notice: notices.join(" ") } : {}),
-    };
+  const notices: string[] = [];
+  if (!reviewKey && !geminiKey && !openRouterKey) {
+    notices.push("No AI keys configured — evaluated with local algorithm heuristics.");
+  }
+
+  const heuristic = evaluatePseudocodeHeuristic(data.pseudocode);
+  let isComplete = heuristic.isComplete;
+  if (reviewOut) {
+    if (typeof reviewOut.is_complete === "boolean") {
+      isComplete = reviewOut.is_complete;
+    } else if (reviewOut.classification === "Incomplete") {
+      isComplete = false;
+    } else if (
+      typeof reviewOut.classification === "string" &&
+      ["Optimal", "Better", "Brute Force"].includes(reviewOut.classification)
+    ) {
+      isComplete = heuristic.isComplete;
+    }
+  } else if (reviewKeyForRequest && lastError) {
+    isComplete = heuristic.isComplete;
+  }
+
+  const classification: ReviewResult["classification"] = isComplete
+    ? reviewOut &&
+      CLASSES.includes(reviewOut.classification) &&
+      reviewOut.classification !== "Incomplete"
+      ? (reviewOut.classification as ReviewResult["classification"])
+      : "Optimal"
+    : "Incomplete";
+
+  const missingElements: string[] =
+    Array.isArray(reviewOut?.missing_elements) && reviewOut.missing_elements.length > 0
+      ? reviewOut.missing_elements
+      : !isComplete
+        ? heuristic.missing
+        : [];
+
+  const canonicalDatasets = getCanonicalMultiDatasets(data.slug, data.title, data.topics ?? []);
+  const fallback = simulateProblem(data.slug, data.title, data.topics ?? []);
+
+  return {
+    is_complete: isComplete,
+    classification,
+    complexity: {
+      time: typeof reviewOut?.complexity?.time === "string" ? reviewOut.complexity.time : isComplete ? "O(N)" : "—",
+      space: typeof reviewOut?.complexity?.space === "string" ? reviewOut.complexity.space : isComplete ? "O(1)" : "—",
+    },
+    review:
+      typeof reviewOut?.review === "string" && reviewOut.review.trim()
+        ? reviewOut.review
+        : isComplete
+          ? "### Logical Approach Verified\n\nYour pseudocode provides a complete end-to-end algorithmic flow. Click **Start Visualization** to inspect the step-by-step execution across datasets."
+          : "### Logic Incomplete\n\nYour pseudocode is missing critical algorithmic statements. Complete the loop structure, state updates, and return statement to visualize.",
+    praise:
+      typeof reviewOut?.praise === "string" && reviewOut.praise.trim()
+        ? reviewOut.praise
+        : isComplete
+          ? "Strong structural clarity and logical setup in your pseudocode formulation."
+          : "Good initial intuition on problem framing.",
+    nudge:
+      typeof reviewOut?.nudge === "string" && reviewOut.nudge.trim()
+        ? reviewOut.nudge
+        : heuristic.nudge,
+    missing_elements: missingElements,
+    test_array: fallback.array,
+    code_lines: userCodeLines,
+    viz_steps: [],
+    models: {
+      reviewer: reviewerModel,
+      visualizer: null,
+    },
+    degraded: notices.length > 0,
+    datasets: canonicalDatasets,
+    active_dataset_id: canonicalDatasets[0]?.id ?? "dataset_1",
+    dataset_traces: {},
+    ...(notices.length ? { notice: notices.join(" ") } : {}),
+  };
 }
 
 export const reviewPseudocode = createServerFn({ method: "POST" })
@@ -726,22 +358,223 @@ export const reviewPseudocode = createServerFn({ method: "POST" })
           body: JSON.stringify(data),
         });
         if (res.ok) {
-          const json = (await res.json()) as ReviewResult;
-          return json;
+          return (await res.json()) as ReviewResult;
         }
       } catch (err) {
-        console.warn("Server review request failed, fallback to local:", err);
+        console.log("Server review request failed, fallback to local:", err);
       }
     }
     return await processReviewPseudocode(data);
   });
 
+// =====================================================================
+// STAGE 2: Data Structure Selection, 3 Datasets & Step Plan
+// =====================================================================
+export const DatasetPlanInput = z.object({
+  slug: z.string(),
+  title: z.string(),
+  difficulty: z.string().optional(),
+  topics: z.array(z.string()).optional(),
+  pseudocode: z.string().min(1),
+  classification: z.string().optional(),
+  complexity: z
+    .object({
+      time: z.string(),
+      space: z.string(),
+    })
+    .optional(),
+});
+
+export async function processGenerateDatasetsAndPlan(
+  data: z.infer<typeof DatasetPlanInput>,
+): Promise<DatasetPlanResult> {
+  const { reviewKey, geminiKey, openRouterKey } = getAiConfig();
+  const keyForRequest = geminiKey || reviewKey || openRouterKey;
+  const statement = statementForSlug(data.slug).slice(0, 3500);
+
+  const canonicalDatasets = getCanonicalMultiDatasets(data.slug, data.title, data.topics ?? []);
+  const fallbackShape = pickShape(data.slug, data.topics ?? []);
+
+  const defaultPlan: ExecutionPlanStep[] = [
+    {
+      step_number: 1,
+      line_index: 0,
+      code_action: "Initialize algorithm pointers and auxiliary state",
+      description: "Setup initial scanning indices and data containers before entering traversal.",
+    },
+    {
+      step_number: 2,
+      line_index: 1,
+      code_action: "Begin iterative scan over the dataset elements",
+      description: "Evaluate the first element, check loop invariants, and advance state.",
+    },
+  ];
+
+  let planOut: any = null;
+  let modelUsed: string | null = null;
+
+  if (keyForRequest) {
+    const system = DATASET_PLAN_SYSTEM_PROMPT;
+    const user = buildDatasetPlanUserPrompt({
+      title: data.title,
+      topics: data.topics ?? [],
+      statement,
+      pseudocode: data.pseudocode,
+      classification: data.classification,
+      complexity: data.complexity,
+    });
+
+    try {
+      const res = await raceModels(
+        REVIEW_MODELS,
+        keyForRequest,
+        system,
+        user,
+        (j) => Array.isArray(j?.test_datasets) && j.test_datasets.length > 0,
+      );
+      if (res.json) {
+        planOut = res.json;
+        modelUsed = res.model;
+      }
+    } catch (err) {
+      console.log("Stage 2 Dataset & Plan generation fallback:", err);
+    }
+  }
+
+  let finalDatasets: TestDataset[] = canonicalDatasets;
+
+  if (Array.isArray(planOut?.test_datasets) && planOut.test_datasets.length > 0) {
+    const aiDatasets = planOut.test_datasets
+      .filter((d: any) => d && typeof d === "object")
+      .map((d: any, idx: number) => ({
+        id: typeof d?.id === "string" && d.id.trim() ? d.id.trim() : `dataset_${idx + 1}`,
+        label: typeof d?.label === "string" && d.label.trim() ? d.label.trim() : `Dataset ${idx + 1}`,
+        description: typeof d?.description === "string" ? d.description : undefined,
+        array: Array.isArray(d?.array)
+          ? d.array
+              .map((x: any) => (typeof x === "number" || typeof x === "string" ? x : String(x)))
+              .filter((x: any) => x !== null && x !== undefined)
+          : undefined,
+        secondaryArray: Array.isArray(d?.secondaryArray)
+          ? d.secondaryArray
+              .map((x: any) => (typeof x === "number" || typeof x === "string" ? x : String(x)))
+              .filter((x: any) => x !== null && x !== undefined)
+          : undefined,
+        matrix: Array.isArray(d?.matrix) ? d.matrix : undefined,
+        tree: Array.isArray(d?.tree) ? d.tree : undefined,
+        target: typeof d?.target === "number" || typeof d?.target === "string" ? d.target : undefined,
+        k: typeof d?.k === "number" ? d.k : undefined,
+        category: d?.category ?? (idx === 1 ? "longer" : idx === 2 ? "edge" : "standard"),
+      }));
+
+    if (aiDatasets.length > 0) {
+      finalDatasets = aiDatasets.map((aiD: any, i: number) => {
+        const canon = canonicalDatasets[i] ?? canonicalDatasets[0]!;
+        const validMatrix =
+          aiD.matrix && isValidMatrixForProblem(aiD.matrix, data.slug, data.topics ?? [])
+            ? aiD.matrix
+            : canon?.matrix;
+
+        let validArray =
+          aiD.array && aiD.array.length > 0
+            ? aiD.array
+            : validMatrix
+              ? validMatrix.flat().filter((x: any): x is number => typeof x === "number")
+              : canon?.array;
+
+        let validTree = aiD.tree && aiD.tree.length > 0 ? aiD.tree : canon?.tree;
+
+        return {
+          id: aiD.id || `dataset_${i + 1}`,
+          label: aiD.label || canon?.label || `Dataset ${i + 1}`,
+          description: aiD.description || canon?.description,
+          array: validArray,
+          secondaryArray:
+            aiD.secondaryArray && aiD.secondaryArray.length > 0
+              ? aiD.secondaryArray
+              : canon?.secondaryArray,
+          matrix: validMatrix,
+          tree: validTree,
+          target: aiD.target !== undefined ? aiD.target : canon?.target,
+          k: aiD.k !== undefined ? aiD.k : canon?.k,
+          category: (i === 1 ? "longer" : i === 2 ? "edge" : "standard") as "standard" | "longer" | "edge",
+        };
+      });
+    }
+  }
+
+  const executionPlan: ExecutionPlanStep[] =
+    Array.isArray(planOut?.execution_plan) && planOut.execution_plan.length > 0
+      ? planOut.execution_plan.map((p: any, i: number) => ({
+          step_number: typeof p?.step_number === "number" ? p.step_number : i + 1,
+          line_index: typeof p?.line_index === "number" ? p.line_index : 0,
+          code_action: typeof p?.code_action === "string" ? p.code_action : "Execute step",
+          description: typeof p?.description === "string" ? p.description : "",
+        }))
+      : defaultPlan;
+
+  const dataStructureType =
+    typeof planOut?.data_structure_type === "string" && planOut.data_structure_type.trim()
+      ? planOut.data_structure_type.trim()
+      : fallbackShape;
+
+  const dataStructureName =
+    typeof planOut?.data_structure_name === "string" && planOut.data_structure_name.trim()
+      ? planOut.data_structure_name.trim()
+      : dataStructureType.toUpperCase();
+
+  return {
+    data_structure_type: dataStructureType,
+    data_structure_name: dataStructureName,
+    datasets: finalDatasets,
+    execution_plan: executionPlan,
+    model: modelUsed,
+    degraded: !modelUsed,
+  };
+}
+
+export const generateDatasetsAndPlan = createServerFn({ method: "POST" })
+  .validator((input: unknown) => DatasetPlanInput.parse(input))
+  .handler(async ({ data }): Promise<DatasetPlanResult> => {
+    if (typeof window !== "undefined") {
+      try {
+        const res = await fetch("/api/generate-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (err) {
+        console.log("Server generate-plan request failed, fallback to local:", err);
+      }
+    }
+    return await processGenerateDatasetsAndPlan(data);
+  });
+
+// =====================================================================
+// STAGE 3: Visualizer with Full Marker Vocabulary & Execution Plan
+// =====================================================================
 export const DatasetVizInput = z.object({
   slug: z.string(),
   title: z.string(),
   difficulty: z.string().optional(),
   topics: z.array(z.string()).optional(),
   pseudocode: z.string().min(1),
+  dataStructureType: z.string().optional(),
+  previousContext: z.string().optional(),
+  currentStepOffset: z.number().optional(),
+  executionPlan: z
+    .array(
+      z.object({
+        step_number: z.number(),
+        line_index: z.number(),
+        code_action: z.string(),
+        description: z.string(),
+      }),
+    )
+    .optional(),
   dataset: z.object({
     id: z.string(),
     label: z.string(),
@@ -761,13 +594,16 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
   test_array: (number | string)[];
   code_lines: string[];
   viz_steps: VizStep[];
+  is_complete?: boolean;
+  total_expected_steps?: number;
+  execution_plan?: ExecutionPlanStep[];
   visualization_failed: boolean;
   visualization_error?: string;
+  model?: string | null;
 }> {
   const userCodeLines = userCodeLinesFromPseudocode(data.pseudocode);
   const dataset = data.dataset as TestDataset;
 
-  // Completeness guard: If pseudocode is incomplete, do NOT generate steps
   const heuristic = evaluatePseudocodeHeuristic(data.pseudocode);
   if (!heuristic.isComplete) {
     return {
@@ -782,40 +618,33 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
   }
 
   const isLonger = dataset.category === "longer" || dataset.id === "dataset_2";
-  const canonDatasets = getCanonicalMultiDatasets(data.slug, data.title, data.topics ?? []);
-  const canonMatch = canonDatasets.find((d) => d.id === dataset.id);
+  const canonicalDatasets = getCanonicalMultiDatasets(data.slug, data.title ?? "", data.topics ?? []);
+  const canonDataset = canonicalDatasets.find((d) => d.id === dataset.id) ?? canonicalDatasets[isLonger ? 1 : 0];
+  const isIsland = isIslandOrGridProblem(data.slug, data.topics ?? []);
+  const isMatrix = isMatrixProblem(data.slug, data.topics ?? []);
 
   const matrixExample =
-    dataset.matrix && dataset.matrix.length > 0 && Array.isArray(dataset.matrix[0])
+    dataset.matrix && isValidMatrixForProblem(dataset.matrix, data.slug, data.topics ?? [])
       ? dataset.matrix
-      : isIslandOrGridProblem(data.slug, data.topics ?? []) ||
-        isMatrixTransformationProblem(data.slug, data.topics ?? [])
-        ? (canonMatch?.matrix ?? sampleMatrixFor(data.slug))
-        : undefined;
+      : canonDataset?.matrix ?? (isMatrix || isIsland ? sampleMatrixFor(data.slug) : undefined);
 
-  const isDynamicWindow = isDynamicSlidingWindowProblem(data.slug, data.topics ?? []);
-  let candidateArray = dataset.array;
-  if (
-    isDynamicWindow &&
-    candidateArray &&
-    candidateArray.length === 1 &&
-    typeof candidateArray[0] === "string" &&
-    candidateArray[0].length > 1
-  ) {
-    candidateArray = candidateArray[0].split("");
-  }
+  const effectiveArray =
+    dataset.array && dataset.array.length > 0
+      ? dataset.array
+      : matrixExample && matrixExample.length > 0
+        ? matrixExample.flat().filter((x: any): x is number => typeof x === "number")
+        : canonDataset?.array ?? dataset.array;
+
+  const effectiveTree =
+    dataset.tree && dataset.tree.length > 0
+      ? dataset.tree
+      : canonDataset?.tree ?? dataset.tree;
 
   const sanitizedDataset: TestDataset = {
     ...dataset,
     matrix: matrixExample,
-    target: dataset.target !== undefined ? dataset.target : canonMatch?.target,
-    k: dataset.k !== undefined ? dataset.k : canonMatch?.k,
-    array:
-      candidateArray && candidateArray.length > 0
-        ? candidateArray
-        : matrixExample && matrixExample.length > 0
-          ? matrixExample.flat().filter((x: any): x is number | string => typeof x === "number" || typeof x === "string")
-          : canonMatch?.array,
+    array: effectiveArray,
+    tree: effectiveTree,
   };
 
   const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
@@ -826,13 +655,13 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
     data.title,
     data.topics ?? [],
     sanitizedDataset,
+    data.pseudocode,
   );
-  const preferredShape =
-    (typeof (dataset as any).primary_type === "string" ? (dataset as any).primary_type : undefined) ??
-    fallback.steps[0]?.type ??
-    pickShape(data.slug, data.topics ?? []);
+  const preferredShape = data.dataStructureType ?? fallback.steps[0]?.type ?? pickShape(data.slug, data.topics ?? []);
 
   let vizOut: any = null;
+  let modelUsed: string | null = null;
+
   if (vizKeyForRequest) {
     const vizSystem = VISUALIZER_SYSTEM_PROMPT;
 
@@ -849,6 +678,10 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
       targetExample: sanitizedDataset.target,
       datasetLabel: sanitizedDataset.label,
       datasetDescription: sanitizedDataset.description,
+      dataStructureType: data.dataStructureType,
+      previousContext: data.previousContext,
+      currentStepOffset: data.currentStepOffset,
+      executionPlan: data.executionPlan,
       pseudocode: data.pseudocode,
     });
 
@@ -862,6 +695,7 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
       );
       if (v.json) {
         vizOut = v.json;
+        modelUsed = v.model;
       }
     } catch {
       // AI visualizer failure falls back to deterministic simulation
@@ -869,23 +703,19 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
   }
 
   const normalizedViz = vizOut
-    ? validateAndNormalizeVizPayload(vizOut, fallback, preferredShape, userCodeLines)
+    ? validateAndNormalizeVizPayload(vizOut, fallback, preferredShape as any, userCodeLines)
     : null;
-
-  const isEdge = dataset.category === "edge" || dataset.id === "dataset_3";
-  const minAcceptableSteps = isLonger ? 18 : isEdge ? 3 : 10;
-  const isTooShallow =
-    fallback.steps.length >= 8 &&
-    Array.isArray(normalizedViz?.viz_steps) &&
-    normalizedViz.viz_steps.length < Math.min(minAcceptableSteps, Math.floor(fallback.steps.length * 0.55));
 
   const isValidAiViz =
     !!vizOut &&
     !!normalizedViz &&
     Array.isArray(normalizedViz.viz_steps) &&
     normalizedViz.viz_steps.length > 0 &&
-    !isTooShallow &&
     hasMeaningfulTraversal(normalizedViz.viz_steps);
+
+  if (!isValidAiViz && data.currentStepOffset && data.currentStepOffset > 0) {
+    throw new Error("AI step generation failed midway. Rejecting deterministic fallback to preserve prior steps.");
+  }
 
   const codeLines =
     isValidAiViz && normalizedViz
@@ -896,18 +726,56 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
         : normalizedViz.code_lines
       : fallback.code;
 
-  const vizSteps = vizOut?.is_complete === false ? [] : (isValidAiViz && normalizedViz ? normalizedViz.viz_steps : fallback.steps);
+  const vizSteps = isValidAiViz && normalizedViz ? normalizedViz.viz_steps : fallback.steps;
   const testArray =
     isValidAiViz && normalizedViz && normalizedViz.test_array.length
       ? normalizedViz.test_array
       : fallback.array;
+
+  // If is_complete is missing, assume it was truncated if it hit 10 steps, otherwise assume complete.
+  // The deterministic simulator always returns complete traces.
+  const parsedIsComplete = isValidAiViz
+    ? (vizOut?.is_complete ?? (vizSteps.length < 10))
+    : true;
+
+  // Extract or calculate total expected steps predicted by the model on the first execution
+  let totalExpectedSteps: number =
+    typeof vizOut?.total_expected_steps === "number" && vizOut.total_expected_steps > 0
+      ? Math.round(vizOut.total_expected_steps)
+      : Array.isArray(vizOut?.execution_plan) && vizOut.execution_plan.length > 0
+        ? vizOut.execution_plan.length
+        : data.executionPlan && data.executionPlan.length > 0
+          ? data.executionPlan.length
+          : Math.max(vizSteps.length, fallback.steps.length, parsedIsComplete ? vizSteps.length : 15);
+
+  // Construct specific execution plan steps for this chosen dataset
+  const datasetExecutionPlan: ExecutionPlanStep[] =
+    Array.isArray(vizOut?.execution_plan) && vizOut.execution_plan.length > 0
+      ? vizOut.execution_plan.map((p: any, idx: number) => ({
+          step_number: typeof p.step_number === "number" ? p.step_number : idx + 1,
+          line_index: typeof p.line_index === "number" ? p.line_index : (vizSteps[idx]?.line ?? 0),
+          code_action: String(p.code_action || vizSteps[idx]?.desc?.split(".")[0] || `Step ${idx + 1}`),
+          description: String(p.description || vizSteps[idx]?.desc || ""),
+        }))
+      : vizSteps.length > 0
+        ? vizSteps.map((step: any, idx: number) => ({
+            step_number: idx + 1,
+            line_index: step.line ?? 0,
+            code_action: step.desc?.split(".")[0] || `Step ${idx + 1}`,
+            description: step.desc || "",
+          }))
+        : data.executionPlan || [];
 
   return {
     datasetId: dataset.id,
     test_array: testArray,
     code_lines: codeLines,
     viz_steps: vizSteps,
-    visualization_failed: vizOut?.is_complete === false,
+    is_complete: parsedIsComplete,
+    total_expected_steps: totalExpectedSteps,
+    execution_plan: datasetExecutionPlan,
+    visualization_failed: false, // Don't mark as failed just because it's chunked
+    model: isValidAiViz ? modelUsed : "Simulator Engine",
   };
 }
 
@@ -921,8 +789,12 @@ export const generateDatasetVisualization = createServerFn({ method: "POST" })
       test_array: (number | string)[];
       code_lines: string[];
       viz_steps: VizStep[];
+      is_complete?: boolean;
+      total_expected_steps?: number;
+      execution_plan?: ExecutionPlanStep[];
       visualization_failed: boolean;
       visualization_error?: string;
+      model?: string | null;
     }> => {
       if (typeof window !== "undefined") {
         try {
@@ -935,9 +807,60 @@ export const generateDatasetVisualization = createServerFn({ method: "POST" })
             return await res.json();
           }
         } catch (err) {
-          console.warn("Server visualize-dataset request failed, fallback to local:", err);
+          console.log("Server visualize-dataset request failed, fallback to local:", err);
         }
       }
       return await processDatasetVisualization(data);
     },
   );
+
+export async function processVerifyDatasetTrace(data: {
+  slug: string;
+  title: string;
+  pseudocode: string;
+  datasetLabel: string;
+  traceSteps: any[];
+}) {
+  const { reviewKey, vizKey, geminiKey, openRouterKey } = getAiConfig();
+  const key = geminiKey || reviewKey || vizKey || openRouterKey;
+
+  if (!key) {
+    throw new Error("No API key available for verification");
+  }
+
+  const statement = statementForSlug(data.slug).slice(0, 3500);
+
+  const systemPrompt = VERIFY_SYSTEM_PROMPT;
+  const userPrompt = buildVerifyUserPrompt({
+    title: data.title,
+    statement,
+    pseudocode: data.pseudocode,
+    datasetLabel: data.datasetLabel,
+    traceSteps: data.traceSteps as VizStep[],
+  });
+
+  const res = await raceModels(
+    REVIEW_MODELS, // usually smarter models
+    key,
+    systemPrompt,
+    userPrompt,
+    (j) => typeof j?.is_valid === "boolean" && Array.isArray(j?.discrepancies)
+  );
+
+  if (!res.json) {
+    throw new Error("Failed to generate valid verification output.");
+  }
+
+  const raw = res.json as any;
+  const isComplete =
+    typeof raw.is_algorithm_complete === "boolean"
+      ? raw.is_algorithm_complete
+      : raw.is_valid && (!raw.discrepancies || raw.discrepancies.length === 0);
+
+  return {
+    is_valid: Boolean(raw.is_valid),
+    is_algorithm_complete: isComplete,
+    discrepancies: Array.isArray(raw.discrepancies) ? raw.discrepancies : [],
+    summary: String(raw.summary || (raw.is_valid ? "Trace is verified valid." : "Discrepancies found.")),
+  } as TraceVerification;
+}

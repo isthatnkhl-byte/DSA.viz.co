@@ -12,6 +12,7 @@ import {
   sampleTreeFor,
   normalizeLeetCodeTreeToHeap,
   isIslandOrGridProblem,
+  isMatrixProblem,
   type TestDataset,
   type VizStep,
   type VizType,
@@ -26,24 +27,21 @@ import { classifyProblem } from "./problemClassifier";
 export type VizBundle = { code: string[]; array: (number | string)[]; steps: VizStep[] };
 
 export type Pattern =
+  | "recursion-backtracking"
   | "hashmap-pair"
   | "hashmap-design"
   | "hashset-design"
   | "lru-cache"
   | "frequency-count"
   | "sliding-window"
-  | "sliding-window-dynamic"
   | "binary-search"
   | "two-pointers"
-  | "two-pointers-in-place"
   | "monotonic-stack"
   | "parentheses"
   | "island-max-area"
   | "island-count"
-  | "island-union-find"
   | "grid-bfs"
   | "grid-dfs"
-  | "matrix-transform"
   | "graph-bfs"
   | "topological-sort"
   | "word-ladder"
@@ -59,13 +57,15 @@ export type Pattern =
   | "intervals"
   | "union-find"
   | "prefix-sum"
-  | "prefix-sum-hashmap"
   | "sorting"
   | "bit-manipulation"
   | "trie-insert"
+  | "matrix-transform"
+  | "word-search"
   | "queue-simulation"
-  | "recursion-backtracking"
-  | "recursion-memoization"
+  | "dijkstra"
+  | "segment-tree"
+  | "kmp-lps"
   | "array-scan";
 
 /** Pick the algorithmic family for a problem from its slug, title and LeetCode topics. */
@@ -84,189 +84,6 @@ const cap = (steps: VizStep[]) => {
 
 // ---------------------------------------------------------------- simulators
 
-export function bruteForcePairSum(
-  input: (number | string)[],
-  targetInput?: number | string,
-): VizBundle {
-  const nums = input.map(Number).filter((n) => !isNaN(n));
-  const safeNums = nums.length > 0 ? nums : [2, 7, 11, 15];
-  const target = typeof targetInput === "number" ? targetInput : 9;
-  const code = [
-    "for i in range(len(nums)):",
-    "    for j in range(i + 1, len(nums)):",
-    "        if nums[i] + nums[j] == target:",
-    "            return [i, j]",
-    "return []",
-  ];
-  const steps: VizStep[] = [
-    {
-      type: "array",
-      array: safeNums,
-      left: 0,
-      right: 1,
-      pointer_labels: { left: "i", right: "j" },
-      line: 0,
-      desc: `Initialize outer loop i = 0 (nums[0] = ${safeNums[0]}), target sum = ${target}.`,
-    },
-  ];
-
-  for (let i = 0; i < safeNums.length; i++) {
-    steps.push({
-      type: "array",
-      array: safeNums,
-      left: i,
-      right: i + 1 < safeNums.length ? i + 1 : i,
-      pointer_labels: { left: "i", right: "j" },
-      line: 0,
-      desc: `Outer loop: set i = ${i} (nums[${i}] = ${safeNums[i]}).`,
-    });
-
-    for (let j = i + 1; j < safeNums.length; j++) {
-      const sum = safeNums[i]! + safeNums[j]!;
-      steps.push({
-        type: "array",
-        array: safeNums,
-        left: i,
-        right: j,
-        pointer_labels: { left: "i", right: "j" },
-        wSum: sum,
-        mSum: target,
-        line: 2,
-        desc: `Inner loop: check nums[${i}] (${safeNums[i]}) + nums[${j}] (${safeNums[j]}) = ${sum} vs target ${target}.`,
-      });
-
-      if (sum === target) {
-        steps.push({
-          type: "array",
-          array: safeNums,
-          left: i,
-          right: j,
-          pointer_labels: { left: "i", right: "j" },
-          wSum: sum,
-          mSum: target,
-          line: 3,
-          desc: `Match found! nums[${i}] (${safeNums[i]}) + nums[${j}] (${safeNums[j]}) == ${target} → return [${i}, ${j}].`,
-        });
-        return { code, array: safeNums, steps: cap(steps) };
-      }
-    }
-  }
-
-  steps.push({
-    type: "array",
-    array: safeNums,
-    left: null,
-    right: null,
-    line: 4,
-    desc: `No pair found that sums to ${target}. Return [].`,
-  });
-  return { code, array: safeNums, steps: cap(steps) };
-}
-
-export function matrixTransformSim(
-  matrixInput?: (number | string)[][],
-  _slug = "",
-  _dataset?: TestDataset,
-): VizBundle {
-  const rawMatrix =
-    matrixInput && matrixInput.length >= 2 && (matrixInput[0]?.length ?? 0) >= 2
-      ? matrixInput
-      : [
-          [1, 1, 1],
-          [1, 0, 1],
-          [1, 1, 1],
-        ];
-
-  const matrix: number[][] = rawMatrix.map((r) => r.map((c) => Number(c) || 0));
-  const R = matrix.length;
-  const C = matrix[0]!.length;
-
-  const code = [
-    "for i in range(rows):",
-    "    for j in range(cols):",
-    "        if matrix[i][j] == 0:",
-    "            mark_zero_row_col(i, j)",
-    "for i in range(rows):",
-    "    for j in range(cols):",
-    "        if is_marked(i, j):",
-    "            matrix[i][j] = 0",
-  ];
-
-  const steps: VizStep[] = [];
-  steps.push({
-    type: "matrix",
-    matrix: matrix.map((r) => [...r]),
-    cols: C,
-    current: "0,0",
-    line: 0,
-    desc: `Initialize ${R}×${C} matrix scan. Target: propagate zeroes across affected rows and columns.`,
-  });
-
-  const zeroRows = new Set<number>();
-  const zeroCols = new Set<number>();
-
-  for (let r = 0; r < R; r++) {
-    for (let c = 0; c < C; c++) {
-      const isZero = matrix[r]![c] === 0;
-      if (isZero) {
-        zeroRows.add(r);
-        zeroCols.add(c);
-      }
-      steps.push({
-        type: "matrix",
-        matrix: matrix.map((row) => [...row]),
-        cols: C,
-        current: `${r},${c}`,
-        line: 2,
-        desc: `Scan cell (${r}, ${c}): matrix[${r}][${c}] = ${matrix[r]![c]}.${isZero ? " Found zero! Mark row " + r + " and column " + c + "." : ""}`,
-      });
-    }
-  }
-
-  for (const r of zeroRows) {
-    for (let c = 0; c < C; c++) {
-      matrix[r]![c] = 0;
-      steps.push({
-        type: "matrix",
-        matrix: matrix.map((row) => [...row]),
-        cols: C,
-        current: `${r},${c}`,
-        line: 7,
-        desc: `Propagate zero: set matrix[${r}][${c}] = 0 (row ${r} contains a zero).`,
-      });
-    }
-  }
-
-  for (const c of zeroCols) {
-    for (let r = 0; r < R; r++) {
-      matrix[r]![c] = 0;
-      steps.push({
-        type: "matrix",
-        matrix: matrix.map((row) => [...row]),
-        cols: C,
-        current: `${r},${c}`,
-        line: 7,
-        desc: `Propagate zero: set matrix[${r}][${c}] = 0 (column ${c} contains a zero).`,
-      });
-    }
-  }
-
-  steps.push({
-    type: "matrix",
-    matrix: matrix.map((row) => [...row]),
-    cols: C,
-    current: `${R - 1},${C - 1}`,
-    line: 7,
-    desc: `Matrix transformation complete: all affected rows and columns have been set to 0.`,
-  });
-
-  return {
-    code,
-    array: matrix.flat(),
-    steps: cap(steps),
-  };
-}
-
 function hashmapPair(input: number[], targetInput?: number): VizBundle {
   const code = [
     "seen = {}",
@@ -277,7 +94,7 @@ function hashmapPair(input: number[], targetInput?: number): VizBundle {
     "    seen[x] = i",
     "return []",
   ];
-  const nums = input.length > 0 ? input : [2, 7, 11, 15];
+  const nums = input && input.length > 0 ? [...input] : [2, 7, 11, 15];
   const target = typeof targetInput === "number" ? targetInput : (nums[0] ?? 0) + (nums[nums.length - 2] ?? 0);
   const seen: Record<string, number> = {};
   const steps: VizStep[] = [
@@ -351,8 +168,64 @@ function hashmapPair(input: number[], targetInput?: number): VizBundle {
   return { code, array: nums, steps: cap(steps) };
 }
 
+function bruteForcePairSum(input: number[], targetInput?: number): VizBundle {
+  const code = [
+    "function TwoSumBruteForce(nums, target):",
+    "    for i = 0 to length(nums) - 1:",
+    "        for j = i + 1 to length(nums) - 1:",
+    "            if nums[i] + nums[j] == target:",
+    "                return [i, j]",
+    "    return []",
+  ];
+  const nums = input && input.length > 0 ? [...input] : [2, 7, 11, 15];
+  const target = typeof targetInput === "number" ? targetInput : (nums[0] ?? 0) + (nums[1] ?? 0);
+  const steps: VizStep[] = [];
+  for (let i = 0; i < nums.length; i++) {
+    steps.push({
+      type: "array",
+      array: nums,
+      left: i,
+      right: null,
+      line: 1,
+      pointer_labels: { left: "i" },
+      desc: `Outer loop: i = ${i} (nums[${i}] = ${nums[i]}).`,
+    });
+    for (let j = i + 1; j < nums.length; j++) {
+      const sum = nums[i]! + nums[j]!;
+      steps.push({
+        type: "array",
+        array: nums,
+        left: i,
+        right: j,
+        line: 3,
+        pointer_labels: { left: "i", right: "j" },
+        desc: `Check nums[${i}] (${nums[i]}) + nums[${j}] (${nums[j]}) = ${sum} against target ${target}.`,
+      });
+      if (sum === target) {
+        steps.push({
+          type: "array",
+          array: nums,
+          left: i,
+          right: j,
+          line: 4,
+          pointer_labels: { left: "i", right: "j" },
+          desc: `Match found! nums[${i}] + nums[${j}] == ${target}. Return [${i}, ${j}].`,
+        });
+        return { code, array: nums, steps: cap(steps) };
+      }
+    }
+  }
+  steps.push({
+    type: "array",
+    array: nums,
+    line: 5,
+    desc: `No pair found that sums to ${target}. Return [].`,
+  });
+  return { code, array: nums, steps: cap(steps) };
+}
+
 function frequencyCount(input: (number | string)[], slug = "", dataset?: TestDataset): VizBundle {
-  const items = input && input.length > 0 ? input : ["bella", "label", "roller"];
+  const items = input && input.length > 0 ? input.slice(0, 10) : ["bella", "label", "roller"];
   const isMultiWord =
     slug === "find-common-characters" ||
     items.some((x) => typeof x === "string" && String(x).length > 1);
@@ -862,7 +735,7 @@ function slidingWindow(input: (number | string)[], dataset?: TestDataset): VizBu
     "return best",
   ];
   const rawNums = input.length > 0 ? input : [2, 1, 5, 1, 3, 2];
-  const nums = rawNums.map(Number).filter((n) => !isNaN(n));
+  const nums = rawNums.map(Number).filter((n) => !isNaN(n)).slice(0, 16);
   const safeNums = nums.length > 0 ? nums : [2, 1, 5, 1, 3, 2];
   const k = typeof dataset?.k === "number" && dataset.k > 0 ? dataset.k : 3;
   const steps: VizStep[] = [
@@ -1016,7 +889,7 @@ function twoPointersPairSum(
 ): VizBundle {
   const isChar = input.some((x) => typeof x === "string" && isNaN(Number(x)));
   if (isChar) {
-    const items = input.length > 0 ? input : ["r", "a", "c", "e", "c", "a", "r"];
+    const items = input.slice(0, 10);
     const code = [
       "left = 0, right = len(s) - 1",
       "while left < right:",
@@ -1090,6 +963,7 @@ function twoPointersPairSum(
     input.length > 0
       ? (input.filter((x): x is number => typeof x === "number") as number[])
           .sort((a, b) => a - b)
+          .slice(0, 10)
       : [1, 2, 4, 6, 8, 11, 15];
   const safeNums = nums.length > 0 ? nums : [1, 2, 4, 6, 8];
   const target = typeof targetVal === "number" ? targetVal : (safeNums[0] ?? 0) + (safeNums[safeNums.length - 1] ?? 0);
@@ -1188,7 +1062,7 @@ function twoPointersPairSum(
 }
 
 function kadanesAlgorithm(input: number[]): VizBundle {
-  const nums = input.length > 0 ? input : [-2, 1, -3, 4, -1, 2, 1, -5, 4];
+  const nums = input.length > 0 ? input.slice(0, 9) : [-2, 1, -3, 4, -1, 2, 1, -5, 4];
   const code = [
     "max_so_far = nums[0]",
     "curr_max = nums[0]",
@@ -1267,7 +1141,7 @@ function twoPointers(input: number[]): VizBundle {
     "    else: right -= 1",
     "return best",
   ];
-  const arr = input.length > 0 ? input : [1, 8, 6, 2, 5, 4, 8, 3, 7];
+  const arr = input.slice(0, 8);
   const steps: VizStep[] = [
     {
       type: "array",
@@ -1333,7 +1207,18 @@ function twoPointers(input: number[]): VizBundle {
   return { code, array: arr, steps: cap(steps) };
 }
 
-function monotonicStack(input: (number | string)[]): VizBundle {
+function monotonicStack(input: (number | string)[], slug = "", title = ""): VizBundle {
+  const isTemperatures = slug.includes("temperature") || title.toLowerCase().includes("temperature");
+  const isHistogram = slug.includes("histogram") || title.toLowerCase().includes("histogram") || slug.includes("largest-rectangle");
+  const isWater = slug.includes("water") || title.toLowerCase().includes("water") || slug.includes("trapping-rain");
+
+  if (isHistogram) {
+    return largestRectangleHistogramSim(input);
+  }
+  if (isWater) {
+    return trappingRainWaterSim(input);
+  }
+
   const code = [
     "stack = []",
     "for i, x in enumerate(nums):",
@@ -1342,10 +1227,12 @@ function monotonicStack(input: (number | string)[]): VizBundle {
     "    stack.append(i)",
     "return result",
   ];
-  const rawNums = input.length > 0 ? input : [2, 1, 2, 4, 3];
-  const nums = rawNums.map(Number).filter((n) => !isNaN(n));
+  const rawNums = input.length > 0 ? input : isTemperatures ? [73, 74, 75, 71, 69, 72, 76, 73] : [2, 1, 2, 4, 3];
+  const nums = rawNums.map(Number).filter((n) => !isNaN(n)).slice(0, 16);
   const safeNums = nums.length > 0 ? nums : [2, 1, 2, 4, 3];
   const stack: number[] = [];
+  const resultArr: (number | string | null)[] = new Array(safeNums.length).fill(null);
+
   const steps: VizStep[] = [
     {
       type: "stack",
@@ -1354,45 +1241,58 @@ function monotonicStack(input: (number | string)[]): VizBundle {
       current: null,
       visited: [],
       line: 0,
-      stackInvariant: "decreasing",
       activeDataset: "stack",
-      desc: "Initialize empty monotonic decreasing stack to find next greater elements.",
+      stackInvariant: "decreasing",
+      sightlines: [],
+      resultArray: [...resultArr],
+      desc: isTemperatures
+        ? "Initialize empty monotonic stack (strictly decreasing) for Daily Temperatures."
+        : "Initialize empty monotonic stack (strictly decreasing) to find next greater element.",
     },
   ];
+
   safeNums.forEach((x, i) => {
+    const topIdx = stack.length > 0 ? stack[stack.length - 1]! : null;
     steps.push({
       type: "stack",
       array: safeNums,
       left: i,
-      stack: stack.map((j) => safeNums[j]!),
+      stack: [...stack],
       current: x,
       visited: safeNums.slice(0, i),
       line: 1,
-      stackInvariant: "decreasing",
       activeDataset: "stack",
-      desc: `Read nums[${i}] = ${x}. Inspect monotonic decreasing invariant.`,
+      stackInvariant: "decreasing",
+      sightlines: topIdx !== null ? [{ fromIdx: i, toIdx: topIdx, resolved: safeNums[topIdx]! < x, distance: i - topIdx }] : [],
+      resultArray: [...resultArr],
+      desc: `Read nums[${i}] = ${x}. Inspect monotonic stack top.${topIdx !== null ? ` Sightline to idx ${topIdx} (${safeNums[topIdx]}).` : ""}`,
     });
+
     while (stack.length && safeNums[stack[stack.length - 1]!]! < x) {
       const j = stack.pop()!;
-      const sightline: Sightline = { fromIdx: i, toIdx: j, resolved: true };
+      const dist = i - j;
+      resultArr[j] = isTemperatures ? dist : x;
       steps.push({
         type: "stack",
         array: safeNums,
         left: i,
-        stack: stack.map((k) => safeNums[k]!),
+        stack: [...stack],
         current: x,
         visited: safeNums.slice(0, i + 1),
         line: 3,
-        stackInvariant: "decreasing",
-        sightlines: [sightline],
         activeDataset: "stack",
+        stackInvariant: "decreasing",
+        sightlines: [{ fromIdx: i, toIdx: j, resolved: true, distance: dist }],
+        resultArray: [...resultArr],
         shiftInfo: {
           from: "stack",
           to: "array",
           action: "pop",
-          reason: `Popped ${safeNums[j]} because ${x} is next greater element (distance: ${i - j})`,
+          reason: `Popped ${safeNums[j]} because ${x} is next greater (distance ${dist})`,
         },
-        desc: `Sightline resolved: nums[${i}] (${x}) > nums[${j}] (${safeNums[j]}). Pop idx ${j} — distance Δi = ${i - j}.`,
+        desc: isTemperatures
+          ? `Sightline resolved: nums[${i}] (${x}°) > nums[${j}] (${safeNums[j]}°). Warmer temperature found after ${dist} day(s). Pop index ${j}.`
+          : `Sightline resolved: nums[${i}] (${x}) > nums[${j}] (${safeNums[j]}). Pop index ${j}; answer is ${x} (distance ${dist}).`,
       });
     }
     stack.push(i);
@@ -1400,33 +1300,278 @@ function monotonicStack(input: (number | string)[]): VizBundle {
       type: "stack",
       array: safeNums,
       left: i,
-      stack: stack.map((k) => safeNums[k]!),
+      stack: [...stack],
       current: x,
       visited: safeNums.slice(0, i + 1),
       line: 4,
-      stackInvariant: "decreasing",
       activeDataset: "stack",
+      stackInvariant: "decreasing",
+      sightlines: [],
+      resultArray: [...resultArr],
       shiftInfo: {
         from: "array",
         to: "stack",
         action: "push",
         reason: `Pushed index ${i} (value ${x}) onto monotonic stack`,
       },
-      desc: `Push index ${i} (value ${x}) onto stack. Stack: [${stack.map((k) => safeNums[k]!).join(", ")}].`,
+      desc: `Push index ${i} (value ${x}) onto stack. Stack indices: [${stack.join(", ")}] (values: [${stack.map((k) => safeNums[k]!).join(", ")}]).`,
     });
   });
+
   steps.push({
     type: "stack",
     array: safeNums,
-    stack: stack.map((k) => safeNums[k]!),
+    stack: [...stack],
     current: null,
     visited: safeNums,
     line: 5,
-    stackInvariant: "decreasing",
     activeDataset: "stack",
-    desc: `Scan complete. Remaining indices in stack [${stack.map((k) => safeNums[k]!).join(", ")}] have no greater element to their right.`,
+    stackInvariant: "decreasing",
+    sightlines: [],
+    resultArray: [...resultArr],
+    desc: `Scan complete. Remaining indices in stack [${stack.join(", ")}] have no greater element to their right.`,
   });
   return { code, array: safeNums, steps: cap(steps) };
+}
+
+function largestRectangleHistogramSim(input: (number | string)[]): VizBundle {
+  const code = [
+    "def largestRectangleArea(heights):",
+    "    heights.append(0)",
+    "    stack = [-1]",
+    "    max_area = 0",
+    "    for i, h in enumerate(heights):",
+    "        while heights[stack[-1]] > h:",
+    "            height = heights[stack.pop()]",
+    "            width = i - stack[-1] - 1",
+    "            max_area = max(max_area, height * width)",
+    "        stack.append(i)",
+    "    return max_area",
+  ];
+  const rawNums = input.length > 0 ? input : [2, 1, 5, 6, 2, 3];
+  const heights = rawNums.map(Number).filter((n) => !isNaN(n)).slice(0, 12);
+  const safeHeights = heights.length > 0 ? heights : [2, 1, 5, 6, 2, 3];
+  const extended = [...safeHeights, 0];
+  const stack: number[] = [];
+  let maxArea = 0;
+
+  const steps: VizStep[] = [
+    {
+      type: "stack",
+      array: safeHeights,
+      stack: [],
+      current: null,
+      visited: [],
+      line: 1,
+      activeDataset: "stack",
+      stackInvariant: "increasing",
+      sightlines: [],
+      histogramSpan: { left: -1, right: 0, height: 0, width: 0, area: 0, maxArea: 0 },
+      desc: "Initialize monotonic increasing stack to compute Largest Rectangle in Histogram.",
+    },
+  ];
+
+  for (let i = 0; i < extended.length; i++) {
+    const h = extended[i]!;
+    steps.push({
+      type: "stack",
+      array: safeHeights,
+      left: i < safeHeights.length ? i : null,
+      stack: [...stack],
+      current: h,
+      visited: safeHeights.slice(0, Math.min(i + 1, safeHeights.length)),
+      line: 4,
+      activeDataset: "stack",
+      stackInvariant: "increasing",
+      histogramSpan: { left: -1, right: i, height: h, width: 0, area: 0, maxArea },
+      desc: i < safeHeights.length
+        ? `Inspect bar heights[${i}] = ${h}. Monotonic ascending stack invariant check.`
+        : `Sentinel boundary bar h=0 reached at index ${i}. Flush all remaining bars in stack.`,
+    });
+
+    while (stack.length > 0 && extended[stack[stack.length - 1]!]! >= h) {
+      const poppedIdx = stack.pop()!;
+      const height = extended[poppedIdx]!;
+      const leftBoundary = stack.length > 0 ? stack[stack.length - 1]! : -1;
+      const width = i - leftBoundary - 1;
+      const area = height * width;
+      maxArea = Math.max(maxArea, area);
+
+      steps.push({
+        type: "stack",
+        array: safeHeights,
+        left: i < safeHeights.length ? i : null,
+        stack: [...stack],
+        current: h,
+        visited: safeHeights.slice(0, Math.min(i + 1, safeHeights.length)),
+        line: 6,
+        activeDataset: "stack",
+        stackInvariant: "increasing",
+        sightlines: leftBoundary >= 0 ? [{ fromIdx: i < safeHeights.length ? i : safeHeights.length - 1, toIdx: leftBoundary, resolved: true }] : [],
+        histogramSpan: {
+          left: leftBoundary,
+          right: i,
+          height,
+          width,
+          area,
+          maxArea,
+          poppedIndex: poppedIdx,
+        },
+        desc: `Popped bar idx ${poppedIdx} (height ${height}). Bounded span [left: ${leftBoundary}, right: ${i}], width = ${width}. Area = ${height} × ${width} = ${area} (Max Area: ${maxArea}).`,
+      });
+    }
+
+    stack.push(i);
+    if (i < safeHeights.length) {
+      steps.push({
+        type: "stack",
+        array: safeHeights,
+        left: i,
+        stack: [...stack],
+        current: h,
+        visited: safeHeights.slice(0, i + 1),
+        line: 9,
+        activeDataset: "stack",
+        stackInvariant: "increasing",
+        histogramSpan: { left: -1, right: i, height: h, width: 1, area: h, maxArea },
+        desc: `Pushed bar idx ${i} (height ${h}) to monotonic stack. Stack now: [${stack.join(", ")}].`,
+      });
+    }
+  }
+
+  steps.push({
+    type: "stack",
+    array: safeHeights,
+    stack: [],
+    current: null,
+    visited: safeHeights,
+    line: 10,
+    activeDataset: "stack",
+    stackInvariant: "increasing",
+    histogramSpan: { left: -1, right: safeHeights.length, height: 0, width: 0, area: 0, maxArea },
+    desc: `Largest Rectangle in Histogram complete! Maximum bounded area = ${maxArea}.`,
+  });
+
+  return { code, array: safeHeights, steps: cap(steps) };
+}
+
+function trappingRainWaterSim(input: (number | string)[]): VizBundle {
+  const code = [
+    "def trap(height):",
+    "    stack = []",
+    "    water = 0",
+    "    for i, h in enumerate(height):",
+    "        while stack and h > height[stack[-1]]:",
+    "            bottom = stack.pop()",
+    "            if not stack: break",
+    "            dist = i - stack[-1] - 1",
+    "            bounded_h = min(height[stack[-1]], h) - height[bottom]",
+    "            water += dist * bounded_h",
+    "        stack.append(i)",
+    "    return water",
+  ];
+  const rawNums = input.length > 0 ? input : [0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1];
+  const heights = rawNums.map(Number).filter((n) => !isNaN(n)).slice(0, 14);
+  const safeHeights = heights.length > 0 ? heights : [0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1];
+  const stack: number[] = [];
+  let totalWater = 0;
+  const waterLevels = new Array(safeHeights.length).fill(0);
+
+  const steps: VizStep[] = [
+    {
+      type: "stack",
+      array: safeHeights,
+      stack: [],
+      current: null,
+      visited: [],
+      line: 2,
+      activeDataset: "stack",
+      stackInvariant: "decreasing",
+      waterTrapped: { currentWater: 0, totalWater: 0, waterLevels: [...waterLevels] },
+      desc: "Initialize Monotonic Stack to calculate bounded Trapping Rain Water reservoirs.",
+    },
+  ];
+
+  for (let i = 0; i < safeHeights.length; i++) {
+    const currentHeight = safeHeights[i]!;
+    steps.push({
+      type: "stack",
+      array: safeHeights,
+      left: i,
+      stack: [...stack],
+      current: currentHeight,
+      visited: safeHeights.slice(0, i + 1),
+      line: 4,
+      activeDataset: "stack",
+      stackInvariant: "decreasing",
+      waterTrapped: { currentWater: 0, totalWater, waterLevels: [...waterLevels] },
+      desc: `Inspect elevation at index ${i} (height ${currentHeight}).`,
+    });
+
+    while (stack.length > 0 && currentHeight > safeHeights[stack[stack.length - 1]!]!) {
+      const bottomIdx = stack.pop()!;
+      if (stack.length === 0) break;
+      const leftIdx = stack[stack.length - 1]!;
+      const distance = i - leftIdx - 1;
+      const boundedHeight = Math.min(safeHeights[leftIdx]!, currentHeight) - safeHeights[bottomIdx]!;
+      if (boundedHeight > 0) {
+        const trapped = distance * boundedHeight;
+        totalWater += trapped;
+        for (let k = leftIdx + 1; k < i; k++) {
+          waterLevels[k] = Math.max(waterLevels[k] ?? 0, safeHeights[bottomIdx]! + boundedHeight);
+        }
+        steps.push({
+          type: "stack",
+          array: safeHeights,
+          left: i,
+          stack: [...stack],
+          current: currentHeight,
+          visited: safeHeights.slice(0, i + 1),
+          line: 9,
+          activeDataset: "stack",
+          stackInvariant: "decreasing",
+          sightlines: [{ fromIdx: i, toIdx: leftIdx, resolved: true, distance }],
+          waterTrapped: {
+            currentWater: trapped,
+            totalWater,
+            waterLevels: [...waterLevels],
+            leftMax: safeHeights[leftIdx]!,
+            rightMax: currentHeight,
+          },
+          desc: `Water trapped in trough [idx ${bottomIdx}] bounded by [left: ${leftIdx} (${safeHeights[leftIdx]}), right: ${i} (${currentHeight})]: +${trapped} units. Total = ${totalWater}.`,
+        });
+      }
+    }
+    stack.push(i);
+    steps.push({
+      type: "stack",
+      array: safeHeights,
+      left: i,
+      stack: [...stack],
+      current: currentHeight,
+      visited: safeHeights.slice(0, i + 1),
+      line: 10,
+      activeDataset: "stack",
+      stackInvariant: "decreasing",
+      waterTrapped: { currentWater: 0, totalWater, waterLevels: [...waterLevels] },
+      desc: `Pushed index ${i} (height ${currentHeight}) to stack.`,
+    });
+  }
+
+  steps.push({
+    type: "stack",
+    array: safeHeights,
+    stack: [...stack],
+    current: null,
+    visited: safeHeights,
+    line: 11,
+    activeDataset: "stack",
+    stackInvariant: "decreasing",
+    waterTrapped: { currentWater: 0, totalWater, waterLevels: [...waterLevels] },
+    desc: `Trapping Rain Water complete! Total water trapped across terrain = ${totalWater} units.`,
+  });
+
+  return { code, array: safeHeights, steps: cap(steps) };
 }
 
 function parentheses(input: (number | string)[]): VizBundle {
@@ -1446,10 +1591,10 @@ function parentheses(input: (number | string)[]): VizBundle {
 
   let chars: string[] = [];
   if (isRawBracketInput) {
-    chars = input.map(String);
+    chars = input.map(String).slice(0, 16);
   } else {
     const openStack: string[] = [];
-    input.forEach((n, i) => {
+    input.slice(0, 8).forEach((n, i) => {
       if (i % 2 === 0 || openStack.length === 0) {
         const num = typeof n === "number" ? n : String(n).charCodeAt(0);
         const ch = opens[Math.abs(num) % 3]!;
@@ -1467,6 +1612,7 @@ function parentheses(input: (number | string)[]): VizBundle {
     {
       type: "stack",
       stack: [],
+      stream: chars,
       current: null,
       visited: [],
       line: 0,
@@ -1483,7 +1629,9 @@ function parentheses(input: (number | string)[]): VizBundle {
       steps.push({
         type: "stack",
         stack: [...stack],
+        stream: chars,
         current: ch,
+        left: i,
         visited: chars.slice(0, i + 1),
         line: 2,
         activeDataset: "stack",
@@ -1501,10 +1649,13 @@ function parentheses(input: (number | string)[]): VizBundle {
         steps.push({
           type: "stack",
           stack: [],
+          stream: chars,
           current: ch,
+          left: i,
           visited: chars.slice(0, i + 1),
           line: 3,
           activeDataset: "stack",
+          bracketPair: { open: "∅", close: ch, matched: false, mismatch: true },
           desc: `Closing bracket '${ch}' at index ${i} encountered but stack is empty ➔ Invalid sequence (return False).`,
         });
         break;
@@ -1515,10 +1666,13 @@ function parentheses(input: (number | string)[]): VizBundle {
         steps.push({
           type: "stack",
           stack: [...stack],
+          stream: chars,
           current: ch,
+          left: i,
           visited: chars.slice(0, i + 1),
           line: 3,
           activeDataset: "stack",
+          bracketPair: { open: top, close: ch, matched: false, mismatch: true },
           desc: `Mismatch: popped '${top}' does not match closing bracket '${ch}' ➔ Invalid sequence (return False).`,
         });
         break;
@@ -1526,17 +1680,20 @@ function parentheses(input: (number | string)[]): VizBundle {
       steps.push({
         type: "stack",
         stack: [...stack],
+        stream: chars,
         current: ch,
+        left: i,
         visited: chars.slice(0, i + 1),
         line: 3,
         activeDataset: "stack",
+        bracketPair: { open: top, close: ch, matched: true, mismatch: false },
         shiftInfo: {
           from: "stack",
           to: "array",
           action: "pop",
           reason: `Matched '${top}' with '${ch}'`,
         },
-        desc: `Closing bracket '${ch}' matches popped '${top}' ➔ Valid match. Stack: [${stack.join(", ")}].`,
+        desc: `Closing bracket '${ch}' matches popped '${top}' ➔ Valid match! Stack: [${stack.join(", ")}].`,
       });
     }
   }
@@ -1545,6 +1702,7 @@ function parentheses(input: (number | string)[]): VizBundle {
     steps.push({
       type: "stack",
       stack: [...stack],
+      stream: chars,
       current: null,
       visited: chars,
       line: 4,
@@ -1558,7 +1716,184 @@ function parentheses(input: (number | string)[]): VizBundle {
   return { code, array: chars, steps: cap(steps) };
 }
 
-function islandMaxArea(matrixInput?: (number | string)[][]): VizBundle {
+function evalRPNSim(input: (number | string)[]): VizBundle {
+  const code = [
+    "def evalRPN(tokens):",
+    "    stack = []",
+    "    for token in tokens:",
+    "        if token in '+-*/':",
+    "            b, a = stack.pop(), stack.pop()",
+    "            if token == '+': stack.append(a + b)",
+    "            elif token == '-': stack.append(a - b)",
+    "            elif token == '*': stack.append(a * b)",
+    "            else: stack.append(int(a / b))",
+    "        else: stack.append(int(token))",
+    "    return stack[0]",
+  ];
+  const rawTokens = input.length > 0 ? input : ["2", "1", "+", "3", "*"];
+  const tokens = rawTokens.map(String).slice(0, 16);
+  const stack: number[] = [];
+  const steps: VizStep[] = [
+    {
+      type: "stack",
+      stack: [],
+      stream: tokens,
+      current: null,
+      visited: [],
+      line: 1,
+      activeDataset: "stack",
+      desc: `Initialize stack to evaluate Reverse Polish Notation: [${tokens.join(", ")}].`,
+    },
+  ];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!;
+    if (["+", "-", "*", "/"].includes(tok)) {
+      const b = stack.pop() ?? 0;
+      const a = stack.pop() ?? 0;
+      let res = 0;
+      if (tok === "+") res = a + b;
+      else if (tok === "-") res = a - b;
+      else if (tok === "*") res = a * b;
+      else if (tok === "/") res = Math.trunc(a / b);
+
+      stack.push(res);
+      steps.push({
+        type: "stack",
+        stack: [...stack],
+        stream: tokens,
+        current: tok,
+        left: i,
+        visited: tokens.slice(0, i + 1),
+        line: 4,
+        activeDataset: "stack",
+        evalExpression: {
+          op: tok,
+          leftOperand: a,
+          rightOperand: b,
+          result: res,
+        },
+        desc: `Evaluate operator '${tok}': ${a} ${tok} ${b} = ${res}. Push ${res} to stack.`,
+      });
+    } else {
+      const num = parseInt(tok, 10) || 0;
+      stack.push(num);
+      steps.push({
+        type: "stack",
+        stack: [...stack],
+        stream: tokens,
+        current: tok,
+        left: i,
+        visited: tokens.slice(0, i + 1),
+        line: 9,
+        activeDataset: "stack",
+        desc: `Operand '${tok}' ➔ push ${num} onto stack. Stack: [${stack.join(", ")}].`,
+      });
+    }
+  }
+
+  steps.push({
+    type: "stack",
+    stack: [...stack],
+    stream: tokens,
+    current: stack[0] ?? null,
+    visited: tokens,
+    line: 10,
+    activeDataset: "stack",
+    desc: `RPN evaluation complete! Final result = ${stack[0] ?? 0}.`,
+  });
+
+  return { code, array: tokens, steps: cap(steps) };
+}
+
+function minStackSim(input: (number | string)[]): VizBundle {
+  const code = [
+    "class MinStack:",
+    "    def __init__(self):",
+    "        self.stack = []",
+    "        self.min_stack = []",
+    "    def push(self, val):",
+    "        self.stack.append(val)",
+    "        min_val = min(val, self.min_stack[-1] if self.min_stack else val)",
+    "        self.min_stack.append(min_val)",
+    "    def pop(self):",
+    "        self.stack.pop()",
+    "        self.min_stack.pop()",
+    "    def getMin(self): return self.min_stack[-1]",
+  ];
+  const rawNums = input.length > 0 ? input : [-2, 0, -3, "getMin", "pop", "top", "getMin"];
+  const ops = rawNums.map(String).slice(0, 14);
+  const stack: number[] = [];
+  const minStack: number[] = [];
+
+  const steps: VizStep[] = [
+    {
+      type: "stack",
+      stack: [],
+      secondaryStack: [],
+      current: null,
+      visited: [],
+      line: 2,
+      activeDataset: "stack",
+      datasetLabels: { primary: "Main Values Stack", secondaryArray: "Auxiliary Min Stack" },
+      desc: "Initialize MinStack with dual value and running minimum tracking.",
+    },
+  ];
+
+  ops.forEach((op, i) => {
+    if (op === "pop") {
+      const popped = stack.pop();
+      minStack.pop();
+      steps.push({
+        type: "stack",
+        stack: [...stack],
+        secondaryStack: [...minStack],
+        current: "pop()",
+        visited: ops.slice(0, i + 1),
+        line: 9,
+        activeDataset: "stack",
+        datasetLabels: { primary: "Main Values Stack", secondaryArray: "Auxiliary Min Stack" },
+        variables: { min: minStack.length > 0 ? minStack[minStack.length - 1] : null },
+        desc: `pop() operation: removed top value (${popped}). Current global minimum is ${minStack.length > 0 ? minStack[minStack.length - 1] : "None"}.`,
+      });
+    } else if (op === "getMin") {
+      const curMin = minStack.length > 0 ? minStack[minStack.length - 1]! : 0;
+      steps.push({
+        type: "stack",
+        stack: [...stack],
+        secondaryStack: [...minStack],
+        current: curMin,
+        visited: ops.slice(0, i + 1),
+        line: 11,
+        activeDataset: "stack",
+        datasetLabels: { primary: "Main Values Stack", secondaryArray: "Auxiliary Min Stack" },
+        variables: { min: curMin },
+        desc: `getMin() ➔ O(1) query returning current minimum ${curMin}.`,
+      });
+    } else {
+      const val = parseInt(op, 10) || 0;
+      const curMin = minStack.length > 0 ? Math.min(val, minStack[minStack.length - 1]!) : val;
+      stack.push(val);
+      minStack.push(curMin);
+      steps.push({
+        type: "stack",
+        stack: [...stack],
+        secondaryStack: [...minStack],
+        current: val,
+        visited: ops.slice(0, i + 1),
+        line: 5,
+        activeDataset: "stack",
+        datasetLabels: { primary: "Main Values Stack", secondaryArray: "Auxiliary Min Stack" },
+        variables: { min: curMin },
+        desc: `push(${val}): pushed ${val} onto Main Stack, pushed min (${curMin}) onto Auxiliary Min Stack.`,
+      });
+    }
+  });
+
+  return { code, array: ops, steps: cap(steps) };
+}
+
+function islandMaxArea(matrixInput?: (number | string)[][], dataset?: TestDataset): VizBundle {
   const code = [
     "def maxAreaOfIsland(grid):",
     "    rows, cols = len(grid), len(grid[0])",
@@ -1580,17 +1915,20 @@ function islandMaxArea(matrixInput?: (number | string)[][]): VizBundle {
     "    return max_area",
   ];
 
-  const matrix: number[][] =
-    matrixInput && matrixInput.length > 0 && matrixInput[0]?.length
-      ? matrixInput.map((row) => row.map((x) => Number(x) === 1 || String(x) === "1" ? 1 : 0))
-      : [
-          [0, 0, 1, 0, 0, 0],
-          [0, 1, 1, 0, 1, 1],
-          [0, 1, 1, 0, 1, 1],
-          [0, 0, 0, 0, 1, 1],
-          [1, 1, 0, 0, 0, 0],
-          [1, 1, 0, 0, 0, 0],
-        ];
+  const sourceMatrix =
+    (matrixInput && matrixInput.length > 0 && matrixInput[0]?.length ? matrixInput : null) ??
+    (dataset?.matrix && dataset.matrix.length > 0 && dataset.matrix[0]?.length ? dataset.matrix : null);
+
+  const matrix: number[][] = sourceMatrix
+    ? sourceMatrix.map((row) => row.map((x) => (Number(x) === 1 || String(x) === "1" ? 1 : 0)))
+    : [
+        [0, 0, 1, 0, 0, 0],
+        [0, 1, 1, 0, 1, 1],
+        [0, 1, 1, 0, 1, 1],
+        [0, 0, 0, 0, 1, 1],
+        [1, 1, 0, 0, 0, 0],
+        [1, 1, 0, 0, 0, 0],
+      ];
 
   const rows = matrix.length;
   const cols = matrix[0]?.length ?? 6;
@@ -1761,7 +2099,7 @@ function islandMaxArea(matrixInput?: (number | string)[][]): VizBundle {
   return { code, array: matrix.flat(), steps: cap(steps) };
 }
 
-function islandCount(matrixInput?: (number | string)[][]): VizBundle {
+function islandCount(matrixInput?: (number | string)[][], dataset?: TestDataset): VizBundle {
   const code = [
     "def numIslands(grid):",
     "    rows, cols = len(grid), len(grid[0])",
@@ -1780,17 +2118,20 @@ function islandCount(matrixInput?: (number | string)[][]): VizBundle {
     "    return count",
   ];
 
-  const matrix: number[][] =
-    matrixInput && matrixInput.length > 0 && matrixInput[0]?.length
-      ? matrixInput.map((row) => row.map((x) => Number(x) === 1 || String(x) === "1" ? 1 : 0))
-      : [
-          [1, 1, 0, 0, 0, 1],
-          [1, 1, 0, 0, 0, 1],
-          [0, 0, 1, 0, 0, 0],
-          [0, 0, 0, 1, 1, 0],
-          [1, 0, 0, 1, 1, 0],
-          [1, 1, 0, 0, 0, 1],
-        ];
+  const sourceMatrix =
+    (matrixInput && matrixInput.length > 0 && matrixInput[0]?.length ? matrixInput : null) ??
+    (dataset?.matrix && dataset.matrix.length > 0 && dataset.matrix[0]?.length ? dataset.matrix : null);
+
+  const matrix: number[][] = sourceMatrix
+    ? sourceMatrix.map((row) => row.map((x) => (Number(x) === 1 || String(x) === "1" ? 1 : 0)))
+    : [
+        [1, 1, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 1],
+        [0, 0, 1, 0, 0, 0],
+        [0, 0, 0, 1, 1, 0],
+        [1, 0, 0, 1, 1, 0],
+        [1, 1, 0, 0, 0, 1],
+      ];
 
   const rows = matrix.length;
   const cols = matrix[0]?.length ?? 6;
@@ -1924,82 +2265,657 @@ function islandCount(matrixInput?: (number | string)[][]): VizBundle {
   return { code, array: matrix.flat(), steps: cap(steps) };
 }
 
-function islandUnionFindSim(dataset?: TestDataset, slug = "number-of-islands-ii"): VizBundle {
+/** 
+ * Spiral Matrix Traversal & Layer Peeling Simulator
+ */
+function spiralMatrixSim(
+  matrixOrInput?: (number | string)[][] | (number | string)[],
+  dataset?: TestDataset,
+): VizBundle {
   const code = [
-    "def numIslands2(m, n, positions):",
-    "    parent = {}; count = 0; ans = []",
-    "    def find(x):",
-    "        if parent[x] != x: parent[x] = find(parent[x])",
-    "        return parent[x]",
-    "    def union(x, y):",
-    "        rx, ry = find(x), find(y)",
-    "        if rx != ry: parent[rx] = ry; return True",
-    "        return False",
-    "    for r, c in positions:",
-    "        pos = (r, c)",
-    "        if pos in parent: ans.append(count); continue",
-    "        parent[pos] = pos; count += 1",
-    "        for dr, dc in [(1,0), (-1,0), (0,1), (0,-1)]:",
-    "            nr, nc = r + dr, c + dc",
-    "            if 0 <= nr < m and 0 <= nc < n and (nr, nc) in parent:",
-    "                if union(pos, (nr, nc)): count -= 1",
-    "        ans.append(count)",
-    "    return ans",
+    "def spiralOrder(matrix):",
+    "    res = []",
+    "    top, bottom = 0, len(matrix) - 1",
+    "    left, right = 0, len(matrix[0]) - 1",
+    "    while top <= bottom and left <= right:",
+    "        for c in range(left, right + 1): res.append(matrix[top][c])",
+    "        top += 1",
+    "        for r in range(top, bottom + 1): res.append(matrix[r][right])",
+    "        right -= 1",
+    "        if top <= bottom:",
+    "            for c in range(right, left - 1, -1): res.append(matrix[bottom][c])",
+    "            bottom -= 1",
+    "        if left <= right:",
+    "            for r in range(bottom, top - 1, -1): res.append(matrix[r][left])",
+    "            left += 1",
+    "    return res",
   ];
 
-  let rows = 3;
-  let cols = 3;
-  if (Array.isArray(dataset?.matrix) && dataset.matrix.length > 0) {
-    rows = dataset.matrix.length;
-    cols = dataset.cols ?? dataset.matrix[0]?.length ?? 3;
-  } else if (dataset?.cols) {
-    cols = dataset.cols;
-  }
-
-  const grid: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
-
-  let positions: [number, number][] = [];
-  if (Array.isArray(dataset?.secondaryArray) && dataset.secondaryArray.length > 0) {
-    positions = dataset.secondaryArray.map((p) => {
-      if (Array.isArray(p) && p.length >= 2) return [Number(p[0]), Number(p[1])];
-      if (typeof p === "string") {
-        const parts = p.replace(/[()[\]]/g, "").split(",");
-        return [Number(parts[0] ?? 0), Number(parts[1] ?? 0)];
-      }
-      return [0, 0];
-    });
-  } else if (
-    Array.isArray(dataset?.matrix) &&
-    dataset.matrix.length > 0 &&
-    dataset.matrix.every((r) => Array.isArray(r) && r.length === 2 && !r.some((x) => Number(x) > 5))
-  ) {
-    positions = dataset.matrix.map((r) => [Number(r[0]), Number(r[1])]);
+  let rawGrid: (number | string)[][] = [];
+  if (Array.isArray(matrixOrInput) && Array.isArray(matrixOrInput[0])) {
+    rawGrid = matrixOrInput as (number | string)[][];
+  } else if (dataset?.matrix && Array.isArray(dataset.matrix) && dataset.matrix.length > 0) {
+    rawGrid = dataset.matrix;
   } else {
-    positions = [
-      [0, 0],
-      [0, 1],
-      [1, 2],
-      [2, 1],
+    rawGrid = [
+      [1, 2, 3, 4],
+      [5, 6, 7, 8],
+      [9, 10, 11, 12],
     ];
   }
 
-  const parent: Record<string, string> = {};
-  function find(x: string): string {
-    if (parent[x] !== x && parent[x] !== undefined) {
-      parent[x] = find(parent[x]!);
+  const m = rawGrid.length;
+  const n = rawGrid[0]?.length ?? 4;
+  const matrix = rawGrid.map((r) => [...r]);
+  const steps: VizStep[] = [];
+  const visited: string[] = [];
+  const result: (number | string)[] = [];
+
+  let top = 0;
+  let bottom = m - 1;
+  let left = 0;
+  let right = n - 1;
+
+  steps.push({
+    type: "matrix",
+    matrix,
+    cols: n,
+    current: null,
+    visited: [],
+    spiralBounds: { top, bottom, left, right },
+    direction: null,
+    array: [],
+    line: 4,
+    desc: `Initialize boundaries: top=0, bottom=${bottom}, left=0, right=${right} on ${m}×${n} matrix.`,
+  });
+
+  while (top <= bottom && left <= right && steps.length < MAX_SIMULATION_STEPS) {
+    // 1. Traverse Right along `top`
+    for (let c = left; c <= right; c++) {
+      const coord = `${top},${c}`;
+      visited.push(coord);
+      result.push(matrix[top]![c]!);
+      steps.push({
+        type: "matrix",
+        matrix,
+        cols: n,
+        current: coord,
+        visited: [...visited],
+        spiralBounds: { top, bottom, left, right },
+        direction: "RIGHT (0, +1)",
+        array: [...result],
+        line: 5,
+        desc: `Traverse RIGHT along top row (${top}): visited (${top}, ${c}) = ${matrix[top]![c]}.`,
+      });
     }
-    return parent[x] ?? x;
+    top++;
+    steps.push({
+      type: "matrix",
+      matrix,
+      cols: n,
+      current: visited[visited.length - 1] ?? null,
+      visited: [...visited],
+      spiralBounds: { top, bottom, left, right },
+      direction: "RIGHT (0, +1)",
+      array: [...result],
+      line: 6,
+      desc: `Peel top row. Boundary updated: top=${top}.`,
+    });
+
+    // 2. Traverse Down along `right`
+    for (let r = top; r <= bottom; r++) {
+      const coord = `${r},${right}`;
+      visited.push(coord);
+      result.push(matrix[r]![right]!);
+      steps.push({
+        type: "matrix",
+        matrix,
+        cols: n,
+        current: coord,
+        visited: [...visited],
+        spiralBounds: { top, bottom, left, right },
+        direction: "DOWN (+1, 0)",
+        array: [...result],
+        line: 7,
+        desc: `Traverse DOWN along right col (${right}): visited (${r}, ${right}) = ${matrix[r]![right]}.`,
+      });
+    }
+    right--;
+    steps.push({
+      type: "matrix",
+      matrix,
+      cols: n,
+      current: visited[visited.length - 1] ?? null,
+      visited: [...visited],
+      spiralBounds: { top, bottom, left, right },
+      direction: "DOWN (+1, 0)",
+      array: [...result],
+      line: 8,
+      desc: `Peel right column. Boundary updated: right=${right}.`,
+    });
+
+    // 3. Traverse Left along `bottom`
+    if (top <= bottom) {
+      for (let c = right; c >= left; c--) {
+        const coord = `${bottom},${c}`;
+        visited.push(coord);
+        result.push(matrix[bottom]![c]!);
+        steps.push({
+          type: "matrix",
+          matrix,
+          cols: n,
+          current: coord,
+          visited: [...visited],
+          spiralBounds: { top, bottom, left, right },
+          direction: "LEFT (0, -1)",
+          array: [...result],
+          line: 10,
+          desc: `Traverse LEFT along bottom row (${bottom}): visited (${bottom}, ${c}) = ${matrix[bottom]![c]}.`,
+        });
+      }
+      bottom--;
+      steps.push({
+        type: "matrix",
+        matrix,
+        cols: n,
+        current: visited[visited.length - 1] ?? null,
+        visited: [...visited],
+        spiralBounds: { top, bottom, left, right },
+        direction: "LEFT (0, -1)",
+        array: [...result],
+        line: 11,
+        desc: `Peel bottom row. Boundary updated: bottom=${bottom}.`,
+      });
+    }
+
+    // 4. Traverse Up along `left`
+    if (left <= right) {
+      for (let r = bottom; r >= top; r--) {
+        const coord = `${r},${left}`;
+        visited.push(coord);
+        result.push(matrix[r]![left]!);
+        steps.push({
+          type: "matrix",
+          matrix,
+          cols: n,
+          current: coord,
+          visited: [...visited],
+          spiralBounds: { top, bottom, left, right },
+          direction: "UP (-1, 0)",
+          array: [...result],
+          line: 13,
+          desc: `Traverse UP along left col (${left}): visited (${r}, ${left}) = ${matrix[r]![left]}.`,
+        });
+      }
+      left++;
+      steps.push({
+        type: "matrix",
+        matrix,
+        cols: n,
+        current: visited[visited.length - 1] ?? null,
+        visited: [...visited],
+        spiralBounds: { top, bottom, left, right },
+        direction: "UP (-1, 0)",
+        array: [...result],
+        line: 14,
+        desc: `Peel left column. Boundary updated: left=${left}. Layer complete!`,
+      });
+    }
   }
 
-  function union(x: string, y: string): boolean {
-    const rx = find(x);
-    const ry = find(y);
-    if (rx !== ry) {
-      parent[rx] = ry;
-      return true;
-    }
-    return false;
+  steps.push({
+    type: "matrix",
+    matrix,
+    cols: n,
+    current: null,
+    visited: [...visited],
+    spiralBounds: { top, bottom, left, right },
+    direction: null,
+    array: [...result],
+    line: 15,
+    desc: `Spiral traversal complete. Collected ${result.length} elements: [${result.join(", ")}].`,
+  });
+
+  return { code, array: result, steps: cap(steps) };
+}
+
+/** 
+ * Rotate Image (90° In-Place Clockwise) Simulator
+ */
+function rotateImageSim(
+  matrixOrInput?: (number | string)[][] | (number | string)[],
+  dataset?: TestDataset,
+): VizBundle {
+  const code = [
+    "def rotate(matrix):",
+    "    n = len(matrix)",
+    "    for layer in range(n // 2):",
+    "        first = layer; last = n - 1 - layer",
+    "        for i in range(first, last):",
+    "            offset = i - first",
+    "            top = matrix[first][i]",
+    "            matrix[first][i] = matrix[last - offset][first]",
+    "            matrix[last - offset][first] = matrix[last][last - offset]",
+    "            matrix[last][last - offset] = matrix[i][last]",
+    "            matrix[i][last] = top",
+  ];
+
+  let rawGrid: (number | string)[][] = [];
+  if (Array.isArray(matrixOrInput) && Array.isArray(matrixOrInput[0])) {
+    rawGrid = matrixOrInput as (number | string)[][];
+  } else if (dataset?.matrix && Array.isArray(dataset.matrix) && dataset.matrix.length > 0) {
+    rawGrid = dataset.matrix;
+  } else {
+    rawGrid = [
+      [1, 2, 3],
+      [4, 5, 6],
+      [7, 8, 9],
+    ];
   }
+
+  const n = rawGrid.length;
+  const matrix = rawGrid.map((r) => [...r]);
+  const steps: VizStep[] = [];
+  const visited: string[] = [];
+
+  steps.push({
+    type: "matrix",
+    matrix: matrix.map((r) => [...r]),
+    cols: n,
+    current: null,
+    visited: [],
+    rotationLayer: 0,
+    line: 1,
+    desc: `Initialize in-place 90° clockwise rotation on ${n}×${n} matrix.`,
+  });
+
+  const layers = Math.floor(n / 2);
+  for (let layer = 0; layer < layers; layer++) {
+    const first = layer;
+    const last = n - 1 - layer;
+
+    for (let i = first; i < last; i++) {
+      const offset = i - first;
+      const pTop = `${first},${i}`;
+      const pLeft = `${last - offset},${first}`;
+      const pBottom = `${last},${last - offset}`;
+      const pRight = `${i},${last}`;
+
+      const topVal = matrix[first]![i]!;
+      const leftVal = matrix[last - offset]![first]!;
+      const bottomVal = matrix[last]![last - offset]!;
+      const rightVal = matrix[i]![last]!;
+
+      // Step 1: Highlight 4 symmetrical coordinates before 4-way cyclical swap
+      steps.push({
+        type: "matrix",
+        matrix: matrix.map((r) => [...r]),
+        cols: n,
+        current: pTop,
+        visited: [pTop, pLeft, pBottom, pRight],
+        activePointers: { top: pTop, left: pLeft, bottom: pBottom, right: pRight },
+        pointer_labels: {
+          [pTop]: `Top (${topVal})`,
+          [pRight]: `Right (${rightVal})`,
+          [pBottom]: `Bottom (${bottomVal})`,
+          [pLeft]: `Left (${leftVal})`,
+        },
+        rotationLayer: layer,
+        line: 5,
+        desc: `Layer ${layer}, offset ${offset}: Selected 4 corners for rotation: Top (${first},${i})=${topVal}, Right (${i},${last})=${rightVal}, Bottom (${last},${last - offset})=${bottomVal}, Left (${last - offset},${first})=${leftVal}.`,
+      });
+
+      // Step 2: In-place 4-way cyclical mutation
+      matrix[first]![i] = leftVal;
+      matrix[last - offset]![first] = bottomVal;
+      matrix[last]![last - offset] = rightVal;
+      matrix[i]![last] = topVal;
+
+      visited.push(pTop, pLeft, pBottom, pRight);
+
+      steps.push({
+        type: "matrix",
+        matrix: matrix.map((r) => [...r]),
+        cols: n,
+        current: pTop,
+        visited: [...visited],
+        activePointers: { top: pTop, left: pLeft, bottom: pBottom, right: pRight },
+        rotationLayer: layer,
+        line: 10,
+        desc: `Completed 4-way rotation swap for Layer ${layer}: Top becomes ${leftVal}, Right becomes ${topVal}, Bottom becomes ${rightVal}, Left becomes ${bottomVal}.`,
+      });
+    }
+  }
+
+  steps.push({
+    type: "matrix",
+    matrix: matrix.map((r) => [...r]),
+    cols: n,
+    current: null,
+    visited: [...visited],
+    rotationLayer: null,
+    line: 11,
+    desc: `90° clockwise matrix rotation complete! All ${n}×${n} elements rotated in-place.`,
+  });
+
+  return { code, array: matrix.flat(), steps: cap(steps) };
+}
+
+/** 
+ * Set Matrix Zeroes Simulator
+ */
+function setMatrixZeroesSim(
+  matrixOrInput?: (number | string)[][] | (number | string)[],
+  dataset?: TestDataset,
+): VizBundle {
+  const code = [
+    "def setZeroes(matrix):",
+    "    rows, cols = set(), set()",
+    "    m, n = len(matrix), len(matrix[0])",
+    "    for r in range(m):",
+    "        for c in range(n):",
+    "            if matrix[r][c] == 0:",
+    "                rows.add(r); cols.add(c)",
+    "    for r in range(m):",
+    "        for c in range(n):",
+    "            if r in rows or c in cols:",
+    "                matrix[r][c] = 0",
+  ];
+
+  let rawGrid: (number | string)[][] = [];
+  if (Array.isArray(matrixOrInput) && Array.isArray(matrixOrInput[0])) {
+    rawGrid = matrixOrInput as (number | string)[][];
+  } else if (dataset?.matrix && Array.isArray(dataset.matrix)) {
+    rawGrid = dataset.matrix;
+  } else {
+    rawGrid = [
+      [1, 1, 1],
+      [1, 0, 1],
+      [1, 1, 1],
+    ];
+  }
+
+  const m = rawGrid.length;
+  const n = rawGrid[0]?.length ?? 3;
+  const mat: (number | string)[][] = rawGrid.map((row) => [...row]);
+  const steps: VizStep[] = [];
+  const visited: string[] = [];
+
+  const zeroRows = new Set<number>();
+  const zeroCols = new Set<number>();
+
+  steps.push({
+    type: "matrix",
+    matrix: mat.map((r) => [...r]),
+    cols: n,
+    current: null,
+    visited: [],
+    highlightRows: [],
+    highlightCols: [],
+    line: 2,
+    desc: `Initialize Set Matrix Zeroes on ${m}×${n} matrix. Pass 1: scanning for zero markers.`,
+  });
+
+  // Pass 1: Scan for zeros
+  for (let r = 0; r < m; r++) {
+    for (let c = 0; c < n; c++) {
+      const coord = `${r},${c}`;
+      visited.push(coord);
+      const val = mat[r]![c]!;
+      const isZero = Number(val) === 0 || String(val) === "0";
+      if (isZero) {
+        zeroRows.add(r);
+        zeroCols.add(c);
+      }
+      steps.push({
+        type: "matrix",
+        matrix: mat.map((row) => [...row]),
+        cols: n,
+        current: coord,
+        visited: [...visited],
+        highlightRows: Array.from(zeroRows),
+        highlightCols: Array.from(zeroCols),
+        line: isZero ? 6 : 4,
+        desc: isZero
+          ? `matrix[${r}][${c}] == 0 ➔ Flag Row ${r} and Column ${c} for zeroing.`
+          : `Examining matrix[${r}][${c}] = ${val}. Non-zero cell, proceeding scan.`,
+      });
+    }
+  }
+
+  // Intermediate transition
+  steps.push({
+    type: "matrix",
+    matrix: mat.map((row) => [...row]),
+    cols: n,
+    current: null,
+    visited: [...visited],
+    highlightRows: Array.from(zeroRows),
+    highlightCols: Array.from(zeroCols),
+    line: 7,
+    desc: `Pass 1 complete. Marked Rows: [${Array.from(zeroRows).join(", ")}], Marked Cols: [${Array.from(zeroCols).join(", ")}]. Beginning Pass 2: in-place zeroing.`,
+  });
+
+  // Pass 2: In-place zeroing
+  const pass2Visited: string[] = [];
+  for (let r = 0; r < m; r++) {
+    for (let c = 0; c < n; c++) {
+      const coord = `${r},${c}`;
+      pass2Visited.push(coord);
+      const shouldZero = zeroRows.has(r) || zeroCols.has(c);
+      if (shouldZero) {
+        mat[r]![c] = 0;
+      }
+      steps.push({
+        type: "matrix",
+        matrix: mat.map((row) => [...row]),
+        cols: n,
+        current: coord,
+        visited: [...pass2Visited],
+        highlightRows: Array.from(zeroRows),
+        highlightCols: Array.from(zeroCols),
+        line: shouldZero ? 10 : 9,
+        desc: shouldZero
+          ? `Row ${r} or Col ${c} was marked: setting matrix[${r}][${c}] = 0.`
+          : `matrix[${r}][${c}] = ${mat[r]![c]}: neither row ${r} nor col ${c} marked, preserved.`,
+      });
+    }
+  }
+
+  steps.push({
+    type: "matrix",
+    matrix: mat.map((row) => [...row]),
+    cols: n,
+    current: null,
+    visited: [...pass2Visited],
+    highlightRows: Array.from(zeroRows),
+    highlightCols: Array.from(zeroCols),
+    line: 11,
+    desc: `Matrix zero transformation complete. All designated rows and columns set to 0.`,
+  });
+
+  return { code, array: mat.flat(), steps: cap(steps) };
+}
+
+/** 
+ * Game of Life (Conway's 8-Neighbor Simulation)
+ */
+function gameOfLifeSim(
+  matrixOrInput?: (number | string)[][] | (number | string)[],
+  dataset?: TestDataset,
+): VizBundle {
+  const code = [
+    "def gameOfLife(board):",
+    "    m, n = len(board), len(board[0])",
+    "    # 8-direction neighbor offsets",
+    "    DIRS = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]",
+    "    for r in range(m):",
+    "        for c in range(n):",
+    "            live = countLiveNeighbors(r, c)",
+    "            if board[r][c] == 1 and (live < 2 or live > 3): nextState = 0",
+    "            elif board[r][c] == 0 and live == 3: nextState = 1",
+    "    # finalize next generation",
+  ];
+
+  let rawGrid: (number | string)[][] = [];
+  if (Array.isArray(matrixOrInput) && Array.isArray(matrixOrInput[0])) {
+    rawGrid = matrixOrInput as (number | string)[][];
+  } else if (dataset?.matrix && Array.isArray(dataset.matrix)) {
+    rawGrid = dataset.matrix;
+  } else {
+    rawGrid = [
+      [0, 1, 0],
+      [0, 0, 1],
+      [1, 1, 1],
+      [0, 0, 0],
+    ];
+  }
+
+  const m = rawGrid.length;
+  const n = rawGrid[0]?.length ?? 3;
+  const board: number[][] = rawGrid.map((r) => r.map((x) => (Number(x) === 1 || String(x) === "1" ? 1 : 0)));
+  const nextBoard: number[][] = board.map((r) => [...r]);
+  const steps: VizStep[] = [];
+  const visited: string[] = [];
+
+  steps.push({
+    type: "matrix",
+    matrix: board.map((r) => [...r]),
+    cols: n,
+    current: null,
+    visited: [],
+    line: 1,
+    desc: `Initialize Conway's Game of Life on ${m}×${n} board.`,
+  });
+
+  const NEIGHBORS = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1],           [0, 1],
+    [1, -1],  [1, 0],  [1, 1],
+  ];
+
+  for (let r = 0; r < m; r++) {
+    for (let c = 0; c < n; c++) {
+      const coord = `${r},${c}`;
+      visited.push(coord);
+      let live = 0;
+      const neighborCoords: string[] = [];
+      for (const [dr, dc] of NEIGHBORS) {
+        const nr = r + dr!;
+        const nc = c + dc!;
+        if (nr >= 0 && nr < m && nc >= 0 && nc < n) {
+          neighborCoords.push(`${nr},${nc}`);
+          if (board[nr]![nc] === 1) live++;
+        }
+      }
+
+      const currState = board[r]![c]!;
+      let nextState = currState;
+      let ruleDesc = "";
+
+      if (currState === 1) {
+        if (live < 2) {
+          nextState = 0;
+          ruleDesc = `Rule 1 (Underpopulation): Live cell has ${live} (<2) live neighbors ➔ Dies (0).`;
+        } else if (live === 2 || live === 3) {
+          nextState = 1;
+          ruleDesc = `Rule 2 (Survival): Live cell has ${live} (2 or 3) live neighbors ➔ Survives (1).`;
+        } else {
+          nextState = 0;
+          ruleDesc = `Rule 3 (Overpopulation): Live cell has ${live} (>3) live neighbors ➔ Dies (0).`;
+        }
+      } else {
+        if (live === 3) {
+          nextState = 1;
+          ruleDesc = `Rule 4 (Reproduction): Dead cell has exactly 3 live neighbors ➔ Becomes Live (1)!`;
+        } else {
+          nextState = 0;
+          ruleDesc = `Dead cell has ${live} live neighbors (≠3) ➔ Remains Dead (0).`;
+        }
+      }
+
+      nextBoard[r]![c] = nextState;
+
+      steps.push({
+        type: "matrix",
+        matrix: board.map((row) => [...row]),
+        cols: n,
+        current: coord,
+        visited: [...visited],
+        frontier: neighborCoords,
+        variables: {
+          cell: `(${r}, ${c})`,
+          currentState: currState === 1 ? "Live (1)" : "Dead (0)",
+          liveNeighbors: live,
+          nextState: nextState === 1 ? "Live (1)" : "Dead (0)",
+        },
+        line: 6,
+        desc: `Cell (${r}, ${c}) [${currState === 1 ? "LIVE" : "DEAD"}]: ${live} live neighbors. ${ruleDesc}`,
+      });
+    }
+  }
+
+  // Update board to next generation
+  steps.push({
+    type: "matrix",
+    matrix: nextBoard.map((row) => [...row]),
+    cols: n,
+    current: null,
+    visited: [],
+    line: 9,
+    desc: `Next generation calculation complete! Updated all ${m}×${n} cells simultaneously.`,
+  });
+
+  return { code, array: nextBoard.flat(), steps: cap(steps) };
+}
+
+/** 
+ * Word Search Backtracking Grid DFS Simulator
+ */
+function wordSearchSim(
+  matrixOrInput?: (number | string)[][] | (number | string)[],
+  wordTarget = "SEE",
+  dataset?: TestDataset,
+): VizBundle {
+  const code = [
+    "def exist(board, word):",
+    "    rows, cols = len(board), len(board[0])",
+    "    def dfs(r, c, idx):",
+    "        if idx == len(word): return True",
+    "        if (r < 0 or r >= rows or c < 0 or c >= cols or",
+    "            board[r][c] != word[idx] or (r, c) in visited):",
+    "            return False",
+    "        visited.add((r, c))",
+    "        for dr, dc in [(1, 0), (-1, 0), (0, 1), (0, -1)]:",
+    "            if dfs(r + dr, c + dc, idx + 1): return True",
+    "        visited.remove((r, c)) # Backtrack",
+    "        return False",
+    "    for r in range(rows):",
+    "        for c in range(cols):",
+    "            if dfs(r, c, 0): return True",
+    "    return False",
+  ];
+
+  let rawBoard: (number | string)[][] = [];
+  if (Array.isArray(matrixOrInput) && Array.isArray(matrixOrInput[0])) {
+    rawBoard = matrixOrInput as (number | string)[][];
+  } else if (dataset?.matrix && Array.isArray(dataset.matrix)) {
+    rawBoard = dataset.matrix;
+  } else {
+    rawBoard = [
+      ["A", "B", "C", "E"],
+      ["S", "F", "C", "S"],
+      ["A", "D", "E", "E"],
+    ];
+  }
+
+  const word = typeof dataset?.target === "string" ? dataset.target : wordTarget || "SEE";
+  const rows = rawBoard.length;
+  const cols = rawBoard[0]?.length ?? 4;
+  const board = rawBoard.map((r) => r.map((c) => String(c)));
+  const steps: VizStep[] = [];
+  const trail: string[] = [];
+  const visitedSet = new Set<string>();
 
   const inBounds = (r: number, c: number) => r >= 0 && c >= 0 && r < rows && c < cols;
   const DIRS: [number, number, string][] = [
@@ -2009,212 +2925,397 @@ function islandUnionFindSim(dataset?: TestDataset, slug = "number-of-islands-ii"
     [0, -1, "LEFT (0, -1)"],
   ];
 
-  let count = 0;
-  const ans: number[] = [];
-  const visited: string[] = [];
-  const steps: VizStep[] = [
-    {
+  steps.push({
+    type: "matrix",
+    matrix: board,
+    cols,
+    current: null,
+    visited: [],
+    trail: [],
+    line: 1,
+    desc: `Initialize Word Search for target "${word}" on ${rows}×${cols} character board.`,
+  });
+
+  let found = false;
+
+  function dfs(r: number, c: number, idx: number, fromCoord?: string, dirName?: string): boolean {
+    if (idx === word.length) return true;
+    const k = `${r},${c}`;
+
+    if (!inBounds(r, c)) return false;
+    const char = board[r]![c]!;
+    const expectedChar = word[idx];
+
+    if (char !== expectedChar || visitedSet.has(k)) {
+      return false;
+    }
+
+    visitedSet.add(k);
+    trail.push(k);
+
+    steps.push({
       type: "matrix",
-      matrix: grid.map((r) => [...r]),
+      matrix: board,
+      cols,
+      current: k,
+      visited: Array.from(visitedSet),
+      trail: [...trail],
+      direction: dirName ?? null,
+      variables: {
+        targetWord: word,
+        matchingIndex: idx,
+        matchedChar: char,
+        pathLength: trail.length,
+      },
+      line: 7,
+      desc: dirName
+        ? `Traverse ${dirName} to (${r}, ${c}) ['${char}']: Matches word[${idx}] ('${char}'). Word progress: "${word.slice(0, idx + 1)}".`
+        : `Start candidate path at (${r}, ${c}) ['${char}']: Matches word[0] ('${char}').`,
+    });
+
+    if (idx === word.length - 1) {
+      steps.push({
+        type: "matrix",
+        matrix: board,
+        cols,
+        current: k,
+        visited: Array.from(visitedSet),
+        trail: [...trail],
+        direction: "MATCH",
+        line: 4,
+        desc: `Target word "${word}" FOUND! Completed path: ${trail.join(" ➔ ")}.`,
+      });
+      return true;
+    }
+
+    for (const [dr, dc, dname] of DIRS) {
+      const nr = r + dr;
+      const nc = c + dc;
+      if (dfs(nr, nc, idx + 1, `(${r}, ${c})`, dname)) {
+        return true;
+      }
+    }
+
+    // Backtrack
+    visitedSet.delete(k);
+    trail.pop();
+
+    steps.push({
+      type: "matrix",
+      matrix: board,
+      cols,
+      current: k,
+      visited: Array.from(visitedSet),
+      trail: [...trail],
+      direction: "BACKTRACK",
+      line: 11,
+      desc: `No valid continuation from (${r}, ${c}) ['${char}'] for index ${idx + 1}. Backtrack (unmark visited).`,
+    });
+
+    return false;
+  }
+
+  outer: for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (board[r]![c] === word[0]) {
+        steps.push({
+          type: "matrix",
+          matrix: board,
+          cols,
+          current: `${r},${c}`,
+          visited: [],
+          trail: [],
+          line: 14,
+          desc: `Found starting character '${word[0]}' at (${r}, ${c}). Launching backtracking DFS.`,
+        });
+
+        if (dfs(r, c, 0)) {
+          found = true;
+          break outer;
+        }
+      }
+    }
+  }
+
+  if (!found) {
+    steps.push({
+      type: "matrix",
+      matrix: board,
       cols,
       current: null,
       visited: [],
-      wSum: 0,
-      line: 1,
-      desc: `Initialize ${rows}×${cols} empty water grid (all 0s), empty DSU parent map, and island count = 0.`,
-      activePointers: {},
-      map: {},
-    },
-  ];
-
-  for (let pi = 0; pi < positions.length; pi++) {
-    const [r, c] = positions[pi]!;
-    const posKey = `${r},${c}`;
-
-    steps.push({
-      type: "matrix",
-      matrix: grid.map((row) => [...row]),
-      cols,
-      current: `${r},${c}`,
-      activePointers: { pos: [r, c] },
-      visited: [...visited],
-      wSum: count,
-      line: 9,
-      desc: `Operation #${pi + 1}: addLand at (${r}, ${c}). Preparing to turn cell into land.`,
-      map: { ...parent },
-    });
-
-    if (parent[posKey] !== undefined) {
-      ans.push(count);
-      steps.push({
-        type: "matrix",
-        matrix: grid.map((row) => [...row]),
-        cols,
-        current: `${r},${c}`,
-        activePointers: { pos: [r, c] },
-        visited: [...visited],
-        wSum: count,
-        line: 11,
-        desc: `Cell (${r}, ${c}) is already land. Skip operation; island count remains ${count}.`,
-        map: { ...parent },
-      });
-      continue;
-    }
-
-    grid[r]![c] = 1;
-    parent[posKey] = posKey;
-    count++;
-    if (!visited.includes(posKey)) visited.push(posKey);
-
-    steps.push({
-      type: "matrix",
-      matrix: grid.map((row) => [...row]),
-      cols,
-      current: `${r},${c}`,
-      activePointers: { pos: [r, c], land: [r, c] },
-      visited: [...visited],
-      wSum: count,
-      line: 12,
-      desc: `Turned (${r}, ${c}) into LAND! Initialized isolated component. Count incremented to ${count}.`,
-      map: { ...parent },
-    });
-
-    for (const [dr, dc, dirName] of DIRS) {
-      const nr = r + dr;
-      const nc = c + dc;
-      const nKey = `${nr},${nc}`;
-
-      // Probe step: physically move marker to neighbor cell
-      steps.push({
-        type: "matrix",
-        matrix: grid.map((row) => [...row]),
-        cols,
-        current: `${nr},${nc}`,
-        activePointers: { pos: [r, c], neighbor: [nr, nc] },
-        direction: dirName,
-        visited: [...visited],
-        wSum: count,
-        line: 14,
-        desc: `Checking ${dirName} neighbor at (${nr}, ${nc}) from origin (${r}, ${c})...`,
-        map: { ...parent },
-      });
-
-      if (!inBounds(nr, nc)) {
-        steps.push({
-          type: "matrix",
-          matrix: grid.map((row) => [...row]),
-          cols,
-          current: `${nr},${nc}`,
-          activePointers: { pos: [r, c], neighbor: [nr, nc] },
-          direction: dirName,
-          visited: [...visited],
-          wSum: count,
-          line: 15,
-          desc: `Neighbor (${nr}, ${nc}) is out of bounds. No connection in ${dirName} direction.`,
-          map: { ...parent },
-        });
-        continue;
-      }
-
-      if (grid[nr]![nc] !== 1) {
-        steps.push({
-          type: "matrix",
-          matrix: grid.map((row) => [...row]),
-          cols,
-          current: `${nr},${nc}`,
-          activePointers: { pos: [r, c], neighbor: [nr, nc] },
-          direction: dirName,
-          visited: [...visited],
-          wSum: count,
-          line: 15,
-          desc: `Neighbor (${nr}, ${nc}) is water (0). No island union possible.`,
-          map: { ...parent },
-        });
-        continue;
-      }
-
-      // Neighbor is land! Call union
-      steps.push({
-        type: "matrix",
-        matrix: grid.map((row) => [...row]),
-        cols,
-        current: `${nr},${nc}`,
-        activePointers: { pos: [r, c], neighbor: [nr, nc], merge: [nr, nc] },
-        direction: dirName,
-        visited: [...visited],
-        wSum: count,
-        line: 16,
-        desc: `Neighbor (${nr}, ${nc}) is existing LAND! Calling union((${r}, ${c}), (${nr}, ${nc}))...`,
-        map: { ...parent },
-      });
-
-      const root1 = find(posKey);
-      const root2 = find(nKey);
-      if (root1 !== root2) {
-        parent[root1] = root2;
-        count--;
-
-        steps.push({
-          type: "matrix",
-          matrix: grid.map((row) => [...row]),
-          cols,
-          current: `${r},${c}`,
-          activePointers: { pos: [r, c], neighbor: [nr, nc], root: root2 },
-          direction: dirName,
-          visited: [...visited],
-          wSum: count,
-          line: 16,
-          desc: `Union successful: connected (${r}, ${c}) with (${nr}, ${nc}) under root ${root2}. Island count decrements to ${count}.`,
-          map: { ...parent },
-        });
-      } else {
-        steps.push({
-          type: "matrix",
-          matrix: grid.map((row) => [...row]),
-          cols,
-          current: `${r},${c}`,
-          activePointers: { pos: [r, c], neighbor: [nr, nc] },
-          direction: dirName,
-          visited: [...visited],
-          wSum: count,
-          line: 16,
-          desc: `(${r}, ${c}) and (${nr}, ${nc}) already belong to the same component (root ${root1}). Count unchanged (${count}).`,
-          map: { ...parent },
-        });
-      }
-    }
-
-    ans.push(count);
-    steps.push({
-      type: "matrix",
-      matrix: grid.map((row) => [...row]),
-      cols,
-      current: `${r},${c}`,
-      activePointers: { pos: [r, c] },
-      visited: [...visited],
-      wSum: count,
-      secondaryArray: [...ans],
-      line: 17,
-      desc: `Completed operation #${pi + 1}. Appended island count ${count} to result list: [${ans.join(", ")}].`,
-      map: { ...parent },
+      trail: [],
+      line: 16,
+      desc: `Target word "${word}" does NOT exist in the board after exploring all paths. Return False.`,
     });
   }
 
-  steps.push({
-    type: "matrix",
-    matrix: grid.map((row) => [...row]),
-    cols,
-    current: null,
-    activePointers: {},
-    visited: [...visited],
-    wSum: count,
-    secondaryArray: [...ans],
-    line: 18,
-    desc: `All operations completed. Final island count sequence: [${ans.join(", ")}]. Total active islands = ${count}.`,
-    map: { ...parent },
-  });
+  return { code, array: board.flat(), steps: cap(steps) };
+}
 
-  return { code, array: grid.flat(), steps: cap(steps) };
+/** 
+ * Grid BFS & Flood Fill Multi-Source Traversal Simulator
+ * Handles: Rotting Oranges, Walls and Gates, Flood Fill, Shortest Path in Binary Matrix, Pacific Atlantic
+ */
+function gridBfsFloodFillSim(
+  matrixOrInput?: (number | string)[][] | (number | string)[],
+  mode: "bfs" | "dfs" = "bfs",
+  slug = "",
+  dataset?: TestDataset,
+): VizBundle {
+  const s = slug.toLowerCase();
+
+  // Rotting Oranges Multi-Source BFS
+  if (s.includes("orange") || s.includes("rotting")) {
+    const code = [
+      "def orangesRotting(grid):",
+      "    queue = deque([(r, c) for r in rows for c in cols if grid[r][c] == 2])",
+      "    fresh = sum(1 for r in rows for c in cols if grid[r][c] == 1)",
+      "    minutes = 0",
+      "    while queue and fresh > 0:",
+      "        for _ in range(len(queue)):",
+      "            r, c = queue.popleft()",
+      "            for nr, nc in neighbors(r, c):",
+      "                if grid[nr][nc] == 1:",
+      "                    grid[nr][nc] = 2; fresh -= 1; queue.append((nr, nc))",
+      "        minutes += 1",
+      "    return minutes if fresh == 0 else -1",
+    ];
+
+    let rawGrid: (number | string)[][] = [];
+    if (Array.isArray(matrixOrInput) && Array.isArray(matrixOrInput[0])) {
+      rawGrid = matrixOrInput as (number | string)[][];
+    } else if (dataset?.matrix && Array.isArray(dataset.matrix)) {
+      rawGrid = dataset.matrix;
+    } else {
+      rawGrid = [
+        [2, 1, 1],
+        [1, 1, 0],
+        [0, 1, 1],
+      ];
+    }
+
+    const m = rawGrid.length;
+    const n = rawGrid[0]?.length ?? 3;
+    const grid: number[][] = rawGrid.map((r) => r.map((x) => Number(x)));
+    const steps: VizStep[] = [];
+    const queue: [number, number][] = [];
+    let freshCount = 0;
+
+    for (let r = 0; r < m; r++) {
+      for (let c = 0; c < n; c++) {
+        if (grid[r]![c] === 2) queue.push([r, c]);
+        else if (grid[r]![c] === 1) freshCount++;
+      }
+    }
+
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    let minutes = 0;
+
+    steps.push({
+      type: "matrix",
+      matrix: grid.map((r) => [...r]),
+      cols: n,
+      current: null,
+      visited: queue.map(([qr, qc]) => `${qr},${qc}`),
+      frontier: queue.map(([qr, qc]) => `${qr},${qc}`),
+      distanceLayer: 0,
+      variables: { minutes: 0, freshOranges: freshCount, rottenSources: queue.length },
+      line: 2,
+      desc: `Initialize Multi-Source BFS with ${queue.length} rotten oranges and ${freshCount} fresh oranges.`,
+    });
+
+    while (queue.length > 0 && freshCount > 0 && steps.length < MAX_SIMULATION_STEPS) {
+      const levelSize = queue.length;
+      const nextFrontier: [number, number][] = [];
+
+      for (let i = 0; i < levelSize; i++) {
+        const [r, c] = queue.shift()!;
+        steps.push({
+          type: "matrix",
+          matrix: grid.map((row) => [...row]),
+          cols: n,
+          current: `${r},${c}`,
+          visited: grid.flatMap((row, ri) => row.map((val, ci) => (val === 2 ? `${ri},${ci}` : null)).filter(Boolean) as string[]),
+          frontier: queue.map(([qr, qc]) => `${qr},${qc}`),
+          distanceLayer: minutes,
+          variables: { minutes, freshRemaining: freshCount },
+          line: 7,
+          desc: `Minute ${minutes}: Spreading rotting wave from (${r}, ${c}).`,
+        });
+
+        for (const [dr, dc] of DIRS) {
+          const nr = r + dr!;
+          const nc = c + dc!;
+          if (nr >= 0 && nr < m && nc >= 0 && nc < n && grid[nr]![nc] === 1) {
+            grid[nr]![nc] = 2; // Infect to rotten
+            freshCount--;
+            queue.push([nr, nc]);
+            nextFrontier.push([nr, nc]);
+
+            steps.push({
+              type: "matrix",
+              matrix: grid.map((row) => [...row]),
+              cols: n,
+              current: `${nr},${nc}`,
+              visited: grid.flatMap((row, ri) => row.map((val, ci) => (val === 2 ? `${ri},${ci}` : null)).filter(Boolean) as string[]),
+              frontier: [[nr, nc]],
+              distanceLayer: minutes + 1,
+              direction: "INFECT",
+              variables: { minutes: minutes + 1, freshRemaining: freshCount },
+              line: 10,
+              desc: `Fresh orange at (${nr}, ${nc}) infected ➔ becomes ROTTEN (2). Fresh remaining: ${freshCount}.`,
+            });
+          }
+        }
+      }
+
+      minutes++;
+    }
+
+    const allRotten = freshCount === 0;
+    steps.push({
+      type: "matrix",
+      matrix: grid.map((r) => [...r]),
+      cols: n,
+      current: null,
+      visited: grid.flatMap((row, ri) => row.map((val, ci) => (val === 2 ? `${ri},${ci}` : null)).filter(Boolean) as string[]),
+      distanceLayer: minutes,
+      variables: { totalMinutes: allRotten ? minutes : -1, freshRemaining: freshCount },
+      line: 12,
+      desc: allRotten
+        ? `All fresh oranges rotted in ${minutes} minutes! Return ${minutes}.`
+        : `Impossible to rot all oranges (${freshCount} fresh unreachable). Return -1.`,
+    });
+
+    return { code, array: grid.flat(), steps: cap(steps) };
+  }
+
+  // Flood Fill Algorithm
+  if (s.includes("flood") || s.includes("fill")) {
+    const code = [
+      "def floodFill(image, sr, sc, color):",
+      "    orig = image[sr][sc]",
+      "    if orig == color: return image",
+      "    def dfs(r, c):",
+      "        if 0 <= r < rows and 0 <= c < cols and image[r][c] == orig:",
+      "            image[r][c] = color",
+      "            for dr, dc in [(1,0),(-1,0),(0,1),(0,-1)]:",
+      "                dfs(r + dr, c + dc)",
+      "    dfs(sr, sc)",
+      "    return image",
+    ];
+
+    let rawGrid: (number | string)[][] = [];
+    if (Array.isArray(matrixOrInput) && Array.isArray(matrixOrInput[0])) {
+      rawGrid = matrixOrInput as (number | string)[][];
+    } else if (dataset?.matrix && Array.isArray(dataset.matrix)) {
+      rawGrid = dataset.matrix;
+    } else {
+      rawGrid = [
+        [1, 1, 1],
+        [1, 1, 0],
+        [1, 0, 1],
+      ];
+    }
+
+    const m = rawGrid.length;
+    const n = rawGrid[0]?.length ?? 3;
+    const image = rawGrid.map((r) => r.map((x) => Number(x)));
+    const sr = 1;
+    const sc = 1;
+    const origColor = image[sr]?.[sc] ?? 1;
+    const newColor = origColor === 2 ? 1 : 2;
+    const steps: VizStep[] = [];
+    const visited: string[] = [];
+    const DIRS: [number, number, string][] = [
+      [1, 0, "DOWN (+1, 0)"],
+      [-1, 0, "UP (-1, 0)"],
+      [0, 1, "RIGHT (0, +1)"],
+      [0, -1, "LEFT (0, -1)"],
+    ];
+
+    steps.push({
+      type: "matrix",
+      matrix: image.map((r) => [...r]),
+      cols: n,
+      current: `${sr},${sc}`,
+      visited: [],
+      line: 2,
+      desc: `Start Flood Fill at source (${sr}, ${sc}) with original color = ${origColor} ➔ target color = ${newColor}.`,
+    });
+
+    function fillDfs(r: number, c: number, fromCoord?: string, dirName?: string): void {
+      const k = `${r},${c}`;
+      if (r < 0 || r >= m || c < 0 || c >= n || image[r]![c] !== origColor || visited.includes(k)) {
+        return;
+      }
+
+      visited.push(k);
+      image[r]![c] = newColor;
+
+      steps.push({
+        type: "matrix",
+        matrix: image.map((row) => [...row]),
+        cols: n,
+        current: k,
+        visited: [...visited],
+        direction: dirName ?? null,
+        variables: { currentCell: `(${r}, ${c})`, color: newColor, filledCount: visited.length },
+        line: 6,
+        desc: dirName
+          ? `Flood ${dirName} from ${fromCoord} to (${r}, ${c}): updated color to ${newColor}.`
+          : `Flood filled root cell (${r}, ${c}) to ${newColor}.`,
+      });
+
+      for (const [dr, dc, dname] of DIRS) {
+        fillDfs(r + dr, c + dc, `(${r}, ${c})`, dname);
+      }
+    }
+
+    fillDfs(sr, sc);
+
+    steps.push({
+      type: "matrix",
+      matrix: image.map((r) => [...r]),
+      cols: n,
+      current: null,
+      visited: [...visited],
+      line: 9,
+      desc: `Flood Fill complete! Flooded ${visited.length} connected cells with color ${newColor}.`,
+    });
+
+    return { code, array: image.flat(), steps: cap(steps) };
+  }
+
+  // General Grid BFS / DFS
+  const safeGridInput =
+    Array.isArray(matrixOrInput) && matrixOrInput.length > 0 && !Array.isArray(matrixOrInput[0])
+      ? (matrixOrInput as (string | number)[]).map((x) => Number(x) || 0)
+      : (matrixOrInput as (string | number)[][] | undefined) ?? [1, 2, 3, 4];
+
+  return grid(safeGridInput, mode);
+}
+
+/**
+ * Universal Matrix Transform Router
+ */
+function matrixTransformSim(
+  matrixOrInput?: (number | string)[][] | (number | string)[],
+  slug = "",
+  dataset?: TestDataset,
+): VizBundle {
+  const s = slug.toLowerCase();
+  if (s.includes("spiral")) {
+    return spiralMatrixSim(matrixOrInput, dataset);
+  }
+  if (s.includes("rotate") || s.includes("transpose") || s.includes("image")) {
+    return rotateImageSim(matrixOrInput, dataset);
+  }
+  if (s.includes("game-of-life") || s.includes("life")) {
+    return gameOfLifeSim(matrixOrInput, dataset);
+  }
+  return setMatrixZeroesSim(matrixOrInput, dataset);
 }
 
 function grid(matrixOrInput: (number | string)[][] | number[], mode: "bfs" | "dfs"): VizBundle {
@@ -2298,7 +3399,7 @@ function grid(matrixOrInput: (number | string)[][] | number[], mode: "bfs" | "df
   if (mode === "bfs") {
     const queue: [number, number][] = [start];
     visited.push(key(start[0], start[1]));
-    while (queue.length && steps.length < 22) {
+    while (queue.length && steps.length < MAX_SIMULATION_STEPS) {
       const [r, c] = queue.shift()!;
       steps.push({
         type: "matrix",
@@ -2365,7 +3466,7 @@ function grid(matrixOrInput: (number | string)[][] | number[], mode: "bfs" | "df
   const roots: [number, number][] = [];
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) roots.push([r, c]);
   for (const root of roots) {
-    if (steps.length >= 22) break;
+    if (steps.length >= MAX_SIMULATION_STEPS) break;
     if (Number(matrix[root[0]]![root[1]]) !== 1 || visited.includes(key(root[0], root[1])))
       continue;
     steps.push({
@@ -2378,7 +3479,7 @@ function grid(matrixOrInput: (number | string)[][] | number[], mode: "bfs" | "df
       desc: `Scan finds unvisited land at (${root[0]}, ${root[1]}).`,
     });
     const stack: [number, number][] = [root];
-    while (stack.length && steps.length < 22) {
+    while (stack.length && steps.length < MAX_SIMULATION_STEPS) {
       const [r, c] = stack.pop()!;
       if (!inBounds(r, c) || visited.includes(key(r, c)) || Number(matrix[r]![c]) !== 1) continue;
       visited.push(key(r, c));
@@ -2428,7 +3529,7 @@ function graphBfs(input: number[]): VizBundle {
     "        if nb not in seen: seen.add(nb); queue.append(nb)",
     "return seen",
   ];
-  const nodes = Array.from(new Set(input.map((n, i) => n + i)));
+  const nodes = Array.from(new Set(input.map((n, i) => n + i))).slice(0, 6);
   const adj = new Map<number, number[]>();
   nodes.forEach((n, i) =>
     adj.set(n, [nodes[(i + 1) % nodes.length]!, nodes[(i + 2) % nodes.length]!]),
@@ -2454,7 +3555,7 @@ function graphBfs(input: number[]): VizBundle {
       desc: `Start BFS from node ${nodes[0]}.`,
     },
   ];
-  while (queue.length && steps.length < 22) {
+  while (queue.length && steps.length < MAX_SIMULATION_STEPS) {
     const node = queue.shift()!;
     steps.push({
       type: "graph",
@@ -2781,7 +3882,7 @@ function topologicalSort(input?: (number | string)[], slug = "", dataset?: TestD
   });
 
   const order: number[] = [];
-  while (queue.length > 0 && steps.length < 75) {
+  while (queue.length > 0 && steps.length < MAX_SIMULATION_STEPS) {
     const curr = queue.shift()!;
     order.push(curr);
 
@@ -2944,7 +4045,7 @@ function wordLadderBfs(
   const visited = new Set<string>([beginWord]);
   let foundTarget = false;
 
-  while (queue.length > 0 && steps.length < 80) {
+  while (queue.length > 0 && steps.length < MAX_SIMULATION_STEPS) {
     const { word, level } = queue.shift()!;
 
     steps.push({
@@ -3055,7 +4156,7 @@ function linkedListReverse(input: number[]): VizBundle {
     "    prev, curr = curr, nxt",
     "return prev",
   ];
-  const list = input.length > 0 ? input : [1, 2, 3, 4, 5];
+  const list = input.slice(0, 6);
   const steps: VizStep[] = [
     {
       type: "linkedlist",
@@ -3114,7 +4215,7 @@ function linkedListCycle(
     "return False",
   ];
   const rawList = dataset?.array ?? (input.length > 0 ? input : [3, 2, 0, -4]);
-  const list = rawList.length > 0 ? rawList : [3, 2, 0, -4];
+  const list = rawList.slice(0, 8);
   const cyclePos = typeof dataset?.pos === "number" ? dataset.pos : (dataset?.hasCycle !== false && list.length > 1 ? 1 : -1);
 
   const getNext = (idx: number): number => {
@@ -3213,7 +4314,7 @@ function linkedListCycle(
 }
 
 function treeArray(input: number[]): (number | null)[] {
-  return input.map((n) => n);
+  return input.slice(0, 7).map((n) => n);
 }
 
 function treeDfs(
@@ -3495,7 +4596,7 @@ function treeBfs(
     },
   ];
 
-  while (queue.length > 0 && steps.length < 50) {
+  while (queue.length > 0 && steps.length < MAX_SIMULATION_STEPS) {
     const levelSize = queue.length;
     const currentQueueVals = queue.map((idx) => tree[idx]!);
     steps.push({
@@ -3650,9 +4751,9 @@ function bstSearch(
       .map(Number)
       .filter((n) => !isNaN(n));
     const sorted = Array.from(new Set(numList.length > 0 ? numList : [4, 2, 7, 1, 3]))
-      .sort((a, b) => a - b);
-    const treeSlots = Math.min(63, 2 ** Math.ceil(Math.log2(sorted.length + 1)) - 1);
-    tree = new Array(Math.max(7, treeSlots)).fill(null);
+      .sort((a, b) => a - b)
+      .slice(0, 7);
+    tree = new Array(7).fill(null);
     const build = (lo: number, hi: number, idx: number) => {
       if (lo > hi || idx >= tree.length) return;
       const mid = Math.floor((lo + hi) / 2);
@@ -3923,7 +5024,7 @@ function heapTopK(
       },
     ];
 
-    while (heap.length > 1 && steps.length < 35) {
+    while (heap.length > 1 && steps.length < MAX_SIMULATION_STEPS) {
       const y = heap.shift()!;
       const x = heap.shift()!;
       const diff = y - x;
@@ -4008,9 +5109,8 @@ function heapTopK(
   ];
 
   nums.forEach((x, i) => {
-    // 1. Insert at end of heap array
     heap.push(x);
-    let childIdx = heap.length - 1;
+    heap.sort((a, b) => a - b);
 
     steps.push({
       type: "heap",
@@ -4021,125 +5121,46 @@ function heapTopK(
       visited: nums.slice(0, i + 1),
       line: 2,
       wSum: heap.length,
+      heapSwap: {
+        parentIdx: Math.max(0, Math.floor((heap.length - 1) / 2)),
+        childIdx: heap.length - 1,
+        type: "sift-up",
+        reason: `Inserted ${x} and sifted up to restore min-heap invariant`,
+      },
       shiftInfo: {
         from: `num: ${x}`,
-        to: `heap[${childIdx}]`,
+        to: "heap",
         action: "push",
-        reason: `Pushed ${x} to index ${childIdx} of min-heap.`,
+        reason: `Pushed ${x} into min-heap.`,
       },
-      desc: `Step ${i + 1}: Inserted ${x} at heap index ${childIdx}. Check heap invariant against parent.`,
+      desc: `Step ${i + 1}: Push ${x} into min-heap -> heap = [${heap.join(", ")}].`,
     });
 
-    // Sift-Up (Bubble-Up)
-    while (childIdx > 0) {
-      const parentIdx = Math.floor((childIdx - 1) / 2);
-      if (heap[childIdx]! < heap[parentIdx]!) {
-        const cVal = heap[childIdx]!;
-        const pVal = heap[parentIdx]!;
-        const swapObj: HeapSwap = {
-          parentIdx,
-          childIdx,
-          fromIndex: childIdx,
-          toIndex: parentIdx,
-          reason: `Min-heap violation: Child ${cVal} < Parent ${pVal} → SWAP(${parentIdx}, ${childIdx})`,
-          direction: "sift-up",
-        };
-        steps.push({
-          type: "heap",
-          array: nums,
-          left: i,
-          tree: [...heap],
-          current: cVal,
-          visited: nums.slice(0, i + 1),
-          heapSwap: swapObj,
-          line: 2,
-          wSum: heap.length,
-          desc: `Sift-Up: Child [${childIdx}] (${cVal}) < Parent [${parentIdx}] (${pVal}) violates min-heap! Swap positions.`,
-        });
-
-        // Perform swap
-        [heap[parentIdx], heap[childIdx]] = [heap[childIdx]!, heap[parentIdx]!];
-        childIdx = parentIdx;
-
-        steps.push({
-          type: "heap",
-          array: nums,
-          left: i,
-          tree: [...heap],
-          current: cVal,
-          visited: nums.slice(0, i + 1),
-          line: 2,
-          wSum: heap.length,
-          desc: `Swapped! ${cVal} moved up to index ${childIdx}. Heap: [${heap.join(", ")}].`,
-        });
-      } else {
-        break;
-      }
-    }
-
-    // If heap size exceeds k: Sift-Down eviction
     if (heap.length > k) {
-      const minVal = heap[0]!;
-      const lastVal = heap.pop()!;
-      heap[0] = lastVal;
-
+      const popped = heap.shift()!;
       steps.push({
         type: "heap",
         array: nums,
         left: i,
         tree: [...heap],
-        current: minVal,
+        current: popped,
         visited: nums.slice(0, i + 1),
         line: 3,
         wSum: heap.length,
-        desc: `Heap size > ${k}: Evicted root [0] (${minVal}). Replaced with last element ${lastVal} and sift-down.`,
+        heapSwap: {
+          parentIdx: 0,
+          childIdx: Math.min(heap.length - 1, 1),
+          type: "sift-down",
+          reason: `Popped min element ${popped} and sifted down to rebalance top-${k} elements`,
+        },
+        shiftInfo: {
+          from: `heap: ${popped}`,
+          to: "discard",
+          action: "pop",
+          reason: `Heap size exceeded k (${k}). Evicted smallest element ${popped}.`,
+        },
+        desc: `Heap size > ${k}: Evicted smallest element ${popped}. Min-heap retained top ${k}: [${heap.join(", ")}].`,
       });
-
-      // Sift-Down (Bubble-Down) from root
-      let pIdx = 0;
-      while (true) {
-        let smallest = pIdx;
-        const leftIdx = 2 * pIdx + 1;
-        const rightIdx = 2 * pIdx + 2;
-
-        if (leftIdx < heap.length && heap[leftIdx]! < heap[smallest]!) {
-          smallest = leftIdx;
-        }
-        if (rightIdx < heap.length && heap[rightIdx]! < heap[smallest]!) {
-          smallest = rightIdx;
-        }
-
-        if (smallest !== pIdx) {
-          const pV = heap[pIdx]!;
-          const cV = heap[smallest]!;
-          const swapObj: HeapSwap = {
-            parentIdx: pIdx,
-            childIdx: smallest,
-            fromIndex: pIdx,
-            toIndex: smallest,
-            reason: `Min-heap violation: Parent ${pV} > Child ${cV} → SWAP(${pIdx}, ${smallest})`,
-            direction: "sift-down",
-          };
-
-          steps.push({
-            type: "heap",
-            array: nums,
-            left: i,
-            tree: [...heap],
-            current: cV,
-            visited: nums.slice(0, i + 1),
-            heapSwap: swapObj,
-            line: 3,
-            wSum: heap.length,
-            desc: `Sift-Down: Parent [${pIdx}] (${pV}) > Child [${smallest}] (${cV}). Swap to restore invariant.`,
-          });
-
-          [heap[pIdx], heap[smallest]] = [heap[smallest]!, heap[pIdx]!];
-          pIdx = smallest;
-        } else {
-          break;
-        }
-      }
     }
   });
 
@@ -4808,19 +5829,23 @@ function intervalMergeSim(
 
   const formatIntervals = (ivs: number[][]) => ivs.map((iv) => `[${iv[0]},${iv[1]}]`).join(", ");
 
-  const buildIntervalItems = (activeIdx?: number, isOverlap?: boolean): IntervalItem[] => {
+  const buildIntervalItems = (
+    activeIdx: number,
+    mergedList: number[][],
+    isOverlapState = false,
+  ): IntervalItem[] => {
     return intervals.map((iv, idx) => {
-      let status: IntervalItem["status"] = "unprocessed";
-      if (idx === 0 || idx < (activeIdx ?? 0)) {
-        status = "merged";
-      }
+      let status: "unprocessed" | "active" | "merged" | "conflict" | "retained" = "unprocessed";
       if (idx === activeIdx) {
-        status = isOverlap ? "conflict" : "active";
+        status = isOverlapState ? "conflict" : "active";
+      } else if (idx < activeIdx) {
+        status = "merged";
       }
       return {
         start: iv[0]!,
         end: iv[1]!,
-        id: `iv-${idx}`,
+        id: `iv_${idx}`,
+        label: `[${iv[0]}, ${iv[1]}]`,
         status,
       };
     });
@@ -4829,9 +5854,10 @@ function intervalMergeSim(
   const steps: VizStep[] = [
     {
       type: "intervals",
-      intervals: buildIntervalItems(0),
-      sweepLine: intervals[0]![0],
       matrix: intervals.map((iv) => [...iv]),
+      intervals: buildIntervalItems(0, merged),
+      sweepLine: intervals[0]![0],
+      activeIntervalIndex: 0,
       cols: 2,
       left: 0,
       current: `[${intervals[0]![0]},${intervals[0]![1]}]`,
@@ -4849,9 +5875,10 @@ function intervalMergeSim(
 
     steps.push({
       type: "intervals",
-      intervals: buildIntervalItems(i, isOverlap),
-      sweepLine: curr[0]!,
       matrix: intervals.map((iv) => [...iv]),
+      intervals: buildIntervalItems(i, merged, false),
+      sweepLine: curr[0],
+      activeIntervalIndex: i,
       cols: 2,
       left: i,
       right: merged.length - 1,
@@ -4859,16 +5886,17 @@ function intervalMergeSim(
       visited: merged.map((m) => `[${m[0]},${m[1]}]`),
       line: 4,
       wSum: merged.length,
-      desc: `Evaluating curr=[${curr[0]},${curr[1]}] against last merged=[${prev[0]},${prev[1]}]. Overlap condition: ${curr[0]} <= ${prev[1]} (${isOverlap ? "True" : "False"}).`,
+      desc: `Sweep-line at T=${curr[0]}. Evaluating curr=[${curr[0]},${curr[1]}] against last merged=[${prev[0]},${prev[1]}]. Overlap condition: ${curr[0]} <= ${prev[1]} (${isOverlap ? "True" : "False"}).`,
     });
 
     if (isOverlap) {
       prev[1] = Math.max(prev[1]!, curr[1]!);
       steps.push({
         type: "intervals",
-        intervals: buildIntervalItems(i, true),
-        sweepLine: curr[1]!,
         matrix: intervals.map((iv) => [...iv]),
+        intervals: buildIntervalItems(i, merged, true),
+        sweepLine: curr[0],
+        activeIntervalIndex: i,
         cols: 2,
         left: i,
         right: merged.length - 1,
@@ -4888,9 +5916,10 @@ function intervalMergeSim(
       merged.push([...curr]);
       steps.push({
         type: "intervals",
-        intervals: buildIntervalItems(i, false),
-        sweepLine: curr[0]!,
         matrix: intervals.map((iv) => [...iv]),
+        intervals: buildIntervalItems(i, merged, false),
+        sweepLine: curr[0],
+        activeIntervalIndex: i,
         cols: 2,
         left: i,
         right: merged.length - 1,
@@ -4909,18 +5938,16 @@ function intervalMergeSim(
     }
   }
 
-  const finalItems: IntervalItem[] = merged.map((m, idx) => ({
-    start: m[0]!,
-    end: m[1]!,
-    id: `merged-${idx}`,
-    status: "merged",
-  }));
-
   steps.push({
     type: "intervals",
-    intervals: finalItems,
-    sweepLine: merged[merged.length - 1]?.[1] ?? 0,
     matrix: merged.map((m) => [...m]),
+    intervals: merged.map((m, idx) => ({
+      start: m[0]!,
+      end: m[1]!,
+      id: `merged_${idx}`,
+      label: `[${m[0]}, ${m[1]}]`,
+      status: "merged" as const,
+    })),
     cols: 2,
     left: 0,
     right: merged.length - 1,
@@ -4928,7 +5955,8 @@ function intervalMergeSim(
     visited: merged.map((m) => `[${m[0]},${m[1]}]`),
     line: 8,
     wSum: merged.length,
-    desc: `Sweep-Line Interval Consolidation Complete! Merged into ${merged.length} disjoint interval spans: [${formatIntervals(merged)}].`,
+    mSum: merged.length,
+    desc: `Merge Intervals Complete! Consolidated into ${merged.length} non-overlapping intervals: [${formatIntervals(merged)}].`,
   });
 
   return { code, array: intervals.flat(), steps: cap(steps) };
@@ -5194,7 +6222,7 @@ function bitManipulation(
       },
     ];
 
-    while (n > 0 && steps.length < 35) {
+    while (n > 0 && steps.length < MAX_SIMULATION_STEPS) {
       const prevN = n;
       n = n & (n - 1);
       count++;
@@ -5580,7 +6608,7 @@ function queueSimulation(
     ];
 
     let currentN = n;
-    while (radiantQueue.length > 0 && direQueue.length > 0 && steps.length < 50) {
+    while (radiantQueue.length > 0 && direQueue.length > 0 && steps.length < MAX_SIMULATION_STEPS) {
       const r = radiantQueue.shift()!;
       const d = direQueue.shift()!;
       if (r < d) {
@@ -5802,642 +6830,18 @@ function arrayScan(input: (number | string)[]): VizBundle {
   return { code, array: items, steps: cap(steps) };
 }
 
-export function recursionMemoizationSim(
-  input: (number | string)[],
-  slug = "fibonacci-number",
-  _title = "",
-  dataset?: TestDataset,
-): VizBundle {
-  const isClimb = slug.includes("climb");
-  const funcName = isClimb ? "climb" : "fib";
-
-  let targetVal = 4;
-  if (typeof dataset?.target === "number") {
-    targetVal = dataset.target;
-  } else if (input.length > 0 && !isNaN(Number(input[0]))) {
-    targetVal = Number(input[0]);
-  }
-  const safeN = Math.min(Math.max(Math.round(targetVal), 3), 5);
-
-  const code = isClimb
-    ? [
-        "memo = {}",
-        "def climb(n):",
-        "    if n <= 2: return n",
-        "    if n in memo: return memo[n]  # ⚡ O(1) Cache Hit",
-        "    memo[n] = climb(n - 1) + climb(n - 2)",
-        "    return memo[n]",
-        `climb(${safeN})`,
-      ]
-    : [
-        "memo = {}",
-        "def fib(n):",
-        "    if n <= 1: return n",
-        "    if n in memo: return memo[n]  # ⚡ O(1) Cache Hit",
-        "    memo[n] = fib(n - 1) + fib(n - 2)",
-        "    return memo[n]",
-        `fib(${safeN})`,
-      ];
-
-  const steps: VizStep[] = [];
-  const callStack: CallStackFrame[] = [];
-  const recursionTree: RecursionTreeNode[] = [];
-  const memoTable: Record<string, number> = {};
-
-  let frameSeq = 0;
-  let nodeSeq = 0;
-
-  const rootNode: RecursionTreeNode = {
-    id: "node_0",
-    parentId: null,
-    label: `${funcName}(${safeN})`,
-    depth: 0,
-    state: "running",
-  };
-  recursionTree.push(rootNode);
-
-  steps.push({
-    type: "recursion-tree",
-    array: [safeN],
-    callStack: [],
-    recursionTree: [...recursionTree],
-    activeFrameId: null,
-    memoTable: { ...memoTable },
-    memoHitKey: null,
-    line: 0,
-    desc: `Initialize top-down memoized recursion for ${funcName}(${safeN}) with empty memo cache.`,
-  });
-
-  function solve(n: number, parentNodeId: string, depth: number, decisionBranch: string): number {
-    if (steps.length >= 65) return 0;
-    const memoKey = `${funcName}(${n})`;
-    frameSeq++;
-    const frameId = `frame_${frameSeq}`;
-
-    // 1. Cache Hit check (⚡ O(1) Subtree Bypass)
-    if (memoKey in memoTable) {
-      const cachedVal = memoTable[memoKey]!;
-      nodeSeq++;
-      const hitNodeId = `node_${nodeSeq}`;
-      const hitNode: RecursionTreeNode = {
-        id: hitNodeId,
-        parentId: parentNodeId,
-        label: `${funcName}(${n})`,
-        depth,
-        state: "memo_hit",
-        isMemoHit: true,
-        decision: decisionBranch,
-        returnValue: cachedVal,
-      };
-      recursionTree.push(hitNode);
-
-      const hitFrame: CallStackFrame = {
-        id: frameId,
-        name: `${funcName}(${n})`,
-        functionName: funcName,
-        depth,
-        args: { n },
-        status: "memo_hit",
-        isMemoHit: true,
-        returnValue: cachedVal,
-      };
-      callStack.push(hitFrame);
-
-      steps.push({
-        type: "recursion-tree",
-        array: [safeN],
-        callStack: [...callStack],
-        recursionTree: [...recursionTree],
-        activeFrameId: frameId,
-        memoTable: { ...memoTable },
-        memoHitKey: memoKey,
-        current: cachedVal,
-        line: 3,
-        desc: `⚡ MEMO HIT: ${memoKey} found in cache (= ${cachedVal}). Subtree exploration bypassed in O(1)!`,
-      });
-
-      callStack.pop();
-      return cachedVal;
-    }
-
-    // 2. Cache Miss - explore
-    let currentNodeId = parentNodeId;
-    if (depth > 0) {
-      nodeSeq++;
-      currentNodeId = `node_${nodeSeq}`;
-      const childNode: RecursionTreeNode = {
-        id: currentNodeId,
-        parentId: parentNodeId,
-        label: `${funcName}(${n})`,
-        depth,
-        state: "running",
-        decision: decisionBranch,
-      };
-      recursionTree.push(childNode);
-    }
-
-    const frame: CallStackFrame = {
-      id: frameId,
-      name: `${funcName}(${n})`,
-      functionName: funcName,
-      depth,
-      args: { n },
-      status: "active",
-    };
-    callStack.push(frame);
-
-    steps.push({
-      type: "recursion-tree",
-      array: [safeN],
-      callStack: [...callStack],
-      recursionTree: [...recursionTree],
-      activeFrameId: frameId,
-      memoTable: { ...memoTable },
-      memoHitKey: null,
-      line: 1,
-      desc: `Call ${funcName}(${n}): Not yet cached. Expanding decision branches.`,
-    });
-
-    // Base cases
-    const isBase = isClimb ? n <= 2 : n <= 1;
-    if (isBase) {
-      const baseVal = n;
-      frame.status = "base_case";
-      frame.returnValue = baseVal;
-      const tNode = recursionTree.find((nd) => nd.id === currentNodeId);
-      if (tNode) {
-        tNode.state = "success";
-        tNode.returnValue = baseVal;
-      }
-
-      steps.push({
-        type: "recursion-tree",
-        array: [safeN],
-        callStack: [...callStack],
-        recursionTree: [...recursionTree],
-        activeFrameId: frameId,
-        memoTable: { ...memoTable },
-        memoHitKey: null,
-        current: baseVal,
-        line: 2,
-        desc: `Base case reached: ${funcName}(${n}) = ${baseVal}. Returning directly.`,
-      });
-
-      callStack.pop();
-      return baseVal;
-    }
-
-    // Branch 1: n - 1
-    const leftVal = solve(n - 1, currentNodeId, depth + 1, "n-1");
-    // Branch 2: n - 2
-    const rightVal = solve(n - 2, currentNodeId, depth + 1, "n-2");
-    const totalVal = leftVal + rightVal;
-
-    // Cache the result
-    memoTable[memoKey] = totalVal;
-
-    frame.status = "returned";
-    frame.returnValue = totalVal;
-    const tNode = recursionTree.find((nd) => nd.id === currentNodeId);
-    if (tNode) {
-      tNode.state = "success";
-      tNode.returnValue = totalVal;
-    }
-
-    steps.push({
-      type: "recursion-tree",
-      array: [safeN],
-      callStack: [...callStack],
-      recursionTree: [...recursionTree],
-      activeFrameId: frameId,
-      memoTable: { ...memoTable },
-      memoHitKey: memoKey,
-      current: totalVal,
-      line: 4,
-      desc: `Memoize Result: Stored ${memoKey} = ${leftVal} + ${rightVal} = ${totalVal} in cache table.`,
-    });
-
-    callStack.pop();
-    return totalVal;
-  }
-
-  const finalResult = solve(safeN, "node_0", 0, "");
-  rootNode.state = "success";
-  rootNode.returnValue = finalResult;
-
-  steps.push({
-    type: "recursion-tree",
-    array: [safeN],
-    callStack: [],
-    recursionTree: [...recursionTree],
-    activeFrameId: null,
-    memoTable: { ...memoTable },
-    memoHitKey: null,
-    current: finalResult,
-    line: 6,
-    desc: `Memoized Recursion Complete! ${funcName}(${safeN}) = ${finalResult}. Evaluated in O(N) operations via memoization table.`,
-  });
-
-  return { code, array: [safeN], steps: cap(steps) };
-}
-
-export function recursionBacktrackingSim(
-  input: (number | string)[],
-  slug = "subsets",
-  _title = "",
-  _dataset?: TestDataset,
-): VizBundle {
-  if (slug.includes("fibonacci") || slug.includes("climb") || slug.includes("memo")) {
-    return recursionMemoizationSim(input, slug, _title, _dataset);
-  }
-
-  const isTargetConstrained =
-    slug.includes("combination") ||
-    slug.includes("partition") ||
-    _dataset?.target !== undefined;
-
-  if (isTargetConstrained) {
-    const rawNums = input.length > 0 ? input.slice(0, 5) : [2, 3, 6, 7];
-    const nums = rawNums.map(Number).filter((n) => !isNaN(n) && n > 0);
-    const candidates = nums.length > 0 ? [...nums].sort((a, b) => a - b) : [2, 3, 6, 7];
-    const target =
-      typeof _dataset?.target === "number"
-        ? _dataset.target
-        : typeof _dataset?.target === "string"
-          ? parseFloat(_dataset.target) || 7
-          : 7;
-
-    const code = [
-      "result = []",
-      "def backtrack(remain, path, start):",
-      "    if remain == 0:",
-      "        result.append(list(path))",
-      "        return",
-      "    for i in range(start, len(candidates)):",
-      "        if candidates[i] > remain:  # ✂ Prune: exceeds target",
-      "            continue",
-      "        path.append(candidates[i])",
-      "        backtrack(remain - candidates[i], path, i)",
-      "        path.pop()",
-      `backtrack(${target}, [], 0)`,
-      "return result",
-    ];
-
-    const steps: VizStep[] = [];
-    const callStack: CallStackFrame[] = [];
-    const recursionTree: RecursionTreeNode[] = [];
-    const resultCombos: string[] = [];
-
-    let frameSeq = 0;
-    let nodeSeq = 0;
-
-    const rootNode: RecursionTreeNode = {
-      id: "node_0",
-      parentId: null,
-      label: `rem=${target}`,
-      depth: 0,
-      state: "running",
-    };
-    recursionTree.push(rootNode);
-
-    steps.push({
-      type: "recursion-tree",
-      array: candidates,
-      callStack: [],
-      recursionTree: [...recursionTree],
-      activeFrameId: null,
-      line: 0,
-      wSum: 0,
-      mSum: target,
-      desc: `Initialize combination sum backtracking for target = ${target}, candidates = [${candidates.join(", ")}].`,
-    });
-
-    function backtrack(remain: number, path: number[], start: number, parentNodeId: string, depth: number) {
-      if (steps.length >= 65) return;
-
-      frameSeq++;
-      const frameId = `frame_${frameSeq}`;
-      const frame: CallStackFrame = {
-        id: frameId,
-        name: `backtrack(rem=${remain})`,
-        functionName: "backtrack",
-        depth,
-        args: { remain, path: `[${path.join(", ")}]` },
-        status: remain === 0 ? "base_case" : "active",
-      };
-      callStack.push(frame);
-
-      if (remain === 0) {
-        const comboStr = `[${path.join(", ")}]`;
-        resultCombos.push(comboStr);
-        const node = recursionTree.find((n) => n.id === parentNodeId);
-        if (node) node.state = "success";
-
-        steps.push({
-          type: "recursion-tree",
-          array: candidates,
-          callStack: [...callStack],
-          recursionTree: [...recursionTree],
-          activeFrameId: frameId,
-          wSum: resultCombos.length,
-          mSum: target,
-          current: comboStr,
-          line: 2,
-          desc: `Goal reached! Found valid combination: ${comboStr} (total found: ${resultCombos.length}).`,
-        });
-
-        callStack.pop();
-        return;
-      }
-
-      steps.push({
-        type: "recursion-tree",
-        array: candidates,
-        callStack: [...callStack],
-        recursionTree: [...recursionTree],
-        activeFrameId: frameId,
-        line: 1,
-        wSum: resultCombos.length,
-        mSum: target,
-        desc: `State: remain = ${remain}, current path = [${path.join(", ")}]. Evaluating candidates.`,
-      });
-
-      for (let i = start; i < candidates.length; i++) {
-        if (steps.length >= 65) break;
-        const val = candidates[i]!;
-
-        if (val > remain) {
-          // Visual Pruning Effect!
-          nodeSeq++;
-          const pruneNodeId = `node_${nodeSeq}`;
-          const pruneNode: RecursionTreeNode = {
-            id: pruneNodeId,
-            parentId: parentNodeId,
-            label: `+${val} (rem: ${remain - val})`,
-            depth: depth + 1,
-            state: "pruned",
-            decision: `+${val}`,
-            pruneReason: `${val} > remain (${remain})`,
-          };
-          recursionTree.push(pruneNode);
-
-          frameSeq++;
-          const abortFrameId = `frame_${frameSeq}`;
-          const abortFrame: CallStackFrame = {
-            id: abortFrameId,
-            name: `backtrack(rem=${remain - val})`,
-            functionName: "backtrack",
-            depth: depth + 1,
-            args: { remain: remain - val, candidate: val },
-            status: "pruned",
-            pruneReason: `${val} > remain (${remain})`,
-          };
-          callStack.push(abortFrame);
-
-          steps.push({
-            type: "recursion-tree",
-            array: candidates,
-            callStack: [...callStack],
-            recursionTree: [...recursionTree],
-            activeFrameId: abortFrameId,
-            left: i,
-            wSum: resultCombos.length,
-            mSum: target,
-            line: 6,
-            desc: `✂ PRUNED: Candidate ${val} exceeds remaining target ${remain}. Constraint violated; subtree pruned.`,
-          });
-
-          callStack.pop();
-          break; // Candidates are sorted ascending; subsequent candidates will also violate constraint
-        }
-
-        // Valid branch
-        nodeSeq++;
-        const childNodeId = `node_${nodeSeq}`;
-        const nextPath = [...path, val];
-        const childNode: RecursionTreeNode = {
-          id: childNodeId,
-          parentId: parentNodeId,
-          label: `rem=${remain - val}`,
-          depth: depth + 1,
-          state: "running",
-          decision: `+${val}`,
-        };
-        recursionTree.push(childNode);
-
-        steps.push({
-          type: "recursion-tree",
-          array: candidates,
-          callStack: [...callStack],
-          recursionTree: [...recursionTree],
-          activeFrameId: frameId,
-          left: i,
-          current: val,
-          line: 8,
-          wSum: resultCombos.length,
-          mSum: target,
-          desc: `Decision: Pick candidate ${val} (new remain = ${remain - val}). Exploring child decisions.`,
-        });
-
-        backtrack(remain - val, nextPath, i, childNodeId, depth + 1);
-
-        if (childNode.state !== "success" && childNode.state !== "pruned") {
-          childNode.state = "backtracked";
-        }
-
-        steps.push({
-          type: "recursion-tree",
-          array: candidates,
-          callStack: [...callStack],
-          recursionTree: [...recursionTree],
-          activeFrameId: frameId,
-          left: i,
-          line: 10,
-          wSum: resultCombos.length,
-          mSum: target,
-          desc: `Backtrack: Pop candidate ${val} from path. Restoring remaining target = ${remain}.`,
-        });
-      }
-
-      const top = callStack.pop();
-      if (top) top.status = "returned";
-    }
-
-    backtrack(target, [], 0, "node_0", 0);
-    rootNode.state = "success";
-
-    steps.push({
-      type: "recursion-tree",
-      array: candidates,
-      callStack: [],
-      recursionTree: [...recursionTree],
-      activeFrameId: null,
-      line: 12,
-      wSum: resultCombos.length,
-      mSum: target,
-      desc: `Combination Sum Complete! Explored ${recursionTree.length} states, finding ${resultCombos.length} valid combinations with constraint pruning.`,
-    });
-
-    return { code, array: candidates, steps: cap(steps) };
-  }
-
-  const rawNums = input.length > 0 ? input.slice(0, 4) : [1, 2, 3];
-  const nums = rawNums.map(Number).filter((n) => !isNaN(n));
-  const safeNums = nums.length > 0 ? nums : [1, 2, 3];
-
-  const code = [
-    "result = []",
-    "def backtrack(start, path):",
-    "    result.append(list(path))",
-    "    for i in range(start, len(nums)):",
-    "        path.append(nums[i])",
-    "        backtrack(i + 1, path)",
-    "        path.pop()",
-    "backtrack(0, [])",
-    "return result",
-  ];
-
-  const steps: VizStep[] = [];
-  const callStack: CallStackFrame[] = [];
-  const recursionTree: RecursionTreeNode[] = [];
-  const resultSets: string[] = [];
-
-  let frameSeq = 0;
-  let nodeSeq = 0;
-
-  // Root tree node
-  const rootNode: RecursionTreeNode = {
-    id: "node_0",
-    parentId: null,
-    label: "[]",
-    depth: 0,
-    state: "running",
-  };
-  recursionTree.push(rootNode);
-
-  steps.push({
-    type: "recursion-tree",
-    array: safeNums,
-    callStack: [],
-    recursionTree: [...recursionTree],
-    activeFrameId: null,
-    line: 0,
-    wSum: 0,
-    desc: `Initialize backtracking state-space exploration for nums = [${safeNums.join(", ")}].`,
-  });
-
-  function backtrack(start: number, path: number[], parentNodeId: string, depth: number) {
-    if (steps.length >= 65) return;
-
-    frameSeq++;
-    const frameId = `frame_${frameSeq}`;
-    const frame: CallStackFrame = {
-      id: frameId,
-      name: `backtrack(start=${start})`,
-      functionName: "backtrack",
-      depth,
-      args: { start, path: `[${path.join(", ")}]` },
-      status: "active",
-    };
-    callStack.push(frame);
-
-    const pathStr = `[${path.join(", ")}]`;
-    resultSets.push(pathStr);
-
-    steps.push({
-      type: "recursion-tree",
-      array: safeNums,
-      callStack: [...callStack],
-      recursionTree: [...recursionTree],
-      activeFrameId: frameId,
-      line: 2,
-      wSum: resultSets.length,
-      current: pathStr,
-      desc: `State reached: path = ${pathStr}. Add to subsets solution (total: ${resultSets.length}).`,
-    });
-
-    for (let i = start; i < safeNums.length; i++) {
-      if (steps.length >= 65) break;
-      const val = safeNums[i]!;
-
-      // Branch node in recursion tree
-      nodeSeq++;
-      const childNodeId = `node_${nodeSeq}`;
-      const nextPath = [...path, val];
-      const childNode: RecursionTreeNode = {
-        id: childNodeId,
-        parentId: parentNodeId,
-        label: `[${nextPath.join(",")}]`,
-        depth: depth + 1,
-        state: "running",
-        decision: `+${val}`,
-      };
-      recursionTree.push(childNode);
-
-      steps.push({
-        type: "recursion-tree",
-        array: safeNums,
-        callStack: [...callStack],
-        recursionTree: [...recursionTree],
-        activeFrameId: frameId,
-        left: i,
-        current: val,
-        line: 4,
-        wSum: resultSets.length,
-        desc: `Decision: Include nums[${i}] = ${val} into path -> path = [${nextPath.join(", ")}].`,
-      });
-
-      backtrack(i + 1, nextPath, childNodeId, depth + 1);
-
-      // Backtrack step
-      childNode.state = "backtracked";
-      steps.push({
-        type: "recursion-tree",
-        array: safeNums,
-        callStack: [...callStack],
-        recursionTree: [...recursionTree],
-        activeFrameId: frameId,
-        left: i,
-        line: 6,
-        wSum: resultSets.length,
-        desc: `Backtrack: Pop ${val} from path to explore sibling decisions.`,
-      });
-    }
-
-    // Unwind call frame
-    const top = callStack.pop();
-    if (top) {
-      top.status = "returned";
-    }
-  }
-
-  backtrack(0, [], "node_0", 0);
-
-  rootNode.state = "success";
-  steps.push({
-    type: "recursion-tree",
-    array: safeNums,
-    callStack: [],
-    recursionTree: [...recursionTree],
-    activeFrameId: null,
-    line: 8,
-    wSum: resultSets.length,
-    desc: `Backtracking Complete! Explored ${recursionTree.length} states, generating ${resultSets.length} unique subsets.`,
-  });
-
-  return { code, array: safeNums, steps: cap(steps) };
-}
-
 /** Build a real, problem-appropriate walkthrough for any problem and dataset in the bank. */
 export function simulateProblemWithDataset(
   slug: string,
   title = "",
   topics: string[] = [],
   dataset?: TestDataset,
+  pseudocode?: string,
 ): VizBundle {
   const pattern = patternFor(slug, title, topics);
   const isIsland = isIslandOrGridProblem(slug, topics);
-  const matrixInput = dataset?.matrix ?? (isIsland ? sampleMatrixFor(slug) : undefined);
+  const isMatrix = isMatrixProblem(slug, topics);
+  const matrixInput = dataset?.matrix ?? (isIsland || isMatrix || pattern === "matrix-transform" ? sampleMatrixFor(slug) : undefined);
   const input = dataset?.array ?? sampleInputFor(slug, 8, topics);
   const target = dataset?.target;
   const safeInput = input.map((x) =>
@@ -6451,18 +6855,18 @@ export function simulateProblemWithDataset(
   const numTarget = typeof target === "number" ? target : typeof target === "string" ? parseFloat(target) || undefined : undefined;
 
   switch (pattern) {
-    case "island-max-area":
-      return islandMaxArea(matrixInput);
-    case "island-count":
-      return islandCount(matrixInput);
-    case "island-union-find":
-      return islandUnionFindSim(dataset, slug);
-    case "grid-bfs":
-      return grid(matrixInput ?? numInput, "bfs");
-    case "grid-dfs":
-      return grid(matrixInput ?? numInput, "dfs");
     case "matrix-transform":
       return matrixTransformSim(matrixInput, slug, dataset);
+    case "island-max-area":
+      return islandMaxArea(matrixInput, dataset);
+    case "island-count":
+      return islandCount(matrixInput, dataset);
+    case "grid-bfs":
+      return gridBfsFloodFillSim(matrixInput ?? numInput, "bfs", slug, dataset);
+    case "grid-dfs":
+      return gridBfsFloodFillSim(matrixInput ?? numInput, "dfs", slug, dataset);
+    case "word-search":
+      return wordSearchSim(matrixInput, typeof dataset?.target === "string" ? dataset.target : undefined, dataset);
     case "binary-search":
       return binarySearch(numInput, numTarget);
     case "two-pointers":
@@ -6470,18 +6874,29 @@ export function simulateProblemWithDataset(
         return arrayScan(safeInput);
       }
       return twoPointersPairSum(numInput, numTarget);
-    case "two-pointers-in-place":
-      return arrayScan(safeInput);
     case "sliding-window":
-    case "sliding-window-dynamic":
       return slidingWindow(safeInput, dataset);
     case "hashmap-pair":
+      if (
+        pseudocode &&
+        (/for\s+([a-zA-Z_]\w*).*for\s+([a-zA-Z_]\w*)/i.test(pseudocode) ||
+          /TwoSumBruteForce/i.test(pseudocode) ||
+          /nums\[i\]\s*\+\s*nums\[j\]/i.test(pseudocode))
+      ) {
+        return bruteForcePairSum(numInput, numTarget);
+      }
       return hashmapPair(numInput, numTarget);
     case "frequency-count":
       return frequencyCount(safeInput, slug, dataset);
     case "monotonic-stack":
-      return monotonicStack(input);
+      return monotonicStack(input, slug, title);
     case "parentheses":
+      if (/reverse-polish|eval-rpn|rpn|calculator/.test(slug)) {
+        return evalRPNSim(input);
+      }
+      if (/min-stack|max-stack/.test(slug)) {
+        return minStackSim(input);
+      }
       return parentheses(input);
     case "graph-bfs":
       return graphBfs(numInput);
@@ -6512,7 +6927,6 @@ export function simulateProblemWithDataset(
     case "union-find":
       return unionFindSim(dataset, slug);
     case "prefix-sum":
-    case "prefix-sum-hashmap":
       return prefixSum(numInput);
     case "sorting":
       return sorting(numInput);
@@ -6526,15 +6940,490 @@ export function simulateProblemWithDataset(
       return hashsetDesign(dataset);
     case "lru-cache":
       return lruCacheSim(dataset);
+    case "recursion-backtracking":
+      if (/fibonacci|climbing-stairs|memo/.test(slug)) {
+        return memoizedRecursionSim(input, slug, dataset);
+      }
+      if (/combination-sum|combination|n-queens|target/.test(slug) || dataset?.target !== undefined) {
+        return combinationSumBacktrackingSim(input, slug, dataset);
+      }
+      return backtrackingSubsetsSim(input, slug, dataset);
     case "queue-simulation":
       return queueSimulation(input, slug, dataset);
-    case "recursion-backtracking":
-      return recursionBacktrackingSim(safeInput, slug, title, dataset);
-    case "recursion-memoization":
-      return recursionMemoizationSim(safeInput, slug, title, dataset);
+    case "dijkstra":
+      return dijkstraSim(dataset, slug);
+    case "segment-tree":
+      return segmentTreeSim(dataset, slug);
+    case "kmp-lps":
+      return kmpSim(dataset, slug);
     default:
       return arrayScan(input);
   }
+}
+
+function backtrackingSubsetsSim(
+  input: (number | string)[],
+  slug = "subsets",
+  dataset?: TestDataset,
+): VizBundle {
+  const code = [
+    "def subsets(nums):",
+    "    res = []",
+    "    def backtrack(i, path):",
+    "        if i == len(nums):",
+    "            res.append(path[:])",
+    "            return",
+    "        # Choice 1: Pick nums[i]",
+    "        path.append(nums[i])",
+    "        backtrack(i + 1, path)",
+    "        path.pop()",
+    "        # Choice 2: Skip nums[i]",
+    "        backtrack(i + 1, path)",
+    "    backtrack(0, [])",
+    "    return res",
+  ];
+
+  const rawNums = dataset?.array && dataset.array.length > 0 ? dataset.array : input.length > 0 ? input : [1, 2, 3];
+  const nums = rawNums.slice(0, 3).map(Number).filter((n) => !isNaN(n));
+  const safeNums = nums.length > 0 ? nums : [1, 2, 3];
+  const steps: VizStep[] = [];
+  const results: number[][] = [];
+  let callId = 0;
+  const treeNodes: RecursionTreeNode[] = [];
+  const callStack: CallStackFrame[] = [];
+
+  const record = (
+    line: number,
+    desc: string,
+    activeFrameId: string,
+    currentVal?: number | null,
+  ) => {
+    steps.push({
+      type: "recursion-tree",
+      array: safeNums,
+      callStack: callStack.map((f) => ({ ...f, args: { ...f.args } })),
+      recursionTree: treeNodes.map((n) => ({ ...n })),
+      activeFrameId,
+      current: currentVal !== undefined ? currentVal : null,
+      line,
+      desc,
+      variables: {
+        totalSubsets: results.length,
+        currentPath: callStack[callStack.length - 1]?.args?.path,
+      },
+    });
+  };
+
+  function dfs(i: number, path: number[], parentId: string | null, decisionStr: string) {
+    const frameId = `f_${++callId}`;
+    const node: RecursionTreeNode = {
+      id: frameId,
+      parentId,
+      label: path.length === 0 ? "∅" : `[${path.join(",")}]`,
+      depth: i,
+      state: "running",
+      decision: decisionStr,
+    };
+    treeNodes.push(node);
+
+    const frame: CallStackFrame = {
+      id: frameId,
+      name: `backtrack(i=${i})`,
+      depth: i,
+      args: { i, path: `[${path.join(", ")}]` },
+      status: "active",
+    };
+    callStack.push(frame);
+
+    record(
+      2,
+      `Push stack frame: backtrack(i=${i}, path=[${path.join(", ")}]) at recursion depth ${i}.`,
+      frameId,
+      i < safeNums.length ? safeNums[i] : null,
+    );
+
+    if (i === safeNums.length) {
+      results.push([...path]);
+      node.state = "success";
+      frame.status = "base_case";
+      frame.returnValue = `[${path.join(", ")}]`;
+      record(
+        4,
+        `✓ Base Case Reached (i == ${safeNums.length}). Solved subset recorded: [${path.join(", ")}]. Total collected = ${results.length}.`,
+        frameId,
+        null,
+      );
+      callStack.pop();
+      return;
+    }
+
+    const val = safeNums[i]!;
+
+    // Choice 1: Include val
+    path.push(val);
+    record(
+      7,
+      `Decision 1 (Include): Pick nums[${i}] = ${val}. Current path: [${path.join(", ")}].`,
+      frameId,
+      val,
+    );
+    dfs(i + 1, path, frameId, `+${val}`);
+    path.pop();
+
+    // Choice 2: Exclude val
+    record(
+      9,
+      `Backtracked from include. Decision 2 (Exclude): Skip nums[${i}] = ${val}. Path restored to [${path.join(", ")}].`,
+      frameId,
+      val,
+    );
+    dfs(i + 1, path, frameId, `skip ${val}`);
+
+    node.state = "backtracked";
+    frame.status = "backtracking";
+    callStack.pop();
+  }
+
+  dfs(0, [], null, "root");
+
+  steps.push({
+    type: "recursion-tree",
+    array: safeNums,
+    callStack: [],
+    recursionTree: treeNodes.map((n) => ({ ...n })),
+    line: 13,
+    desc: `State-Space Search Completed! Explored ${treeNodes.length} recursive calls. Generated 2^${safeNums.length} = ${results.length} subsets.`,
+    variables: { totalSubsets: results.length, allSubsets: results },
+  });
+
+  return { code, array: safeNums, steps: cap(steps) };
+}
+
+function combinationSumBacktrackingSim(
+  input: (number | string)[],
+  slug = "combination-sum",
+  dataset?: TestDataset,
+): VizBundle {
+  const code = [
+    "def combinationSum(candidates, target):",
+    "    res = []",
+    "    def backtrack(start, remain, path):",
+    "        if remain == 0:",
+    "            res.append(path[:])  # Found valid combination",
+    "            return",
+    "        for i in range(start, len(candidates)):",
+    "            c = candidates[i]",
+    "            if c > remain:",
+    "                # ✂ PRUNING: Exceeds target, prune branch",
+    "                continue",
+    "            path.append(c)",
+    "            backtrack(i, remain - c, path)",
+    "            path.pop()",
+    "    backtrack(0, target, [])",
+    "    return res",
+  ];
+
+  const rawNums = dataset?.array && dataset.array.length > 0 ? dataset.array : input.length > 0 ? input : [2, 3, 5];
+  const candidates = rawNums.map(Number).filter((n) => !isNaN(n) && n > 0).slice(0, 3);
+  const safeCandidates = candidates.length > 0 ? candidates : [2, 3, 5];
+  const target = typeof dataset?.target === "number" ? dataset.target : 7;
+
+  const steps: VizStep[] = [];
+  const results: number[][] = [];
+  let callId = 0;
+  const treeNodes: RecursionTreeNode[] = [];
+  const callStack: CallStackFrame[] = [];
+
+  const record = (
+    line: number,
+    desc: string,
+    activeFrameId: string,
+    extra?: { currentVal?: number | null; prunedBranchId?: string | null },
+  ) => {
+    steps.push({
+      type: "recursion-tree",
+      array: safeCandidates,
+      callStack: callStack.map((f) => ({ ...f, args: { ...f.args } })),
+      recursionTree: treeNodes.map((n) => ({ ...n })),
+      activeFrameId,
+      prunedBranchId: extra?.prunedBranchId ?? null,
+      current: extra?.currentVal !== undefined ? extra.currentVal : null,
+      line,
+      desc,
+      variables: {
+        target,
+        validCombinations: results.length,
+        currentPath: callStack[callStack.length - 1]?.args?.path,
+        remain: callStack[callStack.length - 1]?.args?.remain,
+      },
+    });
+  };
+
+  function backtrack(startIdx: number, remain: number, path: number[], parentId: string | null, decision: string) {
+    const frameId = `f_${++callId}`;
+    const node: RecursionTreeNode = {
+      id: frameId,
+      parentId,
+      label: path.length === 0 ? "root" : `rem:${remain}`,
+      depth: path.length,
+      state: "running",
+      decision,
+    };
+    treeNodes.push(node);
+
+    const frame: CallStackFrame = {
+      id: frameId,
+      name: `backtrack(rem=${remain})`,
+      depth: path.length,
+      args: { start: startIdx, remain, path: `[${path.join(",")}]` },
+      status: "active",
+    };
+    callStack.push(frame);
+
+    record(
+      2,
+      `Enter backtrack: remaining target = ${remain}, current path = [${path.join(", ")}].`,
+      frameId,
+      { currentVal: remain },
+    );
+
+    if (remain === 0) {
+      results.push([...path]);
+      node.state = "success";
+      frame.status = "base_case";
+      frame.returnValue = `[${path.join(",")}]`;
+      record(
+        4,
+        `✓ Target Reached! Exact match sum == ${target}. Solution [${path.join(", ")}] recorded. Total found = ${results.length}.`,
+        frameId,
+        { currentVal: remain },
+      );
+      callStack.pop();
+      return;
+    }
+
+    for (let i = startIdx; i < safeCandidates.length; i++) {
+      const c = safeCandidates[i]!;
+
+      // Check Pruning condition
+      if (c > remain) {
+        // Create an explicit aborted node in tree to visualize pruning
+        const pruneNodeId = `prune_${++callId}`;
+        const prunedNode: RecursionTreeNode = {
+          id: pruneNodeId,
+          parentId: frameId,
+          label: `+${c}`,
+          depth: path.length + 1,
+          state: "pruned",
+          decision: `+${c} [FAIL]`,
+          pruneReason: `${c} > rem(${remain})`,
+        };
+        treeNodes.push(prunedNode);
+
+        record(
+          9,
+          `✂ PRUNING CONSTRAINT: Candidate ${c} exceeds remaining target ${remain}. Branch marked ABORTED (red) without entering recursion.`,
+          frameId,
+          { currentVal: c, prunedBranchId: pruneNodeId },
+        );
+        continue;
+      }
+
+      // Valid candidate choice
+      path.push(c);
+      record(
+        11,
+        `Pick candidate ${c} (rem ${remain} - ${c} = ${remain - c}). Current path: [${path.join(", ")}].`,
+        frameId,
+        { currentVal: c },
+      );
+
+      backtrack(i, remain - c, path, frameId, `+${c}`);
+
+      path.pop();
+      record(
+        13,
+        `Backtracked from branch +${c}. Un-choose ${c}, restore path to [${path.join(", ")}].`,
+        frameId,
+        { currentVal: c },
+      );
+    }
+
+    node.state = "backtracked";
+    frame.status = "backtracking";
+    callStack.pop();
+  }
+
+  backtrack(0, target, [], null, "start");
+
+  steps.push({
+    type: "recursion-tree",
+    array: safeCandidates,
+    callStack: [],
+    recursionTree: treeNodes.map((n) => ({ ...n })),
+    line: 15,
+    desc: `Backtracking & Pruning Complete! Found ${results.length} valid combinations for target ${target}. Aborted multiple invalid branches early.`,
+    variables: { totalSolutions: results.length, allCombinations: results, target },
+  });
+
+  return { code, array: safeCandidates, steps: cap(steps) };
+}
+
+function memoizedRecursionSim(
+  input: (number | string)[],
+  slug = "fibonacci-number",
+  dataset?: TestDataset,
+): VizBundle {
+  const code = [
+    "def fib(n, memo={}):",
+    "    if n <= 1:",
+    "        return n  # Base case",
+    "    # ⚡ Check Memoization Cache",
+    "    if n in memo:",
+    "        return memo[n]  # O(1) Cache Hit",
+    "    memo[n] = fib(n - 1, memo) + fib(n - 2, memo)",
+    "    return memo[n]",
+  ];
+
+  const rawN = dataset?.target !== undefined ? Number(dataset.target) : input.length > 0 ? Number(input[0]) : 4;
+  const n = isNaN(rawN) || rawN < 2 || rawN > 5 ? 4 : rawN;
+
+  const steps: VizStep[] = [];
+  const memo: Record<string, number> = {};
+  let callId = 0;
+  const treeNodes: RecursionTreeNode[] = [];
+  const callStack: CallStackFrame[] = [];
+
+  const record = (
+    line: number,
+    desc: string,
+    activeFrameId: string,
+    extra?: { currentVal?: number | null; memoHitKey?: string | null },
+  ) => {
+    steps.push({
+      type: "recursion-tree",
+      array: [n],
+      callStack: callStack.map((f) => ({ ...f, args: { ...f.args } })),
+      recursionTree: treeNodes.map((n) => ({ ...n })),
+      activeFrameId,
+      memoTable: { ...memo },
+      memoHitKey: extra?.memoHitKey ?? null,
+      current: extra?.currentVal !== undefined ? extra.currentVal : null,
+      line,
+      desc,
+      variables: {
+        n,
+        memoCacheSize: Object.keys(memo).length,
+        memoTable: { ...memo },
+      },
+    });
+  };
+
+  function fib(currN: number, depth: number, parentId: string | null, decision: string): number {
+    const frameId = `f_${++callId}`;
+    const cacheKey = `fib(${currN})`;
+
+    const node: RecursionTreeNode = {
+      id: frameId,
+      parentId,
+      label: `f(${currN})`,
+      depth,
+      state: "running",
+      decision,
+    };
+    treeNodes.push(node);
+
+    const frame: CallStackFrame = {
+      id: frameId,
+      name: `fib(n=${currN})`,
+      depth,
+      args: { n: currN },
+      status: "active",
+    };
+    callStack.push(frame);
+
+    record(1, `Call fib(n=${currN}) at recursion depth ${depth}.`, frameId, { currentVal: currN });
+
+    // Base Case
+    if (currN <= 1) {
+      node.state = "success";
+      node.returnValue = currN;
+      frame.status = "base_case";
+      frame.returnValue = currN;
+      memo[cacheKey] = currN;
+      record(
+        2,
+        `✓ Base Case Reached: fib(${currN}) = ${currN}. Stored into memo table.`,
+        frameId,
+        { currentVal: currN },
+      );
+      callStack.pop();
+      return currN;
+    }
+
+    // Memoization Check
+    if (cacheKey in memo) {
+      const cachedVal = memo[cacheKey]!;
+      node.state = "memo_hit";
+      node.isMemoHit = true;
+      node.cachedValue = cachedVal;
+      node.returnValue = cachedVal;
+
+      frame.status = "memo_hit";
+      frame.isMemoHit = true;
+      frame.returnValue = cachedVal;
+
+      record(
+        5,
+        `⚡ MEMOIZATION CACHE HIT! ${cacheKey} was previously computed as ${cachedVal}. Entire subtree bypassed; returned in O(1) time!`,
+        frameId,
+        { currentVal: cachedVal, memoHitKey: cacheKey },
+      );
+      callStack.pop();
+      return cachedVal;
+    }
+
+    // Explore Left: fib(n - 1)
+    record(6, `Compute left subproblem: fib(${currN - 1}).`, frameId, { currentVal: currN - 1 });
+    const leftVal = fib(currN - 1, depth + 1, frameId, "left: n-1");
+
+    // Explore Right: fib(n - 2)
+    record(6, `Left subproblem returned ${leftVal}. Compute right subproblem: fib(${currN - 2}).`, frameId, { currentVal: currN - 2 });
+    const rightVal = fib(currN - 2, depth + 1, frameId, "right: n-2");
+
+    const result = leftVal + rightVal;
+    memo[cacheKey] = result;
+
+    node.state = "success";
+    node.returnValue = result;
+    frame.status = "returned";
+    frame.returnValue = result;
+
+    record(
+      7,
+      `Computed fib(${currN}) = ${leftVal} + ${rightVal} = ${result}. Stored in memo table [${cacheKey} = ${result}].`,
+      frameId,
+      { currentVal: result },
+    );
+
+    callStack.pop();
+    return result;
+  }
+
+  const finalAnswer = fib(n, 0, null, "root");
+
+  steps.push({
+    type: "recursion-tree",
+    array: [n],
+    callStack: [],
+    recursionTree: treeNodes.map((n) => ({ ...n })),
+    memoTable: { ...memo },
+    line: 8,
+    desc: `Memoized Recursion Complete! Computed fib(${n}) = ${finalAnswer}. Memo cache prevented exponential subtree recomputation.`,
+    variables: { finalResult: finalAnswer, memoTable: { ...memo } },
+  });
+
+  return { code, array: [n], steps: cap(steps) };
 }
 
 /** Build a real, problem-appropriate walkthrough for any problem in the bank. */
@@ -6550,7 +7439,7 @@ export function simulateCustomInput(
   matrixInput?: (number | string)[][],
   title?: string,
 ): VizBundle {
-  const safeInput = input.length > 0 ? input : [1, 2, 3, 4, 5];
+  const safeInput = input.length > 0 ? input.slice(0, 10) : [1, 2, 3, 4, 5];
   const numInput = safeInput.map((x) => (typeof x === "number" ? x : parseFloat(String(x)) || 0));
   const numTarget = typeof target === "number" ? target : typeof target === "string" ? parseFloat(target) || undefined : undefined;
   const t = (title ?? "").toLowerCase();
@@ -6562,11 +7451,26 @@ export function simulateCustomInput(
   if (/number.*island|count.*island|sub[- ]island/i.test(t)) {
     return islandCount(matrixInput);
   }
-  if (/flood.*fill|rotting.*orange|orange|grid.*bfs/i.test(t)) {
-    return grid(matrixInput ?? numInput, "bfs");
+  if (/spiral/i.test(t)) {
+    return spiralMatrixSim(matrixInput);
   }
-  if (/spiral|queens|n-queens|backtrack/i.test(t)) {
-    return grid(matrixInput ?? numInput, "dfs");
+  if (/rotate.*image|transpose/i.test(t)) {
+    return rotateImageSim(matrixInput);
+  }
+  if (/game.*life/i.test(t)) {
+    return gameOfLifeSim(matrixInput);
+  }
+  if (/set.*zero|zero.*matrix/i.test(t)) {
+    return setMatrixZeroesSim(matrixInput);
+  }
+  if (/word.*search/i.test(t)) {
+    return wordSearchSim(matrixInput, typeof target === "string" ? target : undefined);
+  }
+  if (/flood.*fill|rotting.*orange|walls.*gates|orange|grid.*bfs/i.test(t)) {
+    return gridBfsFloodFillSim(matrixInput ?? numInput, "bfs", t);
+  }
+  if (/queens|n-queens|backtrack/i.test(t)) {
+    return gridBfsFloodFillSim(matrixInput ?? numInput, "dfs", t);
   }
   if (/lru.*cache|lru/i.test(t)) {
     return lruCacheSim();
@@ -6631,10 +7535,24 @@ export function simulateCustomInput(
     case "bit":
       return bitManipulation(safeInput);
     case "recursion-tree":
-      if (t.includes("memo") || t.includes("fib") || t.includes("climb")) {
-        return recursionMemoizationSim(safeInput, "fibonacci-number", title);
+      if (typeof target === "number" || (typeof target === "string" && !isNaN(Number(target)))) {
+        return combinationSumBacktrackingSim(safeInput, "combination-sum", {
+          id: "custom-comb",
+          label: "Custom Combination Sum (Pruning)",
+          array: safeInput,
+          target: Number(target),
+        });
       }
-      return recursionBacktrackingSim(safeInput, "combination-sum", title);
+      if (safeInput.length === 1 && typeof safeInput[0] === "number") {
+        return memoizedRecursionSim(safeInput, "fibonacci-number");
+      }
+      return backtrackingSubsetsSim(safeInput);
+    case "intervals":
+      return intervalMergeSim({
+        id: "custom-intervals",
+        label: "Custom Intervals",
+        matrix: matrixInput,
+      });
     case "array":
     default:
       if (typeof target === "number" || typeof target === "string") {
@@ -6643,3 +7561,718 @@ export function simulateCustomInput(
       return arrayScan(safeInput);
   }
 }
+
+export function dijkstraSim(
+  dataset?: TestDataset,
+  _slug = "dijkstras-algorithm",
+): VizBundle {
+  const code = [
+    "dist = {v: INF for v in graph}; dist[src] = 0",
+    "pq = [(0, src)] # Priority Queue (min-heap)",
+    "while pq:",
+    "    d, u = heappop(pq)",
+    "    if d > dist[u]: continue",
+    "    for v, weight in graph[u]:",
+    "        if dist[u] + weight < dist[v]:",
+    "            dist[v] = dist[u] + weight",
+    "            heappush(pq, (dist[v], v))",
+    "return dist",
+  ];
+
+  let edges: [string, string, number][] = [];
+  if (dataset?.matrix && Array.isArray(dataset.matrix) && dataset.matrix.length > 0) {
+    edges = dataset.matrix.map((row) => [
+      String(row[0] ?? 0),
+      String(row[1] ?? 1),
+      Number(row[2] ?? 1),
+    ]);
+  } else {
+    edges = [
+      ["0", "1", 4],
+      ["0", "2", 2],
+      ["1", "2", 1],
+      ["1", "3", 5],
+      ["2", "3", 8],
+      ["2", "4", 10],
+      ["3", "4", 2],
+    ];
+  }
+
+  const nodesSet = new Set<string>();
+  edges.forEach(([u, v]) => {
+    nodesSet.add(u);
+    nodesSet.add(v);
+  });
+  const nodes = Array.from(nodesSet).sort((a, b) => Number(a) - Number(b));
+  const src = dataset?.k !== undefined ? String(dataset.k) : nodes[0] ?? "0";
+
+  const adj = new Map<string, { to: string; weight: number }[]>();
+  nodes.forEach((n) => adj.set(n, []));
+  edges.forEach(([u, v, w]) => {
+    adj.get(u)?.push({ to: v, weight: w });
+  });
+
+  const dist: Record<string, number> = {};
+  nodes.forEach((n) => {
+    dist[n] = n === src ? 0 : Infinity;
+  });
+
+  const pq: { node: string; dist: number }[] = [{ node: src, dist: 0 }];
+  const visitedNodes: string[] = [];
+  const shortestTree: { from: string; to: string }[] = [];
+  const matrixEdges = edges.map(([u, v, w]) => [u, v, w]);
+  const steps: VizStep[] = [];
+
+  const formatDistances = () => {
+    const formatted: Record<string, number | string> = {};
+    for (const n of nodes) {
+      formatted[n] = dist[n] === Infinity ? "∞" : dist[n]!;
+    }
+    return formatted;
+  };
+
+  const getPqSnapshot = () =>
+    pq.map((item) => ({ node: item.node, dist: item.dist === Infinity ? "∞" : item.dist }));
+
+  steps.push({
+    type: "graph",
+    matrix: matrixEdges,
+    current: src,
+    visited: [],
+    line: 1,
+    desc: `Initialize distance table: dist[${src}] = 0, all other vertices initialized to ∞.`,
+    distances: formatDistances(),
+    priorityQueue: getPqSnapshot(),
+    shortestPathTree: [],
+  });
+
+  steps.push({
+    type: "graph",
+    matrix: matrixEdges,
+    current: src,
+    visited: [],
+    line: 2,
+    desc: `Enqueue source vertex ${src} with distance 0 into Priority Queue: [(0, ${src})].`,
+    distances: formatDistances(),
+    priorityQueue: getPqSnapshot(),
+    shortestPathTree: [],
+  });
+
+  while (pq.length > 0) {
+    pq.sort((a, b) => a.dist - b.dist);
+    const top = pq.shift()!;
+    const u = top.node;
+    const d = top.dist;
+
+    steps.push({
+      type: "graph",
+      matrix: matrixEdges,
+      current: u,
+      visited: [...visitedNodes],
+      line: 4,
+      desc: `Extracted min-distance vertex ${u} (distance = ${d}) from Priority Queue.`,
+      distances: formatDistances(),
+      priorityQueue: getPqSnapshot(),
+      shortestPathTree: [...shortestTree],
+    });
+
+    if (d > dist[u]!) {
+      steps.push({
+        type: "graph",
+        matrix: matrixEdges,
+        current: u,
+        visited: [...visitedNodes],
+        line: 5,
+        desc: `Distance ${d} > current shortest dist[${u}] (${dist[u]}). Skipping outdated PQ entry.`,
+        distances: formatDistances(),
+        priorityQueue: getPqSnapshot(),
+        shortestPathTree: [...shortestTree],
+      });
+      continue;
+    }
+
+    if (!visitedNodes.includes(u)) {
+      visitedNodes.push(u);
+    }
+
+    const neighbors = adj.get(u) ?? [];
+    if (neighbors.length === 0) {
+      steps.push({
+        type: "graph",
+        matrix: matrixEdges,
+        current: u,
+        visited: [...visitedNodes],
+        line: 6,
+        desc: `Vertex ${u} has no outgoing neighbors. Shortest path to ${u} finalized at ${dist[u]}.`,
+        distances: formatDistances(),
+        priorityQueue: getPqSnapshot(),
+        shortestPathTree: [...shortestTree],
+      });
+    }
+
+    for (const edge of neighbors) {
+      const v = edge.to;
+      const weight = edge.weight;
+      const oldDist = dist[v]!;
+      const candidateDist = dist[u]! + weight;
+
+      if (candidateDist < oldDist) {
+        dist[v] = candidateDist;
+        pq.push({ node: v, dist: candidateDist });
+        pq.sort((a, b) => a.dist - b.dist);
+
+        const existingIdx = shortestTree.findIndex((e) => e.to === v);
+        if (existingIdx >= 0) {
+          shortestTree[existingIdx] = { from: u, to: v };
+        } else {
+          shortestTree.push({ from: u, to: v });
+        }
+
+        steps.push({
+          type: "graph",
+          matrix: matrixEdges,
+          current: v,
+          visited: [...visitedNodes],
+          line: 8,
+          desc: `Relax edge (${u} ➔ ${v}, w=${weight}): improved dist[${v}] from ${oldDist === Infinity ? "∞" : oldDist} to ${candidateDist}. Push (${candidateDist}, ${v}) to PQ.`,
+          distances: formatDistances(),
+          priorityQueue: getPqSnapshot(),
+          relaxedEdge: {
+            from: u,
+            to: v,
+            weight,
+            oldDist: oldDist === Infinity ? "∞" : oldDist,
+            newDist: candidateDist,
+          },
+          shortestPathTree: [...shortestTree],
+        });
+      } else {
+        steps.push({
+          type: "graph",
+          matrix: matrixEdges,
+          current: v,
+          visited: [...visitedNodes],
+          line: 7,
+          desc: `Edge (${u} ➔ ${v}, w=${weight}): candidate distance ${candidateDist} >= current dist[${v}] (${oldDist}). No relaxation needed.`,
+          distances: formatDistances(),
+          priorityQueue: getPqSnapshot(),
+          shortestPathTree: [...shortestTree],
+        });
+      }
+    }
+  }
+
+  steps.push({
+    type: "graph",
+    matrix: matrixEdges,
+    current: null,
+    visited: [...visitedNodes],
+    line: 10,
+    desc: `Dijkstra complete! Shortest paths computed from source ${src} to all reachable vertices.`,
+    distances: formatDistances(),
+    priorityQueue: [],
+    shortestPathTree: [...shortestTree],
+  });
+
+  const distArray = nodes.map((n) => (dist[n] === Infinity ? -1 : dist[n]!));
+  return { code, array: distArray, steps: cap(steps) };
+}
+
+export function segmentTreeSim(
+  dataset?: TestDataset,
+  _slug = "range-sum-query-mutable",
+): VizBundle {
+  const code = [
+    "# Build Segment Tree over Array",
+    "tree = [0] * (4 * n)",
+    "build(node=1, l=0, r=n-1)",
+    "# Query Range Sum [ql, qr]",
+    "def sumRange(ql, qr):",
+    "    return query(node=1, l=0, r=n-1, ql, qr)",
+    "# Point Update idx with val",
+    "def update(idx, val):",
+    "    return updateTree(node=1, l=0, r=n-1, idx, val)",
+  ];
+
+  const rawArr =
+    dataset?.array && Array.isArray(dataset.array) && dataset.array.length > 0
+      ? dataset.array.map(Number).filter((n) => !isNaN(n))
+      : [1, 3, 5, 7, 9, 11];
+  const arr = rawArr.slice(0, 6);
+  const n = arr.length;
+
+  interface SegNode {
+    idx: number;
+    l: number;
+    r: number;
+    sum: number;
+  }
+  const treeNodes: (SegNode | null)[] = new Array(31).fill(null);
+
+  function build(nodeIdx: number, l: number, r: number) {
+    if (nodeIdx >= 31) return;
+    if (l === r) {
+      treeNodes[nodeIdx] = { idx: nodeIdx, l, r, sum: arr[l] ?? 0 };
+      return;
+    }
+    const mid = Math.floor((l + r) / 2);
+    build(2 * nodeIdx + 1, l, mid);
+    build(2 * nodeIdx + 2, mid + 1, r);
+    const leftSum = treeNodes[2 * nodeIdx + 1]?.sum ?? 0;
+    const rightSum = treeNodes[2 * nodeIdx + 2]?.sum ?? 0;
+    treeNodes[nodeIdx] = { idx: nodeIdx, l, r, sum: leftSum + rightSum };
+  }
+
+  build(0, 0, n - 1);
+
+  const getTreeData = () => treeNodes.map((node) => (node ? node.sum : null));
+  const getNodeRanges = () => {
+    const ranges: Record<number | string, [number, number]> = {};
+    treeNodes.forEach((node, i) => {
+      if (node) ranges[i] = [node.l, node.r];
+    });
+    return ranges;
+  };
+
+  const steps: VizStep[] = [];
+
+  steps.push({
+    type: "tree",
+    tree: getTreeData(),
+    array: [...arr],
+    current: 0,
+    visited: [],
+    line: 1,
+    desc: `Initialize Segment Tree for array of size ${n}: [${arr.join(", ")}]. Each leaf stores arr[i], parents store the sum of children.`,
+    segmentRange: [0, n - 1],
+    segmentNodeRanges: getNodeRanges(),
+  });
+
+  steps.push({
+    type: "tree",
+    tree: getTreeData(),
+    array: [...arr],
+    current: 0,
+    visited: [0],
+    line: 3,
+    desc: `Segment Tree built! Root node [0, ${n - 1}] stores total array sum = ${treeNodes[0]?.sum}.`,
+    segmentRange: [0, n - 1],
+    segmentNodeRanges: getNodeRanges(),
+  });
+
+  const ql = 1;
+  const qr = Math.min(4, n - 1);
+  steps.push({
+    type: "tree",
+    tree: getTreeData(),
+    array: [...arr],
+    current: 0,
+    visited: [0],
+    line: 5,
+    desc: `Executing Range Sum Query: sumRange(${ql}, ${qr}). Searching segments overlapping indices ${ql} through ${qr}.`,
+    segmentRange: [ql, qr],
+    segmentNodeRanges: getNodeRanges(),
+  });
+
+  let querySum = 0;
+  const queryVisited: number[] = [];
+
+  function query(nodeIdx: number, l: number, r: number, qL: number, qR: number) {
+    if (nodeIdx >= 31 || !treeNodes[nodeIdx]) return;
+    queryVisited.push(nodeIdx);
+
+    if (qL <= l && r <= qR) {
+      const nodeVal = treeNodes[nodeIdx]!.sum;
+      querySum += nodeVal;
+      steps.push({
+        type: "tree",
+        tree: getTreeData(),
+        array: [...arr],
+        current: nodeIdx,
+        visited: [...queryVisited],
+        line: 6,
+        desc: `Node [${l}, ${r}] (sum=${nodeVal}) is FULLY inside query range [${qL}, ${qR}]. Added to total (sum = ${querySum}).`,
+        segmentRange: [qL, qR],
+        segmentNodeRanges: getNodeRanges(),
+        wSum: querySum,
+      });
+      return;
+    }
+
+    const mid = Math.floor((l + r) / 2);
+    steps.push({
+      type: "tree",
+      tree: getTreeData(),
+      array: [...arr],
+      current: nodeIdx,
+      visited: [...queryVisited],
+      line: 6,
+      desc: `Node [${l}, ${r}] partially overlaps query range [${qL}, ${qR}]. Traversing children [${l}, ${mid}] and [${mid + 1}, ${r}].`,
+      segmentRange: [qL, qR],
+      segmentNodeRanges: getNodeRanges(),
+      wSum: querySum,
+    });
+
+    if (qL <= mid) query(2 * nodeIdx + 1, l, mid, qL, qR);
+    if (qR > mid) query(2 * nodeIdx + 2, mid + 1, r, qL, qR);
+  }
+
+  query(0, 0, n - 1, ql, qr);
+
+  steps.push({
+    type: "tree",
+    tree: getTreeData(),
+    array: [...arr],
+    current: null,
+    visited: [...queryVisited],
+    line: 6,
+    desc: `Query sumRange(${ql}, ${qr}) completed with result = ${querySum}.`,
+    segmentRange: [ql, qr],
+    segmentNodeRanges: getNodeRanges(),
+    wSum: querySum,
+  });
+
+  const updateIdx = 2;
+  const newVal = (arr[updateIdx] ?? 5) + 4;
+  const oldVal = arr[updateIdx];
+  arr[updateIdx] = newVal;
+
+  steps.push({
+    type: "tree",
+    tree: getTreeData(),
+    array: [...arr],
+    current: updateIdx,
+    visited: [],
+    line: 8,
+    desc: `Executing Point Update: update(index=${updateIdx}, newVal=${newVal}). Old value was ${oldVal}. Propagating difference (${newVal - (oldVal ?? 0)}) to root.`,
+    segmentRange: [updateIdx, updateIdx],
+    segmentNodeRanges: getNodeRanges(),
+  });
+
+  const updateVisited: number[] = [];
+  function update(nodeIdx: number, l: number, r: number, idx: number, val: number) {
+    if (nodeIdx >= 31 || !treeNodes[nodeIdx]) return;
+    updateVisited.push(nodeIdx);
+
+    if (l === r) {
+      treeNodes[nodeIdx]!.sum = val;
+      steps.push({
+        type: "tree",
+        tree: getTreeData(),
+        array: [...arr],
+        current: nodeIdx,
+        visited: [...updateVisited],
+        line: 9,
+        desc: `Leaf node [${l}, ${r}] updated to ${val}.`,
+        segmentRange: [idx, idx],
+        segmentNodeRanges: getNodeRanges(),
+      });
+      return;
+    }
+
+    const mid = Math.floor((l + r) / 2);
+    if (idx <= mid) {
+      update(2 * nodeIdx + 1, l, mid, idx, val);
+    } else {
+      update(2 * nodeIdx + 2, mid + 1, r, idx, val);
+    }
+
+    const leftSum = treeNodes[2 * nodeIdx + 1]?.sum ?? 0;
+    const rightSum = treeNodes[2 * nodeIdx + 2]?.sum ?? 0;
+    treeNodes[nodeIdx]!.sum = leftSum + rightSum;
+
+    steps.push({
+      type: "tree",
+      tree: getTreeData(),
+      array: [...arr],
+      current: nodeIdx,
+      visited: [...updateVisited],
+      line: 9,
+      desc: `Parent node [${l}, ${r}] recomputed sum = ${leftSum} + ${rightSum} = ${treeNodes[nodeIdx]!.sum}.`,
+      segmentRange: [idx, idx],
+      segmentNodeRanges: getNodeRanges(),
+    });
+  }
+
+  update(0, 0, n - 1, updateIdx, newVal);
+
+  steps.push({
+    type: "tree",
+    tree: getTreeData(),
+    array: [...arr],
+    current: 0,
+    visited: [...updateVisited],
+    line: 9,
+    desc: `Point update complete! Segment tree recomputed with root sum = ${treeNodes[0]?.sum}.`,
+    segmentRange: [0, n - 1],
+    segmentNodeRanges: getNodeRanges(),
+  });
+
+  return { code, array: arr, steps: cap(steps) };
+}
+
+export function kmpSim(
+  dataset?: TestDataset,
+  _slug = "kmp-algorithm",
+): VizBundle {
+  const code = [
+    "# Step 1: Precompute LPS (Longest Prefix Suffix) Array",
+    "lps = [0] * len(pattern); length = 0; i = 1",
+    "while i < len(pattern):",
+    "    if pattern[i] == pattern[length]:",
+    "        length += 1; lps[i] = length; i += 1",
+    "    elif length > 0: length = lps[length - 1] # Fallback",
+    "    else: lps[i] = 0; i += 1",
+    "# Step 2: Search Pattern in Text",
+    "i = 0; j = 0 # i: text index, j: pattern index",
+    "while i < len(text):",
+    "    if text[i] == pattern[j]: i += 1; j += 1",
+    "    if j == len(pattern): return i - j # Match found!",
+    "    elif i < len(text) and text[i] != pattern[j]:",
+    "        if j > 0: j = lps[j - 1] # Skip redundant checks",
+    "        else: i += 1",
+  ];
+
+  let textChars: string[] = [];
+  let patChars: string[] = [];
+
+  if (dataset?.array && dataset.array.length > 0) {
+    if (typeof dataset.array[0] === "string" && (dataset.array[0] as string).length > 1) {
+      textChars = (dataset.array[0] as string).split("");
+    } else {
+      textChars = dataset.array.map(String);
+    }
+  } else {
+    textChars = "ababcabcabababd".split("");
+  }
+
+  if (dataset?.secondaryArray && dataset.secondaryArray.length > 0) {
+    if (
+      typeof dataset.secondaryArray[0] === "string" &&
+      (dataset.secondaryArray[0] as string).length > 1
+    ) {
+      patChars = (dataset.secondaryArray[0] as string).split("");
+    } else {
+      patChars = dataset.secondaryArray.map(String);
+    }
+  } else {
+    patChars = "ababd".split("");
+  }
+
+  textChars = textChars.slice(0, 16);
+  patChars = patChars.slice(0, 8);
+
+  const textStr = textChars.join("");
+  const patternStr = patChars.join("");
+  const m = patChars.length;
+  const n = textChars.length;
+
+  const lps: number[] = new Array(m).fill(0);
+  const steps: VizStep[] = [];
+
+  steps.push({
+    type: "array",
+    array: [...patChars],
+    secondaryArray: [...lps],
+    left: 0,
+    right: 0,
+    line: 2,
+    desc: `Precomputing Longest Prefix Suffix (LPS / π table) for pattern "${patternStr}". lps[0] is always 0.`,
+    lps: [...lps],
+    patternStr,
+    textStr,
+    label1: "Pattern Characters",
+    label2: "LPS (Prefix-Suffix Lengths)",
+  });
+
+  let len = 0;
+  let i = 1;
+
+  while (i < m) {
+    if (patChars[i] === patChars[len]) {
+      len++;
+      lps[i] = len;
+      steps.push({
+        type: "array",
+        array: [...patChars],
+        secondaryArray: [...lps],
+        left: i,
+        right: len - 1,
+        line: 5,
+        desc: `Pattern match: pattern[${i}] ('${patChars[i]}') == pattern[${len - 1}] ('${patChars[len - 1]}'). Increment length to ${len}, set lps[${i}] = ${len}.`,
+        lps: [...lps],
+        patternStr,
+        textStr,
+        label1: "Pattern Characters",
+        label2: "LPS Table",
+      });
+      i++;
+    } else {
+      if (len > 0) {
+        const oldLen = len;
+        len = lps[len - 1] ?? 0;
+        steps.push({
+          type: "array",
+          array: [...patChars],
+          secondaryArray: [...lps],
+          left: i,
+          right: len,
+          line: 6,
+          desc: `Mismatch: pattern[${i}] ('${patChars[i]}') != pattern[${oldLen}]. Fallback length to lps[${oldLen - 1}] = ${len}.`,
+          lps: [...lps],
+          patternStr,
+          textStr,
+          label1: "Pattern Characters",
+          label2: "LPS Table",
+        });
+      } else {
+        lps[i] = 0;
+        steps.push({
+          type: "array",
+          array: [...patChars],
+          secondaryArray: [...lps],
+          left: i,
+          right: 0,
+          line: 7,
+          desc: `No prefix-suffix match for pattern[${i}] ('${patChars[i]}'). Set lps[${i}] = 0.`,
+          lps: [...lps],
+          patternStr,
+          textStr,
+          label1: "Pattern Characters",
+          label2: "LPS Table",
+        });
+        i++;
+      }
+    }
+  }
+
+  steps.push({
+    type: "array",
+    array: [...patChars],
+    secondaryArray: [...lps],
+    left: null,
+    right: null,
+    line: 7,
+    desc: `LPS Table complete: [${lps.join(", ")}]. Starting KMP pattern search in text "${textStr}".`,
+    lps: [...lps],
+    patternStr,
+    textStr,
+    label1: "Pattern",
+    label2: "LPS Table",
+  });
+
+  let textI = 0;
+  let patJ = 0;
+  let matchFoundAt: number | null = null;
+
+  while (textI < n) {
+    if (textChars[textI] === patChars[patJ]) {
+      steps.push({
+        type: "array",
+        array: [...textChars],
+        secondaryArray: [...patChars],
+        left: textI,
+        right: patJ,
+        left2: patJ,
+        line: 11,
+        desc: `Char Match! text[${textI}] ('${textChars[textI]}') == pattern[${patJ}] ('${patChars[patJ]}'). Advance both pointers.`,
+        lps: [...lps],
+        patternStr,
+        textStr,
+        textIndex: textI,
+        patternIndex: patJ,
+        label1: `Text: "${textStr}"`,
+        label2: `Pattern: "${patternStr}"`,
+      });
+      textI++;
+      patJ++;
+    }
+
+    if (patJ === m) {
+      matchFoundAt = textI - patJ;
+      steps.push({
+        type: "array",
+        array: [...textChars],
+        secondaryArray: [...patChars],
+        left: matchFoundAt,
+        right: textI - 1,
+        left2: 0,
+        line: 12,
+        desc: `Full pattern match found starting at index ${matchFoundAt}! (Indices ${matchFoundAt} through ${textI - 1}).`,
+        lps: [...lps],
+        patternStr,
+        textStr,
+        textIndex: textI - 1,
+        patternIndex: patJ - 1,
+        wSum: matchFoundAt,
+        label1: `Text: "${textStr}"`,
+        label2: `Pattern: "${patternStr}"`,
+      });
+      patJ = lps[patJ - 1] ?? 0;
+      break;
+    } else if (textI < n && textChars[textI] !== patChars[patJ]) {
+      if (patJ > 0) {
+        const nextJ = lps[patJ - 1] ?? 0;
+        steps.push({
+          type: "array",
+          array: [...textChars],
+          secondaryArray: [...patChars],
+          left: textI,
+          right: patJ,
+          left2: nextJ,
+          line: 14,
+          desc: `Mismatch: text[${textI}] ('${textChars[textI]}') != pattern[${patJ}] ('${patChars[patJ]}'). Skip redundant comparisons using LPS: jump j from ${patJ} to lps[${patJ - 1}] = ${nextJ}.`,
+          lps: [...lps],
+          patternStr,
+          textStr,
+          textIndex: textI,
+          patternIndex: patJ,
+          label1: `Text: "${textStr}"`,
+          label2: `Pattern: "${patternStr}"`,
+        });
+        patJ = nextJ;
+      } else {
+        steps.push({
+          type: "array",
+          array: [...textChars],
+          secondaryArray: [...patChars],
+          left: textI,
+          right: 0,
+          left2: 0,
+          line: 15,
+          desc: `Mismatch at start of pattern: text[${textI}] ('${textChars[textI]}') != pattern[0] ('${patChars[0]}'). Advance text pointer i.`,
+          lps: [...lps],
+          patternStr,
+          textStr,
+          textIndex: textI,
+          patternIndex: 0,
+          label1: `Text: "${textStr}"`,
+          label2: `Pattern: "${patternStr}"`,
+        });
+        textI++;
+      }
+    }
+  }
+
+  steps.push({
+    type: "array",
+    array: [...textChars],
+    secondaryArray: [...patChars],
+    left: matchFoundAt,
+    right: matchFoundAt !== null ? matchFoundAt + m - 1 : null,
+    line: 12,
+    desc:
+      matchFoundAt !== null
+        ? `KMP completed: Pattern "${patternStr}" found at index ${matchFoundAt} in text "${textStr}".`
+        : `KMP completed: Pattern "${patternStr}" does not occur in text "${textStr}".`,
+    lps: [...lps],
+    patternStr,
+    textStr,
+    wSum: matchFoundAt !== null ? matchFoundAt : -1,
+    label1: `Text: "${textStr}"`,
+    label2: `Pattern: "${patternStr}"`,
+  });
+
+  return { code, array: textChars, steps: cap(steps) };
+}
+

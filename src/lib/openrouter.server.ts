@@ -3,30 +3,34 @@
 const env = typeof process !== "undefined" && process?.env ? process.env : {};
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const GEMINI_API_BASE_URL = (
   env["GEMINI_API_BASE_URL"] || "https://generativelanguage.googleapis.com/v1beta"
 ).replace(/\/+$/, "");
 
-const DEFAULT_GEMINI_MODEL = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-3.1-flash-lite";
+const DEFAULT_GEMINI_MODEL = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-3.6-flash";
 
-/** Supported review models across Gemini and OpenRouter. */
+/** Supported review models prioritized by speed, availability, and capability. */
 export const REVIEW_MODELS = Array.from(
   new Set([
     DEFAULT_GEMINI_MODEL,
+    "gemini-3.7-flash",
     "gemini-3.1-flash-lite",
     "gemini-flash-lite-latest",
-    "gemini-3.6-flash",
-    "gemini-2.0-flash",
     "gemini-flash-latest",
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
     "gemini-3.5-flash",
-    "gemini-3.7-flash",
+    "gemini-2.0-flash",
+    "openai/gpt-4o-mini",
+    "gpt-4o-mini",
+    "gpt-4o",
     "nvidia/nemotron-3.5-lightning:free",
     "stealth/ox-alpha",
     "dots-studio/dots-3-note-preview:free",
     "liquid/lfm-2.5-2.6b:free",
     "poolside/laguna-s-2.1:free",
     "google/gemma-4-26b-a4b-it:free",
-    "openai/gpt-4o-mini",
     "meta-llama/llama-3.3-70b-instruct",
     "qwen/qwen-2.5-coder-32b-instruct",
     "mistralai/mistral-small-3",
@@ -34,24 +38,27 @@ export const REVIEW_MODELS = Array.from(
   ]),
 );
 
-/** Supported visualizer models across Gemini and OpenRouter. */
+/** Supported visualizer models prioritized by speed, availability, and capability. */
 export const VIZ_MODELS = Array.from(
   new Set([
     DEFAULT_GEMINI_MODEL,
+    "gemini-3.7-flash",
     "gemini-3.1-flash-lite",
     "gemini-flash-lite-latest",
-    "gemini-3.6-flash",
-    "gemini-2.0-flash",
     "gemini-flash-latest",
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
     "gemini-3.5-flash",
-    "gemini-3.7-flash",
+    "gemini-2.0-flash",
+    "openai/gpt-4o-mini",
+    "gpt-4o-mini",
+    "gpt-4o",
     "nvidia/nemotron-3.5-lightning:free",
     "stealth/ox-alpha",
     "dots-studio/dots-3-note-preview:free",
     "liquid/lfm-2.5-2.6b:free",
     "poolside/laguna-s-2.1:free",
     "google/gemma-4-26b-a4b-it:free",
-    "openai/gpt-4o-mini",
     "qwen/qwen-2.5-coder-32b-instruct",
     "meta-llama/llama-3.3-70b-instruct",
     "mistralai/mistral-small-3",
@@ -76,6 +83,17 @@ export function getOpenRouterKey(): string {
   );
 }
 
+export function getOpenAIKey(): string {
+  const env: Record<string, string | undefined> =
+    typeof process !== "undefined" && process?.env ? process.env : {};
+
+  return clean(
+    env["OPENAI_API_KEY"] ||
+    env["OPEN_AI_API_KEY"] ||
+    ""
+  );
+}
+
 export function getGeminiKey(): string {
   const env: Record<string, string | undefined> =
     typeof process !== "undefined" && process?.env ? process.env : {};
@@ -90,94 +108,25 @@ export function getGeminiKey(): string {
 export function isGeminiKey(key: string): boolean {
   if (!key) return false;
   if (key.startsWith("AIza") || key.startsWith("AQ.")) return true;
-  if (key.startsWith("sk-or-") || key.startsWith("sk-")) return false;
+  if (key.startsWith("sk-or-") || key.startsWith("sk-proj-") || key.startsWith("sk-")) return false;
   return true;
 }
 
 export function isOpenRouterKey(key: string): boolean {
   if (!key) return false;
-  if (key.startsWith("sk-or-") || key.startsWith("sk-")) return true;
+  if (key.startsWith("sk-or-")) return true;
+  if (key.startsWith("sk-proj-")) return false;
   if (key.startsWith("AIza") || key.startsWith("AQ.")) return false;
   return false;
 }
 
-/** Tolerant JSON repair for truncated streaming or token-limited LLM responses. */
-export function repairTruncatedJson(str: string): string | null {
-  if (!str) return null;
-  const trimmed = str.trim();
-  const firstBrace = trimmed.indexOf("{");
-  if (firstBrace === -1) return null;
-  const content = trimmed.slice(firstBrace);
-
-  // Strategy A: Targeted viz_steps array closure
-  const stepsIdx = content.indexOf('"viz_steps"');
-  if (stepsIdx !== -1) {
-    const arrayBracket = content.indexOf("[", stepsIdx);
-    if (arrayBracket !== -1) {
-      const lastStepEnd = content.lastIndexOf("}");
-      if (lastStepEnd > arrayBracket) {
-        const candidate = content.slice(0, lastStepEnd + 1).replace(/,\s*$/, "") + "\n]}";
-        try {
-          JSON.parse(candidate);
-          return candidate;
-        } catch {
-          // continue
-        }
-      }
-    }
-  }
-
-  // Strategy B: Token stack-based bracket auto-closure
-  let inString = false;
-  let escape = false;
-  const stack: string[] = [];
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
-    if (escape) {
-      escape = false;
-      continue;
-    }
-    if (char === "\\") {
-      escape = true;
-      continue;
-    }
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (!inString) {
-      if (char === "{" || char === "[") {
-        stack.push(char);
-      } else if (char === "}") {
-        if (stack.length > 0 && stack[stack.length - 1] === "{") stack.pop();
-      } else if (char === "]") {
-        if (stack.length > 0 && stack[stack.length - 1] === "[") stack.pop();
-      }
-    }
-  }
-
-  let repaired = content;
-  if (inString) {
-    repaired += '"';
-  }
-  repaired = repaired.replace(/,\s*$/, "");
-  repaired = repaired.replace(/,\s*"(?:[^"\\]|\\.)*"\s*:\s*$/, "");
-
-  while (stack.length > 0) {
-    const open = stack.pop();
-    if (open === "{") repaired += "}";
-    else if (open === "[") repaired += "]";
-  }
-
-  try {
-    JSON.parse(repaired);
-    return repaired;
-  } catch {
-    return null;
-  }
+export function isOpenAIKey(key: string): boolean {
+  if (!key) return false;
+  if (key.startsWith("sk-proj-") || (key.startsWith("sk-") && !key.startsWith("sk-or-"))) return true;
+  return false;
 }
 
-/** Tolerant JSON extraction — raw, fenced, embedded in prose, or truncated mid-token. */
+/** Tolerant JSON extraction — raw, fenced, or embedded in prose with trailing comma cleanup. */
 export function extractJson(str: string): any | null {
   if (!str) return null;
   const attempts: string[] = [str];
@@ -186,11 +135,6 @@ export function extractJson(str: string): any | null {
   const first = str.indexOf("{");
   const last = str.lastIndexOf("}");
   if (first !== -1 && last > first) attempts.push(str.slice(first, last + 1));
-
-  // Also try repairing if truncated
-  const repaired = repairTruncatedJson(str);
-  if (repaired) attempts.push(repaired);
-
   for (const a of attempts) {
     const trimmed = a.trim();
     const parseAttempts = [trimmed, trimmed.replace(/,\s*([}\]])/g, "$1")];
@@ -210,9 +154,6 @@ export function extractJson(str: string): any | null {
           if (!parsed.test_array && (parsed.testArray || parsed.testCase || parsed.array)) {
             parsed.test_array = parsed.testArray || parsed.testCase || parsed.array;
           }
-          if (!parsed.test_datasets && (parsed.testDatasets || parsed.datasets)) {
-            parsed.test_datasets = parsed.testDatasets || parsed.datasets;
-          }
           return parsed;
         }
       } catch {
@@ -223,8 +164,7 @@ export function extractJson(str: string): any | null {
   return null;
 }
 
-
-function describe(status: number, model: string, provider: "OpenRouter" | "Gemini") {
+function describe(status: number, model: string, provider: "OpenRouter" | "Gemini" | "OpenAI") {
   if (provider === "Gemini") {
     if (status === 400) return `Gemini rejected the model request for ${model} (400).`;
     if (status === 401 || status === 403)
@@ -232,13 +172,80 @@ function describe(status: number, model: string, provider: "OpenRouter" | "Gemin
     if (status === 404)
       return `Gemini model is unavailable for this account or API version: ${model} (404).`;
     if (status === 429) return "Gemini rate limit reached (429).";
+    if (status === 503) return "Gemini model is currently experiencing high demand (503).";
     return `Gemini error ${status} on ${model}.`;
+  }
+  if (provider === "OpenAI") {
+    if (status === 401) return "OpenAI key is invalid or expired (401).";
+    if (status === 403) return "OpenAI access forbidden or quota restricted (403).";
+    if (status === 429) return "OpenAI credit balance exhausted or rate limited (429).";
+    if (status === 503) return "OpenAI servers temporarily unavailable (503).";
+    return `OpenAI error ${status} on ${model}.`;
   }
   if (status === 401) return "OpenRouter rejected the key (401).";
   if (status === 403)
     return "OpenRouter key limit or credits exceeded (403) — raise the key limit or add credits.";
   if (status === 429) return "OpenRouter rate limited this key (429).";
   return `OpenRouter error ${status} on ${model}.`;
+}
+
+export async function callOpenAIModel(
+  model: string,
+  key: string,
+  system: string,
+  user: string,
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 40000);
+  const openAIModel = model.startsWith("openai/")
+    ? model.replace(/^openai\//, "")
+    : model.startsWith("gpt-")
+      ? model
+      : "gpt-4o-mini";
+  try {
+    let res = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: openAIModel,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 8192,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok && res.status === 400) {
+      res = await fetch(OPENAI_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: openAIModel,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          max_tokens: 8192,
+        }),
+        signal: controller.signal,
+      });
+    }
+
+    if (!res.ok) throw new Error(describe(res.status, openAIModel, "OpenAI"));
+    const data = (await res.json()) as any;
+    return extractJson(data?.choices?.[0]?.message?.content ?? "");
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function callOpenRouterModel(
@@ -248,7 +255,7 @@ export async function callOpenRouterModel(
   user: string,
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 35000);
+  const timeout = setTimeout(() => controller.abort(), 40000);
   try {
     let res = await fetch(OPENROUTER_URL, {
       method: "POST",
@@ -299,7 +306,7 @@ export async function callOpenRouterModel(
 
 export async function callGeminiModel(model: string, key: string, system: string, user: string) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 35000);
+  const timeout = setTimeout(() => controller.abort(), 40000);
   try {
     const url = `${GEMINI_API_BASE_URL}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
     let res = await fetch(url, {
@@ -352,18 +359,21 @@ async function callModel(
   key: string,
   system: string,
   user: string,
-  provider: "openrouter" | "gemini",
+  provider: "openrouter" | "gemini" | "openai",
 ) {
   if (provider === "gemini") return callGeminiModel(model, key, system, user);
+  if (provider === "openai") return callOpenAIModel(model, key, system, user);
   return callOpenRouterModel(model, key, system, user);
 }
 
-function providerForModel(model: string): "openrouter" | "gemini" {
-  return model.startsWith("gemini-") ? "gemini" : "openrouter";
+function providerForModel(model: string): "openrouter" | "gemini" | "openai" {
+  if (model.startsWith("gemini-")) return "gemini";
+  if (model.startsWith("openai/") || model.startsWith("gpt-")) return "openai";
+  return "openrouter";
 }
 
 /**
- * Sequentially queries AI candidate models across Gemini and OpenRouter providers.
+ * Sequentially queries AI candidate models across Gemini, OpenAI, and OpenRouter providers.
  * Evaluates the response with the validator predicate and returns the first valid result,
  * providing robust multi-provider failover.
  */
@@ -377,17 +387,19 @@ export async function queryModelWithFallbacks(
   let error: string | null = null;
 
   const envGeminiKey = getGeminiKey();
+  const envOpenAIKey = getOpenAIKey();
   const envOpenRouterKey = getOpenRouterKey();
 
   const effectiveGeminiKey = (isGeminiKey(key) ? key : "") || envGeminiKey;
+  const effectiveOpenAIKey = (isOpenAIKey(key) ? key : "") || envOpenAIKey;
   const effectiveOpenRouterKey = (isOpenRouterKey(key) ? key : "") || envOpenRouterKey;
-  const fallbackKey = key || effectiveGeminiKey || effectiveOpenRouterKey;
+  const fallbackKey = key || effectiveGeminiKey || effectiveOpenAIKey || effectiveOpenRouterKey;
 
   const executableCandidates: Array<{
     model: string;
     targetModel: string;
     key: string;
-    provider: "gemini" | "openrouter";
+    provider: "gemini" | "openrouter" | "openai";
   }> = [];
 
   for (const model of models) {
@@ -416,12 +428,32 @@ export async function queryModelWithFallbacks(
           provider: "openrouter",
         });
       }
-      if (!effectiveGeminiKey && !effectiveOpenRouterKey && fallbackKey) {
+      if (!effectiveGeminiKey && !effectiveOpenRouterKey && !effectiveOpenAIKey && fallbackKey) {
         executableCandidates.push({
           model,
           targetModel: model,
           key: fallbackKey,
           provider: providerForModel(model),
+        });
+      }
+    } else if (model.startsWith("openai/") || model.startsWith("gpt-")) {
+      // 1. Direct OpenAI API if OpenAI key is available
+      if (effectiveOpenAIKey) {
+        executableCandidates.push({
+          model,
+          targetModel: model,
+          key: effectiveOpenAIKey,
+          provider: "openai",
+        });
+      }
+      // 2. OpenRouter fallback for OpenAI models
+      if (effectiveOpenRouterKey) {
+        const orModel = model.startsWith("openai/") ? model : `openai/${model}`;
+        executableCandidates.push({
+          model,
+          targetModel: orModel,
+          key: effectiveOpenRouterKey,
+          provider: "openrouter",
         });
       }
     } else if (model.startsWith("google/")) {
@@ -445,7 +477,7 @@ export async function queryModelWithFallbacks(
         });
       }
     } else {
-      // Third-party models (OpenAI, Meta, Qwen, Mistral, DeepSeek, NVIDIA, etc.)
+      // Third-party models (Meta, Qwen, Mistral, DeepSeek, NVIDIA, etc.)
       if (effectiveOpenRouterKey) {
         executableCandidates.push({
           model,
@@ -459,6 +491,21 @@ export async function queryModelWithFallbacks(
           targetModel: model,
           key: fallbackKey,
           provider: "openrouter",
+        });
+      }
+    }
+  }
+
+  // If OpenAI key is available, add OpenAI models as fallback candidates if not already present
+  if (effectiveOpenAIKey) {
+    const defaultOpenAIModels = ["gpt-4o-mini", "gpt-4o"];
+    for (const oModel of defaultOpenAIModels) {
+      if (!executableCandidates.some((c) => c.provider === "openai" && c.targetModel === oModel)) {
+        executableCandidates.push({
+          model: oModel,
+          targetModel: oModel,
+          key: effectiveOpenAIKey,
+          provider: "openai",
         });
       }
     }
@@ -489,8 +536,8 @@ export async function queryModelWithFallbacks(
       error = `${candidate.model} returned an unusable response.`;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
-      if (error.includes("(401)") || error.includes("(403)")) {
-        // If the API key is unauthorized or out of credits, don't try other models on the same provider
+      if (error.includes("(401)") || error.includes("(403)") || error.includes("(429)")) {
+        // If the API key is unauthorized or out of credits, don't keep trying other models on the same provider
         failedProviders.add(candidate.provider);
       }
     }

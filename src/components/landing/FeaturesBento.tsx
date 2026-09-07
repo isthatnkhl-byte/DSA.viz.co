@@ -68,15 +68,15 @@ export function FeaturesBento() {
                 <Bot className="size-6" />
               </div>
               <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-[11px] font-bold text-primary">
-                &lt; 2s Latency
+                Invariant Analysis
               </span>
             </div>
 
             <h3 className="font-display text-2xl font-black text-foreground group-hover:text-primary transition-colors">
-              Instant AI Invariant Audit
+              Pseudocode & Invariant Audit
             </h3>
             <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed font-sans">
-              Submit pseudocode or standard code in C++, Python, or Java. The AI engine validates your loop bounds, edge conditions, and Big-O invariants with surgical accuracy.
+              Submit pseudocode or standard code in C++, Python, or Java. The invariant engine checks your loop bounds, base cases, and Big-O invariants with clear explanations.
             </p>
 
             {/* Interactive Terminal / Audit Result */}
@@ -123,15 +123,15 @@ export function FeaturesBento() {
                 <Zap className="size-6" />
               </div>
               <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-[11px] font-bold text-primary">
-                60 FPS Engine
+                Step-by-Step
               </span>
             </div>
 
             <h3 className="font-display text-2xl font-black text-foreground group-hover:text-primary transition-colors">
-              Deterministic Time-Travel
+              Interactive State Timeline
             </h3>
             <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed font-sans">
-              Never wonder what a pointer is doing. Scrub backward and forward through array pointers, recursion call stacks, and DP grids.
+              Never wonder what a pointer is doing. Step backward and forward through array pointers, recursion call stacks, and DP grids.
             </p>
 
             {/* Interactive Visual Scrubber Micro-Card */}
@@ -177,7 +177,7 @@ export function FeaturesBento() {
           <div className="pt-4 border-t border-border/40 font-mono text-xs text-primary font-bold flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="size-4" />
-              <span>Zero guessing • Deterministic</span>
+              <span>Predictable state transitions</span>
             </span>
             <button
               type="button"
@@ -206,7 +206,7 @@ export function FeaturesBento() {
               Online C++ Sandbox
             </h3>
             <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed font-sans">
-              Instant in-browser compilation with standard libraries (`&lt;vector&gt;`, `&lt;unordered_map&gt;`, `&lt;queue&gt;`) and multi-provider fallback.
+              In-browser compilation with standard libraries (`&lt;vector&gt;`, `&lt;unordered_map&gt;`, `&lt;queue&gt;`) and multi-provider fallback.
             </p>
 
             {/* Interactive Mini Console */}

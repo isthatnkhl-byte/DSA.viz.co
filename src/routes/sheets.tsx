@@ -272,7 +272,7 @@ function SheetsPage() {
             </div>
             <div className="rounded-xl border border-border/60 bg-secondary/40 p-3">
               <div className="text-[10px] font-mono uppercase text-muted-foreground">Execution Engine</div>
-              <div className="font-display text-xl sm:text-2xl font-black text-accent mt-0.5">60 FPS Visualizer</div>
+              <div className="font-display text-xl sm:text-2xl font-black text-accent mt-0.5">Step-by-Step</div>
             </div>
           </div>
         </div>

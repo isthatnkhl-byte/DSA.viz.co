@@ -1,14 +1,16 @@
-import { Moon, Sun, Palette } from "lucide-react";
+import { Moon, Sun, Sparkles } from "lucide-react";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { THEME_OPTIONS } from "@/lib/theme";
 
 export function ThemeSwitchBanner() {
   const { theme, setTheme, mode, setMode } = useThemeColor();
 
+  const activeOption = THEME_OPTIONS.find((t) => t.id === theme) ?? THEME_OPTIONS[0]!;
+
   return (
-    <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-border/80 bg-card/85 p-1.5 backdrop-blur-md shadow-sm">
+    <div className="inline-flex flex-wrap items-center justify-center gap-2.5 rounded-2xl border border-border/80 bg-card/85 px-3 py-1.5 backdrop-blur-md shadow-lg transition-all">
       {/* Appearance Mode Pill Switch (Dark / Light) */}
-      <div className="inline-flex items-center gap-1 rounded-xl bg-background/80 p-0.5 border border-border/60">
+      <div className="inline-flex items-center gap-1 rounded-xl bg-background/80 p-0.5 border border-border/60 shrink-0">
         <button
           type="button"
           onClick={() => setMode("dark")}
@@ -31,7 +33,7 @@ export function ThemeSwitchBanner() {
               ? "bg-primary text-primary-foreground font-bold shadow-xs"
               : "text-muted-foreground hover:text-foreground"
           }`}
-          title="Switch to Light / Warm Crème Mode"
+          title="Switch to Light Mode"
         >
           <Sun className="size-3.5" />
           <span>Light</span>
@@ -41,27 +43,34 @@ export function ThemeSwitchBanner() {
       <div className="hidden sm:block h-4 w-px bg-border/60" />
 
       {/* Color Palette Dots */}
-      <div className="flex items-center gap-1 px-1">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground hidden md:inline mr-1">
-          Glow:
+      <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground hidden lg:flex items-center gap-1 mr-1 shrink-0">
+          <Sparkles className="size-3 text-primary" /> {activeOption.name}
         </span>
-        {THEME_OPTIONS.map((opt) => {
-          const isSelected = opt.id === theme;
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setTheme(opt.id)}
-              className={`size-5 rounded-full transition-all flex items-center justify-center ${
-                isSelected
-                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-110 shadow-sm"
-                  : "opacity-70 hover:opacity-100 hover:scale-105"
-              }`}
-              style={{ backgroundColor: opt.previewColor }}
-              title={`Accent Color: ${opt.name}`}
-            />
-          );
-        })}
+        <div className="flex items-center gap-1.5">
+          {THEME_OPTIONS.map((opt) => {
+            const isSelected = opt.id === theme;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setTheme(opt.id)}
+                className={`group relative size-5 rounded-full transition-all flex items-center justify-center shrink-0 ${
+                  isSelected
+                    ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-110 shadow-md"
+                    : "opacity-75 hover:opacity-100 hover:scale-110"
+                }`}
+                style={{ backgroundColor: opt.previewColor }}
+                title={`${opt.name}: ${opt.label}`}
+              >
+                <span 
+                  className="absolute bottom-0 right-0 size-2 rounded-full border border-background shadow-2xs"
+                  style={{ backgroundColor: opt.accentColor }}
+                />
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

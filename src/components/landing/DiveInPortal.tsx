@@ -36,7 +36,7 @@ export function DiveInPortal() {
 
         {/* Subtitle */}
         <p className="relative z-10 mx-auto mt-5 max-w-2xl text-sm sm:text-base leading-relaxed text-muted-foreground font-sans">
-          1500+ company-tagged problems with instantaneous AI pseudocode review, time/space invariant
+          1,500+ company-tagged problems with structured pseudocode review, time/space invariant
           auditing, and step-by-step interactive animations.
         </p>
 
@@ -74,7 +74,7 @@ export function DiveInPortal() {
           </span>
           <span className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-border/50">
             <span className="size-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
-            Instant Invariant AI
+            Invariant Verification
           </span>
         </div>
       </div>

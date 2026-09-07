@@ -217,7 +217,7 @@ function PlaygroundPage() {
                 Algorithm <span className="bg-gradient-to-r from-primary via-accent to-emerald-400 bg-clip-text text-transparent">Playground</span>
               </h1>
               <p className="mt-2 text-sm sm:text-base text-muted-foreground font-sans max-w-2xl leading-relaxed">
-                Prototype arbitrary algorithms on custom test datasets. Receive instant FAANG-grade invariant audits, asymptotic complexity formulas, and animated step-by-step visualizer traces.
+                Prototype arbitrary algorithms on custom test datasets. Receive structured invariant audits, asymptotic complexity formulas, and animated step-by-step visualizer traces.
               </p>
             </div>
 
@@ -230,7 +230,7 @@ function PlaygroundPage() {
               <div className="h-10 w-px bg-border/60" />
               <div>
                 <div className="text-[11px] uppercase text-muted-foreground">Trace Engine</div>
-                <div className="text-xl sm:text-2xl font-black text-primary font-display">60 FPS</div>
+                <div className="text-xl sm:text-2xl font-black text-primary font-display">Interactive</div>
               </div>
             </div>
           </div>

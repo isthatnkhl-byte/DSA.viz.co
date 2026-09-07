@@ -1,7 +1,6 @@
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
-import DOMPurify from "dompurify";
 import { RefreshCw } from "lucide-react";
 
 interface ProblemStatementTabProps {
@@ -15,21 +14,6 @@ export const ProblemStatementTab = memo(function ProblemStatementTab({
   isLoading = false,
   onRetry,
 }: ProblemStatementTabProps) {
-  const sanitizedStatement = useMemo(() => {
-    if (!statement) return "";
-    if (typeof window !== "undefined") {
-      return DOMPurify.sanitize(statement, {
-        ALLOWED_TAGS: [
-          "p", "br", "strong", "em", "code", "pre", "span", "div",
-          "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td",
-          "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "hr", "sub", "sup"
-        ],
-        ALLOWED_ATTR: ["class", "className"]
-      });
-    }
-    return statement;
-  }, [statement]);
-
   if (isLoading && !statement) {
     return (
       <div className="space-y-3 py-2 animate-pulse">
@@ -62,7 +46,7 @@ export const ProblemStatementTab = memo(function ProblemStatementTab({
 
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none space-y-4 text-xs leading-relaxed text-muted-foreground [&_code]:rounded [&_code]:bg-muted/70 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-foreground [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-border/70 [&_pre]:bg-background/80 [&_pre]:p-3.5 [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4">
-      <ReactMarkdown rehypePlugins={[rehypeRaw]}>{sanitizedStatement}</ReactMarkdown>
+      <ReactMarkdown rehypePlugins={[rehypeRaw]}>{statement}</ReactMarkdown>
     </div>
   );
 });

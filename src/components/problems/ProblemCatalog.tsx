@@ -260,13 +260,13 @@ export function ProblemCatalog({ initialTopic = "All Topics", showTitle = true }
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-3.5 py-1 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-3 shadow-sm">
                 <Sparkles className="size-3.5" />
-                <span>DSA.viz PRO Masterclass</span>
+                <span>DSA.viz Problem Library</span>
               </div>
               <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">
                 Algorithm <span className="bg-gradient-to-r from-primary via-accent to-emerald-400 bg-clip-text text-transparent">Library</span>
               </h1>
               <p className="mt-2.5 text-sm sm:text-base text-muted-foreground font-sans max-w-2xl leading-relaxed">
-                Master 1,500+ interview challenges with 60 FPS step-by-step invariant visualizers, automated Socratic nudges, live C++ sandbox execution, and company frequency heatmaps.
+                Master 1,500+ interview challenges with step-by-step invariant visualizers, automated Socratic nudges, live C++ sandbox execution, and company frequency heatmaps.
               </p>
             </div>
 

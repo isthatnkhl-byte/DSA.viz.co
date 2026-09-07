@@ -9,8 +9,10 @@ import { DsaSheetSection } from "@/components/landing/DsaSheetSection";
 import { FeaturesBento } from "@/components/landing/FeaturesBento";
 import { FeaturedProblemGrid } from "@/components/landing/FeaturedProblemGrid";
 import { LowerInteractiveShowcase } from "@/components/landing/LowerInteractiveShowcase";
+import { LiveVisualizerCard } from "@/components/landing/LiveVisualizerCard";
 import { useAuth } from "@/hooks/useAuth";
-import { Terminal, Shield, Sparkles, Activity, Code2, BookOpen } from "lucide-react";
+import { DsavizcoLogo } from "@/components/brand/DsavizcoLogo";
+import { Shield, Sparkles, Activity, Code2, BookOpen } from "lucide-react";
 import { motion } from "motion/react";
 
 export const Route = createFileRoute("/")({
@@ -62,6 +64,17 @@ export function LandingPage() {
           transition={{ duration: 0.6, ease: "easeOut" }}
         >
           <AlgorithmLiveTicker />
+        </motion.div>
+
+        {/* 2.6 Live Visualizer Showcase from Hero */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
+          className="will-change-transform max-w-5xl mx-auto px-4 py-8 flex justify-center"
+        >
+          <LiveVisualizerCard />
         </motion.div>
 
         {/* 3. Interactive Complexity Leap (Brute Force vs Better vs Optimal) */}
@@ -154,15 +167,15 @@ export function LandingPage() {
           <div className="md:col-span-5 lg:col-span-4 flex flex-col gap-6">
             <Link to="/" className="inline-flex items-center gap-2 font-display text-2xl text-foreground font-black">
               <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-accent text-primary-foreground text-sm font-mono font-black shadow-md shadow-primary/20">
-                <Terminal className="size-5" />
+                <DsavizcoLogo className="size-6 text-primary-foreground" />
               </div>
               <span>
-                DSA<span className="text-primary">.viz.co</span>
+                dsa<span className="text-primary">.viz.co</span>
               </span>
             </Link>
             <p className="font-sans text-sm text-muted-foreground leading-relaxed max-w-sm">
               Stop imagining algorithms. Watch them move. <br />
-              1500+ LeetCode problems animated deterministically at 60fps with instant AI invariants.
+              1,500+ LeetCode problems animated with step-by-step memory pointer traces and invariant verification.
             </p>
             {/* System Status Ping */}
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 font-mono text-[11px] font-bold text-emerald-400 w-fit">
@@ -215,12 +228,12 @@ export function LandingPage() {
         {/* Bottom Bar: Copyright & Tech Badges */}
         <div className="max-w-7xl mx-auto mt-16 pt-8 border-t border-border/40 flex flex-col md:flex-row items-center justify-between gap-6">
           <p className="text-[11px] font-mono text-muted-foreground">
-            © {new Date().getFullYear()} DSA.viz.co. All rights reserved.
+            © {new Date().getFullYear()} DSA.viz. All rights reserved.
           </p>
           <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-[10px] font-mono font-medium uppercase tracking-widest text-muted-foreground/60">
-            <span className="flex items-center gap-1.5"><Activity className="size-3" /> 60 FPS Visualizer</span>
-            <span className="flex items-center gap-1.5"><Code2 className="size-3" /> Cloud C++20</span>
-            <span className="flex items-center gap-1.5"><Shield className="size-3" /> AES-256-GCM</span>
+            <span className="flex items-center gap-1.5"><Activity className="size-3" /> Step-by-Step Visualizer</span>
+            <span className="flex items-center gap-1.5"><Code2 className="size-3" /> In-Browser C++20</span>
+            <span className="flex items-center gap-1.5"><BookOpen className="size-3" /> Curated Roadmaps</span>
           </div>
         </div>
       </footer>

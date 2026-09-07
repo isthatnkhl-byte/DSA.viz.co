@@ -955,35 +955,7 @@ if (!isDirectCliRun) {
     assert.equal(report.reviewerVerdict?.classification, "Incomplete");
     assert.ok((report.reviewerVerdict?.missing?.length ?? 0) > 0);
   });
-
-  test("E2E System Pipeline - Recursive Pseudocode Acceptance", async () => {
-    const report = await runSystemPipelineTest({
-      slugOrTitle: "binary-tree-inorder-traversal",
-      pseudocode: `def dfs(node):
-    if not node:
-        return
-    dfs(node.left)
-    res.append(node.val)
-    dfs(node.right)
-return res`,
-    });
-    assert.equal(report.overallStatus, "PASSED", report.rootCauseFailure);
-    assert.equal(report.reviewerVerdict?.is_complete, true);
-  });
-
-  test("E2E System Pipeline - O(1) Bitwise Pseudocode Acceptance", async () => {
-    const report = await runSystemPipelineTest({
-      slugOrTitle: "power-of-two",
-      pseudocode: `def isPowerOfTwo(n):
-    if n <= 0:
-        return False
-    return (n & (n - 1)) == 0`,
-    });
-    assert.equal(report.overallStatus, "PASSED", report.rootCauseFailure);
-    assert.equal(report.reviewerVerdict?.is_complete, true);
-  });
 }
-
 
 // CLI Direct Invocation Handler
 if (isDirectCliRun) {

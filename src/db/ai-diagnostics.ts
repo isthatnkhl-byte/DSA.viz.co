@@ -71,7 +71,7 @@ export async function getUserAiReports(userId: string): Promise<AiReportData[]> 
       .limit(50)
       .get();
 
-    return snap.docs.map((doc: any) => ({
+    return snap.docs.map(doc => ({
       id: doc.id,
       ...(doc.data() as any),
     }));
@@ -135,7 +135,7 @@ export async function getUserChatSessions(userId: string): Promise<ChatSessionDa
       .limit(30)
       .get();
 
-    return snap.docs.map((doc: any) => ({
+    return snap.docs.map(doc => ({
       id: doc.id,
       ...(doc.data() as any),
     }));
@@ -182,7 +182,7 @@ export async function getUserActivities(userId: string, limitCount: number = 50)
       .limit(limitCount)
       .get();
 
-    return snap.docs.map((doc: any) => ({
+    return snap.docs.map(doc => ({
       id: doc.id,
       ...(doc.data() as any),
     }));

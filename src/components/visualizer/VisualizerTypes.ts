@@ -1,19 +1,6 @@
 export type Val = number | string;
 
 /**
- * Composite layout modes for synchronized multi-container visualizer arrangements
- */
-export type CompositeLayoutMode =
-  | "single"
-  | "dual-array"
-  | "array-stack"
-  | "array-hashmap"
-  | "tree-stack"
-  | "matrix-queue"
-  | "matrix-stack"
-  | "graph-table";
-
-/**
  * Parses any candidate value into an explicit [row, col] coordinate tuple.
  * Returns null if the value is a scalar number, non-coordinate string, or invalid shape.
  * This completely prevents counter variables (like 0, 1, or lengths) from false-lighting cell (0, 0).
@@ -54,10 +41,26 @@ export function parse2DCoord(value: unknown): [number, number] | null {
     return null;
   }
 
-  // String format: "(r, c)", "[r, c]", "r, c", "r:c"
+  // String format: "(r, c)", "[r, c]", "r, c", "r:c", "r=1, c=2", "[1][2]", "cell (1, 2)"
   if (typeof value === "string") {
     const s = value.trim();
-    const m = s.match(/^\(?\[?\s*(-?\d+)\s*[,:\-]\s*(-?\d+)\s*\)?\]?$/);
+    // 1. Direct patterns like "(1, 2)", "[1, 2]", "1,2", "1:2", "1, 2"
+    let m = s.match(/^\(?\[?\s*(-?\d+)\s*[,:\-]\s*(-?\d+)\s*\)?\]?$/);
+    if (m && m[1] !== undefined && m[2] !== undefined) {
+      return [parseInt(m[1], 10), parseInt(m[2], 10)];
+    }
+    // 2. Named coordinate patterns: "r=1, c=2", "r: 1, c: 2", "row=1, col=2", "i=1, j=2"
+    m = s.match(/\b(?:r|row|i)\s*[:=]?\s*(-?\d+)\b.*?\b(?:c|col|j)\s*[:=]?\s*(-?\d+)\b/i);
+    if (m && m[1] !== undefined && m[2] !== undefined) {
+      return [parseInt(m[1], 10), parseInt(m[2], 10)];
+    }
+    // 3. Grid indexing: "grid[1][2]", "matrix[1][2]", "[1][2]"
+    m = s.match(/\[\s*(-?\d+)\s*\]\s*\[\s*(-?\d+)\s*\]/);
+    if (m && m[1] !== undefined && m[2] !== undefined) {
+      return [parseInt(m[1], 10), parseInt(m[2], 10)];
+    }
+    // 4. Embedded parentheses: "... (1, 2) ..."
+    m = s.match(/\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)/);
     if (m && m[1] !== undefined && m[2] !== undefined) {
       return [parseInt(m[1], 10), parseInt(m[2], 10)];
     }
@@ -79,6 +82,12 @@ export function extractScalarValue(item: unknown, depth = 0): number | string | 
   if (typeof item === "bigint") return item.toString();
   if (typeof item === "symbol") return item.description ?? "Symbol";
   if (typeof item === "function") return null;
+
+  // Check if item forms an explicit 2D coordinate tuple or object first
+  const coord = parse2DCoord(item);
+  if (coord) {
+    return `${coord[0]},${coord[1]}`;
+  }
 
   if (typeof item === "string") {
     const s = item.trim();
@@ -355,194 +364,73 @@ export function detectOperation(desc: string = ""): {
   return { label: "EXECUTE", color: "bg-muted text-muted-foreground border-border" };
 }
 
-export interface MarkerStyle {
-  bg: string;
-  textCol: string;
-  border: string;
-  ring: string;
-  glow?: boolean;
-  svgFill: string;
-  svgStroke: string;
-  svgText: string;
-}
+export type {
+  CallStackFrame,
+  RecursionTreeNode,
+  IntervalItem,
+  IntervalCollisionState,
+  Sightline,
+  HeapSwap,
+  TopKState,
+  TwoHeapsState,
+  GraphEdgeItem,
+  GraphSearchState,
+  TopologicalSortState,
+  UnionFindState,
+  WordLadderState,
+  HistogramSpan,
+  WaterTrapped,
+  BracketPair,
+  EvalExpression,
+  DnfPartition,
+  BinarySearchPartition,
+  SlidingWindowSpan,
+  PrefixSumProjection,
+  CyclicSortJump,
+  ArraySwapFlight,
+  DirectionRay,
+  WaveDistance,
+  BacktrackingPathRibbon,
+  NQueensConflictRay,
+  MatrixRotationOrbit,
+  Kernel8Neighbor,
+  GridPredecessorArrow,
+  MonotonicDequeState,
+  CircularBufferState,
+  QueueBfsLevel,
+  LinkedListCycleState,
+  LinkedListReversalState,
+  LruCacheState,
+  TreeTraversalState,
+  TreeStructuralState,
+  BstState,
+  TrieState,
+  TrieNodeInfo,
+  DpDependencyArc,
+  Dp1DState,
+  DpTransitionChoice,
+  Dp2DState,
+  BitRegisterState,
+  CompositeLayoutMode,
+  CompositeLayoutState,
+  SegmentTreeNodeInfo,
+  SegmentTreeState,
+  FenwickTreeState,
+  NaryTreeNode,
+  NaryTreeState,
+  ShortestPathAlgorithmState,
+  MstAlgorithmState,
+  KmpAlgorithmState,
+  RabinKarpAlgorithmState,
+  AhoCorasickNode,
+  AhoCorasickState,
+  StringPatternState,
+  LfuCacheState,
+  SkipListNode,
+  SkipListLevel,
+  SkipListState,
+  DisjointIntervalSetState,
+} from "../../lib/problems";
 
-export function getMarkerStyle(name: string, isMatch = false): MarkerStyle {
-  if (isMatch) {
-    return {
-      bg: "bg-emerald-500",
-      textCol: "text-white",
-      border: "border-emerald-400",
-      ring: "ring-emerald-400",
-      glow: true,
-      svgFill: "#10b981",
-      svgStroke: "#34d399",
-      svgText: "#ffffff",
-    };
-  }
-  const lower = String(name || "").toLowerCase().trim();
 
-  // Left / Slow / Write / Low / Start / Row / i / p1 / u / src / p / land (Emerald)
-  if (
-    /^(?:left|low|slow|start|write|p1|row|r|i|u|src|p|land)$/.test(lower) ||
-    /\b(?:left|low|slow|start|write|land)\b/.test(lower) ||
-    /^(?:r\d+|row\d+)$/.test(lower)
-  ) {
-    return {
-      bg: "bg-emerald-500/25",
-      textCol: "text-emerald-400",
-      border: "border-emerald-500/60",
-      ring: "ring-emerald-500/40",
-      glow: false,
-      svgFill: "rgba(16, 185, 129, 0.25)",
-      svgStroke: "rgba(16, 185, 129, 0.8)",
-      svgText: "#34d399",
-    };
-  }
-
-  // Right / Fast / Read / High / End / Col / j / p2 / v / dest / q (Indigo)
-  if (
-    /^(?:right|high|fast|end|read|p2|col|c|j|v|dest|q)$/.test(lower) ||
-    /\b(?:right|high|fast|end|read)\b/.test(lower) ||
-    /^(?:c\d+|col\d+)$/.test(lower)
-  ) {
-    return {
-      bg: "bg-indigo-500/25",
-      textCol: "text-indigo-300",
-      border: "border-indigo-500/60",
-      ring: "ring-indigo-500/40",
-      glow: false,
-      svgFill: "rgba(99, 102, 241, 0.25)",
-      svgStroke: "rgba(99, 102, 241, 0.8)",
-      svgText: "#a5b4fc",
-    };
-  }
-
-  // Mid / Pivot / Center / k / p3 / pos / origin / point / cell (Amber)
-  if (
-    /^(?:mid|pivot|center|k|p3|pos|origin|point|cell)$/.test(lower) ||
-    /\b(?:mid|pivot|center|origin|point)\b/.test(lower)
-  ) {
-    return {
-      bg: "bg-amber-500/25",
-      textCol: "text-amber-300",
-      border: "border-amber-500/60",
-      ring: "ring-amber-500/40",
-      glow: false,
-      svgFill: "rgba(245, 158, 11, 0.25)",
-      svgStroke: "rgba(245, 158, 11, 0.8)",
-      svgText: "#fcd34d",
-    };
-  }
-
-  // Merge / Union / Connect (Fuchsia)
-  if (
-    /^(?:merge|union|connect)$/.test(lower) ||
-    /\b(?:merge|union|connect)\b/.test(lower)
-  ) {
-    return {
-      bg: "bg-fuchsia-500/25",
-      textCol: "text-fuchsia-300",
-      border: "border-fuchsia-500/60",
-      ring: "ring-fuchsia-500/40",
-      glow: false,
-      svgFill: "rgba(217, 70, 239, 0.25)",
-      svgStroke: "rgba(217, 70, 239, 0.8)",
-      svgText: "#f0abfc",
-    };
-  }
-
-  // Prev / Predecessor / Parent (Rose)
-  if (
-    /^(?:prev|predecessor|parent)$/.test(lower) ||
-    /\b(?:prev|predecessor|parent)\b/.test(lower)
-  ) {
-    return {
-      bg: "bg-rose-500/25",
-      textCol: "text-rose-300",
-      border: "border-rose-500/60",
-      ring: "ring-rose-500/40",
-      glow: false,
-      svgFill: "rgba(244, 63, 94, 0.25)",
-      svgStroke: "rgba(244, 63, 94, 0.8)",
-      svgText: "#fda4af",
-    };
-  }
-
-  // Next / Successor / Child / Neighbor / nbr (Purple)
-  if (
-    /^(?:next|successor|child|neighbor|nbr)$/.test(lower) ||
-    /\b(?:next|successor|neighbor)\b/.test(lower)
-  ) {
-    return {
-      bg: "bg-purple-500/25",
-      textCol: "text-purple-300",
-      border: "border-purple-500/60",
-      ring: "ring-purple-500/40",
-      glow: false,
-      svgFill: "rgba(168, 85, 247, 0.25)",
-      svgStroke: "rgba(168, 85, 247, 0.8)",
-      svgText: "#d8b4fe",
-    };
-  }
-
-  // Target / Ans / Optimal / Match (Emerald Glow)
-  if (
-    /^(?:target|ans|optimal|best|match)$/.test(lower) ||
-    /\b(?:target|match)\b/.test(lower)
-  ) {
-    return {
-      bg: "bg-emerald-500/30",
-      textCol: "text-emerald-300",
-      border: "border-emerald-400/80",
-      ring: "ring-emerald-400/50",
-      glow: true,
-      svgFill: "rgba(16, 185, 129, 0.35)",
-      svgStroke: "rgba(52, 211, 153, 0.85)",
-      svgText: "#6ee7b7",
-    };
-  }
-
-  // Curr / Current / Node / Head / Top / Front / Root (Sky)
-  if (
-    /^(?:curr|current|node|head|top|front|root)$/.test(lower) ||
-    /\b(?:curr|current|node|root)\b/.test(lower)
-  ) {
-    return {
-      bg: "bg-sky-500/25",
-      textCol: "text-sky-300",
-      border: "border-sky-500/60",
-      ring: "ring-sky-500/40",
-      glow: false,
-      svgFill: "rgba(14, 165, 233, 0.25)",
-      svgStroke: "rgba(14, 165, 233, 0.8)",
-      svgText: "#7dd3fc",
-    };
-  }
-
-  // Tail / Back / Rear (Slate/Muted)
-  if (/^(?:tail|back|rear)$/.test(lower)) {
-    return {
-      bg: "bg-muted/60",
-      textCol: "text-muted-foreground",
-      border: "border-border",
-      ring: "ring-border/40",
-      glow: false,
-      svgFill: "rgba(100, 116, 139, 0.3)",
-      svgStroke: "rgba(148, 163, 184, 0.6)",
-      svgText: "#cbd5e1",
-    };
-  }
-
-  // Default fallback for custom pointer/marker names (Cyan)
-  return {
-    bg: "bg-cyan-500/25",
-    textCol: "text-cyan-300",
-    border: "border-cyan-500/60",
-    ring: "ring-cyan-500/40",
-    glow: false,
-    svgFill: "rgba(6, 182, 212, 0.25)",
-    svgStroke: "rgba(6, 182, 212, 0.8)",
-    svgText: "#67e8f9",
-  };
-}
 

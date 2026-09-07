@@ -20,78 +20,6 @@ interface CustomDatasetModalProps {
   onSubmit: (dataset: TestDataset) => void;
 }
 
-function parseTolerantArray(input: string): (number | string)[] {
-  const trimmed = input.trim();
-  if (!trimmed) return [];
-
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      // continue to tolerant parsing
-    }
-  }
-
-  const clean = trimmed.replace(/^\[|\]$/g, "").trim();
-  const tokens = clean.split(/[,;\s]+/).map((t) => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
-  return tokens.map((token) => {
-    const num = Number(token);
-    return !isNaN(num) && token !== "" ? num : token;
-  });
-}
-
-function parseTolerantMatrix(input: string): (number | string)[][] {
-  const trimmed = input.trim();
-  if (!trimmed) return [];
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed) && parsed.every((r) => Array.isArray(r))) {
-      return parsed;
-    }
-  } catch {
-    // continue
-  }
-
-  if (trimmed.includes("[") && trimmed.includes("]")) {
-    const rowMatches = trimmed.match(/\[[^[\]]*\]/g);
-    if (rowMatches && rowMatches.length > 0) {
-      return rowMatches.map((r) => parseTolerantArray(r));
-    }
-  }
-
-  const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length > 0) {
-    return lines.map((l) => parseTolerantArray(l));
-  }
-
-  return [];
-}
-
-function parseTolerantTree(input: string): (number | string | null)[] {
-  const trimmed = input.trim();
-  if (!trimmed) return [];
-
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      // continue
-    }
-  }
-
-  const clean = trimmed.replace(/^\[|\]$/g, "").trim();
-  const tokens = clean.split(/[,;\s]+/).map((t) => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
-  return tokens.map((t) => {
-    const lower = t.toLowerCase();
-    if (lower === "null" || lower === "none" || lower === "#") return null;
-    const num = Number(t);
-    return !isNaN(num) && t !== "" ? num : t;
-  });
-}
-
 export function CustomDatasetModal({ open, onOpenChange, template, onSubmit }: CustomDatasetModalProps) {
   const [arrayStr, setArrayStr] = useState(template.array ? JSON.stringify(template.array) : "");
   const [secondaryArrayStr, setSecondaryArrayStr] = useState(template.secondaryArray ? JSON.stringify(template.secondaryArray) : "");
@@ -109,37 +37,33 @@ export function CustomDatasetModal({ open, onOpenChange, template, onSubmit }: C
         category: "custom",
       };
 
-      if (template.array || arrayStr.trim()) {
-        const parsed = parseTolerantArray(arrayStr);
-        if (parsed.length === 0 && template.array) throw new Error("Array cannot be empty.");
+      if (template.array) {
+        const parsed = JSON.parse(arrayStr);
+        if (!Array.isArray(parsed)) throw new Error("Array must be a valid JSON array.");
         custom.array = parsed;
       }
-      if (template.secondaryArray || secondaryArrayStr.trim()) {
-        const parsed = parseTolerantArray(secondaryArrayStr);
-        if (parsed.length === 0 && template.secondaryArray) throw new Error("Secondary Array cannot be empty.");
+      if (template.secondaryArray) {
+        const parsed = JSON.parse(secondaryArrayStr);
+        if (!Array.isArray(parsed)) throw new Error("Secondary Array must be a valid JSON array.");
         custom.secondaryArray = parsed;
       }
-      if (template.matrix || matrixStr.trim()) {
-        const parsed = parseTolerantMatrix(matrixStr);
-        if (parsed.length === 0 && template.matrix) {
-          throw new Error("Matrix must contain at least one valid row.");
+      if (template.matrix) {
+        const parsed = JSON.parse(matrixStr);
+        if (!Array.isArray(parsed) || (parsed.length > 0 && !Array.isArray(parsed[0]))) {
+           throw new Error("Matrix must be a valid 2D JSON array.");
         }
         custom.matrix = parsed;
       }
-      if (template.tree || treeStr.trim()) {
-        const parsed = parseTolerantTree(treeStr);
-        if (parsed.length === 0 && template.tree) throw new Error("Tree must contain at least one valid node.");
+      if (template.tree) {
+        const parsed = JSON.parse(treeStr);
+        if (!Array.isArray(parsed)) throw new Error("Tree must be a valid JSON array.");
         custom.tree = parsed;
       }
-      if (targetStr.trim() !== "") {
-        custom.target = isNaN(Number(targetStr.trim())) ? targetStr.trim() : Number(targetStr.trim());
-      } else if (template.target !== undefined) {
-        custom.target = template.target;
+      if (template.target !== undefined) {
+        custom.target = isNaN(Number(targetStr)) ? targetStr : Number(targetStr);
       }
-      if (kStr.trim() !== "") {
-        custom.k = Number(kStr.trim());
-      } else if (template.k !== undefined) {
-        custom.k = template.k;
+      if (template.k !== undefined) {
+        custom.k = Number(kStr);
       }
       onSubmit(custom);
       onOpenChange(false);
@@ -147,7 +71,6 @@ export function CustomDatasetModal({ open, onOpenChange, template, onSubmit }: C
       toast.error(e.message || "Invalid input format");
     }
   };
-
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

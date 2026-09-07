@@ -13,10 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CompilerRouteImport } from './routes/compiler'
-import { Route as LiveInterviewRouteImport } from './routes/live-interview'
 import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as ProblemsRouteImport } from './routes/problems'
 import { Route as SheetsRouteImport } from './routes/sheets'
+import { Route as LiveInterviewRouteImport } from './routes/live-interview'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as ProblemSlugRouteImport } from './routes/problem.$slug'
@@ -40,11 +40,6 @@ const CompilerRoute = CompilerRouteImport.update({
   path: '/compiler',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LiveInterviewRoute = LiveInterviewRouteImport.update({
-  id: '/live-interview',
-  path: '/live-interview',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PlaygroundRoute = PlaygroundRouteImport.update({
   id: '/playground',
   path: '/playground',
@@ -53,6 +48,11 @@ const PlaygroundRoute = PlaygroundRouteImport.update({
 const SheetsRoute = SheetsRouteImport.update({
   id: '/sheets',
   path: '/sheets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveInterviewRoute = LiveInterviewRouteImport.update({
+  id: '/live-interview',
+  path: '/live-interview',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -81,10 +81,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/compiler': typeof CompilerRoute
-  '/live-interview': typeof LiveInterviewRoute
   '/playground': typeof PlaygroundRoute
   '/problems': typeof ProblemsRoute
   '/sheets': typeof SheetsRoute
+  '/live-interview': typeof LiveInterviewRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/problem/$slug': typeof ProblemSlugRoute
@@ -93,10 +93,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/compiler': typeof CompilerRoute
-  '/live-interview': typeof LiveInterviewRoute
   '/playground': typeof PlaygroundRoute
   '/problems': typeof ProblemsRoute
   '/sheets': typeof SheetsRoute
+  '/live-interview': typeof LiveInterviewRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/problem/$slug': typeof ProblemSlugRoute
@@ -107,10 +107,10 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/compiler': typeof CompilerRoute
-  '/live-interview': typeof LiveInterviewRoute
   '/playground': typeof PlaygroundRoute
   '/problems': typeof ProblemsRoute
   '/sheets': typeof SheetsRoute
+  '/live-interview': typeof LiveInterviewRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/problem/$slug': typeof ProblemSlugRoute
@@ -121,10 +121,10 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/compiler'
-    | '/live-interview'
     | '/playground'
     | '/problems'
     | '/sheets'
+    | '/live-interview'
     | '/dashboard'
     | '/profile'
     | '/problem/$slug'
@@ -133,10 +133,10 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/compiler'
-    | '/live-interview'
     | '/playground'
     | '/problems'
     | '/sheets'
+    | '/live-interview'
     | '/dashboard'
     | '/profile'
     | '/problem/$slug'
@@ -146,10 +146,10 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/compiler'
-    | '/live-interview'
     | '/playground'
     | '/problems'
     | '/sheets'
+    | '/live-interview'
     | '/_authenticated/dashboard'
     | '/_authenticated/profile'
     | '/problem/$slug'
@@ -160,10 +160,10 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   CompilerRoute: typeof CompilerRoute
-  LiveInterviewRoute: typeof LiveInterviewRoute
   PlaygroundRoute: typeof PlaygroundRoute
   ProblemsRoute: typeof ProblemsRoute
   SheetsRoute: typeof SheetsRoute
+  LiveInterviewRoute: typeof LiveInterviewRoute
   ProblemSlugRoute: typeof ProblemSlugRoute
 }
 
@@ -197,13 +197,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompilerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/live-interview': {
-      id: '/live-interview'
-      path: '/live-interview'
-      fullPath: '/live-interview'
-      preLoaderRoute: typeof LiveInterviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/playground': {
       id: '/playground'
       path: '/playground'
@@ -216,6 +209,13 @@ declare module '@tanstack/react-router' {
       path: '/sheets'
       fullPath: '/sheets'
       preLoaderRoute: typeof SheetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live-interview': {
+      id: '/live-interview'
+      path: '/live-interview'
+      fullPath: '/live-interview'
+      preLoaderRoute: typeof LiveInterviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/problems': {
@@ -267,10 +267,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   CompilerRoute: CompilerRoute,
-  LiveInterviewRoute: LiveInterviewRoute,
   PlaygroundRoute: PlaygroundRoute,
   ProblemsRoute: ProblemsRoute,
   SheetsRoute: SheetsRoute,
+  LiveInterviewRoute: LiveInterviewRoute,
   ProblemSlugRoute: ProblemSlugRoute,
 }
 export const routeTree = rootRouteImport

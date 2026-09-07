@@ -17,9 +17,6 @@ export const VALID_VIZ_TYPES = [
   "matrix",
   "dp",
   "bit",
-  "math",
-  "recursion-tree",
-  "intervals",
 ] as const;
 
 export type VizContractType = (typeof VALID_VIZ_TYPES)[number];
@@ -249,34 +246,6 @@ export function sanitizeMap(value: unknown): Record<string, number | string | nu
   return {};
 }
 
-export function sanitizePointerRecord(value: unknown): Record<string, number | string | [number, number]> | null {
-  if (!value || typeof value !== "object") return null;
-  if (Array.isArray(value)) {
-    const rec: Record<string, number | string> = {};
-    value.forEach((item, idx) => {
-      const s = extractScalarValue(item);
-      if (s !== null && s !== undefined) {
-        rec[`p${idx + 1}`] = s;
-      }
-    });
-    return Object.keys(rec).length > 0 ? rec : null;
-  }
-  const obj = value as Record<string, unknown>;
-  const result: Record<string, number | string | [number, number]> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === null || v === undefined) continue;
-    if (typeof v === "number" && Number.isFinite(v)) {
-      result[k] = v;
-    } else if (typeof v === "string" && v.trim()) {
-      result[k] = v.trim();
-    } else if (Array.isArray(v) && v.length === 2 && !isNaN(Number(v[0])) && !isNaN(Number(v[1]))) {
-      result[k] = [Number(v[0]), Number(v[1])];
-    }
-  }
-  return Object.keys(result).length > 0 ? result : null;
-}
-
-
 function normalizeType(type: unknown, preferred: VizType): VizType {
   return isVizType(type) ? (type as VizType) : preferred;
 }
@@ -312,12 +281,6 @@ export function hasMeaningfulTraversal(steps: VizStep[] | undefined | null): boo
       predecessor: step.predecessor ?? null,
       cols: step.cols ?? null,
       line: step.line ?? null,
-      callStack: step.callStack ?? null,
-      recursionTree: step.recursionTree ?? null,
-      intervals: step.intervals ?? null,
-      sweepLine: step.sweepLine ?? null,
-      heapSwap: step.heapSwap ?? null,
-      sightlines: step.sightlines ?? null,
     }),
   );
 
@@ -367,16 +330,13 @@ export interface RawVizStep {
   activeDataset?: unknown;
   shiftInfo?: unknown;
   datasetLabels?: unknown;
-  callStack?: unknown;
-  recursionTree?: unknown;
-  activeFrameId?: unknown;
-  intervals?: unknown;
-  sweepLine?: unknown;
-  stackInvariant?: unknown;
-  sightlines?: unknown;
-  heapSwap?: unknown;
-  memoTable?: unknown;
-  memoHitKey?: unknown;
+  spiralBounds?: unknown;
+  frontier?: unknown;
+  distanceLayer?: unknown;
+  highlightRows?: unknown;
+  highlightCols?: unknown;
+  trail?: unknown;
+  rotationLayer?: unknown;
 }
 
 export interface RawVizPayload {
@@ -1045,21 +1005,10 @@ export function validateAndNormalizeVizPayload(
       ? rawRecord.viz_steps
       : (fallback.steps ?? [])
   ) as RawVizStep[];
-  let test_array =
+  const test_array =
     Array.isArray(rawRecord.test_array) && rawRecord.test_array.length > 0
       ? sanitizeScalarArray(rawRecord.test_array)
-      : [];
-
-  if (test_array.length === 0) {
-    const rawWithArray = rawSteps.find(
-      (s: RawVizStep) => Array.isArray(s?.array) && s.array.length > 0,
-    ) as RawVizStep | undefined;
-    if (rawWithArray && Array.isArray(rawWithArray.array)) {
-      test_array = sanitizeScalarArray(rawWithArray.array);
-    } else {
-      test_array = sanitizeScalarArray(fallback.array);
-    }
-  }
+      : sanitizeScalarArray(fallback.array);
 
   const isDesignProblem = code_lines.some((l) =>
     /\b(?:class\s+|def\s+put|def\s+get|def\s+remove|METHOD\s+put|METHOD\s+get|MyHashMap|MyHashSet|LRUCache)\b/i.test(
@@ -1080,19 +1029,6 @@ export function validateAndNormalizeVizPayload(
     if (rawWithArray && Array.isArray(rawWithArray.array)) {
       canonicalArray = sanitizeScalarArray(rawWithArray.array);
     }
-  }
-
-  // Find canonical full matrix structure across rawSteps or fallback
-  let canonicalMatrix: (number | string)[][] | null = null;
-  const rawWithMatrix = rawSteps.find(
-    (s: RawVizStep) =>
-      hasValidMatrixShape(s?.matrix) ||
-      (Array.isArray(s?.matrix) && s.matrix.length > 0 && Array.isArray(s.matrix[0])),
-  ) as RawVizStep | undefined;
-  if (rawWithMatrix && Array.isArray(rawWithMatrix.matrix)) {
-    canonicalMatrix = sanitizeMatrix(rawWithMatrix.matrix);
-  } else if (fallback.steps[0]?.matrix && Array.isArray(fallback.steps[0].matrix)) {
-    canonicalMatrix = fallback.steps[0].matrix.map((r: (number | string)[]) => [...r]);
   }
 
   // Find canonical full tree structure for tree / bst / trie problems
@@ -1131,10 +1067,24 @@ export function validateAndNormalizeVizPayload(
     canonicalSecondaryArray = sanitizeScalarArray(fallbackWithSecondary.secondaryArray);
   }
 
+  // Canonical matrix discovery across rawRecord, rawSteps, or fallback
+  let canonicalMatrix: (number | string)[][] | null = null;
+  if (Array.isArray(rawRecord.test_matrix) && hasValidMatrixShape(rawRecord.test_matrix)) {
+    canonicalMatrix = sanitizeMatrix(rawRecord.test_matrix as (number | string)[][]);
+  } else if (Array.isArray(rawRecord.matrix) && hasValidMatrixShape(rawRecord.matrix)) {
+    canonicalMatrix = sanitizeMatrix(rawRecord.matrix as (number | string)[][]);
+  } else {
+    const rawWithMatrix = rawSteps.find(
+      (s: RawVizStep) => hasValidMatrixShape(s?.matrix),
+    ) as RawVizStep | undefined;
+    if (rawWithMatrix && Array.isArray(rawWithMatrix.matrix)) {
+      canonicalMatrix = sanitizeMatrix(rawWithMatrix.matrix as (number | string)[][]);
+    } else if (fallback.steps[0]?.matrix && hasValidMatrixShape(fallback.steps[0].matrix)) {
+      canonicalMatrix = sanitizeMatrix(fallback.steps[0].matrix);
+    }
+  }
+
   // Pass 1: Normalize types, descriptions, and line indices
-  let runningMatrix: (number | string)[][] | null = canonicalMatrix
-    ? canonicalMatrix.map((r) => [...r])
-    : null;
   let runningList: (number | string)[] | null = null;
   let runningMap: Record<string, number | string | null> | null = null;
   let runningSet: (number | string)[] | null = null;
@@ -1143,10 +1093,6 @@ export function validateAndNormalizeVizPayload(
   let runningQueue: (number | string)[] | null = null;
   let runningSecondaryQueue: (number | string)[] | null = null;
   let runningDeque: (number | string)[] | null = null;
-  let runningCallStack: any[] | null = null;
-  let runningRecursionTree: any[] | null = null;
-  let runningIntervals: any[] | null = null;
-  let runningMemoTable: Record<string, any> | null = null;
 
   const initialSteps: VizStep[] = rawSteps
     .filter((step: unknown): step is RawVizStep => !!step && typeof step === "object")
@@ -1171,11 +1117,7 @@ export function validateAndNormalizeVizPayload(
           step.datasetLabels && typeof step.datasetLabels === "object"
             ? (step.datasetLabels as Record<string, string>)
             : null,
-        ...((step as any).code_anchor ? { code_anchor: (step as any).code_anchor } : {}),
-        ...((step as any).codeAnchor ? { code_anchor: (step as any).codeAnchor } : {}),
       };
-
-
 
       // Extract all potential auxiliary / multi-dataset structures
       const isStringInputArray = canonicalArray?.some((x) => typeof x === "string");
@@ -1301,49 +1243,6 @@ export function validateAndNormalizeVizPayload(
         auxDeque = [];
       }
 
-      // Call Stack handling with forward persistence for recursion
-      let auxCallStack: any[] | null = null;
-      if (Array.isArray(step.callStack)) {
-        auxCallStack = step.callStack;
-        runningCallStack = auxCallStack;
-      } else if (runningCallStack && step.callStack === undefined) {
-        auxCallStack = [...runningCallStack];
-      }
-
-      // Recursion Tree handling with forward persistence
-      let auxRecursionTree: any[] | null = null;
-      if (Array.isArray(step.recursionTree)) {
-        auxRecursionTree = step.recursionTree;
-        runningRecursionTree = auxRecursionTree;
-      } else if (runningRecursionTree && step.recursionTree === undefined) {
-        auxRecursionTree = [...runningRecursionTree];
-      }
-
-      // Intervals handling with forward persistence
-      let auxIntervals: any[] | null = null;
-      if (Array.isArray(step.intervals)) {
-        auxIntervals = step.intervals;
-        runningIntervals = auxIntervals;
-      } else if (runningIntervals && step.intervals === undefined) {
-        auxIntervals = [...runningIntervals];
-      }
-
-      const auxSightlines = Array.isArray(step.sightlines) ? step.sightlines : null;
-      const auxHeapSwap = step.heapSwap && typeof step.heapSwap === "object" ? step.heapSwap : null;
-      const auxStackInvariant = step.stackInvariant ?? null;
-      const auxSweepLine = typeof step.sweepLine === "number" ? step.sweepLine : null;
-      const auxActiveFrameId = typeof step.activeFrameId === "string" ? step.activeFrameId : null;
-
-      // Memoization table handling with forward persistence
-      let auxMemoTable: Record<string, any> | null = null;
-      if (step.memoTable && typeof step.memoTable === "object") {
-        auxMemoTable = step.memoTable as Record<string, any>;
-        runningMemoTable = auxMemoTable;
-      } else if (runningMemoTable && step.memoTable === undefined) {
-        auxMemoTable = { ...runningMemoTable };
-      }
-      const auxMemoHitKey = typeof step.memoHitKey === "string" ? step.memoHitKey : null;
-
       let auxTree = Array.isArray(step.tree)
         ? sanitizeTreeArray(step.tree)
         : ["tree", "bst", "heap", "trie"].includes(type)
@@ -1367,182 +1266,28 @@ export function validateAndNormalizeVizPayload(
       } else if (Array.isArray(step.matrix) && step.matrix.length > 0) {
         auxMatrix = sanitizeMatrix(step.matrix);
       } else if (type === "matrix" || type === "graph") {
-        auxMatrix = runningMatrix
-          ? runningMatrix.map((r: (number | string)[]) => [...r])
-          : canonicalMatrix
-            ? canonicalMatrix.map((r: (number | string)[]) => [...r])
-            : [[...fallback.array]];
+        auxMatrix = canonicalMatrix
+          ? canonicalMatrix.map((r: (number | string)[]) => [...r])
+          : [[...fallback.array]];
       }
 
-      if (auxMatrix && auxMatrix.length > 0) {
-        runningMatrix = auxMatrix.map((r) => [...r]);
+      // If matrix is 1D (only 1 row) but canonical matrix is a rich 2D matrix (e.g. islands), restore the canonical 2D matrix
+      if (auxMatrix && auxMatrix.length <= 1 && canonicalMatrix && canonicalMatrix.length > 1) {
+        auxMatrix = canonicalMatrix.map((r: (number | string)[]) => [...r]);
       }
 
       const rawStepItem = step as RawVizStep & { 
         currentIdx?: unknown; prevIdx?: unknown; 
         curr?: unknown; currentNode?: unknown; node?: unknown; pointer?: unknown; index?: unknown; idx?: unknown; i?: unknown; j?: unknown; 
         ptr1?: unknown; ptr2?: unknown; l?: unknown; r?: unknown;
-        slow?: unknown; fast?: unknown; write?: unknown; read?: unknown; start?: unknown; end?: unknown;
-        low?: unknown; high?: unknown; mid?: unknown;
-        window?: unknown;
-        variables?: Record<string, unknown>; vars?: Record<string, unknown>;
       };
-
-      // Extract left and right pointers
-      let rawLeft: any = step.left ?? rawStepItem.l ?? rawStepItem.ptr1 ?? null;
-      let rawRight: any = step.right ?? rawStepItem.r ?? rawStepItem.ptr2 ?? null;
-
-      // Track inferred labels for UI badges
-      let inferredLabelLeft: string | null = null;
-      let inferredLabelRight: string | null = null;
-      let inferredLabelCurr: string | null = null;
-
-      const rawVars = rawStepItem.variables || rawStepItem.vars || {};
-
-      // Window array extraction (e.g. window: [0, 3])
-      if (Array.isArray(rawStepItem.window) && rawStepItem.window.length >= 2) {
-        if (rawLeft === null || rawLeft === undefined) {
-          rawLeft = rawStepItem.window[0];
-          inferredLabelLeft = "left";
-        }
-        if (rawRight === null || rawRight === undefined) {
-          rawRight = rawStepItem.window[1];
-          inferredLabelRight = "right";
-        }
-      }
-
-      // Slow & Fast pointers (Move Zeroes, Remove Duplicates, Floyd's Cycle)
-      const slowVal = rawStepItem.slow ?? rawVars.slow;
-      const fastVal = rawStepItem.fast ?? rawVars.fast;
-      if (slowVal !== undefined && slowVal !== null && (rawLeft === null || rawLeft === undefined)) {
-        rawLeft = slowVal;
-        inferredLabelLeft = "slow";
-      }
-      if (fastVal !== undefined && fastVal !== null && (rawRight === null || rawRight === undefined)) {
-        rawRight = fastVal;
-        inferredLabelRight = "fast";
-      }
-
-      // Write & Read pointers (In-place array modifications)
-      const writeVal = rawStepItem.write ?? rawVars.write;
-      const readVal = rawStepItem.read ?? rawVars.read;
-      if (writeVal !== undefined && writeVal !== null && (rawLeft === null || rawLeft === undefined)) {
-        rawLeft = writeVal;
-        inferredLabelLeft = "write";
-      }
-      if (readVal !== undefined && readVal !== null && (rawRight === null || rawRight === undefined)) {
-        rawRight = readVal;
-        inferredLabelRight = "read";
-      }
-
-      // Start & End pointers (Sliding window / ranges)
-      const startVal = rawStepItem.start ?? rawVars.start;
-      const endVal = rawStepItem.end ?? rawVars.end;
-      if (startVal !== undefined && startVal !== null && (rawLeft === null || rawLeft === undefined)) {
-        rawLeft = startVal;
-        inferredLabelLeft = "start";
-      }
-      if (endVal !== undefined && endVal !== null && (rawRight === null || rawRight === undefined)) {
-        rawRight = endVal;
-        inferredLabelRight = "end";
-      }
-
-      // Low & High pointers (Binary Search)
-      const lowVal = rawStepItem.low ?? rawVars.low;
-      const highVal = rawStepItem.high ?? rawVars.high;
-      if (lowVal !== undefined && lowVal !== null && (rawLeft === null || rawLeft === undefined)) {
-        rawLeft = lowVal;
-        inferredLabelLeft = "low";
-      }
-      if (highVal !== undefined && highVal !== null && (rawRight === null || rawRight === undefined)) {
-        rawRight = highVal;
-        inferredLabelRight = "high";
-      }
-
-      // Explicit i and j (Nested loops / brute-force)
-      const hasExplicitI = rawStepItem.i !== undefined && rawStepItem.i !== null;
-      const hasExplicitJ = rawStepItem.j !== undefined && rawStepItem.j !== null;
-
-      if (hasExplicitI && (rawLeft === null || rawLeft === undefined)) {
-        rawLeft = rawStepItem.i;
-        inferredLabelLeft = "i";
-      }
-      if (hasExplicitJ && (rawRight === null || rawRight === undefined)) {
-        rawRight = rawStepItem.j;
-        inferredLabelRight = "j";
-      }
-
-      if ((rawLeft === null || rawLeft === undefined) && rawVars.i !== undefined) {
-        rawLeft = rawVars.i;
-        inferredLabelLeft = "i";
-      }
-      if ((rawRight === null || rawRight === undefined) && rawVars.j !== undefined) {
-        rawRight = rawVars.j;
-        inferredLabelRight = "j";
-      }
-
-      // Fallback regex detection in step desc
-      const descText = String(step.desc ?? "");
-      if ((rawLeft === null || rawLeft === undefined) && (rawRight === null || rawRight === undefined)) {
-        const slowFastMatch = /\bslow\s*=\s*(\d+)\b[^\n\r]*?\bfast\s*=\s*(\d+)\b/i.exec(descText);
-        if (slowFastMatch) {
-          rawLeft = Number(slowFastMatch[1]);
-          rawRight = Number(slowFastMatch[2]);
-          inferredLabelLeft = "slow";
-          inferredLabelRight = "fast";
-        } else {
-          const writeReadMatch = /\bwrite\s*=\s*(\d+)\b[^\n\r]*?\bread\s*=\s*(\d+)\b/i.exec(descText);
-          if (writeReadMatch) {
-            rawLeft = Number(writeReadMatch[1]);
-            rawRight = Number(writeReadMatch[2]);
-            inferredLabelLeft = "write";
-            inferredLabelRight = "read";
-          } else {
-            const startEndMatch = /\bstart\s*=\s*(\d+)\b[^\n\r]*?\bend\s*=\s*(\d+)\b/i.exec(descText) ||
-                                  /\bleft\s*=\s*(\d+)\b[^\n\r]*?\bright\s*=\s*(\d+)\b/i.exec(descText);
-            if (startEndMatch) {
-              rawLeft = Number(startEndMatch[1]);
-              rawRight = Number(startEndMatch[2]);
-              inferredLabelLeft = "start";
-              inferredLabelRight = "end";
-            } else {
-              const lowHighMatch = /\blow\s*=\s*(\d+)\b[^\n\r]*?\bhigh\s*=\s*(\d+)\b/i.exec(descText);
-              if (lowHighMatch) {
-                rawLeft = Number(lowHighMatch[1]);
-                rawRight = Number(lowHighMatch[2]);
-                inferredLabelLeft = "low";
-                inferredLabelRight = "high";
-              } else {
-                const ijMatch = /\bi\s*=\s*(\d+)\b[^\n\r]*?\bj\s*=\s*(\d+)\b/i.exec(descText) ||
-                                /nums\[(\d+)\]\s*\+\s*nums\[(\d+)\]/i.exec(descText);
-                if (ijMatch) {
-                  rawLeft = Number(ijMatch[1]);
-                  rawRight = Number(ijMatch[2]);
-                  inferredLabelLeft = "i";
-                  inferredLabelRight = "j";
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // Check current pointer (mid, curr, node, etc.)
-      const midVal = rawStepItem.mid ?? rawVars.mid;
-      let rawCurrent: any = step.current ?? rawStepItem.curr ?? rawStepItem.currentNode ?? rawStepItem.node ?? rawStepItem.pointer ?? rawStepItem.index ?? rawStepItem.idx;
-      if (midVal !== undefined && midVal !== null && (rawCurrent === undefined || rawCurrent === null)) {
-        rawCurrent = midVal;
-        inferredLabelCurr = "mid";
-      }
-
-      if (rawCurrent === undefined || rawCurrent === null) {
-        if (rawLeft === null && rawRight === null && hasExplicitI) {
-          rawCurrent = rawStepItem.i;
-        }
-      }
+      
+      let rawCurrent = step.current ?? rawStepItem.curr ?? rawStepItem.currentNode ?? rawStepItem.node ?? rawStepItem.pointer ?? rawStepItem.index ?? rawStepItem.idx ?? rawStepItem.i;
       if (rawCurrent && typeof rawCurrent === "object" && !Array.isArray(rawCurrent)) {
         rawCurrent = (rawCurrent as any).val ?? (rawCurrent as any).value ?? (rawCurrent as any).id ?? (rawCurrent as any).name ?? null;
       }
+      const rawLeft = step.left ?? rawStepItem.l ?? rawStepItem.ptr1 ?? (rawStepItem.i !== rawCurrent ? rawStepItem.i : null);
+      const rawRight = step.right ?? rawStepItem.r ?? rawStepItem.ptr2 ?? rawStepItem.j;
 
       const numericCurrent =
         typeof rawCurrent === "number" && Number.isFinite(rawCurrent) ? rawCurrent : null;
@@ -1580,38 +1325,29 @@ export function validateAndNormalizeVizPayload(
             ? step.mSum
             : null;
       const islandCells = Array.isArray(step.islandCells) ? step.islandCells : null;
+      const spiralBounds =
+        typeof step.spiralBounds === "object" && step.spiralBounds !== null
+          ? step.spiralBounds
+          : typeof (rawStepItem as any).bounds === "object" && (rawStepItem as any).bounds !== null
+            ? (rawStepItem as any).bounds
+            : null;
+      const frontier = Array.isArray(step.frontier) ? step.frontier : Array.isArray((rawStepItem as any).queue) && type === "matrix" ? (rawStepItem as any).queue : null;
+      const distanceLayer =
+        typeof step.distanceLayer === "number"
+          ? step.distanceLayer
+          : typeof (rawStepItem as any).minutes === "number"
+            ? (rawStepItem as any).minutes
+            : typeof (rawStepItem as any).layer === "number"
+              ? (rawStepItem as any).layer
+              : null;
+      const highlightRows = Array.isArray(step.highlightRows) ? sanitizeScalarArray(step.highlightRows).map(Number) : null;
+      const highlightCols = Array.isArray(step.highlightCols) ? sanitizeScalarArray(step.highlightCols).map(Number) : null;
+      const trail = Array.isArray(step.trail) ? step.trail : Array.isArray((rawStepItem as any).path) ? (rawStepItem as any).path : null;
+      const rotationLayer = typeof step.rotationLayer === "number" ? step.rotationLayer : null;
+
       let auxPointerLabels = typeof step.pointer_labels === "object" && step.pointer_labels !== null
         ? Object.fromEntries(Object.entries(step.pointer_labels).map(([k, v]) => [k, String(v)]))
         : null;
-
-      // Infer pointer labels if omitted
-      if (rawLeft !== null && rawLeft !== undefined && rawRight !== null && rawRight !== undefined) {
-        if (!auxPointerLabels || (!auxPointerLabels.left && !auxPointerLabels.right)) {
-          if (inferredLabelLeft && inferredLabelRight) {
-            auxPointerLabels = {
-              left: inferredLabelLeft,
-              right: inferredLabelRight,
-              ...(inferredLabelCurr ? { current: inferredLabelCurr } : {}),
-              ...(auxPointerLabels ?? {}),
-            };
-          } else {
-            const hasIJInCode = code_lines.some((l) => /\bfor\s+[ij]\b|\b[ij]\s*[=+\-<>]/i.test(l));
-            const hasIJInStep = hasExplicitI || hasExplicitJ || /\bi\b.*\bj\b/i.test(descText);
-            if (hasIJInCode || hasIJInStep) {
-              auxPointerLabels = {
-                left: "i",
-                right: "j",
-                ...(auxPointerLabels ?? {}),
-              };
-            }
-          }
-        }
-      } else if (inferredLabelCurr && (!auxPointerLabels || !auxPointerLabels.current)) {
-        auxPointerLabels = {
-          current: inferredLabelCurr,
-          ...(auxPointerLabels ?? {}),
-        };
-      }
 
       const activeNodeId =
         step.activeNodeId !== null && step.activeNodeId !== undefined
@@ -1621,67 +1357,98 @@ export function validateAndNormalizeVizPayload(
         typeof step.targetIndex === "number" && Number.isFinite(step.targetIndex)
           ? step.targetIndex
           : null;
-      const rawActivePointers = sanitizePointerRecord(step.activePointers);
+      const activePointers =
+        Array.isArray(step.activePointers)
+          ? sanitizeScalarArray(step.activePointers)
+          : null;
 
-      const activePointers: Record<string, number | string | [number, number]> = {
-        ...(rawActivePointers ?? {}),
-      };
-      if (rawLeft !== null && rawLeft !== undefined && !isNaN(Number(rawLeft))) {
-        const label = auxPointerLabels?.left || "left";
-        if (activePointers[label] === undefined) activePointers[label] = Number(rawLeft);
-      }
-      if (rawRight !== null && rawRight !== undefined && !isNaN(Number(rawRight))) {
-        const label = auxPointerLabels?.right || "right";
-        if (activePointers[label] === undefined) activePointers[label] = Number(rawRight);
-      }
-      if (resolvedCurrent !== null && resolvedCurrent !== undefined && resolvedCurrent !== "") {
-        const label = auxPointerLabels?.current || "curr";
-        if (activePointers[label] === undefined) activePointers[label] = resolvedCurrent;
-      }
+      let resolvedLeft = rawLeft !== null && rawLeft !== undefined && !isNaN(Number(rawLeft)) ? Number(rawLeft) : null;
+      let resolvedRight = rawRight !== null && rawRight !== undefined && !isNaN(Number(rawRight)) ? Number(rawRight) : null;
 
-      // Universal Pointer Extraction across all data structures from rawVars and step properties
-      for (const [varName, varVal] of Object.entries(rawVars)) {
-        if (varVal === null || varVal === undefined) continue;
-        const lowerVar = varName.toLowerCase();
-        if (
-          /^(?:i|j|k|r|c|row|col|left|right|mid|low|high|slow|fast|write|read|start|end|curr|current|prev|next|target|ptr|p1|p2|p3|p|q|u|v|src|dest|root|node|head|tail|top|front|rear)$/.test(
-            lowerVar,
-          )
-        ) {
-          if (activePointers[varName] === undefined) {
-            const coord = parse2DCoord(varVal);
-            if (coord) {
-              activePointers[varName] = coord;
-            } else if (typeof varVal === "number" && Number.isFinite(varVal)) {
-              activePointers[varName] = varVal;
-            } else if (typeof varVal === "string" && varVal.trim()) {
-              activePointers[varName] = varVal.trim();
+      if (type !== "matrix" && !auxMatrix) {
+        // Multi-pointer current extraction (e.g. [0, 1] or "0,1" or "0, 1")
+        if (resolvedLeft === null && resolvedRight === null) {
+          if (Array.isArray(rawCurrent) && rawCurrent.length >= 2 && !isNaN(Number(rawCurrent[0])) && !isNaN(Number(rawCurrent[1]))) {
+            resolvedLeft = Number(rawCurrent[0]);
+            resolvedRight = Number(rawCurrent[1]);
+            resolvedCurrent = null;
+            if (!auxPointerLabels?.left) {
+              auxPointerLabels = { left: "i", right: "j", ...auxPointerLabels };
+            }
+          } else if (typeof rawCurrent === "string" && /^\s*\d+\s*,\s*\d+\s*$/.test(rawCurrent)) {
+            const parts = rawCurrent.split(",").map((s) => Number(s.trim()));
+            resolvedLeft = parts[0]!;
+            resolvedRight = parts[1]!;
+            resolvedCurrent = null;
+            if (!auxPointerLabels?.left) {
+              auxPointerLabels = { left: "i", right: "j", ...auxPointerLabels };
             }
           }
         }
-      }
 
-      // Extract pointers mentioned dynamically in step description
-      if (typeof descText === "string" && descText) {
-        const descRegex = /\b(left|right|slow|fast|curr|current|top|front|rear|head|tail|root|node|pivot|mid|low|high|src|dest|[ijuvpqxy])\s*(?:=|is|at|:|->|➔)\s*(?:index\s*|idx\s*|node\s*|vertex\s*|cell\s*)?(\(?-?\d+\s*,\s*-?\d+\)?|-?\d+|'[A-Za-z0-9_]+'|"[A-Za-z0-9_]+")/gi;
-        let dm: RegExpExecArray | null;
-        while ((dm = descRegex.exec(descText)) !== null) {
-          const vName = dm[1]?.toLowerCase();
-          const vVal = dm[2]?.trim().replace(/['"]/g, "");
-          if (!vName || !vVal) continue;
-          if (activePointers[vName] === undefined) {
-            const coord = parse2DCoord(vVal);
-            if (coord) {
-              activePointers[vName] = coord;
-            } else if (!isNaN(Number(vVal))) {
-              activePointers[vName] = Number(vVal);
-            } else {
-              activePointers[vName] = vVal;
+        // Check if rawStepItem has i and j explicitly
+        if (resolvedLeft === null && rawStepItem.i !== undefined && !isNaN(Number(rawStepItem.i))) {
+          resolvedLeft = Number(rawStepItem.i);
+          if (!auxPointerLabels?.left) {
+            auxPointerLabels = { left: "i", ...auxPointerLabels };
+          }
+        }
+        if (resolvedRight === null && rawStepItem.j !== undefined && !isNaN(Number(rawStepItem.j))) {
+          resolvedRight = Number(rawStepItem.j);
+          if (!auxPointerLabels?.right) {
+            auxPointerLabels = { right: "j", ...auxPointerLabels };
+          }
+        }
+
+        // Check step.pointers object if present
+        if ((step as any).pointers && typeof (step as any).pointers === "object") {
+          const ptrs = (step as any).pointers as Record<string, unknown>;
+          if (resolvedLeft === null && ptrs.i !== undefined && !isNaN(Number(ptrs.i))) {
+            resolvedLeft = Number(ptrs.i);
+            if (!auxPointerLabels?.left) auxPointerLabels = { left: "i", ...auxPointerLabels };
+          }
+          if (resolvedRight === null && ptrs.j !== undefined && !isNaN(Number(ptrs.j))) {
+            resolvedRight = Number(ptrs.j);
+            if (!auxPointerLabels?.right) auxPointerLabels = { right: "j", ...auxPointerLabels };
+          }
+        }
+
+        // Check step.desc for i and j loop indices
+        if (resolvedLeft === null || resolvedRight === null) {
+          const descText = String(step.desc ?? "");
+          const pairMatch =
+            descText.match(/\bi\s*=\s*(\d+).*?\bj\s*=\s*(\d+)/i) ||
+            descText.match(/nums\[(\d+)\].*?nums\[(\d+)\]/i);
+          if (pairMatch) {
+            if (resolvedLeft === null) resolvedLeft = Number(pairMatch[1]);
+            if (resolvedRight === null) resolvedRight = Number(pairMatch[2]);
+            if (!auxPointerLabels?.left) {
+              auxPointerLabels = { left: "i", right: "j", ...auxPointerLabels };
+            }
+          } else {
+            const singleIMatch = descText.match(/\bi\s*=\s*(\d+)\b/i);
+            if (singleIMatch && resolvedLeft === null) {
+              resolvedLeft = Number(singleIMatch[1]);
+              if (!auxPointerLabels?.left) {
+                auxPointerLabels = { left: "i", ...auxPointerLabels };
+              }
+            }
+            const singleJMatch = descText.match(/\bj\s*=\s*(\d+)\b/i);
+            if (singleJMatch && resolvedRight === null) {
+              resolvedRight = Number(singleJMatch[1]);
+              if (!auxPointerLabels?.right) {
+                auxPointerLabels = { right: "j", ...auxPointerLabels };
+              }
             }
           }
         }
-      }
 
+        // Clean up pointer_labels.current if it was "i,j"
+        if (auxPointerLabels?.current && /^(?:i\s*,\s*j|i\s*\/\s*j)$/i.test(auxPointerLabels.current)) {
+          auxPointerLabels = { left: "i", right: "j", ...auxPointerLabels };
+          delete auxPointerLabels.current;
+        }
+      }
 
       return {
         ...base,
@@ -1706,9 +1473,16 @@ export function validateAndNormalizeVizPayload(
         currentArea,
         maxArea,
         islandCells,
+        spiralBounds,
+        frontier,
+        distanceLayer,
+        highlightRows,
+        highlightCols,
+        trail,
+        rotationLayer,
         current: resolvedCurrent,
-        left: rawLeft !== null && rawLeft !== undefined && !isNaN(Number(rawLeft)) ? Number(rawLeft) : null,
-        right: rawRight !== null && rawRight !== undefined && !isNaN(Number(rawRight)) ? Number(rawRight) : null,
+        left: resolvedLeft,
+        right: resolvedRight,
         left2: step.left2 !== null && step.left2 !== undefined && !isNaN(Number(step.left2)) ? Number(step.left2) : null,
         right2: step.right2 !== null && step.right2 !== undefined && !isNaN(Number(step.right2)) ? Number(step.right2) : null,
         wSum: step.wSum !== null && step.wSum !== undefined && !isNaN(Number(step.wSum)) ? Number(step.wSum) : currentArea,
@@ -1717,19 +1491,9 @@ export function validateAndNormalizeVizPayload(
         prevIdx: typeof rawStepItem.prevIdx === "number" ? rawStepItem.prevIdx : null,
         predecessor: step.predecessor ?? null,
         visited: sanitizeScalarArray(step.visited ?? []),
-        ...(auxCallStack ? { callStack: auxCallStack } : {}),
-        ...(auxRecursionTree ? { recursionTree: auxRecursionTree } : {}),
-        ...(auxActiveFrameId ? { activeFrameId: auxActiveFrameId } : {}),
-        ...(auxIntervals ? { intervals: auxIntervals } : {}),
-        ...(auxSweepLine !== null ? { sweepLine: auxSweepLine } : {}),
-        ...(auxStackInvariant ? { stackInvariant: auxStackInvariant } : {}),
-        ...(auxSightlines ? { sightlines: auxSightlines } : {}),
-        ...(auxHeapSwap ? { heapSwap: auxHeapSwap } : {}),
-        ...(auxMemoTable ? { memoTable: auxMemoTable } : {}),
-        ...(auxMemoHitKey ? { memoHitKey: auxMemoHitKey } : {}),
       } as VizStep;
     })
-    .slice(0, 100);
+    .slice(0, 500);
 
   if (!hasManifest) {
     // Check if problem is Tree / BST / Trie problem
@@ -1988,22 +1752,32 @@ export function validateAndNormalizeVizPayload(
       }
     }
   
-    // Check if problem is an explicit Island / connected component DFS traversal
-    const isExplicitIslandProblem =
-      (preferred === "matrix" || initialSteps.some((s) => s.type === "matrix")) &&
-      (code_lines.some((l) => /\b(?:island|max_area|num_islands|island_count)\b/i.test(l)) ||
-        rawSteps.some((s: RawVizStep) => /\b(?:island|max_area)\b/i.test(String(s?.desc ?? ""))));
+    // Check if problem is 2D Grid / Island traversal vs General Matrix transformation
+    const isIslandProblem =
+      code_lines.some((l) =>
+        /\b(?:island|num_islands|max_area|flood_fill|floodFill|rotting|surround|islands)\b/i.test(l),
+      ) ||
+      rawSteps.some((s: RawVizStep) =>
+        /\b(?:island|land\s*cell|water\s*cell|max\s*area|flood\s*fill)\b/i.test(String(s?.desc ?? "")),
+      ) ||
+      initialSteps.some((s) => Array.isArray(s.islandCells) && s.islandCells.length > 0) ||
+      initialSteps.some((s) => typeof s.currentArea === "number" || typeof s.maxArea === "number");
 
-    if (isExplicitIslandProblem) {
-      const canonicalMatrix = fallback.steps[0]?.matrix ?? null;
-      const activeMat =
-        initialSteps.find((s) => Array.isArray(s.matrix) && s.matrix.length > 0 && Array.isArray(s.matrix[0]))?.matrix ??
-        canonicalMatrix;
-  
+    const isIslandCountProblem =
+      isIslandProblem &&
+      code_lines.some((l) => /\b(?:count|num_islands|islands|numIslands)\b/i.test(l)) &&
+      !code_lines.some((l) => /\b(?:max_area|maxArea|largest_island)\b/i.test(l));
+
+    const isGeneralMatrix =
+      (preferred === "matrix" || initialSteps.some((s) => s.type === "matrix")) && !isIslandProblem;
+
+    if (isIslandProblem) {
+      const activeMat = canonicalMatrix ?? initialSteps[0]?.matrix ?? fallback.steps[0]?.matrix ?? null;
+
       if (Array.isArray(activeMat) && activeMat.length > 0 && Array.isArray(activeMat[0])) {
         const rows = activeMat.length;
         const cols = activeMat[0].length;
-  
+
         // 1. Identify all ground-truth connected components (islands) in row-major scan order
         const gridIslands: string[][] = [];
         const compVisited = new Set<string>();
@@ -2046,11 +1820,11 @@ export function validateAndNormalizeVizPayload(
             }
           }
         }
-  
+
         const totalLandCells = gridIslands.reduce((sum, isl) => sum + isl.length, 0);
         const trueMaxArea = Math.max(...gridIslands.map((isl) => isl.length), 0);
-  
-        // Check if candidate's raw steps provide complete, unbroken cell-by-cell DFS steps for all islands
+
+        // Check if candidate raw steps provide complete, unbroken cell-by-cell DFS steps for all islands
         const rawCurrentCoords = new Set(
           initialSteps
             .map((s) => String(s.current ?? ""))
@@ -2060,12 +1834,12 @@ export function validateAndNormalizeVizPayload(
           initialSteps.flatMap((s) => (Array.isArray(s.visited) ? s.visited.map(String) : [])),
         );
         const allExploredCoords = new Set([...rawCurrentCoords, ...rawVisitedCoords]);
-  
+
         const isModelTraversalComplete =
           gridIslands.length > 0 &&
           gridIslands.every((isl) => isl.every((cell) => allExploredCoords.has(cell))) &&
           initialSteps.length >= totalLandCells + gridIslands.length;
-  
+
         if (!isModelTraversalComplete) {
           // Reconstruct the authentic, complete step-by-step recursive DFS traversal
           const initLine = Math.max(
@@ -2090,13 +1864,10 @@ export function validateAndNormalizeVizPayload(
             0,
             code_lines.findIndex((l) => /\breturn\s+(?:max_area|count|res|ans)\b/i.test(l)),
           );
-  
+
           const reconstructedSteps: VizStep[] = [];
           const cumulativeVisited: string[] = [];
           let runningMaxArea = 0;
-          const baseActiveDataset = initialSteps[0]?.activeDataset ?? null;
-          const baseShiftInfo = initialSteps[0]?.shiftInfo ?? null;
-          const baseDatasetLabels = initialSteps[0]?.datasetLabels ?? null;
 
           // Step 1: Initial state
           reconstructedSteps.push({
@@ -2111,18 +1882,17 @@ export function validateAndNormalizeVizPayload(
             currentArea: 0,
             maxArea: 0,
             line: initLine !== -1 ? initLine : 0,
-            desc: `Initialize visited set and max_area = 0 on ${rows}×${cols} island grid.`,
-            activeDataset: baseActiveDataset,
-            shiftInfo: baseShiftInfo,
-            datasetLabels: baseDatasetLabels,
+            desc: isIslandCountProblem
+              ? `Initialize visited set and island count = 0 on ${rows}×${cols} grid.`
+              : `Initialize visited set and max_area = 0 on ${rows}×${cols} island grid.`,
           });
-  
+
           for (let islIdx = 0; islIdx < gridIslands.length; islIdx++) {
             const island = gridIslands[islIdx]!;
             const islandNum = islIdx + 1;
             const rootCoord = island[0]!;
             const activeIslandCells: string[] = [];
-  
+
             // Outer loop finds island
             reconstructedSteps.push({
               type: "matrix",
@@ -2131,17 +1901,16 @@ export function validateAndNormalizeVizPayload(
               current: rootCoord,
               visited: [...cumulativeVisited],
               islandCells: [],
-              wSum: 0,
-              mSum: runningMaxArea,
+              wSum: isIslandCountProblem ? islandNum : 0,
+              mSum: isIslandCountProblem ? islandNum : runningMaxArea,
               currentArea: 0,
               maxArea: runningMaxArea,
               line: outerLoopLine !== -1 ? outerLoopLine : 0,
-              desc: `Outer loop scanning grid: found unvisited land at (${rootCoord}). Starting DFS for Island #${islandNum}.`,
-              activeDataset: baseActiveDataset,
-              shiftInfo: baseShiftInfo,
-              datasetLabels: baseDatasetLabels,
+              desc: isIslandCountProblem
+                ? `Outer loop scanning grid: found unvisited land at (${rootCoord}). Increment count = ${islandNum} and launch DFS.`
+                : `Outer loop scanning grid: found unvisited land at (${rootCoord}). Starting DFS for Island #${islandNum}.`,
             });
-  
+
             // Recursive DFS steps for each land cell in this island
             for (let cellIdx = 0; cellIdx < island.length; cellIdx++) {
               const coord = island[cellIdx]!;
@@ -2149,7 +1918,7 @@ export function validateAndNormalizeVizPayload(
               activeIslandCells.push(coord);
               const curArea = activeIslandCells.length;
               if (curArea > runningMaxArea) runningMaxArea = curArea;
-  
+
               // Determine move direction from previous cell in island
               let dir: string | undefined = undefined;
               if (cellIdx > 0) {
@@ -2162,7 +1931,7 @@ export function validateAndNormalizeVizPayload(
                 else if (dc === 1) dir = "RIGHT (0, +1)";
                 else if (dc === -1) dir = "LEFT (0, -1)";
               }
-  
+
               reconstructedSteps.push({
                 type: "matrix",
                 matrix: activeMat.map((r) => [...r]),
@@ -2171,25 +1940,25 @@ export function validateAndNormalizeVizPayload(
                 visited: [...cumulativeVisited],
                 islandCells: [...activeIslandCells],
                 direction: dir,
-                wSum: curArea,
-                mSum: runningMaxArea,
+                wSum: isIslandCountProblem ? islandNum : curArea,
+                mSum: isIslandCountProblem ? islandNum : runningMaxArea,
                 currentArea: curArea,
                 maxArea: runningMaxArea,
                 line: dfsRecurseLine !== -1 ? dfsRecurseLine : outerLoopLine,
-                desc:
-                  cellIdx === 0
+                desc: isIslandCountProblem
+                  ? cellIdx === 0
+                    ? `Explored root land cell at (${coord}). Island #${islandNum} current size = ${curArea}.`
+                    : `Recurse into adjacent land cell at (${coord}). Island #${islandNum} current size = ${curArea}.`
+                  : cellIdx === 0
                     ? `Explored root land cell at (${coord}). Island #${islandNum} area = ${curArea}.`
                     : `Recurse into adjacent land cell at (${coord}). Island #${islandNum} area = ${curArea}.`,
-                activeDataset: baseActiveDataset,
-                shiftInfo: baseShiftInfo,
-                datasetLabels: baseDatasetLabels,
               });
             }
-  
+
             // Island exploration completed step
             const islandArea = island.length;
             runningMaxArea = Math.max(runningMaxArea, islandArea);
-  
+
             reconstructedSteps.push({
               type: "matrix",
               matrix: activeMat.map((r) => [...r]),
@@ -2197,18 +1966,17 @@ export function validateAndNormalizeVizPayload(
               current: rootCoord,
               visited: [...cumulativeVisited],
               islandCells: [...activeIslandCells],
-              wSum: islandArea,
-              mSum: runningMaxArea,
+              wSum: isIslandCountProblem ? islandNum : islandArea,
+              mSum: isIslandCountProblem ? islandNum : runningMaxArea,
               currentArea: islandArea,
               maxArea: runningMaxArea,
               line: maxUpdateLine !== -1 ? maxUpdateLine : outerLoopLine,
-              desc: `Completed DFS for Island #${islandNum} (area = ${islandArea}). Current Max Area = ${runningMaxArea}.`,
-              activeDataset: baseActiveDataset,
-              shiftInfo: baseShiftInfo,
-              datasetLabels: baseDatasetLabels,
+              desc: isIslandCountProblem
+                ? `Completed DFS for Island #${islandNum} (${islandArea} connected cells). Total islands discovered = ${islandNum}.`
+                : `Completed DFS for Island #${islandNum} (area = ${islandArea}). Current Max Area = ${runningMaxArea}.`,
             });
           }
-  
+
           // Final Return step
           reconstructedSteps.push({
             type: "matrix",
@@ -2217,28 +1985,27 @@ export function validateAndNormalizeVizPayload(
             current: null,
             visited: [...cumulativeVisited],
             islandCells: [],
-            wSum: trueMaxArea,
-            mSum: trueMaxArea,
+            wSum: isIslandCountProblem ? gridIslands.length : trueMaxArea,
+            mSum: isIslandCountProblem ? gridIslands.length : trueMaxArea,
             currentArea: 0,
             maxArea: trueMaxArea,
             line: returnLine !== -1 ? returnLine : Math.max(0, code_lines.length - 1),
-            desc: `Scan complete across all ${rows}×${cols} cells. Discovered ${gridIslands.length} islands. Returning final Max Area = ${trueMaxArea}.`,
-            activeDataset: baseActiveDataset,
-            shiftInfo: baseShiftInfo,
-            datasetLabels: baseDatasetLabels,
+            desc: isIslandCountProblem
+              ? `Scan complete across all ${rows}×${cols} cells. Discovered ${gridIslands.length} total islands. Returning result = ${gridIslands.length}.`
+              : `Scan complete across all ${rows}×${cols} cells. Discovered ${gridIslands.length} islands. Returning final Max Area = ${trueMaxArea}.`,
           });
-  
+
           initialSteps.length = 0;
           initialSteps.push(...reconstructedSteps);
         } else {
-          // Model provided a complete traversal: ensure metadata consistency, progressive visited set, and exact maxArea bounds
+          // Model provided a complete traversal: ensure metadata consistency, progressive visited set, and exact bounds
           const runningVisited = new Set<string>();
           let runningMax = 0;
           for (let i = 0; i < initialSteps.length; i++) {
             const step = initialSteps[i]!;
             step.matrix = activeMat.map((r) => [...r]);
             step.cols = cols;
-  
+
             if (step.current && String(step.current).includes(",")) {
               runningVisited.add(String(step.current));
             }
@@ -2248,26 +2015,33 @@ export function validateAndNormalizeVizPayload(
               });
             }
             step.visited = Array.from(runningVisited);
-  
-            if (typeof step.currentArea === "number" && step.currentArea > runningMax) {
-              runningMax = Math.min(step.currentArea, trueMaxArea);
-            }
-            if (typeof step.wSum === "number" && step.wSum > runningMax) {
-              runningMax = Math.min(step.wSum, trueMaxArea);
-            }
-            if (typeof step.maxArea === "number") {
-              step.maxArea = Math.min(Math.max(step.maxArea, runningMax), trueMaxArea);
-              step.mSum = step.maxArea;
-            } else {
-              step.maxArea = Math.min(runningMax, trueMaxArea);
-              step.mSum = step.maxArea;
+
+            if (!isIslandCountProblem) {
+              if (typeof step.currentArea === "number" && step.currentArea > runningMax) {
+                runningMax = Math.min(step.currentArea, trueMaxArea);
+              }
+              if (typeof step.wSum === "number" && step.wSum > runningMax) {
+                runningMax = Math.min(step.wSum, trueMaxArea);
+              }
+              if (typeof step.maxArea === "number") {
+                step.maxArea = Math.min(Math.max(step.maxArea, runningMax), trueMaxArea);
+                step.mSum = step.maxArea;
+              } else {
+                step.maxArea = Math.min(runningMax, trueMaxArea);
+                step.mSum = step.maxArea;
+              }
             }
           }
           if (initialSteps.length > 0) {
             const last = initialSteps[initialSteps.length - 1]!;
-            last.maxArea = trueMaxArea;
-            last.mSum = trueMaxArea;
-            last.wSum = trueMaxArea;
+            if (isIslandCountProblem) {
+              last.wSum = gridIslands.length;
+              last.mSum = gridIslands.length;
+            } else {
+              last.maxArea = trueMaxArea;
+              last.mSum = trueMaxArea;
+              last.wSum = trueMaxArea;
+            }
             if (!Array.isArray(last.visited) || last.visited.length < totalLandCells) {
               last.visited = gridIslands.flat();
             }
@@ -2275,8 +2049,42 @@ export function validateAndNormalizeVizPayload(
         }
       }
     }
-  
-    // Check if problem is Graph algorithm (BFS, DFS, Dijkstra, Topo Sort, Union Find, etc.)
+
+    if (isGeneralMatrix) {
+      const activeMat = canonicalMatrix ?? initialSteps[0]?.matrix ?? fallback.steps[0]?.matrix ?? null;
+      if (Array.isArray(activeMat) && activeMat.length > 0 && Array.isArray(activeMat[0])) {
+        const rows = activeMat.length;
+        const cols = activeMat[0].length;
+        const runningVisited = new Set<string>();
+
+        for (let i = 0; i < initialSteps.length; i++) {
+          const step = initialSteps[i]!;
+          step.type = "matrix";
+          if (!step.matrix || !Array.isArray(step.matrix)) {
+            step.matrix = activeMat.map((r) => [...r]);
+          }
+          step.cols = cols;
+
+          if (step.current && String(step.current).includes(",")) {
+            runningVisited.add(String(step.current));
+          }
+          if (Array.isArray(step.visited)) {
+            step.visited.forEach((v) => {
+              if (v && String(v).includes(",")) runningVisited.add(String(v));
+            });
+          }
+          step.visited = Array.from(runningVisited);
+
+          if (!step.pointer_labels || !step.pointer_labels.current) {
+            if (step.current) {
+              step.pointer_labels = { current: `matrix[${step.current}]`, ...(step.pointer_labels ?? {}) };
+            }
+          }
+        }
+      }
+    }
+
+      // Check if problem is Graph algorithm (BFS, DFS, Dijkstra, Topo Sort, Union Find, etc.)
     const isGraphProblem =
       preferred === "graph" ||
       initialSteps.some((s) => s.type === "graph") ||
@@ -2527,24 +2335,10 @@ export function validateAndNormalizeVizPayload(
       const currentLineText = code_lines[currentLineIdx] ?? "";
       const desc = step.desc ?? "";
 
-      // Check if step includes an explicit code_anchor matching user code line
-      const anchor = (step as any)?.code_anchor || (step as any)?.codeAnchor;
-      if (typeof anchor === "string" && anchor.trim()) {
-        const cleanAnchor = anchor.trim().toLowerCase();
-        const directIdx = code_lines.findIndex((l) => {
-          const cleanLine = l.trim().toLowerCase();
-          return cleanLine.includes(cleanAnchor) || cleanAnchor.includes(cleanLine);
-        });
-        if (directIdx !== -1) {
-          return { ...step, line: directIdx };
-        }
-      }
-
       // Check if current line is a helper return / statement that shouldn't be frozen across distinct operations
       const isHelperReturn =
         /^\s*return\b/i.test(currentLineText) &&
         !/\b(?:return|complete|answer|not found|-1)\b/i.test(desc);
-
 
       // Check consecutive freeze
       const isConsecutiveSame =

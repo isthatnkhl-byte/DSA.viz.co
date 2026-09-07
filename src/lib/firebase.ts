@@ -8,14 +8,15 @@ const clean = (val?: string | null) => {
   return val.trim().replace(/^["']|["']$/g, '').trim();
 };
 
-const env = (typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env : (process.env as any) || {};
+const metaEnv: Record<string, string | undefined> =
+  typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : (process.env as any) || {};
 
-const rawApiKey = clean(env.VITE_FIREBASE_API_KEY);
-const rawAuthDomain = clean(env.VITE_FIREBASE_AUTH_DOMAIN);
-const rawProjectId = clean(env.VITE_FIREBASE_PROJECT_ID);
-const rawStorageBucket = clean(env.VITE_FIREBASE_STORAGE_BUCKET);
-const rawSenderId = clean(env.VITE_FIREBASE_MESSAGING_SENDER_ID);
-const rawAppId = clean(env.VITE_FIREBASE_APP_ID);
+const rawApiKey = clean(metaEnv.VITE_FIREBASE_API_KEY);
+const rawAuthDomain = clean(metaEnv.VITE_FIREBASE_AUTH_DOMAIN);
+const rawProjectId = clean(metaEnv.VITE_FIREBASE_PROJECT_ID);
+const rawStorageBucket = clean(metaEnv.VITE_FIREBASE_STORAGE_BUCKET);
+const rawSenderId = clean(metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID);
+const rawAppId = clean(metaEnv.VITE_FIREBASE_APP_ID);
 
 const firebaseConfig = {
   apiKey: rawApiKey || fallbackConfig.apiKey,
@@ -26,7 +27,7 @@ const firebaseConfig = {
   appId: rawAppId || fallbackConfig.appId,
 };
 
-const rawDbId = clean(env.VITE_FIREBASE_DATABASE_ID);
+const rawDbId = clean(metaEnv.VITE_FIREBASE_DATABASE_ID);
 const databaseId = rawDbId || fallbackConfig.firestoreDatabaseId;
 
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { problemBySlug, getCanonicalMultiDatasets, VALID_VIZ_TYPES } from "./problems";
+import { problemBySlug, getCanonicalMultiDatasets } from "./problems";
 import { classifyProblem } from "./problemClassifier";
 import { simulateProblemWithDataset } from "./simulators";
 import { validateAndNormalizeVizPayload } from "./ai-contracts";
@@ -168,7 +168,9 @@ test(`Verify and execute Next 50 complex questions (51-100) across all data stru
       const normalized = validateAndNormalizeVizPayload(mockAiPayload, sim1, sig.primaryVizType, sim1.code);
       assert.ok(normalized.viz_steps.length >= 2, `Contract normalizer must accept and normalize steps for ${slug}`);
       assert.ok(
-        (VALID_VIZ_TYPES as readonly string[]).includes(normalized.viz_steps[0]?.type ?? ""),
+        ["array", "matrix", "tree", "bst", "heap", "trie", "graph", "linkedlist", "stack", "queue", "deque", "hashmap", "set", "dp", "bit"].includes(
+          normalized.viz_steps[0]?.type ?? "",
+        ),
         `Normalized visualizer type must be a valid system visualizer type for ${slug}`,
       );
     });

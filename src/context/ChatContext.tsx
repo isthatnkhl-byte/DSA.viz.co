@@ -4,6 +4,7 @@ export interface ChatContextPayload {
   problemSlug?: string;
   problemTitle?: string;
   difficulty?: string;
+  category?: string;
   userCode?: string;
   pseudocode?: string;
   compilerOutput?: string;
@@ -12,7 +13,11 @@ export interface ChatContextPayload {
   stepDesc?: string;
   stepVariables?: any;
   customPrompt?: string;
+  route?: string;
+  pageTitle?: string;
+  activeTab?: string;
   role?: "interviewer" | "step_doubts" | "evaluator" | "mistake_analyzer" | "general";
+  [key: string]: any;
 }
 
 interface ChatContextType {

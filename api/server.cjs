@@ -280935,33 +280935,40 @@ function generateOfflineSocraticChatReply(options) {
   const pTitle = context2.problemTitle || context2.problemSlug || "the problem";
   const stepNum = context2.currentStep !== void 0 ? context2.currentStep + 1 : null;
   if (role === "step_doubts" && stepNum) {
-    return `In Step ${stepNum} of "${pTitle}": The algorithm updates its pointers and tracking variables to preserve the core invariant: "${context2.stepDesc || "advancing state"}".
+    return `### \u2601\uFE0F Vizco Buddy \u2014 Step ${stepNum} Analysis
 
-Notice what changed in the active variables:
-- Look at where the pointers were before this step versus where they are now.
-- What condition triggered this transition?
+In Step ${stepNum} of "${pTitle}": The algorithm transitions state to preserve the core invariant: **"${context2.stepDesc || "advancing state"}"**.
 
-Before taking the next step, ask yourself: what happens to the remaining search space?`;
+Notice what shifted in the active variables:
+- Look at where the pointers or indices were before this step versus now.
+- What specific condition triggered this transition?
+
+Before taking the next step, ask yourself: what happens to the remaining search space? I'm right here if you need another hint! \u2728`;
   }
   if (role === "interviewer") {
-    return `That's a great question regarding "${pTitle}".
+    return `### \u2601\uFE0F Vizco Buddy \u2014 Socratic Checkpoint
 
-As your technical interviewer, let me guide you with a diagnostic checkpoint:
+That's an insightful thought regarding "${pTitle}"!
+
+As your 3D DSA companion, let me guide you with a diagnostic question:
 1. What is the fundamental invariant you are trying to maintain across iterations?
 2. If you trace a minimal example (such as an array of 2 elements, or an empty input), where does the state first diverge?
 
-Walk me through your reasoning on what the next logical operation should be.`;
+Walk me through your reasoning on what the next logical operation should be. \u2728`;
   }
   if (role === "mistake_analyzer") {
-    return `Analyzing your logic for "${pTitle}":
+    return `### \u2601\uFE0F Vizco Buddy \u2014 Bug & Pitfall Inspection
+
+Analyzing your logic for "${pTitle}":
 - Check your indexing bounds: are you accessing elements strictly within range?
 - Ensure your base cases or termination guards handle edge constraints (e.g., empty or duplicate inputs).
 - Verify that variable updates don't prematurely mutate state needed later in the same iteration.
 
 Which line or condition feels most uncertain to you?`;
   }
-  return `Regarding "${pTitle}":
-Let's break this down into first principles. What is the current state of your data structure, and what condition determines the next state change?`;
+  return `### \u2601\uFE0F Vizco Buddy
+
+Regarding "${pTitle}": Let's break this down into first principles! What is the current state of your data structure, and what condition determines the next state change? I'm floating right beside you to help! \u2728`;
 }
 var memoryStatements = {
   ...statements_default?.default || statements_default || {}
@@ -281195,56 +281202,63 @@ app.post("/api/chat", aiLimiter, async (req, res) => {
     }
     let baseSystemInstruction = "";
     if (role === "interviewer") {
-      baseSystemInstruction = `You are an elite, patient Senior Technical Interviewer and Socratic DSA Mentor at a top tech company.
-STRICT SOCRATIC INTERVIEWER LAWS:
-1. NEVER, UNDER ANY CIRCUMSTANCES, GIVE AWAY THE DIRECT CODE SOLUTION OR DIRECT ANSWER.
-2. If the user makes typing errors, syntax slips, off-by-one errors, or logical flaws, NUDGE THEM GENTLY WITHOUT OBVIOUS HINTS, exactly like a compassionate interviewer would.
+      baseSystemInstruction = `You are Vizco Buddy, the cute, friendly, brilliant 3D AI companion and Socratic DSA Mentor of DSA.viz.co! \u2601\uFE0F\u2728
+You float beside the user across all 1500+ LeetCode algorithms, the online C++ compiler sandbox, live interview simulator, and user dashboard.
+STRICT VIZCO BUDDY SOCRATIC LAWS:
+1. NEVER, UNDER ANY CIRCUMSTANCES, GIVE AWAY THE DIRECT SOLUTION OR WRITE THE FINAL CODE FOR THE USER.
+2. If the user makes typing errors, syntax slips, off-by-one errors, or logical flaws, NUDGE THEM GENTLY WITHOUT DIRECT SPOILERS, like an encouraging, world-class mentor.
 3. Ask thought-provoking, diagnostic questions (e.g., "What happens on the final iteration when right == n?", "Notice how you initialize your pointer\u2014what happens if the array is empty?").
-4. If the user asks doubts about a problem or simulation step, explain the invariant or mechanics of the current step clearly, but ALWAYS drive the user to the final conclusion slowly on their own.
-5. If the user asks you to "rate my recent submission" or "analyze my activity", use the provided Firestore submissions history below to provide a balanced, encouraging rating with scores (out of 10) and specific areas of growth.`;
+4. If the user asks about a problem, algorithm step, or website feature, explain the mechanic, invariant, or UI navigation warmly and clearly, always driving the user to personal mastery.
+5. If the user asks you to "rate my recent submission" or "analyze my activity", use the provided Firestore submissions history below to provide an insightful, balanced rating with scores (out of 10) and specific growth points.
+6. Adopt an enthusiastic, encouraging, cute tone with occasional celestial/cloud emojis (\u2601\uFE0F, \u2728) while remaining mathematically and algorithmically rigorous.`;
     } else if (role === "step_doubts") {
-      baseSystemInstruction = `You are a DSA Simulation Step Guide. The user is actively stepping through an algorithm animation/simulation on DSA.viz.
+      baseSystemInstruction = `You are Vizco Buddy in "Step Doubts" mode. The user is actively stepping through a live algorithmic simulation on DSA.viz.co!
 GUIDELINES:
-1. Explain what happened in the current step (why the pointers moved, why the DP cell was updated, why an item was swapped).
-2. NEVER give away the rest of the algorithm or the final answer directly. Keep the user curious and engaged in discovering the invariant.
-3. Be concise, mathematically precise, and crystal-clear about data structure state transitions.`;
+1. Explain precisely what happened in the current simulation step (why pointers moved, why the DP cell updated, why an element was swapped, or how the stack/queue reacted).
+2. NEVER give away the rest of the algorithm or the final answer directly. Guide the user to observe the state delta.
+3. Be concise, mathematically precise, and crystal-clear about variable transitions and invariants.`;
     } else if (role === "evaluator") {
-      baseSystemInstruction = `You are an expert Algorithmic Submission Reviewer. You analyze the user's code/pseudocode submissions from their Firestore records.
-Provide a clear numerical rating (1-10), analyze Time and Space complexities, highlight edge-case handling, celebrate clever insights, and outline 1-2 constructive refinements.`;
+      baseSystemInstruction = `You are Vizco Buddy in "Algorithmic Reviewer" mode. You analyze the user's code/pseudocode submissions from their Firestore records and editor state.
+Provide a clear numerical rating (1-10), analyze Time and Space complexities with Big-O notation, highlight edge-case handling, celebrate clever insights, and outline 1-2 constructive refinements.`;
     } else if (role === "mistake_analyzer") {
-      baseSystemInstruction = `You are an AI Code Diagnostics Expert. You identify common typing errors, syntax slips (semicolons, type mismatch, vector bounds), and logical traps (infinite loop conditions, missing base cases). Explain WHY the mistake occurred and how to spot it systematically in technical interviews.`;
+      baseSystemInstruction = `You are Vizco Buddy in "Bug & Trap Hunter" mode. You detect common typing slips, syntax errors (semicolons, type mismatch, vector bounds, pointer nullability), and logical traps (infinite loop conditions, boundary off-by-one, missing base cases). Explain WHY the mistake occurred and how to systematically verify it in technical interviews.`;
     } else {
-      baseSystemInstruction = customInstruction || "You are the expert DSA mentor and technical coach for DSA.viz.";
+      baseSystemInstruction = customInstruction || "You are Vizco Buddy, the cute 3D AI companion and DSA coach for DSA.viz.co! \u2601\uFE0F\u2728";
     }
-    let problemContextStr = "";
+    let siteContextStr = "";
+    if (context2.route) {
+      siteContextStr += `
+[CURRENT USER WEBSITE LOCATION]: Route: "${context2.route}"${context2.pageTitle ? ` | Page: "${context2.pageTitle}"` : ""}`;
+    }
     if (context2.problemSlug || context2.problemTitle) {
-      problemContextStr += `
-[CURRENT PROBLEM CONTEXT]: Problem: "${context2.problemTitle || context2.problemSlug}" (${context2.problemSlug})`;
-      if (context2.difficulty) problemContextStr += ` | Difficulty: ${context2.difficulty}`;
+      siteContextStr += `
+[CURRENT PROBLEM CONTEXT]: Problem: "${context2.problemTitle || context2.problemSlug}" (${context2.problemSlug || ""})`;
+      if (context2.difficulty) siteContextStr += ` | Difficulty: ${context2.difficulty}`;
+      if (context2.category) siteContextStr += ` | Category: ${context2.category}`;
     }
     if (context2.userCode) {
-      problemContextStr += `
+      siteContextStr += `
 [USER CURRENT EDITOR CODE/PSEUDOCODE]:
 \`\`\`
 ${context2.userCode}
 \`\`\``;
     }
     if (context2.compilerOutput) {
-      problemContextStr += `
+      siteContextStr += `
 [COMPILER / EXECUTION OUTPUT OR ERRORS]:
 \`\`\`
 ${context2.compilerOutput}
 \`\`\``;
     }
     if (context2.currentStep !== void 0) {
-      problemContextStr += `
+      siteContextStr += `
 [ACTIVE SIMULATION STEP CONTEXT]: Step ${context2.currentStep + 1} of ${context2.totalSteps || "N/A"} | Description: "${context2.stepDesc || ""}"`;
       if (context2.stepVariables) {
-        problemContextStr += ` | Step Variables State: ${JSON.stringify(context2.stepVariables)}`;
+        siteContextStr += ` | Step Variables State: ${JSON.stringify(context2.stepVariables)}`;
       }
     }
     const fullSystemInstruction = `${baseSystemInstruction}
-${problemContextStr}
+${siteContextStr}
 ${userProfileContext}
 ${userSubmissionsContext}`.trim();
     const ai = getGeminiClient2();

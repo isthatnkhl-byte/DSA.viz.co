@@ -87,14 +87,14 @@ When implementing this algorithm, candidates frequently encounter:
 Take a look at your current code lines: which condition or boundary check is closest to these potential traps?`;
   }
 
-  // 4. Default: Socratic Technical Interviewer
-  return `### 💡 Socratic Interviewer Guidance — "${pTitle}"
+  // 4. Default: Vizco Buddy Socratic Guidance
+  return `### ☁️ Vizco Buddy Guidance — "${pTitle}"
 
-Thank you for your question. As your interviewer, let's trace this systematically from first principles:
+Hello! As your 3D DSA companion, let's trace this together from first principles:
 
 1. **The Invariant**: What property must hold true for all processed elements up to this point?
 2. **Minimal Trace**: If you trace this with an array of just 2 or 3 elements, what is the exact sequence of pointer states?
-3. **Branching Logic**: Under what specific condition does the algorithm decide between advancing the cursor versus recording an answer?
+3. **Branching Logic**: Under what specific condition does the algorithm decide between advancing the cursor versus updating an answer?
 
-What hypothesis do you have for the next logical instruction?`;
+What hypothesis do you have for the next logical instruction? I'm floating right here to guide you! ✨`;
 }

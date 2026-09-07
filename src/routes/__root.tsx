@@ -14,9 +14,9 @@ import { useThemeColor } from "@/hooks/useThemeColor";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AuthGuard } from "@/components/AuthGuard";
 import { CustomCursor } from "@/components/ui/custom-cursor";
-import { ChatProvider } from "@/context/ChatContext";
-import { GeminiChatbot } from "@/components/chat/GeminiChatbot";
-import { GeminiChatTrigger } from "@/components/chat/GeminiChatTrigger";
+import { ChatProvider, useChat } from "@/context/ChatContext";
+import { VizcoCloudChatbox } from "@/components/chat/VizcoCloudChatbox";
+import { VizcoBuddy } from "@/components/chat/VizcoBuddy";
 
 function NotFoundComponent() {
   return (
@@ -130,9 +130,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+function GlobalVizcoBuddyIntegration() {
+  const location = useLocation();
+  const { updateContext } = useChat();
+
+  useEffect(() => {
+    updateContext({
+      route: location.pathname,
+      pageTitle: typeof document !== "undefined" ? document.title : undefined,
+    });
+  }, [location.pathname, updateContext]);
+
+  return (
+    <>
+      <VizcoCloudChatbox />
+      <VizcoBuddy />
+    </>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const location = useLocation();
   useThemeColor();
 
   useEffect(() => {
@@ -147,15 +165,6 @@ function RootComponent() {
     }
   }, []);
 
-  const pathname = location.pathname;
-  const showChatbot =
-    pathname.startsWith("/problems") ||
-    pathname.startsWith("/problem") ||
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/profile") ||
-    pathname.startsWith("/compiler") ||
-    pathname.startsWith("/playground");
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -165,12 +174,8 @@ function RootComponent() {
           <AuthGuard>
             <Outlet />
           </AuthGuard>
-          {showChatbot && (
-            <>
-              <GeminiChatbot />
-              <GeminiChatTrigger />
-            </>
-          )}
+          {/* 3D Floating Vizco Buddy & Cloud Chatbox across the entire website */}
+          <GlobalVizcoBuddyIntegration />
           <Toaster position="bottom-right" richColors closeButton />
         </ChatProvider>
       </AuthProvider>

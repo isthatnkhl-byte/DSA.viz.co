@@ -30,6 +30,7 @@ import type { CppExecutionResult, CppTemplate } from "@/lib/compiler.types";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
+import { useChat } from "@/context/ChatContext";
 
 export const Route = createFileRoute("/compiler")({
   head: () => ({
@@ -142,6 +143,19 @@ function CppCompilerPage() {
 
   // Loading state for server execution
   const [loading, setLoading] = useState(false);
+
+  const { updateContext } = useChat();
+
+  useEffect(() => {
+    const activeCode = mode === "plain" ? plainCode : templateCode;
+    const activeRes = mode === "plain" ? plainResult : templateResult;
+    updateContext({
+      route: "/compiler",
+      problemTitle: mode === "plain" ? "C++ DSA Compiler Sandbox" : `C++ Template: ${selectedTemplateId}`,
+      userCode: activeCode,
+      compilerOutput: activeRes ? `${activeRes.stdout || ""}\n${activeRes.stderr || ""}`.trim() : undefined,
+    });
+  }, [mode, plainCode, templateCode, plainResult, templateResult, selectedTemplateId, updateContext]);
 
   // Load saved plain scratchpad from localStorage on initial mount
   useEffect(() => {

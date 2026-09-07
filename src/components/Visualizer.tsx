@@ -1611,11 +1611,11 @@ export const Visualizer = memo(function Visualizer({
               });
             }}
             className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 px-2.5 py-1 text-[11px] font-bold text-primary transition-all shadow-xs"
-            title="Ask Gemini AI to explain this exact simulation step"
+            title="Ask Vizco Buddy to explain this exact simulation step"
           >
             <Bot className="size-3.5" />
             <span className="hidden sm:inline">Ask Doubt on Step</span>
-            <span className="sm:hidden">Ask AI</span>
+            <span className="sm:hidden">Ask Vizco</span>
           </button>
         </div>
 

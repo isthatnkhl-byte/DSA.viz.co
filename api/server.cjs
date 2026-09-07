@@ -201669,9 +201669,9 @@ var init_ai_contracts = __esm({
 // src/lib/ai-config.ts
 function getAiConfig() {
   const env3 = typeof process !== "undefined" && process?.env ? process.env : {};
-  const geminiKey = env3["GEMINI_API_KEY"] || env3["GOOGLE_API_KEY"] || typeof import_meta !== "undefined" && import_meta.env?.VITE_GEMINI_API_KEY || "";
-  const openRouterKey = env3["OPENROUTER_API_KEY"] || env3["OPEN_ROUTER_API_KEY"] || env3["Openrouterapi"] || typeof import_meta !== "undefined" && import_meta.env?.VITE_OPENROUTER_API_KEY || "";
-  const openAIKey = env3["OPENAI_API_KEY"] || env3["OPEN_AI_API_KEY"] || typeof import_meta !== "undefined" && import_meta.env?.VITE_OPENAI_API_KEY || "";
+  const geminiKey = env3["GEMINI_API_KEY"] || env3["GOOGLE_API_KEY"] || env3["VITE_GEMINI_API_KEY"] || env3["VITE_GOOGLE_API_KEY"] || typeof import_meta !== "undefined" && (import_meta.env?.VITE_GEMINI_API_KEY || import_meta.env?.VITE_GOOGLE_API_KEY) || "";
+  const openRouterKey = env3["OPENROUTER_API_KEY"] || env3["OPEN_ROUTER_API_KEY"] || env3["Openrouterapi"] || env3["VITE_OPENROUTER_API_KEY"] || typeof import_meta !== "undefined" && import_meta.env?.VITE_OPENROUTER_API_KEY || "";
+  const openAIKey = env3["OPENAI_API_KEY"] || env3["OPEN_AI_API_KEY"] || env3["VITE_OPENAI_API_KEY"] || typeof import_meta !== "undefined" && import_meta.env?.VITE_OPENAI_API_KEY || "";
   const reviewKey = geminiKey || openRouterKey || openAIKey;
   const vizKey = geminiKey || openRouterKey || openAIKey;
   const reviewProvider = geminiKey ? "gemini" : openRouterKey ? "openrouter" : openAIKey ? "openai" : "none";
@@ -248103,19 +248103,19 @@ Respond ONLY with valid JSON in this exact shape:
 function getOpenRouterKey() {
   const env3 = typeof process !== "undefined" && process?.env ? process.env : {};
   return clean2(
-    env3["OPENROUTER_API_KEY"] || env3["OPEN_ROUTER_API_KEY"] || env3["Openrouterapi"] || ""
+    env3["OPENROUTER_API_KEY"] || env3["OPEN_ROUTER_API_KEY"] || env3["Openrouterapi"] || env3["VITE_OPENROUTER_API_KEY"] || ""
   );
 }
 function getOpenAIKey() {
   const env3 = typeof process !== "undefined" && process?.env ? process.env : {};
   return clean2(
-    env3["OPENAI_API_KEY"] || env3["OPEN_AI_API_KEY"] || ""
+    env3["OPENAI_API_KEY"] || env3["OPEN_AI_API_KEY"] || env3["VITE_OPENAI_API_KEY"] || ""
   );
 }
 function getGeminiKey() {
   const env3 = typeof process !== "undefined" && process?.env ? process.env : {};
   return clean2(
-    env3["GEMINI_API_KEY"] || env3["GOOGLE_API_KEY"] || ""
+    env3["GEMINI_API_KEY"] || env3["GOOGLE_API_KEY"] || env3["VITE_GEMINI_API_KEY"] || env3["VITE_GOOGLE_API_KEY"] || ""
   );
 }
 function isGeminiKey(key) {
@@ -248197,7 +248197,7 @@ function describe3(status, model, provider) {
 }
 async function callOpenAIModel(model, key, system, user) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4e4);
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   const openAIModel = model.startsWith("openai/") ? model.replace(/^openai\//, "") : model.startsWith("gpt-") ? model : "gpt-4o-mini";
   try {
     let res = await fetch(OPENAI_URL, {
@@ -248238,13 +248238,18 @@ async function callOpenAIModel(model, key, system, user) {
     if (!res.ok) throw new Error(describe3(res.status, openAIModel, "OpenAI"));
     const data = await res.json();
     return extractJson(data?.choices?.[0]?.message?.content ?? "");
+  } catch (err) {
+    if (err?.name === "AbortError" || controller.signal.aborted) {
+      throw new Error(`OpenAI model ${openAIModel} timed out after ${API_TIMEOUT_MS}ms.`);
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
 }
 async function callOpenRouterModel(model, key, system, user) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4e4);
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
     let res = await fetch(OPENROUTER_URL, {
       method: "POST",
@@ -248286,13 +248291,18 @@ async function callOpenRouterModel(model, key, system, user) {
     if (!res.ok) throw new Error(describe3(res.status, model, "OpenRouter"));
     const data = await res.json();
     return extractJson(data?.choices?.[0]?.message?.content ?? "");
+  } catch (err) {
+    if (err?.name === "AbortError" || controller.signal.aborted) {
+      throw new Error(`OpenRouter model ${model} timed out after ${API_TIMEOUT_MS}ms.`);
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
 }
 async function callGeminiModel(model, key, system, user) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4e4);
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
     const url2 = `${GEMINI_API_BASE_URL}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
     let res = await fetch(url2, {
@@ -248332,6 +248342,11 @@ async function callGeminiModel(model, key, system, user) {
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.map((part) => part?.text ?? "").join("") ?? "";
     return extractJson(text);
+  } catch (err) {
+    if (err?.name === "AbortError" || controller.signal.aborted) {
+      throw new Error(`Gemini model ${model} timed out after ${API_TIMEOUT_MS}ms.`);
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
@@ -248479,7 +248494,7 @@ async function queryModelWithFallbacks(models, key, system, user, ok) {
   }
   return { json: null, model: "", error: error61 };
 }
-var env, OPENROUTER_URL, OPENAI_URL, GEMINI_API_BASE_URL, DEFAULT_GEMINI_MODEL, REVIEW_MODELS, VIZ_MODELS, clean2, raceModels;
+var env, OPENROUTER_URL, OPENAI_URL, GEMINI_API_BASE_URL, DEFAULT_GEMINI_MODEL, API_TIMEOUT_MS, REVIEW_MODELS, VIZ_MODELS, clean2, raceModels;
 var init_openrouter_server = __esm({
   "src/lib/openrouter.server.ts"() {
     "use strict";
@@ -248487,57 +248502,40 @@ var init_openrouter_server = __esm({
     OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
     OPENAI_URL = "https://api.openai.com/v1/chat/completions";
     GEMINI_API_BASE_URL = (env["GEMINI_API_BASE_URL"] || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/, "");
-    DEFAULT_GEMINI_MODEL = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-3.6-flash";
+    DEFAULT_GEMINI_MODEL = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-2.5-flash";
+    API_TIMEOUT_MS = Number(env["AI_TIMEOUT_MS"]) || 12e4;
     REVIEW_MODELS = Array.from(
       /* @__PURE__ */ new Set([
         DEFAULT_GEMINI_MODEL,
-        "gemini-3.7-flash",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-lite-latest",
-        "gemini-flash-latest",
-        "gemini-3.8-flash",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
+        "gemini-2.5-flash",
         "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest",
         "openai/gpt-4o-mini",
         "gpt-4o-mini",
         "gpt-4o",
-        "nvidia/nemotron-3.5-lightning:free",
-        "stealth/ox-alpha",
-        "dots-studio/dots-3-note-preview:free",
-        "liquid/lfm-2.5-2.6b:free",
-        "poolside/laguna-s-2.1:free",
-        "google/gemma-4-26b-a4b-it:free",
-        "meta-llama/llama-3.3-70b-instruct",
         "qwen/qwen-2.5-coder-32b-instruct",
-        "mistralai/mistral-small-3",
-        "deepseek/deepseek-chat"
+        "deepseek/deepseek-chat",
+        "meta-llama/llama-3.3-70b-instruct",
+        "mistralai/mistral-small-3"
       ])
     );
     VIZ_MODELS = Array.from(
       /* @__PURE__ */ new Set([
         DEFAULT_GEMINI_MODEL,
-        "gemini-3.7-flash",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-lite-latest",
-        "gemini-flash-latest",
-        "gemini-3.8-flash",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
+        "gemini-2.5-flash",
         "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest",
         "openai/gpt-4o-mini",
         "gpt-4o-mini",
         "gpt-4o",
-        "nvidia/nemotron-3.5-lightning:free",
-        "stealth/ox-alpha",
-        "dots-studio/dots-3-note-preview:free",
-        "liquid/lfm-2.5-2.6b:free",
-        "poolside/laguna-s-2.1:free",
-        "google/gemma-4-26b-a4b-it:free",
         "qwen/qwen-2.5-coder-32b-instruct",
+        "deepseek/deepseek-chat",
         "meta-llama/llama-3.3-70b-instruct",
-        "mistralai/mistral-small-3",
-        "deepseek/deepseek-chat"
+        "mistralai/mistral-small-3"
       ])
     );
     clean2 = (val) => {
@@ -248748,31 +248746,38 @@ async function processGenerateDatasetsAndPlan(data) {
   ];
   let planOut = null;
   let modelUsed = null;
-  if (keyForRequest) {
-    const system = DATASET_PLAN_SYSTEM_PROMPT;
-    const user = buildDatasetPlanUserPrompt({
-      title: data.title,
-      topics: data.topics ?? [],
-      statement,
-      pseudocode: data.pseudocode,
-      classification: data.classification,
-      complexity: data.complexity
-    });
-    try {
-      const res = await raceModels(
-        REVIEW_MODELS,
-        keyForRequest,
-        system,
-        user,
-        (j) => Array.isArray(j?.test_datasets) && j.test_datasets.length > 0
-      );
-      if (res.json) {
-        planOut = res.json;
-        modelUsed = res.model;
-      }
-    } catch (err) {
-      console.log("Stage 2 Dataset & Plan generation fallback:", err);
+  let lastError = null;
+  if (!keyForRequest) {
+    throw new Error("No AI API key configured. Stage 2 requires an active AI agent API key (Gemini, OpenRouter, or OpenAI). Deterministic fallback is disabled.");
+  }
+  const system = DATASET_PLAN_SYSTEM_PROMPT;
+  const user = buildDatasetPlanUserPrompt({
+    title: data.title,
+    topics: data.topics ?? [],
+    statement,
+    pseudocode: data.pseudocode,
+    classification: data.classification,
+    complexity: data.complexity
+  });
+  try {
+    const res = await raceModels(
+      REVIEW_MODELS,
+      keyForRequest,
+      system,
+      user,
+      (j) => Array.isArray(j?.test_datasets) && j.test_datasets.length > 0
+    );
+    if (res.json) {
+      planOut = res.json;
+      modelUsed = res.model;
+    } else {
+      lastError = res.error;
     }
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : String(err);
+  }
+  if (!planOut || !Array.isArray(planOut?.test_datasets) || planOut.test_datasets.length === 0) {
+    throw new Error(`AI dataset and plan generation failed: ${lastError || "AI model returned empty or invalid datasets"}. Deterministic fallback is disabled.`);
   }
   let finalDatasets = canonicalDatasets;
   if (Array.isArray(planOut?.test_datasets) && planOut.test_datasets.length > 0) {
@@ -248867,62 +248872,70 @@ async function processDatasetVisualization(data) {
   const preferredShape = data.dataStructureType ?? fallback.steps[0]?.type ?? pickShape(data.slug, data.topics ?? []);
   let vizOut = null;
   let modelUsed = null;
-  if (vizKeyForRequest) {
-    const vizSystem = VISUALIZER_SYSTEM_PROMPT;
-    const vizUser = buildVisualizerUserPrompt({
-      title: data.title,
-      statement,
-      example: sanitizedDataset.array && sanitizedDataset.array.length > 0 ? sanitizedDataset.array : sampleInputFor(data.slug),
-      secondaryArrayExample: sanitizedDataset.secondaryArray,
-      matrixExample,
-      treeExample: sanitizedDataset.tree,
-      targetExample: sanitizedDataset.target,
-      datasetLabel: sanitizedDataset.label,
-      datasetDescription: sanitizedDataset.description,
-      dataStructureType: data.dataStructureType,
-      previousContext: data.previousContext,
-      currentStepOffset: data.currentStepOffset,
-      executionPlan: data.executionPlan,
-      pseudocode: data.pseudocode
-    });
-    try {
-      const v = await raceModels(
-        VIZ_MODELS,
-        vizKeyForRequest,
-        vizSystem,
-        vizUser,
-        (j) => j?.is_complete === false || Array.isArray(j?.viz_steps) && j.viz_steps.length > 0
-      );
-      if (v.json) {
-        vizOut = v.json;
-        modelUsed = v.model;
-      }
-    } catch {
+  let lastError = null;
+  if (!vizKeyForRequest) {
+    throw new Error("No AI API key configured. Stage 3 requires an active AI agent API key (Gemini, OpenRouter, or OpenAI). Deterministic fallback is disabled.");
+  }
+  const vizSystem = VISUALIZER_SYSTEM_PROMPT;
+  const vizUser = buildVisualizerUserPrompt({
+    title: data.title,
+    statement,
+    example: sanitizedDataset.array && sanitizedDataset.array.length > 0 ? sanitizedDataset.array : sampleInputFor(data.slug),
+    secondaryArrayExample: sanitizedDataset.secondaryArray,
+    matrixExample,
+    treeExample: sanitizedDataset.tree,
+    targetExample: sanitizedDataset.target,
+    datasetLabel: sanitizedDataset.label,
+    datasetDescription: sanitizedDataset.description,
+    dataStructureType: data.dataStructureType,
+    previousContext: data.previousContext,
+    currentStepOffset: data.currentStepOffset,
+    executionPlan: data.executionPlan,
+    pseudocode: data.pseudocode
+  });
+  try {
+    const v = await raceModels(
+      VIZ_MODELS,
+      vizKeyForRequest,
+      vizSystem,
+      vizUser,
+      (j) => j?.is_complete === false || Array.isArray(j?.viz_steps) && j.viz_steps.length > 0
+    );
+    if (v.json) {
+      vizOut = v.json;
+      modelUsed = v.model;
+    } else {
+      lastError = v.error;
     }
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : String(err);
   }
-  const normalizedViz = vizOut ? validateAndNormalizeVizPayload(vizOut, fallback, preferredShape, userCodeLines2) : null;
-  const isValidAiViz = !!vizOut && !!normalizedViz && Array.isArray(normalizedViz.viz_steps) && normalizedViz.viz_steps.length > 0 && hasMeaningfulTraversal(normalizedViz.viz_steps);
-  if (!isValidAiViz && data.currentStepOffset && data.currentStepOffset > 0) {
-    throw new Error("AI step generation failed midway. Rejecting deterministic fallback to preserve prior steps.");
+  if (!vizOut) {
+    throw new Error(`AI step generation failed: ${lastError || "No response received from AI model"}. Deterministic fallback is disabled.`);
   }
-  const codeLines = isValidAiViz && normalizedViz ? normalizedViz.code_lines.some(
+  const normalizedViz = validateAndNormalizeVizPayload(vizOut, fallback, preferredShape, userCodeLines2);
+  const isValidAiViz = !!normalizedViz && Array.isArray(normalizedViz.viz_steps) && normalizedViz.viz_steps.length > 0;
+  if (!isValidAiViz) {
+    throw new Error(`AI step generation failed: model produced 0 valid visualizer steps. Deterministic fallback is disabled.`);
+  }
+  const codeLines = normalizedViz.code_lines.some(
     (line) => /^line\s+\d+$/i.test(String(line).trim())
-  ) ? userCodeLines2 : normalizedViz.code_lines : fallback.code;
-  const vizSteps = isValidAiViz && normalizedViz ? normalizedViz.viz_steps : fallback.steps;
-  const testArray = isValidAiViz && normalizedViz && normalizedViz.test_array.length ? normalizedViz.test_array : fallback.array;
-  const parsedIsComplete = isValidAiViz ? vizOut?.is_complete ?? vizSteps.length < 10 : true;
-  let totalExpectedSteps = typeof vizOut?.total_expected_steps === "number" && vizOut.total_expected_steps > 0 ? Math.round(vizOut.total_expected_steps) : Array.isArray(vizOut?.execution_plan) && vizOut.execution_plan.length > 0 ? vizOut.execution_plan.length : data.executionPlan && data.executionPlan.length > 0 ? data.executionPlan.length : Math.max(vizSteps.length, fallback.steps.length, parsedIsComplete ? vizSteps.length : 15);
+  ) ? userCodeLines2 : normalizedViz.code_lines;
+  const vizSteps = normalizedViz.viz_steps;
+  const testArray = normalizedViz.test_array && normalizedViz.test_array.length > 0 ? normalizedViz.test_array : sanitizedDataset.array ?? fallback.array;
+  const parsedIsComplete = vizOut?.is_complete ?? vizSteps.length < 10;
+  let totalExpectedSteps = typeof vizOut?.total_expected_steps === "number" && vizOut.total_expected_steps > 0 ? Math.round(vizOut.total_expected_steps) : Array.isArray(vizOut?.execution_plan) && vizOut.execution_plan.length > 0 ? vizOut.execution_plan.length : data.executionPlan && data.executionPlan.length > 0 ? data.executionPlan.length : Math.max(vizSteps.length, parsedIsComplete ? vizSteps.length : 15);
   const datasetExecutionPlan = Array.isArray(vizOut?.execution_plan) && vizOut.execution_plan.length > 0 ? vizOut.execution_plan.map((p, idx) => ({
     step_number: typeof p.step_number === "number" ? p.step_number : idx + 1,
     line_index: typeof p.line_index === "number" ? p.line_index : vizSteps[idx]?.line ?? 0,
     code_action: String(p.code_action || vizSteps[idx]?.desc?.split(".")[0] || `Step ${idx + 1}`),
     description: String(p.description || vizSteps[idx]?.desc || "")
-  })) : vizSteps.length > 0 ? vizSteps.map((step, idx) => ({
+  })) : vizSteps.map((step, idx) => ({
     step_number: idx + 1,
     line_index: step.line ?? 0,
     code_action: step.desc?.split(".")[0] || `Step ${idx + 1}`,
     description: step.desc || ""
-  })) : data.executionPlan || [];
+  }));
   return {
     datasetId: dataset.id,
     test_array: testArray,
@@ -248932,8 +248945,7 @@ async function processDatasetVisualization(data) {
     total_expected_steps: totalExpectedSteps,
     execution_plan: datasetExecutionPlan,
     visualization_failed: false,
-    // Don't mark as failed just because it's chunked
-    model: isValidAiViz ? modelUsed : "Simulator Engine"
+    model: modelUsed || "AI Model"
   };
 }
 async function processVerifyDatasetTrace(data) {

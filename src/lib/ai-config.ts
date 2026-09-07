@@ -7,19 +7,23 @@ export function getAiConfig() {
   const geminiKey =
     env["GEMINI_API_KEY"] ||
     env["GOOGLE_API_KEY"] ||
-    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_GEMINI_API_KEY) ||
+    env["VITE_GEMINI_API_KEY"] ||
+    env["VITE_GOOGLE_API_KEY"] ||
+    (typeof import.meta !== "undefined" && ((import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.VITE_GOOGLE_API_KEY)) ||
     "";
 
   const openRouterKey =
     env["OPENROUTER_API_KEY"] ||
     env["OPEN_ROUTER_API_KEY"] ||
     env["Openrouterapi"] ||
+    env["VITE_OPENROUTER_API_KEY"] ||
     (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_OPENROUTER_API_KEY) ||
     "";
 
   const openAIKey =
     env["OPENAI_API_KEY"] ||
     env["OPEN_AI_API_KEY"] ||
+    env["VITE_OPENAI_API_KEY"] ||
     (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_OPENAI_API_KEY) ||
     "";
 

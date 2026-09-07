@@ -412,33 +412,42 @@ export async function processGenerateDatasetsAndPlan(
 
   let planOut: any = null;
   let modelUsed: string | null = null;
+  let lastError: string | null = null;
 
-  if (keyForRequest) {
-    const system = DATASET_PLAN_SYSTEM_PROMPT;
-    const user = buildDatasetPlanUserPrompt({
-      title: data.title,
-      topics: data.topics ?? [],
-      statement,
-      pseudocode: data.pseudocode,
-      classification: data.classification,
-      complexity: data.complexity,
-    });
+  if (!keyForRequest) {
+    throw new Error("No AI API key configured. Stage 2 requires an active AI agent API key (Gemini, OpenRouter, or OpenAI). Deterministic fallback is disabled.");
+  }
 
-    try {
-      const res = await raceModels(
-        REVIEW_MODELS,
-        keyForRequest,
-        system,
-        user,
-        (j) => Array.isArray(j?.test_datasets) && j.test_datasets.length > 0,
-      );
-      if (res.json) {
-        planOut = res.json;
-        modelUsed = res.model;
-      }
-    } catch (err) {
-      console.log("Stage 2 Dataset & Plan generation fallback:", err);
+  const system = DATASET_PLAN_SYSTEM_PROMPT;
+  const user = buildDatasetPlanUserPrompt({
+    title: data.title,
+    topics: data.topics ?? [],
+    statement,
+    pseudocode: data.pseudocode,
+    classification: data.classification,
+    complexity: data.complexity,
+  });
+
+  try {
+    const res = await raceModels(
+      REVIEW_MODELS,
+      keyForRequest,
+      system,
+      user,
+      (j) => Array.isArray(j?.test_datasets) && j.test_datasets.length > 0,
+    );
+    if (res.json) {
+      planOut = res.json;
+      modelUsed = res.model;
+    } else {
+      lastError = res.error;
     }
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : String(err);
+  }
+
+  if (!planOut || !Array.isArray(planOut?.test_datasets) || planOut.test_datasets.length === 0) {
+    throw new Error(`AI dataset and plan generation failed: ${lastError || "AI model returned empty or invalid datasets"}. Deterministic fallback is disabled.`);
   }
 
   let finalDatasets: TestDataset[] = canonicalDatasets;
@@ -661,82 +670,80 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
 
   let vizOut: any = null;
   let modelUsed: string | null = null;
+  let lastError: string | null = null;
 
-  if (vizKeyForRequest) {
-    const vizSystem = VISUALIZER_SYSTEM_PROMPT;
-
-    const vizUser = buildVisualizerUserPrompt({
-      title: data.title,
-      statement,
-      example:
-        sanitizedDataset.array && sanitizedDataset.array.length > 0
-          ? sanitizedDataset.array
-          : sampleInputFor(data.slug),
-      secondaryArrayExample: sanitizedDataset.secondaryArray,
-      matrixExample,
-      treeExample: sanitizedDataset.tree,
-      targetExample: sanitizedDataset.target,
-      datasetLabel: sanitizedDataset.label,
-      datasetDescription: sanitizedDataset.description,
-      dataStructureType: data.dataStructureType,
-      previousContext: data.previousContext,
-      currentStepOffset: data.currentStepOffset,
-      executionPlan: data.executionPlan,
-      pseudocode: data.pseudocode,
-    });
-
-    try {
-      const v = await raceModels(
-        VIZ_MODELS,
-        vizKeyForRequest,
-        vizSystem,
-        vizUser,
-        (j) => j?.is_complete === false || (Array.isArray(j?.viz_steps) && j.viz_steps.length > 0),
-      );
-      if (v.json) {
-        vizOut = v.json;
-        modelUsed = v.model;
-      }
-    } catch {
-      // AI visualizer failure falls back to deterministic simulation
-    }
+  if (!vizKeyForRequest) {
+    throw new Error("No AI API key configured. Stage 3 requires an active AI agent API key (Gemini, OpenRouter, or OpenAI). Deterministic fallback is disabled.");
   }
 
-  const normalizedViz = vizOut
-    ? validateAndNormalizeVizPayload(vizOut, fallback, preferredShape as any, userCodeLines)
-    : null;
+  const vizSystem = VISUALIZER_SYSTEM_PROMPT;
+
+  const vizUser = buildVisualizerUserPrompt({
+    title: data.title,
+    statement,
+    example:
+      sanitizedDataset.array && sanitizedDataset.array.length > 0
+        ? sanitizedDataset.array
+        : sampleInputFor(data.slug),
+    secondaryArrayExample: sanitizedDataset.secondaryArray,
+    matrixExample,
+    treeExample: sanitizedDataset.tree,
+    targetExample: sanitizedDataset.target,
+    datasetLabel: sanitizedDataset.label,
+    datasetDescription: sanitizedDataset.description,
+    dataStructureType: data.dataStructureType,
+    previousContext: data.previousContext,
+    currentStepOffset: data.currentStepOffset,
+    executionPlan: data.executionPlan,
+    pseudocode: data.pseudocode,
+  });
+
+  try {
+    const v = await raceModels(
+      VIZ_MODELS,
+      vizKeyForRequest,
+      vizSystem,
+      vizUser,
+      (j) => j?.is_complete === false || (Array.isArray(j?.viz_steps) && j.viz_steps.length > 0),
+    );
+    if (v.json) {
+      vizOut = v.json;
+      modelUsed = v.model;
+    } else {
+      lastError = v.error;
+    }
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : String(err);
+  }
+
+  if (!vizOut) {
+    throw new Error(`AI step generation failed: ${lastError || "No response received from AI model"}. Deterministic fallback is disabled.`);
+  }
+
+  const normalizedViz = validateAndNormalizeVizPayload(vizOut, fallback, preferredShape as any, userCodeLines);
 
   const isValidAiViz =
-    !!vizOut &&
     !!normalizedViz &&
     Array.isArray(normalizedViz.viz_steps) &&
-    normalizedViz.viz_steps.length > 0 &&
-    hasMeaningfulTraversal(normalizedViz.viz_steps);
+    normalizedViz.viz_steps.length > 0;
 
-  if (!isValidAiViz && data.currentStepOffset && data.currentStepOffset > 0) {
-    throw new Error("AI step generation failed midway. Rejecting deterministic fallback to preserve prior steps.");
+  if (!isValidAiViz) {
+    throw new Error(`AI step generation failed: model produced 0 valid visualizer steps. Deterministic fallback is disabled.`);
   }
 
-  const codeLines =
-    isValidAiViz && normalizedViz
-      ? normalizedViz.code_lines.some((line: string) =>
-          /^line\s+\d+$/i.test(String(line).trim()),
-        )
-        ? userCodeLines
-        : normalizedViz.code_lines
-      : fallback.code;
+  const codeLines = normalizedViz.code_lines.some((line: string) =>
+    /^line\s+\d+$/i.test(String(line).trim()),
+  )
+    ? userCodeLines
+    : normalizedViz.code_lines;
 
-  const vizSteps = isValidAiViz && normalizedViz ? normalizedViz.viz_steps : fallback.steps;
+  const vizSteps = normalizedViz.viz_steps;
   const testArray =
-    isValidAiViz && normalizedViz && normalizedViz.test_array.length
+    normalizedViz.test_array && normalizedViz.test_array.length > 0
       ? normalizedViz.test_array
-      : fallback.array;
+      : (sanitizedDataset.array ?? fallback.array);
 
-  // If is_complete is missing, assume it was truncated if it hit 10 steps, otherwise assume complete.
-  // The deterministic simulator always returns complete traces.
-  const parsedIsComplete = isValidAiViz
-    ? (vizOut?.is_complete ?? (vizSteps.length < 10))
-    : true;
+  const parsedIsComplete = vizOut?.is_complete ?? (vizSteps.length < 10);
 
   // Extract or calculate total expected steps predicted by the model on the first execution
   let totalExpectedSteps: number =
@@ -746,7 +753,7 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
         ? vizOut.execution_plan.length
         : data.executionPlan && data.executionPlan.length > 0
           ? data.executionPlan.length
-          : Math.max(vizSteps.length, fallback.steps.length, parsedIsComplete ? vizSteps.length : 15);
+          : Math.max(vizSteps.length, parsedIsComplete ? vizSteps.length : 15);
 
   // Construct specific execution plan steps for this chosen dataset
   const datasetExecutionPlan: ExecutionPlanStep[] =
@@ -757,14 +764,12 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
           code_action: String(p.code_action || vizSteps[idx]?.desc?.split(".")[0] || `Step ${idx + 1}`),
           description: String(p.description || vizSteps[idx]?.desc || ""),
         }))
-      : vizSteps.length > 0
-        ? vizSteps.map((step: any, idx: number) => ({
-            step_number: idx + 1,
-            line_index: step.line ?? 0,
-            code_action: step.desc?.split(".")[0] || `Step ${idx + 1}`,
-            description: step.desc || "",
-          }))
-        : data.executionPlan || [];
+      : vizSteps.map((step: any, idx: number) => ({
+          step_number: idx + 1,
+          line_index: step.line ?? 0,
+          code_action: step.desc?.split(".")[0] || `Step ${idx + 1}`,
+          description: step.desc || "",
+        }));
 
   return {
     datasetId: dataset.id,
@@ -774,8 +779,8 @@ export async function processDatasetVisualization(data: z.infer<typeof DatasetVi
     is_complete: parsedIsComplete,
     total_expected_steps: totalExpectedSteps,
     execution_plan: datasetExecutionPlan,
-    visualization_failed: false, // Don't mark as failed just because it's chunked
-    model: isValidAiViz ? modelUsed : "Simulator Engine",
+    visualization_failed: false,
+    model: modelUsed || "AI Model",
   };
 }
 

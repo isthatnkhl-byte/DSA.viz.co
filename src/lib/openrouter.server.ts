@@ -8,33 +8,25 @@ const GEMINI_API_BASE_URL = (
   env["GEMINI_API_BASE_URL"] || "https://generativelanguage.googleapis.com/v1beta"
 ).replace(/\/+$/, "");
 
-const DEFAULT_GEMINI_MODEL = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-3.6-flash";
+const DEFAULT_GEMINI_MODEL = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-2.5-flash";
+const API_TIMEOUT_MS = Number(env["AI_TIMEOUT_MS"]) || 120000;
 
 /** Supported review models prioritized by speed, availability, and capability. */
 export const REVIEW_MODELS = Array.from(
   new Set([
     DEFAULT_GEMINI_MODEL,
-    "gemini-3.7-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-flash-lite-latest",
-    "gemini-flash-latest",
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
+    "gemini-2.5-flash",
     "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",
-    "nvidia/nemotron-3.5-lightning:free",
-    "stealth/ox-alpha",
-    "dots-studio/dots-3-note-preview:free",
-    "liquid/lfm-2.5-2.6b:free",
-    "poolside/laguna-s-2.1:free",
-    "google/gemma-4-26b-a4b-it:free",
-    "meta-llama/llama-3.3-70b-instruct",
     "qwen/qwen-2.5-coder-32b-instruct",
-    "mistralai/mistral-small-3",
     "deepseek/deepseek-chat",
+    "meta-llama/llama-3.3-70b-instruct",
+    "mistralai/mistral-small-3",
   ]),
 );
 
@@ -42,27 +34,18 @@ export const REVIEW_MODELS = Array.from(
 export const VIZ_MODELS = Array.from(
   new Set([
     DEFAULT_GEMINI_MODEL,
-    "gemini-3.7-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-flash-lite-latest",
-    "gemini-flash-latest",
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
+    "gemini-2.5-flash",
     "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",
-    "nvidia/nemotron-3.5-lightning:free",
-    "stealth/ox-alpha",
-    "dots-studio/dots-3-note-preview:free",
-    "liquid/lfm-2.5-2.6b:free",
-    "poolside/laguna-s-2.1:free",
-    "google/gemma-4-26b-a4b-it:free",
     "qwen/qwen-2.5-coder-32b-instruct",
+    "deepseek/deepseek-chat",
     "meta-llama/llama-3.3-70b-instruct",
     "mistralai/mistral-small-3",
-    "deepseek/deepseek-chat",
   ]),
 );
 
@@ -79,6 +62,7 @@ export function getOpenRouterKey(): string {
     env["OPENROUTER_API_KEY"] ||
     env["OPEN_ROUTER_API_KEY"] ||
     env["Openrouterapi"] ||
+    env["VITE_OPENROUTER_API_KEY"] ||
     ""
   );
 }
@@ -90,6 +74,7 @@ export function getOpenAIKey(): string {
   return clean(
     env["OPENAI_API_KEY"] ||
     env["OPEN_AI_API_KEY"] ||
+    env["VITE_OPENAI_API_KEY"] ||
     ""
   );
 }
@@ -101,6 +86,8 @@ export function getGeminiKey(): string {
   return clean(
     env["GEMINI_API_KEY"] ||
     env["GOOGLE_API_KEY"] ||
+    env["VITE_GEMINI_API_KEY"] ||
+    env["VITE_GOOGLE_API_KEY"] ||
     ""
   );
 }
@@ -196,7 +183,7 @@ export async function callOpenAIModel(
   user: string,
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 40000);
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   const openAIModel = model.startsWith("openai/")
     ? model.replace(/^openai\//, "")
     : model.startsWith("gpt-")
@@ -243,6 +230,11 @@ export async function callOpenAIModel(
     if (!res.ok) throw new Error(describe(res.status, openAIModel, "OpenAI"));
     const data = (await res.json()) as any;
     return extractJson(data?.choices?.[0]?.message?.content ?? "");
+  } catch (err: any) {
+    if (err?.name === "AbortError" || controller.signal.aborted) {
+      throw new Error(`OpenAI model ${openAIModel} timed out after ${API_TIMEOUT_MS}ms.`);
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
@@ -255,7 +247,7 @@ export async function callOpenRouterModel(
   user: string,
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 40000);
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
     let res = await fetch(OPENROUTER_URL, {
       method: "POST",
@@ -299,6 +291,11 @@ export async function callOpenRouterModel(
     if (!res.ok) throw new Error(describe(res.status, model, "OpenRouter"));
     const data = (await res.json()) as any;
     return extractJson(data?.choices?.[0]?.message?.content ?? "");
+  } catch (err: any) {
+    if (err?.name === "AbortError" || controller.signal.aborted) {
+      throw new Error(`OpenRouter model ${model} timed out after ${API_TIMEOUT_MS}ms.`);
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
@@ -306,7 +303,7 @@ export async function callOpenRouterModel(
 
 export async function callGeminiModel(model: string, key: string, system: string, user: string) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 40000);
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
     const url = `${GEMINI_API_BASE_URL}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
     let res = await fetch(url, {
@@ -349,6 +346,11 @@ export async function callGeminiModel(model: string, key: string, system: string
     const text =
       data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text ?? "").join("") ?? "";
     return extractJson(text);
+  } catch (err: any) {
+    if (err?.name === "AbortError" || controller.signal.aborted) {
+      throw new Error(`Gemini model ${model} timed out after ${API_TIMEOUT_MS}ms.`);
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }

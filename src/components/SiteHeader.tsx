@@ -150,6 +150,17 @@ export function SiteHeader() {
               <Video className="size-3.5 text-rose-400 shrink-0" />
               <span>Interview</span>
             </Link>
+
+            <Link
+              to="/dashboard"
+              activeProps={{
+                className: "bg-primary/15 text-primary font-bold border-primary/30 shadow-xs",
+              }}
+              className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+            >
+              <LayoutDashboard className="size-3.5 text-primary shrink-0" />
+              <span>Dashboard</span>
+            </Link>
           </nav>
 
           {/* Right: Quick Search, Theme Picker, Account & Menu Button */}
@@ -298,6 +309,17 @@ export function SiteHeader() {
           >
             <Video className="size-3 text-rose-400 shrink-0" />
             <span>Interview</span>
+          </Link>
+
+          <Link
+            to="/dashboard"
+            activeProps={{
+              className: "bg-primary text-primary-foreground font-bold shadow-xs",
+            }}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[11px] font-medium text-muted-foreground bg-secondary/50 border border-border/50 shrink-0 active:scale-95 transition-all"
+          >
+            <LayoutDashboard className="size-3 text-primary shrink-0" />
+            <span>Dashboard</span>
           </Link>
         </nav>
       </header>

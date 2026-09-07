@@ -1,5 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export function createServerFn(_options?: any) {
+export interface ServerFnBuilder<TData = any> {
+  middleware: (mw: any[]) => ServerFnBuilder<TData>;
+  validator: <TOut = any>(v: (input: any) => TOut) => ServerFnBuilder<TOut>;
+  handler: <TReturn = any>(h: (ctx: { data: TData; context?: any }) => Promise<TReturn> | TReturn) => any;
+}
+
+export function createServerFn<TData = any>(_options?: any): ServerFnBuilder<TData> {
   let _validator: any = null;
   let _handler: any = null;
   let _middlewares: any[] = [];
@@ -29,12 +35,16 @@ export function createServerFn(_options?: any) {
 
 export function createMiddleware(_options?: any) {
   return {
-    server: (fn: any) => {
+    server: (fn: (opts: { next: any; handlerType?: any; [key: string]: any }) => any) => {
       return async (opts: any) => {
         return await fn({ ...opts, next: (ctx: any) => ctx });
       };
     },
   };
+}
+
+export function createStart(..._args: any[]) {
+  return {};
 }
 
 export function getRequest() {
@@ -46,3 +56,10 @@ export function getRequest() {
 export function useServerFn(fn: any) {
   return fn;
 }
+
+const serverEntry = {
+  fetch: async (_req: Request, _env: unknown, _ctx: unknown) => new Response("OK"),
+};
+
+export default serverEntry;
+

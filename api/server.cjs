@@ -281031,21 +281031,33 @@ app.get("/api/profile", requireAuth, async (req, res) => {
     const user = await getOrCreateUser(req.user.uid, req.user.email || null).catch(() => null);
     const profile = await getProfile(req.user.uid).catch(() => null);
     const { githubToken, ...safeProfile } = profile || {};
+    const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.email?.split("@")[0] || "Explorer";
+    const cleanAvatar = safeProfile?.avatarUrl || safeProfile?.avatar_url || req.user.picture || null;
+    const cleanLcUsername = safeProfile?.leetcodeUsername || safeProfile?.leetcode_username || null;
+    const cleanLcStats = safeProfile?.leetcodeStats || safeProfile?.leetcode_stats || null;
     res.json({
       uid: req.user.uid,
       email: req.user.email,
-      displayName: user?.displayName || req.user.email?.split("@")[0] || "Explorer",
-      avatarUrl: req.user.picture || null,
       githubConnected: !!githubToken,
       ...user,
-      ...safeProfile
+      ...safeProfile,
+      displayName: cleanDisplayName,
+      display_name: cleanDisplayName,
+      avatarUrl: cleanAvatar,
+      avatar_url: cleanAvatar,
+      leetcodeUsername: cleanLcUsername,
+      leetcode_username: cleanLcUsername,
+      leetcodeStats: cleanLcStats,
+      leetcode_stats: cleanLcStats
     });
   } catch (error61) {
     res.json({
       uid: req.user.uid,
       email: req.user.email,
       displayName: req.user.email?.split("@")[0] || "Explorer",
+      display_name: req.user.email?.split("@")[0] || "Explorer",
       avatarUrl: req.user.picture || null,
+      avatar_url: req.user.picture || null,
       githubConnected: false,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     });
@@ -281064,12 +281076,13 @@ app.post("/api/profile/update", requireAuth, async (req, res) => {
     if (!/^[a-zA-Z0-9_.-]+$/.test(clean3)) {
       return res.status(400).json({ error: "Username can only contain letters, numbers, underscores, dashes, and periods." });
     }
-    const updated = await updateProfile(req.user.uid, { displayName: clean3 }).catch(() => null);
+    const updated = await updateProfile(req.user.uid, { displayName: clean3, display_name: clean3 }).catch(() => null);
     res.json({
       ok: true,
       profile: {
         uid: req.user.uid,
         displayName: clean3,
+        display_name: clean3,
         ...updated || {}
       }
     });
@@ -281091,12 +281104,17 @@ app.post("/api/sync-leetcode", requireAuth, async (req, res) => {
     }
     try {
       if (req.user?.uid) {
-        await updateProfile(req.user.uid, { leetcodeUsername: cleanUsername, leetcodeStats: fetchedStats }).catch(() => null);
+        await updateProfile(req.user.uid, {
+          leetcodeUsername: cleanUsername,
+          leetcode_username: cleanUsername,
+          leetcodeStats: fetchedStats,
+          leetcode_stats: fetchedStats
+        }).catch(() => null);
       }
     } catch (e2) {
       console.warn("Server-side DB update warning in /api/sync-leetcode:", e2);
     }
-    res.json({ success: true, stats: fetchedStats });
+    res.json({ success: true, stats: fetchedStats, username: cleanUsername });
   } catch (error61) {
     console.error("Failed to sync LeetCode profile:", error61);
     res.status(500).json({ error: error61?.message || "Failed to sync" });

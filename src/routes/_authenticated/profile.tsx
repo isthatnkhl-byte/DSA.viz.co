@@ -33,6 +33,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
 import {
   getOrCreateUserProfile,
+  updateUserProfile,
   getUserSubmissions,
 } from "@/lib/firestore-service";
 import {
@@ -142,7 +143,51 @@ function ProfilePage() {
         }
       }
 
-      const profile = serverProfile || clientProfile || {};
+      const effectiveDisplayName =
+        clientProfile?.displayName ||
+        clientProfile?.display_name ||
+        serverProfile?.displayName ||
+        serverProfile?.display_name ||
+        (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) ||
+        currentUser?.displayName ||
+        currentUser?.email?.split("@")[0] ||
+        "Explorer";
+
+      const effectiveLcStats =
+        clientProfile?.leetcodeStats ||
+        clientProfile?.leetcode_stats ||
+        serverProfile?.leetcodeStats ||
+        serverProfile?.leetcode_stats ||
+        null;
+
+      const effectiveLcUsername =
+        clientProfile?.leetcodeUsername ||
+        clientProfile?.leetcode_username ||
+        serverProfile?.leetcodeUsername ||
+        serverProfile?.leetcode_username ||
+        null;
+
+      const effectiveAvatar =
+        clientProfile?.avatarUrl ||
+        clientProfile?.avatar_url ||
+        serverProfile?.avatarUrl ||
+        serverProfile?.avatar_url ||
+        currentUser?.photoURL ||
+        null;
+
+      const profile = {
+        ...(serverProfile || {}),
+        ...(clientProfile || {}),
+        displayName: effectiveDisplayName,
+        display_name: effectiveDisplayName,
+        avatarUrl: effectiveAvatar,
+        avatar_url: effectiveAvatar,
+        leetcodeStats: effectiveLcStats,
+        leetcode_stats: effectiveLcStats,
+        leetcodeUsername: effectiveLcUsername,
+        leetcode_username: effectiveLcUsername,
+      };
+
       const subsArray = (serverSubs && serverSubs.length > 0)
         ? serverSubs
         : (clientSubs && clientSubs.length > 0)
@@ -177,17 +222,14 @@ function ProfilePage() {
   const syncMutation = useMutation({
     mutationFn: async (username: string) => {
       const auth = getAuth();
-      const currentToken = auth.currentUser ? await auth.currentUser.getIdToken() : authContextToken;
-      
-      if (!currentToken) {
-        throw new Error("Authentication error: No valid token available. Please try logging out and back in.");
-      }
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken().catch(() => authContextToken) : authContextToken;
       
       const res = await fetch("/api/sync-leetcode", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${currentToken}`
+          ...(currentToken ? { "Authorization": `Bearer ${currentToken}` } : {})
         },
         body: JSON.stringify({ username })
       });
@@ -199,11 +241,28 @@ function ProfilePage() {
         } catch {}
         throw new Error(errStr);
       }
-      return await res.json();
+      const data = await res.json();
+
+      // Dual write: also update client-side Firestore if authenticated
+      if (currentUser && currentUser.uid !== "guest-developer") {
+        try {
+          await updateUserProfile(currentUser.uid, {
+            leetcodeUsername: data.username || username,
+            leetcode_username: data.username || username,
+            leetcodeStats: data.stats,
+            leetcode_stats: data.stats,
+          });
+        } catch (e) {
+          console.warn("Client Firestore update error in syncMutation:", e);
+        }
+      }
+
+      return data;
     },
     onSuccess: () => {
       toast.success("LeetCode profile & heatmap synced successfully!");
       queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["profileStats"] });
       refreshProfile();
       setEditingLc(false);
       setInputUsername("");
@@ -215,20 +274,34 @@ function ProfilePage() {
 
   const updateProfileUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
-      await updateNickname(username);
-      if (!token) throw new Error("No token");
+      try {
+        await updateNickname(username);
+      } catch (e) {
+        console.warn("Client updateNickname warning:", e);
+      }
+
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
+      if (!currentToken || currentToken === "mock-guest-token-dev") {
+        return { ok: true, profile: { displayName: username, display_name: username } };
+      }
       const res = await fetch("/api/profile/update", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${currentToken}` },
         body: JSON.stringify({ username })
       });
-      if (!res.ok) throw new Error("Failed to update username");
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Failed to update username");
+      }
       return res.json();
     },
     onSuccess: (res) => {
       if (res.ok) {
         toast.success("Username handle updated successfully!");
         queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["profileStats"] });
         refreshProfile();
         setEditingUsername(false);
       } else {
@@ -241,14 +314,16 @@ function ProfilePage() {
   });
 
   const profile = data?.profile;
-  const leetcodeStats = (profile as any)?.leetcode_stats;
-  const leetcodeUsername = (profile as any)?.leetcode_username;
+  const leetcodeStats = (profile as any)?.leetcodeStats || (profile as any)?.leetcode_stats || null;
+  const leetcodeUsername = (profile as any)?.leetcodeUsername || (profile as any)?.leetcode_username || null;
 
   const currentHandle = useMemo(() => {
+    if (profile?.displayName) return profile.displayName;
     if (profile?.display_name) return profile.display_name;
+    if (user?.displayName) return user.displayName;
     if (user?.email) return user.email.split("@")[0];
     return "explorer";
-  }, [profile?.display_name, user?.email]);
+  }, [profile?.displayName, profile?.display_name, user?.displayName, user?.email]);
 
   function handleSaveUsername() {
     const trimmed = usernameInput.trim().replace(/^@+/, "");
@@ -300,9 +375,9 @@ function ProfilePage() {
             {/* User Profile Header Card */}
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-sm">
               <div className="flex items-center gap-4 flex-1 min-w-[280px]">
-                {profile?.avatar_url ? (
+                {profile?.avatar_url || profile?.avatarUrl ? (
                   <img
-                    src={profile.avatar_url}
+                    src={profile.avatar_url || profile.avatarUrl}
                     alt={`${currentHandle} avatar`}
                     className="size-16 rounded-2xl border-2 border-primary/40 shadow-sm object-cover"
                   />
@@ -344,7 +419,7 @@ function ProfilePage() {
                         </span>
                         <span>•</span>
                         <span>
-                          Member since {new Date(profile?.created_at ?? Date.now()).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                          Member since {new Date(profile?.created_at ?? profile?.createdAt ?? Date.now()).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                         </span>
                       </div>
                     </>

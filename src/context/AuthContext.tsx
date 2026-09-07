@@ -14,10 +14,15 @@ import { getOrCreateUserProfile, updateUserProfile, UserProfileData } from "@/li
 export interface UserProfile {
   id: string;
   display_name: string | null;
+  displayName?: string | null;
   avatar_url: string | null;
+  avatarUrl?: string | null;
   created_at: string;
+  createdAt?: string;
   leetcode_username?: string | null;
+  leetcodeUsername?: string | null;
   leetcode_stats?: any;
+  leetcodeStats?: any;
   githubToken?: string | null;
 }
 
@@ -76,13 +81,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = useCallback(async (firebaseUser: FirebaseUser, tokenStr?: string) => {
     if (firebaseUser.uid === "guest-developer") {
+      const guestName = (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) || "Guest Developer";
       setProfile({
         id: "guest-developer",
-        display_name: "Guest Developer",
+        display_name: guestName,
+        displayName: guestName,
         avatar_url: null,
+        avatarUrl: null,
         created_at: new Date().toISOString(),
         leetcode_username: null,
+        leetcodeUsername: null,
         leetcode_stats: null,
+        leetcodeStats: null,
         githubToken: null,
       });
       return;
@@ -99,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const cleanDisplayName: string =
         firestoreDoc.displayName ||
         firestoreDoc.display_name ||
+        (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) ||
         firebaseUser.displayName ||
         (firebaseUser.email ? firebaseUser.email.split("@")[0] : null) ||
         "Explorer";
@@ -106,10 +117,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile({
         id: firebaseUser.uid,
         display_name: cleanDisplayName,
+        displayName: cleanDisplayName,
         avatar_url: firestoreDoc.avatarUrl || firestoreDoc.avatar_url || firebaseUser.photoURL || null,
+        avatarUrl: firestoreDoc.avatarUrl || firestoreDoc.avatar_url || firebaseUser.photoURL || null,
         created_at: firestoreDoc.createdAt || new Date().toISOString(),
+        createdAt: firestoreDoc.createdAt || new Date().toISOString(),
         leetcode_username: firestoreDoc.leetcodeUsername || firestoreDoc.leetcode_username || null,
+        leetcodeUsername: firestoreDoc.leetcodeUsername || firestoreDoc.leetcode_username || null,
         leetcode_stats: firestoreDoc.leetcodeStats || firestoreDoc.leetcode_stats || null,
+        leetcodeStats: firestoreDoc.leetcodeStats || firestoreDoc.leetcode_stats || null,
         githubToken: firestoreDoc.githubToken || null,
       });
     } catch (firestoreErr) {
@@ -127,10 +143,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile({
               id: data.uid || data.id || firebaseUser.uid,
               display_name: cleanDisplayName,
+              displayName: cleanDisplayName,
               avatar_url: data.avatarUrl || data.avatar_url || data.photoURL || firebaseUser.photoURL || null,
+              avatarUrl: data.avatarUrl || data.avatar_url || data.photoURL || firebaseUser.photoURL || null,
               created_at: data.createdAt || new Date().toISOString(),
+              createdAt: data.createdAt || new Date().toISOString(),
               leetcode_username: data.leetcodeUsername || data.leetcode_username || null,
+              leetcodeUsername: data.leetcodeUsername || data.leetcode_username || null,
               leetcode_stats: data.leetcodeStats || data.leetcode_stats || null,
+              leetcodeStats: data.leetcodeStats || data.leetcode_stats || null,
               githubToken: data.githubToken || null,
             });
           }
@@ -149,13 +170,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else if (typeof window !== "undefined" && localStorage.getItem("dsa_viz_guest_mode") === "true") {
       setToken("mock-guest-token-dev");
       setUser(createGuestUser());
+      const guestName = (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) || "Guest Developer";
       setProfile({
         id: "guest-developer",
-        display_name: "Guest Developer",
+        display_name: guestName,
+        displayName: guestName,
         avatar_url: null,
+        avatarUrl: null,
         created_at: new Date().toISOString(),
         leetcode_username: null,
+        leetcodeUsername: null,
         leetcode_stats: null,
+        leetcodeStats: null,
         githubToken: null,
       });
     }
@@ -164,10 +190,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateNickname = useCallback(
     async (newDisplayName: string) => {
       const clean = newDisplayName.trim().replace(/^@+/, "");
-      if (auth.currentUser) {
-        await updateUserProfile(auth.currentUser.uid, { displayName: clean });
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dsa_viz_display_name", clean);
       }
-      setProfile((prev) => (prev ? { ...prev, display_name: clean } : null));
+      if (auth.currentUser && auth.currentUser.uid !== "guest-developer") {
+        try {
+          await updateUserProfile(auth.currentUser.uid, {
+            displayName: clean,
+            display_name: clean,
+          } as any);
+        } catch (e) {
+          console.warn("Direct Firestore update error in updateNickname:", e);
+        }
+      }
+      setProfile((prev) =>
+        prev
+          ? { ...prev, display_name: clean, displayName: clean }
+          : {
+              id: auth.currentUser?.uid || "guest-developer",
+              display_name: clean,
+              displayName: clean,
+              avatar_url: null,
+              avatarUrl: null,
+              created_at: new Date().toISOString(),
+            },
+      );
     },
     [],
   );
@@ -179,15 +226,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isGuest = typeof window !== "undefined" && localStorage.getItem("dsa_viz_guest_mode") === "true";
     if (isGuest && !auth.currentUser) {
       const guest = createGuestUser();
+      const guestName = (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) || "Guest Developer";
       setUser(guest);
       setToken("mock-guest-token-dev");
       setProfile({
         id: "guest-developer",
-        display_name: "Guest Developer",
+        display_name: guestName,
+        displayName: guestName,
         avatar_url: null,
+        avatarUrl: null,
         created_at: new Date().toISOString(),
         leetcode_username: null,
+        leetcodeUsername: null,
         leetcode_stats: null,
+        leetcodeStats: null,
         githubToken: null,
       });
       setLoading(false);

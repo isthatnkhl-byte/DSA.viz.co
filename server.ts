@@ -618,21 +618,34 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
     // Privacy: Never return raw or encrypted githubToken to client
     const { githubToken, ...safeProfile } = (profile || {}) as any;
     
+    const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.email?.split("@")[0] || "Explorer";
+    const cleanAvatar = safeProfile?.avatarUrl || safeProfile?.avatar_url || req.user.picture || null;
+    const cleanLcUsername = safeProfile?.leetcodeUsername || safeProfile?.leetcode_username || null;
+    const cleanLcStats = safeProfile?.leetcodeStats || safeProfile?.leetcode_stats || null;
+
     res.json({
       uid: req.user.uid,
       email: req.user.email,
-      displayName: user?.displayName || req.user.email?.split("@")[0] || "Explorer",
-      avatarUrl: req.user.picture || null,
       githubConnected: !!githubToken,
       ...user,
       ...safeProfile,
+      displayName: cleanDisplayName,
+      display_name: cleanDisplayName,
+      avatarUrl: cleanAvatar,
+      avatar_url: cleanAvatar,
+      leetcodeUsername: cleanLcUsername,
+      leetcode_username: cleanLcUsername,
+      leetcodeStats: cleanLcStats,
+      leetcode_stats: cleanLcStats,
     });
   } catch (error) {
     res.json({
       uid: req.user.uid,
       email: req.user.email,
       displayName: req.user.email?.split("@")[0] || "Explorer",
+      display_name: req.user.email?.split("@")[0] || "Explorer",
       avatarUrl: req.user.picture || null,
+      avatar_url: req.user.picture || null,
       githubConnected: false,
       createdAt: new Date().toISOString(),
     });
@@ -652,12 +665,13 @@ app.post("/api/profile/update", requireAuth, async (req: any, res) => {
     if (!/^[a-zA-Z0-9_.-]+$/.test(clean)) {
       return res.status(400).json({ error: "Username can only contain letters, numbers, underscores, dashes, and periods." });
     }
-    const updated = await updateProfile(req.user.uid, { displayName: clean }).catch(() => null);
+    const updated = await updateProfile(req.user.uid, { displayName: clean, display_name: clean }).catch(() => null);
     res.json({
       ok: true,
       profile: {
         uid: req.user.uid,
         displayName: clean,
+        display_name: clean,
         ...(updated || {}),
       },
     });
@@ -684,13 +698,18 @@ app.post("/api/sync-leetcode", requireAuth, async (req: any, res) => {
     // Persist via DB if available
     try {
       if (req.user?.uid) {
-        await updateProfile(req.user.uid, { leetcodeUsername: cleanUsername, leetcodeStats: fetchedStats }).catch(() => null);
+        await updateProfile(req.user.uid, {
+          leetcodeUsername: cleanUsername,
+          leetcode_username: cleanUsername,
+          leetcodeStats: fetchedStats,
+          leetcode_stats: fetchedStats,
+        }).catch(() => null);
       }
     } catch (e) {
       console.warn("Server-side DB update warning in /api/sync-leetcode:", e);
     }
 
-    res.json({ success: true, stats: fetchedStats });
+    res.json({ success: true, stats: fetchedStats, username: cleanUsername });
   } catch (error: any) {
     console.error("Failed to sync LeetCode profile:", error);
     res.status(500).json({ error: error?.message || "Failed to sync" });

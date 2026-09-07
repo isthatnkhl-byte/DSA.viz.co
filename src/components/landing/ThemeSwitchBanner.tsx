@@ -60,7 +60,7 @@ export function ThemeSwitchBanner() {
                     ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-110 shadow-md"
                     : "opacity-75 hover:opacity-100 hover:scale-110"
                 }`}
-                style={{ backgroundColor: opt.previewColor }}
+                style={{ background: opt.gradient || opt.previewColor }}
                 title={`${opt.name}: ${opt.label}`}
               >
                 <span 

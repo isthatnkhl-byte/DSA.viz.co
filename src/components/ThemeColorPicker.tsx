@@ -63,8 +63,8 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
       >
         <span className="relative flex items-center justify-center size-3.5">
           <span
-            className="absolute size-3 rounded-full shadow-xs"
-            style={{ backgroundColor: activeOption.previewColor }}
+            className="absolute size-3.5 rounded-full shadow-xs ring-1 ring-white/25"
+            style={{ background: activeOption.gradient || activeOption.previewColor }}
           />
           <span
             className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-background shadow-xs"
@@ -165,8 +165,8 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="relative flex items-center justify-center size-4 shrink-0">
                       <span
-                        className="absolute size-3.5 rounded-full border border-white/20 shadow-xs transition-transform group-hover:scale-110"
-                        style={{ backgroundColor: opt.previewColor }}
+                        className="absolute size-4 rounded-full border border-white/20 shadow-xs transition-transform group-hover:scale-110"
+                        style={{ background: opt.gradient || opt.previewColor }}
                       />
                       <span
                         className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-background shadow-xs"

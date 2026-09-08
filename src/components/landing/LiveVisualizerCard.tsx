@@ -269,13 +269,13 @@ export function LiveVisualizerCard() {
   return (
     <div className="relative mx-auto w-full max-w-lg">
       {/* Outer Laser Ambient Aura */}
-      <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/30 to-complement/25 rounded-3xl blur-xl opacity-60 transition duration-700 pointer-events-none" />
+      <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/30 to-emerald-500/25 rounded-3xl blur-xl opacity-60 transition duration-700 pointer-events-none" />
 
       {/* Top Floating Live Badge */}
       <div className="absolute -top-3.5 left-4 z-20 flex items-center gap-2 rounded-full border border-primary/50 bg-card/95 px-3.5 py-1 text-[11px] font-mono font-bold uppercase tracking-wider text-primary shadow-lg shadow-primary/20 backdrop-blur-md">
         <span className="relative flex size-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-complement opacity-80" />
-          <span className="relative inline-flex rounded-full size-2 bg-complement" />
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
+          <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
         </span>
         <span>Interactive Algorithm Engine</span>
       </div>

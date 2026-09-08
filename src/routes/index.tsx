@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { AlgorithmLiveTicker } from "@/components/landing/AlgorithmLiveTicker";
 import { ComplexityLeap } from "@/components/landing/ComplexityLeap";
@@ -46,7 +45,7 @@ export function LandingPage() {
       {/* 1. Global Navigation Header */}
       <SiteHeader />
 
-      <main id="main-content" className="flex-1">
+      <main className="flex-1">
         {/* 2. Hero Section with Live Two-Pointer Canvas */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -157,8 +156,93 @@ export function LandingPage() {
       </main>
 
 
-      {/* Universal Accessible Site Footer with Legal, Cookie Preferences & Disclaimers */}
-      <SiteFooter />
+      {/* Premium Multi-Column Footer */}
+      <footer className="mt-auto border-t border-border/40 bg-card/40 px-6 sm:px-10 py-16 backdrop-blur-3xl relative overflow-hidden">
+        {/* Subtle background glow for footer */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+        
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-12 lg:gap-8">
+          
+          {/* Brand & Mission Column */}
+          <div className="md:col-span-5 lg:col-span-4 flex flex-col gap-6">
+            <Link to="/" className="inline-flex items-center gap-2 font-display text-2xl text-foreground font-black">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-accent text-primary-foreground text-sm font-mono font-black shadow-md shadow-primary/20">
+                <DsavizcoLogo className="size-6 text-primary-foreground" />
+              </div>
+              <span>
+                dsa<span className="text-primary">.viz.co</span>
+              </span>
+            </Link>
+            <p className="font-sans text-sm text-muted-foreground leading-relaxed max-w-sm">
+              Stop imagining algorithms. Watch them move. <br />
+              1,500+ LeetCode problems animated with step-by-step memory pointer traces and invariant verification.
+            </p>
+            {/* System Status Ping */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 font-mono text-[11px] font-bold text-emerald-400 w-fit">
+              <span className="relative flex size-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
+              </span>
+              <span>All Visual Engines Operational</span>
+            </div>
+          </div>
+
+          {/* Navigation Columns Grid */}
+          <div className="md:col-span-7 lg:col-span-8 grid grid-cols-2 sm:grid-cols-3 gap-8 text-sm">
+            {/* Product Column */}
+            <div className="flex flex-col gap-4">
+              <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">Platform</h3>
+              <Link to="/problems" className="text-muted-foreground hover:text-primary transition-colors">Problem Arena</Link>
+              <Link to={"/sheets" as any} className="text-muted-foreground hover:text-primary transition-colors">DSA Sheets</Link>
+              <Link to="/playground" className="text-muted-foreground hover:text-primary transition-colors">Visual Playground</Link>
+              <Link to="/compiler" className="text-muted-foreground hover:text-primary transition-colors">C++ Sandbox</Link>
+            </div>
+
+            {/* Features Column */}
+            <div className="flex flex-col gap-4">
+              <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">Capabilities</h3>
+              <span className="text-muted-foreground">Deterministic Execution</span>
+              <span className="text-muted-foreground">Interactive Step-by-Step</span>
+              <span className="text-muted-foreground">AI Invariant Auditing</span>
+              <span className="text-muted-foreground">Time & Space Analysis</span>
+            </div>
+
+            {/* Account Column */}
+            <div className="flex flex-col gap-4 col-span-2 sm:col-span-1">
+              <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">Account</h3>
+              {user ? (
+                <>
+                  <Link to={"/dashboard" as any} className="text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
+                  <Link to={"/profile" as any} className="text-muted-foreground hover:text-primary transition-colors">Profile & Settings</Link>
+                </>
+              ) : (
+                <Link to="/auth" className="inline-flex items-center gap-2 text-primary hover:text-accent transition-colors font-medium">
+                  <Sparkles className="size-4" />
+                  <span>Sign In</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar: Copyright & Tech Badges */}
+        <div className="max-w-7xl mx-auto mt-16 pt-8 border-t border-border/40 flex flex-col md:flex-row items-center justify-between gap-6">
+          <p className="text-[11px] font-mono text-muted-foreground flex flex-wrap items-center gap-2">
+            <span>© {new Date().getFullYear()} DSA.viz. All rights reserved.</span>
+            <span>•</span>
+            <Link to="/terms" className="hover:text-primary transition-colors">Terms</Link>
+            <span>•</span>
+            <Link to="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+            <span>•</span>
+            <Link to="/cookies" className="hover:text-primary transition-colors">Cookies</Link>
+          </p>
+          <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-[10px] font-mono font-medium uppercase tracking-widest text-muted-foreground/60">
+            <span className="flex items-center gap-1.5"><Activity className="size-3" /> Step-by-Step Visualizer</span>
+            <span className="flex items-center gap-1.5"><Code2 className="size-3" /> In-Browser C++20</span>
+            <span className="flex items-center gap-1.5"><BookOpen className="size-3" /> Curated Roadmaps</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

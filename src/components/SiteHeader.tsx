@@ -74,12 +74,12 @@ export function SiteHeader() {
             <div
               className="relative flex size-8 sm:size-9 shrink-0 items-center justify-center transition-transform duration-200 group-hover:scale-105 text-primary"
             >
-              <DsavizcoLogo className="w-full h-full text-primary" showShadow={false} interactive={false} />
+              <DsavizcoLogo className="w-full h-full text-primary" showShadow={true} interactive={false} />
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
                 <span className="text-base sm:text-lg font-black tracking-tight text-foreground font-display">
-                  dsa<span className="gradient-text">.viz.co</span>
+                  dsa<span className="text-primary font-black">.viz.co</span>
                 </span>
               </div>
               <p className="-mt-0.5 font-mono text-[9px] sm:text-[10px] tracking-tight text-muted-foreground font-semibold">

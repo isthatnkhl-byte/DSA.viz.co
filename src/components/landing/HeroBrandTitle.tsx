@@ -11,22 +11,22 @@ export function HeroBrandTitle() {
         <div className="absolute inset-0 -z-10 rounded-full bg-radial from-primary/20 via-primary/8 to-transparent blur-xl scale-110 pointer-events-none" />
 
         {/* Outer Circular Stage Border */}
-        <div className="absolute -z-10 size-56 sm:size-72 md:size-84 lg:size-96 rounded-full border border-primary/25 pointer-events-none" />
+        <div className="absolute -z-10 size-56 sm:size-68 md:size-80 lg:size-92 rounded-full border border-primary/20 pointer-events-none" />
 
-        {/* Middle Concentric Ring */}
-        <div className="absolute -z-10 size-44 sm:size-56 md:size-68 lg:size-80 rounded-full border border-primary/15 pointer-events-none" />
+        {/* Middle Ring with subtle complementary border */}
+        <div className="absolute -z-10 size-44 sm:size-54 md:size-64 lg:size-72 rounded-full border border-primary/15 pointer-events-none" />
 
-        {/* Inner Concentric Ring with Dashed Line */}
-        <div className="absolute -z-10 size-32 sm:size-42 md:size-52 lg:size-64 rounded-full border border-dashed border-primary/15 pointer-events-none" />
+        {/* Inner Dashed Concentric Ring (matches screenshot) */}
+        <div className="absolute -z-10 size-36 sm:size-44 md:size-52 lg:size-60 rounded-full border border-dashed border-primary/25 pointer-events-none" />
 
         {/* Refined DsavizcoLogo */}
         <motion.div
           initial={{ scale: 0.88, opacity: 0, y: 12 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="relative z-10 text-primary w-32 h-32 sm:w-44 sm:h-44 md:w-56 md:h-56 lg:w-68 lg:h-68 shrink-0 cursor-pointer filter drop-shadow-[0_12px_28px_rgba(0,0,0,0.18)] dark:drop-shadow-[0_14px_35px_rgba(0,0,0,0.55)]"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="relative z-10 text-primary w-28 sm:w-36 md:w-44 lg:w-52 aspect-[120/106] shrink-0 cursor-pointer filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.12)] dark:drop-shadow-[0_12px_28px_rgba(0,0,0,0.45)]"
         >
           <DsavizcoLogo
             className="w-full h-full"

@@ -67,7 +67,7 @@ vector<int> twoSumSort(vector<int>& nums, int target) {
     timeComplexity: "O(n)",
     spaceComplexity: "O(n)",
     summary: "One linear pass storing seen values in an unordered hash map. Instant O(1) expected lookups for target - num.",
-    aiVerdict: "🟢 Optimal Invariant! Linear scan with minimal overhead. 100% FAANG Approved.",
+    aiVerdict: "🟢 Optimal Invariant! Linear scan with minimal overhead. Industry-standard optimal solution.",
     codeSnippet: `// Hash Map Single Pass — O(n) Time | O(n) Space
 vector<int> twoSumOptimal(vector<int>& nums, int target) {
     unordered_map<int, int> seen;
@@ -391,8 +391,8 @@ export function ComplexityLeap() {
             </h2>
 
             <p className="text-sm sm:text-base text-muted-foreground font-sans leading-relaxed">
-              In technical interviews, the jump from <span className="font-mono text-rose-400 font-bold">O(n²)</span> to{" "}
-              <span className="font-mono text-emerald-400 font-bold">O(n)</span> isn&apos;t just about memorizing hash tables—it is about recognizing loop invariants and eliminating redundant state traversal.
+              In technical interviews, the jump from <span className="font-mono text-rose-400 dark:text-rose-400 font-bold">O(n²)</span> to{" "}
+              <span className="font-mono text-complement font-bold">O(n)</span> isn&apos;t just about memorizing hash tables—it is about recognizing loop invariants and eliminating redundant state traversal.
             </p>
 
             <div className="space-y-3 pt-2">

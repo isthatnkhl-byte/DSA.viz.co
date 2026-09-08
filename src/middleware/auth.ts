@@ -30,16 +30,6 @@ export const requireAuth = async (
     return next();
   }
 
-  // In non-production environments only, permit mock guest developer tokens for local development
-  if (process.env.NODE_ENV !== 'production' && (token.startsWith('mock-guest-token') || token.startsWith('guest-token') || token === 'guest-developer')) {
-    req.user = {
-      uid: 'guest-developer',
-      email: 'guest@dsaviz.local',
-      name: 'Guest Developer',
-    } as unknown as DecodedIdToken;
-    return next();
-  }
-
   try {
     const decodedToken = await adminAuth.verifyIdToken(token);
     req.user = decodedToken;

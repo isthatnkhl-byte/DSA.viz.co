@@ -74,7 +74,7 @@ export function SiteHeader() {
             <div
               className="relative flex size-8 sm:size-9 shrink-0 items-center justify-center transition-transform duration-200 group-hover:scale-105 text-primary"
             >
-              <DsavizcoLogo className="w-full h-full text-primary transition-transform duration-200 group-hover:rotate-6" />
+              <DsavizcoLogo className="w-full h-full text-primary" showShadow={false} interactive={false} />
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">

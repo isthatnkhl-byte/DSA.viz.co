@@ -3,7 +3,6 @@ import { auth, googleAuthProvider } from "@/lib/firebase";
 import { 
   signInWithPopup, 
   signInWithRedirect, 
-  signInAnonymously,
   getRedirectResult, 
   onAuthStateChanged, 
   signOut as firebaseSignOut, 
@@ -33,45 +32,12 @@ interface AuthContextType {
   isConfigured: boolean;
   token: string | null;
   signInWithGoogle: (redirectTo?: string) => Promise<void>;
-  signInWithGuest: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateNickname: (newDisplayName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-const createGuestUser = (): FirebaseUser => {
-  return {
-    uid: "guest-developer",
-    email: "guest@dsaviz.local",
-    displayName: "Guest Developer",
-    photoURL: null,
-    emailVerified: true,
-    isAnonymous: true,
-    metadata: {
-      creationTime: new Date().toISOString(),
-      lastSignInTime: new Date().toISOString(),
-    },
-    phoneNumber: null,
-    providerData: [],
-    providerId: "guest",
-    tenantId: null,
-    delete: async () => {},
-    getIdToken: async () => "mock-guest-token-dev",
-    getIdTokenResult: async () => ({
-      token: "mock-guest-token-dev",
-      authTime: new Date().toISOString(),
-      issuedAtTime: new Date().toISOString(),
-      expirationTime: new Date(Date.now() + 3600000).toISOString(),
-      signInProvider: "anonymous",
-      signInSecondFactor: null,
-      claims: {},
-    }),
-    reload: async () => {},
-    toJSON: () => ({ uid: "guest-developer", email: "guest@dsaviz.local" }),
-  } as unknown as FirebaseUser;
-};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -80,23 +46,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (firebaseUser: FirebaseUser, tokenStr?: string) => {
-    if (firebaseUser.uid === "guest-developer") {
-      const guestName = (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) || "Guest Developer";
-      setProfile({
-        id: "guest-developer",
-        display_name: guestName,
-        displayName: guestName,
-        avatar_url: null,
-        avatarUrl: null,
-        created_at: new Date().toISOString(),
-        leetcode_username: null,
-        leetcodeUsername: null,
-        leetcode_stats: null,
-        leetcodeStats: null,
-        githubToken: null,
-      });
-      return;
-    }
 
     try {
       // 1. Primary: Direct Firestore client profile load
@@ -167,23 +116,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const t = await auth.currentUser.getIdToken();
       setToken(t);
       await fetchProfile(auth.currentUser, t);
-    } else if (typeof window !== "undefined" && localStorage.getItem("dsa_viz_guest_mode") === "true") {
-      setToken("mock-guest-token-dev");
-      setUser(createGuestUser());
-      const guestName = (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) || "Guest Developer";
-      setProfile({
-        id: "guest-developer",
-        display_name: guestName,
-        displayName: guestName,
-        avatar_url: null,
-        avatarUrl: null,
-        created_at: new Date().toISOString(),
-        leetcode_username: null,
-        leetcodeUsername: null,
-        leetcode_stats: null,
-        leetcodeStats: null,
-        githubToken: null,
-      });
     }
   }, [fetchProfile]);
 
@@ -193,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== "undefined") {
         localStorage.setItem("dsa_viz_display_name", clean);
       }
-      if (auth.currentUser && auth.currentUser.uid !== "guest-developer") {
+      if (auth.currentUser) {
         try {
           await updateUserProfile(auth.currentUser.uid, {
             displayName: clean,
@@ -207,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         prev
           ? { ...prev, display_name: clean, displayName: clean }
           : {
-              id: auth.currentUser?.uid || "guest-developer",
+              id: auth.currentUser?.uid || "user",
               display_name: clean,
               displayName: clean,
               avatar_url: null,
@@ -222,36 +154,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isActive = true;
 
-    // Check if local guest session is active
-    const isGuest = typeof window !== "undefined" && localStorage.getItem("dsa_viz_guest_mode") === "true";
-    if (isGuest && !auth.currentUser) {
-      const guest = createGuestUser();
-      const guestName = (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) || "Guest Developer";
-      setUser(guest);
-      setToken("mock-guest-token-dev");
-      setProfile({
-        id: "guest-developer",
-        display_name: guestName,
-        displayName: guestName,
-        avatar_url: null,
-        avatarUrl: null,
-        created_at: new Date().toISOString(),
-        leetcode_username: null,
-        leetcodeUsername: null,
-        leetcode_stats: null,
-        leetcodeStats: null,
-        githubToken: null,
-      });
-      setLoading(false);
+    // Remove legacy guest mode storage if any
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("dsa_viz_guest_mode");
     }
 
     // Check if user just returned from a redirect sign-in
     getRedirectResult(auth)
       .then(async (result) => {
         if (result?.user && isActive) {
-          if (typeof window !== "undefined") {
-            localStorage.removeItem("dsa_viz_guest_mode");
-          }
           const t = await result.user.getIdToken();
           setToken(t);
           await fetchProfile(result.user, t);
@@ -264,9 +175,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!isActive) return;
       if (firebaseUser) {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("dsa_viz_guest_mode");
-        }
         setUser(firebaseUser);
         try {
           const t = await firebaseUser.getIdToken();
@@ -276,12 +184,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error("Auth state token error:", e);
         }
       } else {
-        const guestActive = typeof window !== "undefined" && localStorage.getItem("dsa_viz_guest_mode") === "true";
-        if (!guestActive) {
-          setUser(null);
-          setToken(null);
-          setProfile(null);
-        }
+        setUser(null);
+        setToken(null);
+        setProfile(null);
       }
       setLoading(false);
     });
@@ -333,48 +238,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signInWithGuest = useCallback(async () => {
-    setLoading(true);
-    try {
-      // 1. Try Firebase anonymous authentication if enabled
-      try {
-        const cred = await signInAnonymously(auth);
-        if (cred?.user) {
-          if (typeof window !== "undefined") {
-            localStorage.removeItem("dsa_viz_guest_mode");
-          }
-          setUser(cred.user);
-          const t = await cred.user.getIdToken();
-          setToken(t);
-          await fetchProfile(cred.user, t);
-          setLoading(false);
-          return;
-        }
-      } catch (anonErr) {
-        console.warn("[Auth] Anonymous Firebase auth fallback to local session:", anonErr);
-      }
-
-      // 2. Direct local guest mode
-      if (typeof window !== "undefined") {
-        localStorage.setItem("dsa_viz_guest_mode", "true");
-      }
-      const guest = createGuestUser();
-      setUser(guest);
-      setToken("mock-guest-token-dev");
-      setProfile({
-        id: "guest-developer",
-        display_name: "Guest Developer",
-        avatar_url: null,
-        created_at: new Date().toISOString(),
-        leetcode_username: null,
-        leetcode_stats: null,
-        githubToken: null,
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchProfile]);
-
   const signOut = useCallback(async () => {
     setLoading(true);
     try {
@@ -399,7 +262,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isConfigured: true,
     token,
     signInWithGoogle,
-    signInWithGuest,
     signOut,
     refreshProfile,
     updateNickname,

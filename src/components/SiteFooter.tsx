@@ -34,7 +34,7 @@ export function SiteFooter() {
               className="inline-flex items-center gap-2.5 font-display text-2xl text-foreground font-black group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary rounded-lg w-fit"
             >
               <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-accent text-primary-foreground shadow-md shadow-primary/20 group-hover:scale-105 transition-transform">
-                <DsavizcoLogo className="size-5.5 text-primary-foreground" />
+                <DsavizcoLogo className="size-5.5 text-primary-foreground" showShadow={false} interactive={false} />
               </div>
               <span>
                 dsa<span className="gradient-text">.viz.co</span>

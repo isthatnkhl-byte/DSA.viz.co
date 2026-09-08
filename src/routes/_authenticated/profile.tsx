@@ -173,7 +173,7 @@ function ProfilePage() {
 
       let clientProfile: any = null;
       let clientSubs: any[] = [];
-      if (currentUser && currentUser.uid !== "guest-developer") {
+      if (currentUser) {
         try {
           clientProfile = await getOrCreateUserProfile(currentUser.uid, currentUser.email, currentUser.photoURL);
           clientSubs = await getUserSubmissions(currentUser.uid);
@@ -184,7 +184,7 @@ function ProfilePage() {
 
       let serverProfile: any = null;
       let serverSubs: any[] = [];
-      if (currentToken && currentToken !== "mock-guest-token-dev") {
+      if (currentToken) {
         try {
           const [profileRes, subsRes] = await Promise.all([
             fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
@@ -299,7 +299,7 @@ function ProfilePage() {
       const data = await res.json();
 
       // Dual write: also update client-side Firestore if authenticated
-      if (currentUser && currentUser.uid !== "guest-developer") {
+      if (currentUser) {
         try {
           await updateUserProfile(currentUser.uid, {
             leetcodeUsername: data.username || username,
@@ -338,7 +338,7 @@ function ProfilePage() {
       const auth = getAuth();
       const currentUser = auth.currentUser;
       const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
-      if (!currentToken || currentToken === "mock-guest-token-dev") {
+      if (!currentToken) {
         return { ok: true, profile: { displayName: username, display_name: username } };
       }
       const res = await fetch("/api/profile/update", {

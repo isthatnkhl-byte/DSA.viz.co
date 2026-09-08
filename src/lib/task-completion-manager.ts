@@ -52,7 +52,7 @@ class TaskCompletionManager {
    * Helper to get current Firebase User ID or a guest fallback ID.
    */
   private getEffectiveUserId(): string {
-    return auth.currentUser?.uid || "guest-developer";
+    return auth.currentUser?.uid || (typeof process !== "undefined" && process.env.NODE_ENV === "test" ? "test-user" : "anonymous-user");
   }
 
   /**

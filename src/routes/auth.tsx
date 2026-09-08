@@ -5,7 +5,6 @@ import {
   ArrowLeft, 
   ShieldCheck, 
   CheckCircle2, 
-  UserCheck, 
   AlertCircle, 
   Copy, 
   Check, 
@@ -40,12 +39,11 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const { user, loading, isConfigured, signInWithGoogle, signInWithGuest } = useAuth();
+  const { user, loading, isConfigured, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedHost, setCopiedHost] = useState(false);
-
   const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
   const isUnauthorizedDomain =
     Boolean(error && (error.includes("unauthorized-domain") || error.includes("Authorized Domains") || error.includes("Authorized Domain")));
@@ -62,7 +60,7 @@ function AuthPage() {
     try {
       await signInWithGoogle();
       if (!isConfigured) {
-        toast.success("Signed in with Google Developer profile (Local Mode)");
+        toast.success("Signed in with Google Developer profile");
         navigate({ to: "/dashboard", replace: true });
       }
     } catch (err: any) {
@@ -74,20 +72,6 @@ function AuthPage() {
       } else {
         toast.error("Could not sign in with Google.");
       }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleGuestSignIn() {
-    setBusy(true);
-    setError(null);
-    try {
-      await signInWithGuest();
-      toast.success("Signed in as Guest Developer!");
-      navigate({ to: "/dashboard", replace: true });
-    } catch (err: any) {
-      setError(err?.message || "Could not sign in as guest.");
     } finally {
       setBusy(false);
     }
@@ -178,16 +162,6 @@ function AuthPage() {
               )}
             </Button>
 
-            <Button
-              variant="outline"
-              className="w-full h-10 text-xs font-semibold gap-2 border-border/80 hover:bg-secondary/60 transition-all"
-              onClick={handleGuestSignIn}
-              disabled={busy || loading}
-            >
-              <UserCheck className="size-3.5 text-primary" />
-              <span>Explore as Guest Developer</span>
-            </Button>
-
             {/* Form & Privacy Policy Consent Notice */}
             <p className="text-[11px] leading-relaxed text-muted-foreground pt-2 text-center">
               By continuing, you agree to our{" "}
@@ -256,17 +230,6 @@ function AuthPage() {
                 </li>
                 <li>Under <strong>Authorized domains</strong>, click <strong>Add domain</strong> and paste the copied hostname.</li>
               </ol>
-
-              <div className="mt-3 pt-2 border-t border-amber-500/20 flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground font-sans">Or continue testing right now:</span>
-                <Button
-                  size="sm"
-                  onClick={handleGuestSignIn}
-                  className="h-7 px-3 text-xs font-mono font-bold bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40"
-                >
-                  Enter Guest Mode &rarr;
-                </Button>
-              </div>
             </div>
           ) : error ? (
             <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive text-left">

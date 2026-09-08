@@ -3,39 +3,48 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter, useLocation } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
+// Publicly accessible paths allowed without an active authenticated session
+const PUBLIC_PATHS = new Set(["/auth", "/terms", "/privacy", "/cookies"]);
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const location = useLocation();
-  const isLandingPage = location.pathname === "/" || location.pathname === "/auth";
 
+  const isPublicRoute = PUBLIC_PATHS.has(location.pathname);
+  const isAuthenticated = Boolean(user && user.uid && user.uid !== "guest-developer");
   const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
     if (!loading) {
-      if (!user && !isLandingPage) {
-        // Redirect non-logged in users to the login page
+      if (!isAuthenticated && !isPublicRoute) {
+        // Enforce authorized login across the website
         router.navigate({ to: "/auth" });
+      } else if (isAuthenticated && location.pathname === "/auth") {
+        // Already authenticated, redirect away from login page
+        router.navigate({ to: "/" });
       }
       setInitialLoading(false);
     }
-  }, [user, loading, isLandingPage, router]);
+  }, [isAuthenticated, loading, isPublicRoute, location.pathname, router]);
 
-  // Always render landing page instantly for performance
-  if (isLandingPage) {
+  // Allow public routes
+  if (isPublicRoute) {
     return <>{children}</>;
   }
 
+  // Show loading spinner while verifying authorization
   if (loading || initialLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        <Loader2 className="size-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (!user) {
-    return null; // Will redirect via useEffect
+  // If unauthorized, block rendering while redirecting
+  if (!isAuthenticated) {
+    return null;
   }
 
   return <>{children}</>;

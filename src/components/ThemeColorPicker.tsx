@@ -41,14 +41,14 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
       <button
         type="button"
         onClick={toggleMode}
-        className="flex size-8 items-center justify-center rounded-xl border border-border/70 bg-card/60 text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0"
+        className="flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/60 text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0"
         title={mode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
         aria-label="Toggle dark and light appearance mode"
       >
         {mode === "dark" ? (
-          <Sun className="size-3.5 text-amber-400 hover:rotate-45 transition-transform" />
+          <Sun className="size-4 text-amber-400 hover:rotate-45 transition-transform" />
         ) : (
-          <Moon className="size-3.5 text-primary hover:-rotate-12 transition-transform" />
+          <Moon className="size-4 text-primary hover:-rotate-12 transition-transform" />
         )}
       </button>
 
@@ -56,27 +56,19 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`flex h-8 items-center gap-1.5 rounded-xl border border-border/70 bg-card/60 px-2.5 text-xs font-mono font-semibold transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0 ${
+        className={`flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/60 transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0 ${
           isOpen ? "ring-2 ring-primary/40 border-primary/50" : ""
         }`}
         title={`Theme Accent: ${activeOption.label}`}
+        aria-label="Select Color Theme"
       >
-        <span className="relative flex items-center justify-center size-3.5">
+        <span className="flex items-center justify-center gap-1">
           <span
-            className="absolute size-3.5 rounded-full shadow-xs ring-1 ring-white/25"
-            style={{ background: activeOption.gradient || activeOption.previewColor }}
+            className="size-2.5 rounded-full shadow-xs ring-1 ring-white/25 shrink-0"
+            style={{ backgroundColor: activeOption.previewColor }}
           />
-          <span
-            className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-background shadow-xs"
-            style={{ backgroundColor: activeOption.accentColor }}
-          />
+          <Palette className="size-3 text-muted-foreground shrink-0" />
         </span>
-        {!compact && (
-          <span className="hidden xl:inline text-[11px] text-muted-foreground hover:text-foreground font-sans font-medium">
-            {activeOption.name}
-          </span>
-        )}
-        <Palette className="size-3 text-muted-foreground shrink-0 ml-0.5" />
       </button>
 
       {/* Expanded Theme Popover */}
@@ -169,8 +161,9 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
                         style={{ background: opt.gradient || opt.previewColor }}
                       />
                       <span
-                        className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-background shadow-xs"
-                        style={{ backgroundColor: opt.accentColor }}
+                        className="absolute -bottom-1 -right-1 size-2 rounded-full border border-background shadow-xs"
+                        style={{ backgroundColor: opt.complementColor }}
+                        title={`Pairs with complementary ${opt.complementColor}`}
                       />
                     </span>
                     <div className="min-w-0">

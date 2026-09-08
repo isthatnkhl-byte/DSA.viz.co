@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { CppCodeEditor } from "@/components/compiler/CppCodeEditor";
 import { CppConsole } from "@/components/compiler/CppConsole";
@@ -385,7 +386,7 @@ function CppCompilerPage() {
     <div className="min-h-screen pb-20">
       <SiteHeader />
 
-      <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
+      <main id="main-content" className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
         {/* Executive Header Banner */}
         <div className="relative mb-8 overflow-hidden rounded-3xl border border-border/70 bg-card/60 p-6 sm:p-10 backdrop-blur-2xl shadow-xl">
           {/* Subtle atmospheric ambient glows */}
@@ -794,6 +795,7 @@ function CppCompilerPage() {
           </div>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

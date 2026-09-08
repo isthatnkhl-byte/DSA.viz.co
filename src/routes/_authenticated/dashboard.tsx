@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { LeetCodeHeatmap } from "@/components/dashboard/LeetCodeHeatmap";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Visualizer } from "@/components/Visualizer";
 import { AnalyticsCharts } from "@/components/dashboard/AnalyticsCharts";
 import { AiMistakesSection } from "@/components/dashboard/AiMistakesSection";
@@ -229,7 +230,7 @@ function Dashboard() {
   return (
     <div className="min-h-screen pb-20">
       <SiteHeader />
-      <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+      <main id="main-content" className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
@@ -513,6 +514,7 @@ function Dashboard() {
           </div>
         )}
       </main>
+      <SiteFooter />
     </div>
   );
 }

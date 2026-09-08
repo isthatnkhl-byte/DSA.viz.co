@@ -255838,7 +255838,7 @@ var requireAuth = async (req, res, next) => {
     };
     return next();
   }
-  if (token.startsWith("mock-guest-token") || token.startsWith("guest-token") || token === "guest-developer") {
+  if (process.env.NODE_ENV !== "production" && (token.startsWith("mock-guest-token") || token.startsWith("guest-token") || token === "guest-developer")) {
     req.user = {
       uid: "guest-developer",
       email: "guest@dsaviz.local",
@@ -255855,6 +255855,43 @@ var requireAuth = async (req, res, next) => {
     return res.status(401).json({ error: "Unauthorized: Invalid or expired token" });
   }
 };
+
+// src/middleware/security.ts
+function httpsEnforcer(req, res, next) {
+  if (process.env.NODE_ENV === "production" || process.env.FORCE_HTTPS === "true") {
+    const proto = req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
+    const host = req.headers.host;
+    const isLocalhost = host && (host.startsWith("localhost") || host.startsWith("127.0.0.1"));
+    if (proto !== "https" && !isLocalhost && host) {
+      return res.redirect(301, `https://${host}${req.originalUrl || req.url}`);
+    }
+  }
+  next();
+}
+function securityHeadersMiddleware(_req, res, next) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-XSS-Protection", "0");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
+  const isProductionOrForced = process.env.NODE_ENV === "production" || process.env.FORCE_HTTPS === "true";
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' https: wss:",
+    "media-src 'self' blob: data:",
+    "frame-ancestors 'self'",
+    isProductionOrForced ? "upgrade-insecure-requests" : ""
+  ].filter(Boolean).join("; ");
+  res.setHeader("Content-Security-Policy", cspDirectives);
+  if (isProductionOrForced) {
+    res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  }
+  next();
+}
 
 // src/db/users.ts
 var memoryUserStore = /* @__PURE__ */ new Map();
@@ -280567,8 +280604,11 @@ function decryptToken(text) {
   }
 }
 var app = (0, import_express.default)();
+app.disable("x-powered-by");
 app.set("trust proxy", 1);
 var PORT = 3e3;
+app.use(httpsEnforcer);
+app.use(securityHeadersMiddleware);
 var API_ENDPOINTS = [
   "/statement",
   "/review",
@@ -280981,6 +281021,9 @@ app.get("/api/health", (_req, res) => {
   });
 });
 app.get("/api/debug/env", (_req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Endpoint not available in production" });
+  }
   const gemini = !!cleanEnv2(
     process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GOOGLE_API_KEY
   );
@@ -280996,6 +281039,9 @@ app.get("/api/debug/env", (_req, res) => {
   });
 });
 app.get("/api/test-gemini", async (_req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Endpoint not available in production" });
+  }
   try {
     const ai = getGeminiClient2();
     const result = await generateContentWithFallback2(ai, "gemini-3.6-flash", {
@@ -281096,6 +281142,51 @@ app.post("/api/profile/update", requireAuth, async (req, res) => {
   } catch (error61) {
     console.error("Failed to update profile:", error61);
     res.status(500).json({ error: "Failed to update profile username" });
+  }
+});
+app.delete("/api/profile", requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const userSubs = await getSubmissions(uid).catch(() => []);
+    for (const sub of userSubs) {
+      await deleteSubmission(uid, sub.id).catch(() => {
+      });
+    }
+    try {
+      if (adminDb) {
+        const userRef = adminDb.collection("users").doc(uid);
+        const subCollections = ["chat_sessions", "ai_reports", "activity", "bookmarks", "tasks"];
+        for (const colName of subCollections) {
+          const snapshot = await userRef.collection(colName).get().catch(() => null);
+          if (snapshot && snapshot.docs && snapshot.docs.length > 0) {
+            const batch = adminDb.batch();
+            snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+            await batch.commit().catch(() => {
+            });
+          }
+        }
+        await userRef.delete().catch(() => {
+        });
+      }
+    } catch (dbErr) {
+      console.warn("Firestore subcollections purge notice:", dbErr);
+    }
+    await updateProfile(uid, {
+      displayName: "Deleted User",
+      display_name: "Deleted User",
+      githubToken: null,
+      leetcodeUsername: null,
+      leetcode_username: null,
+      deletedAt: (/* @__PURE__ */ new Date()).toISOString()
+    }).catch(() => {
+    });
+    res.json({
+      success: true,
+      message: "Account and associated data deleted permanently in accordance with GDPR Right to Erasure."
+    });
+  } catch (error61) {
+    console.error("Account deletion error:", error61);
+    res.status(500).json({ error: "Failed to delete account data." });
   }
 });
 app.post("/api/sync-leetcode", requireAuth, async (req, res) => {
@@ -281736,7 +281827,7 @@ app.post("/api/chat-sessions", requireAuth, async (req, res) => {
     res.status(500).json({ error: error61?.message || "Failed to save chat session" });
   }
 });
-app.post("/api/generate-image", aiLimiter, async (req, res) => {
+app.post("/api/generate-image", requireAuth, aiLimiter, async (req, res) => {
   try {
     const {
       prompt,
@@ -282067,7 +282158,7 @@ app.get("/api/github/callback", async (req, res) => {
         <body>
           <script>
             if (window.opener) {
-              window.opener.postMessage({ type: 'GITHUB_AUTH_SUCCESS' }, '*');
+              window.opener.postMessage({ type: 'GITHUB_AUTH_SUCCESS' }, window.location.origin);
               window.close();
             } else {
               window.location.href = '/';

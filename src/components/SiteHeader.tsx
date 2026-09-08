@@ -558,6 +558,38 @@ export function SiteHeader() {
                     </Link>
                   </div>
                 </div>
+
+                {/* Legal & Privacy Compliance */}
+                <div className="pt-1">
+                  <span className="block px-1 pb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Legal &amp; Privacy
+                  </span>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1 font-mono text-xs text-muted-foreground">
+                    <Link
+                      to="/terms"
+                      onClick={() => setNavDrawerOpen(false)}
+                      className="hover:text-primary transition-colors"
+                    >
+                      Terms of Service
+                    </Link>
+                    <span>•</span>
+                    <Link
+                      to="/privacy"
+                      onClick={() => setNavDrawerOpen(false)}
+                      className="hover:text-primary transition-colors"
+                    >
+                      Privacy Policy
+                    </Link>
+                    <span>•</span>
+                    <Link
+                      to="/cookies"
+                      onClick={() => setNavDrawerOpen(false)}
+                      className="hover:text-primary transition-colors"
+                    >
+                      Cookie Policy
+                    </Link>
+                  </div>
+                </div>
               </div>
             </div>
 

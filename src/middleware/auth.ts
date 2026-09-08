@@ -30,7 +30,8 @@ export const requireAuth = async (
     return next();
   }
 
-  if (token.startsWith('mock-guest-token') || token.startsWith('guest-token') || token === 'guest-developer') {
+  // In non-production environments only, permit mock guest developer tokens for local development
+  if (process.env.NODE_ENV !== 'production' && (token.startsWith('mock-guest-token') || token.startsWith('guest-token') || token === 'guest-developer')) {
     req.user = {
       uid: 'guest-developer',
       email: 'guest@dsaviz.local',

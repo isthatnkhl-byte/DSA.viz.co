@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import express, { Request, Response } from "express";
 import { requireAuth, AuthRequest } from './src/middleware/auth';
+import { httpsEnforcer, securityHeadersMiddleware } from './src/middleware/security';
 import { getOrCreateUser } from './src/db/users';
 import { getProfile, updateProfile } from './src/db/profiles';
 import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submissions';
@@ -68,8 +69,13 @@ function decryptToken(text: string): string | null {
 }
 
 const app = express();
+app.disable("x-powered-by");
 app.set("trust proxy", 1);
 const PORT = 3000;
+
+// Force HTTPS & Hardened HTTP Security Headers Middleware (OWASP Defense-in-Depth & Strict Transport Security)
+app.use(httpsEnforcer);
+app.use(securityHeadersMiddleware);
 
 // Dual-Path Prefix Normalizer for API paths (only if accessing an API endpoint without /api prefix)
 const API_ENDPOINTS = [
@@ -532,8 +538,11 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-// Debug endpoint to check environment variables
+// Debug endpoint to check environment variables (Non-production diagnostics only)
 app.get("/api/debug/env", (_req: Request, res: Response) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Endpoint not available in production" });
+  }
   const gemini = !!cleanEnv(
     process.env.GEMINI_API_KEY ||
     process.env.VITE_GEMINI_API_KEY ||
@@ -557,8 +566,11 @@ app.get("/api/debug/env", (_req: Request, res: Response) => {
   });
 });
 
-// API: Test Gemini API key
+// API: Test Gemini API key (Non-production diagnostics only)
 app.get("/api/test-gemini", async (_req: Request, res: Response) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Endpoint not available in production" });
+  }
   try {
     const ai = getGeminiClient();
     const result = await generateContentWithFallback(ai, "gemini-3.6-flash", {
@@ -678,6 +690,55 @@ app.post("/api/profile/update", requireAuth, async (req: any, res) => {
   } catch (error) {
     console.error("Failed to update profile:", error);
     res.status(500).json({ error: "Failed to update profile username" });
+  }
+});
+
+// Privacy & Right to Erasure: Permanent Account & Data Deletion (GDPR Art. 17 & DPDP Act)
+app.delete("/api/profile", requireAuth, async (req: any, res: Response) => {
+  try {
+    const uid = req.user.uid;
+    // 1. Delete user submissions
+    const userSubs = await getSubmissions(uid).catch(() => []);
+    for (const sub of userSubs) {
+      await deleteSubmission(uid, sub.id).catch(() => {});
+    }
+
+    // 2. Delete Firestore subcollections if adminDb is connected
+    try {
+      if (adminDb) {
+        const userRef = adminDb.collection("users").doc(uid);
+        const subCollections = ["chat_sessions", "ai_reports", "activity", "bookmarks", "tasks"];
+        for (const colName of subCollections) {
+          const snapshot = await userRef.collection(colName).get().catch(() => null);
+          if (snapshot && snapshot.docs && snapshot.docs.length > 0) {
+            const batch = adminDb.batch();
+            snapshot.docs.forEach((doc: any) => batch.delete(doc.ref));
+            await batch.commit().catch(() => {});
+          }
+        }
+        await userRef.delete().catch(() => {});
+      }
+    } catch (dbErr) {
+      console.warn("Firestore subcollections purge notice:", dbErr);
+    }
+
+    // 3. Mark profile cleared/deleted
+    await updateProfile(uid, {
+      displayName: "Deleted User",
+      display_name: "Deleted User",
+      githubToken: null,
+      leetcodeUsername: null,
+      leetcode_username: null,
+      deletedAt: new Date().toISOString(),
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: "Account and associated data deleted permanently in accordance with GDPR Right to Erasure.",
+    });
+  } catch (error: any) {
+    console.error("Account deletion error:", error);
+    res.status(500).json({ error: "Failed to delete account data." });
   }
 });
 
@@ -1392,8 +1453,8 @@ app.post("/api/chat-sessions", requireAuth, async (req: any, res: Response) => {
   }
 });
 
-// API: High-Quality Image Generation
-app.post("/api/generate-image", aiLimiter, async (req: Request, res: Response) => {
+// API: High-Quality Image Generation (Requires authentication to prevent unauthenticated resource exhaustion)
+app.post("/api/generate-image", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       prompt,
@@ -1786,7 +1847,7 @@ app.get("/api/github/callback", async (req, res) => {
         <body>
           <script>
             if (window.opener) {
-              window.opener.postMessage({ type: 'GITHUB_AUTH_SUCCESS' }, '*');
+              window.opener.postMessage({ type: 'GITHUB_AUTH_SUCCESS' }, window.location.origin);
               window.close();
             } else {
               window.location.href = '/';

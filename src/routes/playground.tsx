@@ -25,6 +25,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Visualizer } from "@/components/Visualizer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -193,7 +194,7 @@ function PlaygroundPage() {
     <div className="min-h-screen pb-24">
       <SiteHeader />
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">
+      <main id="main-content" className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">
         {/* Executive Header Banner */}
         <div className="relative mb-10 overflow-hidden rounded-3xl border border-border/70 bg-card/60 p-6 sm:p-10 backdrop-blur-2xl shadow-xl">
           {/* Subtle atmospheric ambient glows */}
@@ -641,6 +642,7 @@ while left < right:
           </div>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

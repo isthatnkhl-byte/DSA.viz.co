@@ -17,6 +17,7 @@ import { CustomCursor } from "@/components/ui/custom-cursor";
 import { ChatProvider, useChat } from "@/context/ChatContext";
 import { VizcoCloudChatbox } from "@/components/chat/VizcoCloudChatbox";
 import { VizcoBuddy } from "@/components/chat/VizcoBuddy";
+import { CookieConsentBanner } from "@/components/legal/CookieConsentBanner";
 
 function NotFoundComponent() {
   return (
@@ -167,6 +168,13 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* WCAG 2.1 AA Accessibility: Skip to main content landmark */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg focus:shadow-xl focus:font-mono focus:text-xs focus:ring-2 focus:ring-primary-foreground"
+      >
+        Skip to main content
+      </a>
       <AuthProvider>
         <ChatProvider>
           <CustomCursor />
@@ -176,6 +184,8 @@ function RootComponent() {
           </AuthGuard>
           {/* 3D Floating Vizco Buddy & Cloud Chatbox across the entire website */}
           <GlobalVizcoBuddyIntegration />
+          {/* GDPR / CCPA / DPDP Compliant Cookie Consent & Privacy Manager */}
+          <CookieConsentBanner />
           <Toaster position="bottom-right" richColors closeButton />
         </ChatProvider>
       </AuthProvider>

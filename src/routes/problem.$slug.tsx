@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Visualizer } from "@/components/Visualizer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -1083,6 +1084,7 @@ def solve(input_data):
       </div>
 
       <main
+        id="main-content"
         className={`mx-auto grid w-full gap-6 p-4 sm:p-6 transition-all duration-300 ${
           stageMode === "cinema"
             ? "max-w-[1920px] grid-cols-1"
@@ -1497,6 +1499,7 @@ def solve(input_data):
           />
         </section>
       </main>
+      <SiteFooter />
     </div>
   );
 }

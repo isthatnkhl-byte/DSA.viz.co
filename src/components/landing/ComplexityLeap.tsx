@@ -67,7 +67,7 @@ vector<int> twoSumSort(vector<int>& nums, int target) {
     timeComplexity: "O(n)",
     spaceComplexity: "O(n)",
     summary: "One linear pass storing seen values in an unordered hash map. Instant O(1) expected lookups for target - num.",
-    aiVerdict: "🟢 Optimal Invariant! Linear scan with minimal overhead. 100% FAANG Approved.",
+    aiVerdict: "🟢 Optimal Invariant! Linear scan with minimal overhead. Industry-standard optimal solution.",
     codeSnippet: `// Hash Map Single Pass — O(n) Time | O(n) Space
 vector<int> twoSumOptimal(vector<int>& nums, int target) {
     unordered_map<int, int> seen;

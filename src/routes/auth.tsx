@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
@@ -102,9 +103,9 @@ function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen flex flex-col bg-background">
       <SiteHeader />
-      <main className="mx-auto flex w-full max-w-lg flex-col items-center px-4 py-12 text-center">
+      <main id="main-content" className="flex-1 mx-auto flex w-full max-w-lg flex-col items-center px-4 py-12 text-center">
         <Link
           to="/"
           className="group mb-8 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
@@ -186,6 +187,23 @@ function AuthPage() {
               <UserCheck className="size-3.5 text-primary" />
               <span>Explore as Guest Developer</span>
             </Button>
+
+            {/* Form & Privacy Policy Consent Notice */}
+            <p className="text-[11px] leading-relaxed text-muted-foreground pt-2 text-center">
+              By continuing, you agree to our{" "}
+              <Link to="/terms" className="text-primary underline hover:text-accent font-medium">
+                Terms of Service
+              </Link>
+              , acknowledge our{" "}
+              <Link to="/privacy" className="text-primary underline hover:text-accent font-medium">
+                Privacy Policy
+              </Link>
+              , and consent to our{" "}
+              <Link to="/cookies" className="text-primary underline hover:text-accent font-medium">
+                Cookie Policy
+              </Link>
+              . We only collect the minimal profile data required for account synchronization.
+            </p>
           </div>
 
           {/* Domain Authorization Notice Box */}
@@ -262,6 +280,7 @@ function AuthPage() {
           </div>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

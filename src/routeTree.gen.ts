@@ -17,6 +17,9 @@ import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as ProblemsRouteImport } from './routes/problems'
 import { Route as SheetsRouteImport } from './routes/sheets'
 import { Route as LiveInterviewRouteImport } from './routes/live-interview'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as ProblemSlugRouteImport } from './routes/problem.$slug'
@@ -55,6 +58,21 @@ const LiveInterviewRoute = LiveInterviewRouteImport.update({
   path: '/live-interview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 const ProblemsRoute = ProblemsRouteImport.update({
   id: '/problems',
@@ -85,6 +103,9 @@ export interface FileRoutesByFullPath {
   '/problems': typeof ProblemsRoute
   '/sheets': typeof SheetsRoute
   '/live-interview': typeof LiveInterviewRoute
+  '/terms': typeof TermsRoute
+  '/privacy': typeof PrivacyRoute
+  '/cookies': typeof CookiesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/problem/$slug': typeof ProblemSlugRoute
@@ -97,6 +118,9 @@ export interface FileRoutesByTo {
   '/problems': typeof ProblemsRoute
   '/sheets': typeof SheetsRoute
   '/live-interview': typeof LiveInterviewRoute
+  '/terms': typeof TermsRoute
+  '/privacy': typeof PrivacyRoute
+  '/cookies': typeof CookiesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/problem/$slug': typeof ProblemSlugRoute
@@ -111,6 +135,9 @@ export interface FileRoutesById {
   '/problems': typeof ProblemsRoute
   '/sheets': typeof SheetsRoute
   '/live-interview': typeof LiveInterviewRoute
+  '/terms': typeof TermsRoute
+  '/privacy': typeof PrivacyRoute
+  '/cookies': typeof CookiesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/problem/$slug': typeof ProblemSlugRoute
@@ -125,6 +152,9 @@ export interface FileRouteTypes {
     | '/problems'
     | '/sheets'
     | '/live-interview'
+    | '/terms'
+    | '/privacy'
+    | '/cookies'
     | '/dashboard'
     | '/profile'
     | '/problem/$slug'
@@ -137,6 +167,9 @@ export interface FileRouteTypes {
     | '/problems'
     | '/sheets'
     | '/live-interview'
+    | '/terms'
+    | '/privacy'
+    | '/cookies'
     | '/dashboard'
     | '/profile'
     | '/problem/$slug'
@@ -150,6 +183,9 @@ export interface FileRouteTypes {
     | '/problems'
     | '/sheets'
     | '/live-interview'
+    | '/terms'
+    | '/privacy'
+    | '/cookies'
     | '/_authenticated/dashboard'
     | '/_authenticated/profile'
     | '/problem/$slug'
@@ -164,6 +200,9 @@ export interface RootRouteChildren {
   ProblemsRoute: typeof ProblemsRoute
   SheetsRoute: typeof SheetsRoute
   LiveInterviewRoute: typeof LiveInterviewRoute
+  TermsRoute: typeof TermsRoute
+  PrivacyRoute: typeof PrivacyRoute
+  CookiesRoute: typeof CookiesRoute
   ProblemSlugRoute: typeof ProblemSlugRoute
 }
 
@@ -216,6 +255,27 @@ declare module '@tanstack/react-router' {
       path: '/live-interview'
       fullPath: '/live-interview'
       preLoaderRoute: typeof LiveInterviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/problems': {
@@ -271,6 +331,9 @@ const rootRouteChildren: RootRouteChildren = {
   ProblemsRoute: ProblemsRoute,
   SheetsRoute: SheetsRoute,
   LiveInterviewRoute: LiveInterviewRoute,
+  TermsRoute: TermsRoute,
+  PrivacyRoute: PrivacyRoute,
+  CookiesRoute: CookiesRoute,
   ProblemSlugRoute: ProblemSlugRoute,
 }
 export const routeTree = rootRouteImport

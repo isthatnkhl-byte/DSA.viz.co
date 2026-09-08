@@ -24,9 +24,16 @@ import {
   Check,
   ShieldCheck,
   UserCheck,
+  Trash2,
+  Download,
+  Cookie,
+  Shield,
+  AlertTriangle,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
+import { CookiePreferencesModal } from "@/components/legal/CookiePreferencesModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
@@ -67,7 +74,7 @@ import { LeetCodeHeatmap } from "@/components/dashboard/LeetCodeHeatmap";
 import { AiMistakesSection } from "@/components/dashboard/AiMistakesSection";
 
 function ProfilePage() {
-  const { user, token, refreshProfile, updateNickname } = useAuth();
+  const { user, token, refreshProfile, updateNickname, signOut } = useAuth();
   const queryClient = useQueryClient();
 
   const [inputUsername, setInputUsername] = useState("");
@@ -75,6 +82,53 @@ function ProfilePage() {
 
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameInput, setUsernameInput] = useState("");
+
+  const [cookieModalOpen, setCookieModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [confirmDeleteText, setConfirmDeleteText] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleExportData = () => {
+    const dataToExport = {
+      profile: data?.profile || user,
+      submissions: data?.submissions || [],
+      exportedAt: new Date().toISOString(),
+      platform: "DSA.viz.co",
+    };
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dsaviz-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("All personal data exported successfully.");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (confirmDeleteText !== "DELETE MY ACCOUNT") {
+      toast.error('Please type "DELETE MY ACCOUNT" to confirm.');
+      return;
+    }
+    setIsDeletingAccount(true);
+    try {
+      const currentToken = await user?.getIdToken();
+      const res = await fetch("/api/profile", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${currentToken || "mock-guest-token-dev"}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to delete account");
+      toast.success("Account and associated data deleted permanently.");
+      await signOut();
+      window.location.href = "/";
+    } catch (err: any) {
+      toast.error(err?.message || "Could not complete account deletion");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -206,6 +260,7 @@ function ProfilePage() {
       };
       return {
         profile,
+        submissions: subsArray,
         attempts: subsArray.length,
         solved: solved.size,
         optimal: optimal.size,
@@ -354,7 +409,7 @@ function ProfilePage() {
   return (
     <div className="min-h-screen pb-20">
       <SiteHeader />
-      <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+      <main id="main-content" className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
         <Link
           to="/"
           className="group mb-6 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
@@ -943,7 +998,137 @@ function ProfilePage() {
 
         {/* AI Mistake Diagnostics & Common Patterns Report Section */}
         <AiMistakesSection />
+
+        {/* Data Privacy, Right to Erasure & GDPR Compliance Card */}
+        <div className="rounded-2xl border border-border/70 bg-card/60 p-6 sm:p-8 backdrop-blur-md space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/50 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+                <Shield className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold font-display text-foreground flex items-center gap-2">
+                  <span>Privacy, Data Rights &amp; Erasure</span>
+                  <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-bold px-2 py-0.5">
+                    GDPR • CCPA • DPDP
+                  </span>
+                </h3>
+                <p className="text-xs text-muted-foreground font-mono">
+                  You own your data. Export your records or permanently erase your account at any time.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCookieModalOpen(true)}
+                className="text-xs font-mono gap-1.5 border-border/80"
+              >
+                <Cookie className="size-3.5 text-primary" />
+                <span>Cookie Settings</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportData}
+                className="text-xs font-mono gap-1.5 border-border/80"
+              >
+                <Download className="size-3.5 text-primary" />
+                <span>Export My Data</span>
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground leading-relaxed">
+            <div className="space-y-2">
+              <h4 className="font-bold text-foreground">Data Minimization Certified</h4>
+              <p>
+                We only store what is strictly necessary to calculate your algorithmic mastery, track your solved problems, and generate Socratic hints. We never sell your personal information or submissions to advertisers.
+              </p>
+              <div className="flex items-center gap-3 pt-1 text-[11px] font-mono">
+                <Link to="/privacy" className="text-primary underline hover:text-accent">
+                  Privacy Policy
+                </Link>
+                <span>•</span>
+                <Link to="/terms" className="text-primary underline hover:text-accent">
+                  Terms of Service
+                </Link>
+                <span>•</span>
+                <Link to="/cookies" className="text-primary underline hover:text-accent">
+                  Cookie Policy
+                </Link>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+              <h4 className="font-bold text-destructive flex items-center gap-1.5">
+                <AlertTriangle className="size-4" />
+                <span>Danger Zone: Permanent Account Deletion</span>
+              </h4>
+              <p className="text-[11px]">
+                Under GDPR Article 17 ("Right to Erasure"), you can permanently purge your profile, solution submissions, chat histories, and LeetCode tokens. This action is irreversible.
+              </p>
+
+              {!showDeleteConfirm ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-xs font-mono font-semibold"
+                >
+                  <Trash2 className="size-3.5 mr-1" />
+                  <span>Request Account &amp; Data Deletion</span>
+                </Button>
+              ) : (
+                <div className="space-y-2 pt-2 border-t border-destructive/20">
+                  <p className="text-[11px] font-mono text-destructive font-bold">
+                    Type "DELETE MY ACCOUNT" to confirm permanent purge:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="DELETE MY ACCOUNT"
+                      value={confirmDeleteText}
+                      onChange={(e) => setConfirmDeleteText(e.target.value)}
+                      className="font-mono text-xs h-8 border-destructive/40"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDeleteAccount}
+                      disabled={isDeletingAccount || confirmDeleteText !== "DELETE MY ACCOUNT"}
+                      className="text-xs font-mono font-bold h-8 shrink-0"
+                    >
+                      {isDeletingAccount ? "Purging…" : "Confirm Purge"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowDeleteConfirm(false);
+                        setConfirmDeleteText("");
+                      }}
+                      className="text-xs font-mono h-8 text-muted-foreground hover:text-foreground shrink-0"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </main>
+
+      {/* Cookie Preferences Dialog */}
+      <CookiePreferencesModal
+        isOpen={cookieModalOpen}
+        onClose={() => setCookieModalOpen(false)}
+      />
+
+      <SiteFooter />
     </div>
   );
 }

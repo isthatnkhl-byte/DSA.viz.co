@@ -44,6 +44,7 @@ import {
   Info,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -360,7 +361,7 @@ function LiveInterviewPage() {
     if (!hasCameraPermission || !hasMicPermission) {
       setShowBrowserGuide(true);
       toast.error(
-        "Strict Hardware Anti-Cheat: Physical webcam and microphone permissions are required. Follow the Chrome settings guide above.",
+        "Live Mock Interview Environment: Webcam and microphone permissions are required for the simulation session. Follow the browser settings guide above.",
         { duration: 5000 }
       );
       return;
@@ -603,7 +604,7 @@ function LiveInterviewPage() {
 
       {/* STAGE 1: ENVIRONMENT & PROCTORING SETUP */}
       {stage === "setup" && (
-        <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <main id="main-content" className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
           <div className="w-full max-w-4xl space-y-6">
             {/* Header Title */}
             <div className="text-center space-y-2">
@@ -661,10 +662,9 @@ function LiveInterviewPage() {
                           <Video className="size-6" />
                         </div>
                         <div className="space-y-1">
-                          <p className="text-xs font-bold text-foreground">Actual Camera & Microphone Required</p>
+                          <p className="text-xs font-bold text-foreground">Camera &amp; Microphone Access Required</p>
                           <p className="text-[11px] text-muted-foreground leading-relaxed max-w-sm">
-                            Strict anti-cheat proctoring requires physical hardware camera and microphone access.
-                            Virtual and emulated feeds are prohibited.
+                            Mock interview simulation utilizes camera and microphone access for volume meters and realistic interview practice. All audio and video streams remain strictly in your local browser.
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
@@ -971,24 +971,24 @@ function LiveInterviewPage() {
                 <div className="rounded-2xl border border-border/70 bg-secondary/40 p-4 space-y-2.5 text-xs">
                   <div className="flex items-center gap-1.5 font-bold text-foreground">
                     <ShieldCheck className="size-4 text-primary" />
-                    <span>Strict Proctoring & Anti-Cheat Protocol</span>
+                    <span>Mock Interview Simulation &amp; Integrity Guidelines</span>
                   </div>
                   <ul className="space-y-1.5 text-muted-foreground text-[11px]">
                     <li className="flex items-center gap-1.5">
                       <span className="size-1.5 rounded-full bg-primary" />
-                      <span>Full-screen mode will be strictly locked on interview launch.</span>
+                      <span>Full-screen mode is requested on interview launch to minimize distractions.</span>
                     </li>
                     <li className="flex items-center gap-1.5">
                       <span className="size-1.5 rounded-full bg-primary" />
-                      <span>Tab switches and window focus loss trigger immediate strikes (3 strikes = terminate).</span>
+                      <span>Tab switches and window focus loss trigger practice alerts (3 alerts simulated).</span>
                     </li>
                     <li className="flex items-center gap-1.5">
                       <span className="size-1.5 rounded-full bg-primary" />
-                      <span>External clipboard copy-pasting is strictly audited.</span>
+                      <span>External clipboard paste events are logged in the interview timeline.</span>
                     </li>
                     <li className="flex items-center gap-1.5">
                       <span className="size-1.5 rounded-full bg-primary" />
-                      <span>Physical hardware camera & mic must remain active throughout the session.</span>
+                      <span>Camera &amp; mic feeds are processed locally for audio meters (no recordings are uploaded).</span>
                     </li>
                   </ul>
 
@@ -1000,7 +1000,7 @@ function LiveInterviewPage() {
                       className="size-3.5 rounded border-border text-primary focus:ring-primary/20 accent-primary"
                     />
                     <span className="text-[11px] font-semibold text-foreground">
-                      I agree to the strict proctoring policy and physical camera/mic verification.
+                      I agree to the interview guidelines and acknowledge that media streams remain 100% in my browser in accordance with the Privacy Policy.
                     </span>
                   </label>
                 </div>
@@ -1133,7 +1133,7 @@ function LiveInterviewPage() {
 
       {/* STAGE 2: LIVE INTERVIEW WORKSPACE */}
       {stage === "interviewing" && (
-        <div className="flex-1 flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
+        <main id="main-content" className="flex-1 flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
           {/* Top HUD: Proctoring Status, Timer, Strikes, Tier Phase */}
           <div className="border-b border-border/80 bg-card/90 backdrop-blur-md px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shrink-0">
             {/* Left: Proctoring Badge & Question Info */}
@@ -1684,12 +1684,12 @@ function LiveInterviewPage() {
               </div>
             </div>
           </div>
-        </div>
+        </main>
       )}
 
       {/* STAGE 3: COMPREHENSIVE SCORECARD MODAL / VIEW */}
       {stage === "scorecard" && scorecard && (
-        <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-background">
+        <main id="main-content" className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-background">
           <div className="w-full max-w-4xl space-y-6">
             {/* Top Score Banner */}
             <div className="rounded-3xl border border-border/80 bg-card/90 p-6 sm:p-8 text-center space-y-4 shadow-xl">
@@ -1945,6 +1945,7 @@ function LiveInterviewPage() {
           </div>
         </main>
       )}
+      {stage !== "interviewing" && <SiteFooter />}
     </div>
   );
 }

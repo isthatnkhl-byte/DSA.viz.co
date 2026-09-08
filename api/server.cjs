@@ -282144,19 +282144,39 @@ app.get("/api/github/callback", async (req, res) => {
     if (!accessToken) {
       return res.status(400).send("No access token returned by GitHub");
     }
-    await updateProfile(uid, { githubToken: encryptToken(accessToken) });
+    const encryptedToken = encryptToken(accessToken);
+    await updateProfile(uid, { githubToken: encryptedToken, githubConnected: true });
     res.send(`
+      <!DOCTYPE html>
       <html>
+        <head>
+          <title>GitHub Connected</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; }
+            .card { text-align: center; padding: 2rem; background: #1e293b; border-radius: 1rem; border: 1px solid #334155; }
+          </style>
+        </head>
         <body>
+          <div class="card">
+            <h3>GitHub Connected Successfully!</h3>
+            <p>Closing this window...</p>
+          </div>
           <script>
-            if (window.opener) {
-              window.opener.postMessage({ type: 'GITHUB_AUTH_SUCCESS' }, window.location.origin);
-              window.close();
-            } else {
-              window.location.href = '/';
+            try {
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({
+                  type: 'GITHUB_AUTH_SUCCESS',
+                  githubConnected: true,
+                  githubToken: ${JSON.stringify(encryptedToken)}
+                }, '*');
+                setTimeout(() => window.close(), 400);
+              } else {
+                window.location.href = '/profile';
+              }
+            } catch (e) {
+              window.location.href = '/profile';
             }
           </script>
-          <p>GitHub connected successfully. This window should close automatically.</p>
         </body>
       </html>
     `);
@@ -282165,23 +282185,44 @@ app.get("/api/github/callback", async (req, res) => {
     res.status(500).send("Failed to connect GitHub");
   }
 });
+app.post("/api/github/disconnect", requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    await updateProfile(uid, { githubToken: null, githubConnected: false });
+    res.json({ success: true });
+  } catch (error61) {
+    res.status(500).json({ error: "Failed to disconnect GitHub" });
+  }
+});
 app.post("/api/github/push", requireAuth, async (req, res) => {
   try {
     const pushSchema = external_exports.object({
       code: external_exports.string().max(5e4, "Code is too large"),
       titleSlug: external_exports.string().max(255),
-      lang: external_exports.string().max(50)
+      lang: external_exports.string().max(50),
+      githubToken: external_exports.string().optional()
     });
     const parsed = pushSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid payload", details: parsed.error.format() });
     }
-    const { code, titleSlug, lang } = parsed.data;
+    const { code, titleSlug, lang, githubToken: clientToken } = parsed.data;
     const uid = req.user.uid;
-    const profile = await getProfile(uid);
-    const githubToken = profile?.githubToken ? decryptToken(profile.githubToken) : null;
+    const profile = await getProfile(uid).catch(() => null);
+    const rawToken = profile?.githubToken || clientToken;
+    let githubToken = null;
+    if (rawToken) {
+      githubToken = decryptToken(rawToken);
+      if (!githubToken && (rawToken.startsWith("ghp_") || rawToken.startsWith("github_pat_") || rawToken.startsWith("gho_"))) {
+        githubToken = rawToken;
+      }
+    }
     if (!githubToken) {
-      return res.status(401).json({ error: "GitHub account not connected" });
+      return res.status(401).json({ error: "GitHub account not connected. Please connect your GitHub account in your Profile." });
+    }
+    if (clientToken && (!profile?.githubToken || profile.githubToken !== clientToken)) {
+      await updateProfile(uid, { githubToken: clientToken, githubConnected: true }).catch(() => {
+      });
     }
     const extMap = {
       "cpp": "cpp",
@@ -282195,57 +282236,73 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
     const repoName = "LeetCode-Solutions";
     const path3 = `${titleSlug}/${titleSlug}.${ext}`;
     const message2 = `Add solution for ${titleSlug}`;
+    const githubHeaders = {
+      "Authorization": `Bearer ${githubToken}`,
+      "User-Agent": "DSA-viz-co-App/1.0",
+      "Accept": "application/vnd.github.v3+json"
+    };
     const userRes = await fetch("https://api.github.com/user", {
-      headers: { "Authorization": `Bearer ${githubToken}` }
+      headers: githubHeaders
     });
     const userData = await userRes.json();
-    if (!userRes.ok) return res.status(400).json({ error: "Invalid GitHub token" });
+    if (!userRes.ok) {
+      console.error("GitHub user fetch error:", userData);
+      return res.status(400).json({ error: userData.message || "Invalid or expired GitHub token. Please reconnect GitHub in Profile." });
+    }
     const owner = userData.login;
     let repoRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
-      headers: { "Authorization": `Bearer ${githubToken}` }
+      headers: githubHeaders
     });
+    let defaultBranch = "main";
     if (repoRes.status === 404) {
       repoRes = await fetch("https://api.github.com/user/repos", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${githubToken}`, "Content-Type": "application/json" },
+        headers: { ...githubHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({
           name: repoName,
-          description: "My LeetCode solutions synced automatically",
+          description: "My LeetCode solutions synced automatically with DSA.viz.co",
           private: false,
           auto_init: true
         })
       });
       if (!repoRes.ok) {
-        return res.status(500).json({ error: "Failed to create repository" });
+        const repoErr = await repoRes.json().catch(() => ({}));
+        return res.status(500).json({ error: repoErr.message || "Failed to create repository" });
       }
       await new Promise((r2) => setTimeout(r2, 2e3));
+    } else if (repoRes.ok) {
+      const repoData = await repoRes.json().catch(() => ({}));
+      if (repoData.default_branch) {
+        defaultBranch = repoData.default_branch;
+      }
     }
     let sha = void 0;
     const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path3}`, {
-      headers: { "Authorization": `Bearer ${githubToken}` }
+      headers: githubHeaders
     });
     if (fileRes.ok) {
-      const fileData = await fileRes.json();
-      sha = fileData.sha;
+      const fileData = await fileRes.json().catch(() => null);
+      if (fileData?.sha) sha = fileData.sha;
     }
     const content = Buffer.from(code).toString("base64");
     const pushRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path3}`, {
       method: "PUT",
-      headers: { "Authorization": `Bearer ${githubToken}`, "Content-Type": "application/json" },
+      headers: { ...githubHeaders, "Content-Type": "application/json" },
       body: JSON.stringify({
         message: message2,
         content,
-        sha
+        sha,
+        branch: defaultBranch
       })
     });
     if (!pushRes.ok) {
-      const err = await pushRes.json();
-      return res.status(500).json({ error: "Failed to push code: " + err.message });
+      const err = await pushRes.json().catch(() => ({ message: "Unknown error" }));
+      return res.status(500).json({ error: "Failed to push code: " + (err.message || pushRes.statusText) });
     }
-    res.json({ success: true, url: `https://github.com/${owner}/${repoName}/blob/main/${path3}` });
+    res.json({ success: true, url: `https://github.com/${owner}/${repoName}/blob/${defaultBranch}/${path3}` });
   } catch (error61) {
     console.error("GitHub push error:", error61);
-    res.status(500).json({ error: "Failed to push to GitHub" });
+    res.status(500).json({ error: error61?.message || "Failed to push to GitHub" });
   }
 });
 async function startServer() {

@@ -130,16 +130,62 @@ function ProfilePage() {
     }
   };
 
+  const handleDisconnectGithub = async () => {
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken() : null;
+      if (currentUser) {
+        try {
+          localStorage.removeItem(`dsa_viz_github_connected_${currentUser.uid}`);
+          localStorage.removeItem(`dsa_viz_github_token_${currentUser.uid}`);
+          await updateUserProfile(currentUser.uid, {
+            githubToken: null,
+          } as any);
+        } catch (e) {
+          console.warn("Could not clear client firestore githubToken:", e);
+        }
+      }
+      if (currentToken) {
+        await fetch("/api/github/disconnect", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${currentToken}` },
+        }).catch(() => {});
+      }
+      toast.success("GitHub disconnected");
+      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+      refetch();
+    } catch {
+      toast.error("Failed to disconnect GitHub");
+    }
+  };
+
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'GITHUB_AUTH_SUCCESS') {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === "GITHUB_AUTH_SUCCESS") {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          try {
+            if (event.data?.githubToken) {
+              await updateUserProfile(currentUser.uid, {
+                githubToken: event.data.githubToken,
+              } as any);
+              localStorage.setItem(`dsa_viz_github_token_${currentUser.uid}`, event.data.githubToken);
+            }
+            localStorage.setItem(`dsa_viz_github_connected_${currentUser.uid}`, "true");
+          } catch (e) {
+            console.warn("Could not save githubToken to client profile:", e);
+          }
+        }
         toast.success("GitHub connected successfully!");
         queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+        refetch();
       }
     };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [queryClient]);
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [queryClient, refetch]);
 
   const handleConnectGithub = async () => {
     try {
@@ -229,9 +275,32 @@ function ProfilePage() {
         currentUser?.photoURL ||
         null;
 
+      const localConnected = typeof window !== "undefined" && currentUser
+        ? localStorage.getItem(`dsa_viz_github_connected_${currentUser.uid}`) === "true"
+        : false;
+      const localToken = typeof window !== "undefined" && currentUser
+        ? localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)
+        : null;
+
+      const isGithubConnected =
+        !!serverProfile?.githubConnected ||
+        !!serverProfile?.githubToken ||
+        !!clientProfile?.githubToken ||
+        !!(clientProfile as any)?.githubConnected ||
+        localConnected ||
+        !!localToken;
+
+      const effectiveGithubToken =
+        serverProfile?.githubToken ||
+        clientProfile?.githubToken ||
+        localToken ||
+        null;
+
       const profile = {
         ...(serverProfile || {}),
         ...(clientProfile || {}),
+        githubConnected: isGithubConnected,
+        githubToken: effectiveGithubToken,
         displayName: effectiveDisplayName,
         display_name: effectiveDisplayName,
         avatarUrl: effectiveAvatar,
@@ -639,23 +708,32 @@ function ProfilePage() {
                   </div>
                 </div>
 
-                {!((profile as any)?.githubConnected || (profile as any)?.githubToken) ? (
+                {!profile?.githubConnected ? (
                   <Button
                     onClick={handleConnectGithub}
-                    className="h-8 gap-1.5 font-mono text-xs bg-[#24292e] text-white hover:bg-[#24292e]/80"
+                    className="h-8 gap-1.5 font-mono text-xs bg-[#24292e] text-white hover:bg-[#24292e]/80 cursor-pointer"
                   >
                     <Github className="size-3.5" />
                     <span>Connect GitHub</span>
                   </Button>
                 ) : (
-                  <Button
-                    onClick={handleConnectGithub}
-                    variant="outline"
-                    className="h-8 gap-1.5 font-mono text-xs"
-                  >
-                    <RefreshCw className="size-3.5" />
-                    <span>Reconnect</span>
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleConnectGithub}
+                      variant="outline"
+                      className="h-8 gap-1.5 font-mono text-xs cursor-pointer"
+                    >
+                      <RefreshCw className="size-3.5" />
+                      <span>Reconnect</span>
+                    </Button>
+                    <Button
+                      onClick={handleDisconnectGithub}
+                      variant="ghost"
+                      className="h-8 gap-1.5 font-mono text-xs text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                    >
+                      <span>Disconnect</span>
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>

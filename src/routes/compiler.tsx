@@ -90,8 +90,13 @@ function CppCompilerPage() {
     setGithubLoading(true);
     try {
       const auth = getAuth();
-      const authToken = await auth.currentUser?.getIdToken();
-      
+      const currentUser = auth.currentUser;
+      const authToken = await currentUser?.getIdToken();
+
+      const clientStoredToken =
+        (typeof window !== "undefined" && currentUser && localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)) ||
+        undefined;
+
       // We will try to name the file based on the active template if one exists, otherwise 'sandbox'
       const titleSlug = "cpp-sandbox";
       
@@ -104,7 +109,8 @@ function CppCompilerPage() {
         body: JSON.stringify({
           code: codeStr,
           titleSlug: titleSlug,
-          lang: "cpp"
+          lang: "cpp",
+          githubToken: clientStoredToken
         })
       });
       const data = await res.json();

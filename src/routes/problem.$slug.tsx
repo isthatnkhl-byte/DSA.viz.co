@@ -148,15 +148,26 @@ function ProblemPage() {
   
   const [githubLoading, setGithubLoading] = useState(false);
   const handlePushToGithub = async (codeStr: string) => {
-    if (!(profileStats?.profile as any)?.githubToken) {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    const isConnected =
+      !!(profileStats?.profile as any)?.githubConnected ||
+      !!(profileStats?.profile as any)?.githubToken ||
+      (typeof window !== "undefined" && currentUser && localStorage.getItem(`dsa_viz_github_connected_${currentUser.uid}`) === "true");
+
+    if (!isConnected) {
       toast.error("Please connect your GitHub account in your Profile first.");
       return;
     }
     
     setGithubLoading(true);
     try {
-      const auth = getAuth();
-      const token = await auth.currentUser?.getIdToken();
+      const token = await currentUser?.getIdToken();
+      const clientStoredToken =
+        (profileStats?.profile as any)?.githubToken ||
+        (typeof window !== "undefined" && currentUser && localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)) ||
+        undefined;
+
       const res = await fetch("/api/github/push", {
         method: "POST",
         headers: {
@@ -166,14 +177,15 @@ function ProblemPage() {
         body: JSON.stringify({
           code: codeStr,
           titleSlug: problem?.slug,
-          lang: "cpp" // Default to C++ as requested
+          lang: "cpp", // Default to C++ as requested
+          githubToken: clientStoredToken
         })
       });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Failed to push to GitHub");
       } else {
-        toast.success("Successfully pushed pseudocode/draft to GitHub!", {
+        toast.success("Successfully pushed solution to GitHub!", {
           action: {
             label: "View",
             onClick: () => window.open(data.url, "_blank")

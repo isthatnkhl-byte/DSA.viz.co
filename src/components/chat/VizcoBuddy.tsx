@@ -209,39 +209,60 @@ export function VizcoBuddy() {
             rotateY: springX,
             transformStyle: "preserve-3d",
           }}
-          className="relative flex flex-col items-center justify-center filter drop-shadow-[0_12px_28px_rgba(0,0,0,0.3)] transition-transform duration-150"
+          className="relative flex flex-col items-center justify-center filter drop-shadow-[0_12px_28px_rgba(0,0,0,0.35)] transition-transform duration-150"
         >
           {/* Ambient Radiant Theme Halo */}
           <div
-            className="absolute -inset-2 rounded-full opacity-50 dark:opacity-75 blur-xl pointer-events-none animate-pulse"
+            className="absolute -inset-3 rounded-full opacity-60 dark:opacity-80 blur-xl pointer-events-none animate-pulse"
             style={{
               background: "radial-gradient(circle, var(--primary) 0%, var(--accent) 45%, transparent 75%)",
             }}
           />
 
-          {/* Mini Atmospheric Cloud Base that floats under Vizco */}
-          <motion.div
-            animate={{
-              scaleX: [1, 0.86, 1, 0.9, 1],
-              opacity: [0.55, 0.25, 0.55, 0.35, 0.55],
-              y: [0, 4, 0, 2, 0],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            className="absolute -bottom-3 z-0 w-16 h-4 rounded-full bg-primary/30 dark:bg-primary/45 blur-[3px] pointer-events-none"
-          />
+          {/* Floating Minecraft Voxel Spark Particles (Experience & Amethyst Dust) */}
+          <div className="absolute -inset-4 pointer-events-none overflow-visible">
+            {/* Spark 1 */}
+            <motion.div
+              animate={{
+                y: [0, -16, 0],
+                x: [0, -4, 0],
+                opacity: [0.2, 0.9, 0.2],
+                rotate: [0, 45, 90],
+              }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute top-1 left-2 size-2 bg-purple-400 border border-black/80 rotate-45 shadow-xs"
+            />
+            {/* Spark 2 */}
+            <motion.div
+              animate={{
+                y: [0, -18, 0],
+                x: [0, 5, 0],
+                opacity: [0.3, 1, 0.3],
+                rotate: [0, -45, -90],
+              }}
+              transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+              className="absolute top-3 right-1 size-1.5 bg-cyan-400 border border-black/80 rotate-45 shadow-xs"
+            />
+            {/* Spark 3 (Emerald) */}
+            <motion.div
+              animate={{
+                y: [0, -14, 0],
+                opacity: [0.2, 0.85, 0.2],
+                rotate: [0, 30, 60],
+              }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+              className="absolute bottom-6 right-3 size-1.5 bg-emerald-400 border border-black/80 shadow-xs"
+            />
+          </div>
 
           {/* 3D Buddy Avatar Body */}
           <motion.div
-            whileHover={{ scale: 1.1 }}
+            whileHover={{ scale: 1.12, y: -2 }}
             whileTap={{ scale: 0.94 }}
-            className="relative z-10 w-16 h-16 sm:w-18 sm:h-18 flex items-center justify-center p-1 cursor-pointer"
+            className="relative z-10 w-18 h-18 sm:w-22 sm:h-22 flex items-center justify-center p-1 cursor-pointer"
           >
             <VizcoBuddyAvatar
-              size="md"
+              size="lg"
               mood={mood}
               showCloudBase={true}
               showHalo={false}
@@ -250,18 +271,19 @@ export function VizcoBuddy() {
             />
           </motion.div>
 
-          {/* Tiny Status Chip beneath Buddy */}
+          {/* Minecraft Pixel Status Chip beneath Buddy */}
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: isHovered ? 1 : 0.85 }}
-            className="mt-1 flex items-center gap-1 rounded-full border border-primary/30 bg-card/90 px-2.5 py-0.5 text-[9px] font-bold tracking-wider text-foreground shadow-md backdrop-blur-md uppercase"
+            animate={{ opacity: isHovered ? 1 : 0.9 }}
+            className="mt-0.5 flex items-center gap-1.5 rounded-full border border-primary/40 bg-card/95 px-2.5 py-0.5 text-[9px] font-extrabold tracking-widest text-foreground shadow-md backdrop-blur-md uppercase"
+            style={{ fontFamily: "'Silkscreen', 'Press Start 2P', monospace" }}
           >
-            <span className="relative flex size-1.5">
+            <span className="relative flex size-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full size-1.5 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
             </span>
-            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent font-extrabold">
-              Vizco Buddy
+            <span className="bg-gradient-to-r from-primary via-indigo-400 to-accent bg-clip-text text-transparent font-black">
+              VIZCO
             </span>
           </motion.div>
         </motion.div>

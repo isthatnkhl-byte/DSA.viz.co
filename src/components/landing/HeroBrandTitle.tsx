@@ -5,43 +5,60 @@ import { motion } from "motion/react";
 export function HeroBrandTitle() {
   return (
     <div className="relative flex flex-col items-center justify-center my-4 select-none w-full max-w-5xl mx-auto">
-      
-      {/* 🌟 GIANT MASCOT HIGHLIGHT - Main visual anchor, isolated stacking context strictly behind headline */}
+      {/* 🌟 GIANT 3D MINECRAFT VOXEL MASCOT - Main hero visual anchor */}
       <div className="relative group flex items-center justify-center my-3 sm:my-5 isolate z-10">
-        
-        {/* Multilayered Radiant Neon Glow Rings strictly behind mascot */}
-        <div className="absolute inset-0 -z-10 rounded-full bg-gradient-to-tr from-primary/30 via-accent/20 to-primary/40 blur-3xl scale-110 opacity-40 dark:opacity-70 animate-pulse pointer-events-none" />
-        <div className="absolute -inset-4 -z-10 rounded-full bg-primary/15 dark:bg-primary/20 blur-2xl scale-105 pointer-events-none" />
+        {/* Multilayered Radiant Minecraft Shader Bloom strictly behind mascot */}
+        <div className="absolute inset-0 -z-10 rounded-full bg-gradient-to-tr from-primary/35 via-accent/25 to-primary/45 blur-3xl scale-110 opacity-50 dark:opacity-80 animate-pulse pointer-events-none" />
+        <div className="absolute -inset-6 -z-10 rounded-full bg-primary/20 dark:bg-primary/25 blur-2xl scale-105 pointer-events-none" />
 
-        {/* Ambient Decorative Radar Rings strictly behind mascot */}
-        <motion.div 
-          className="absolute -z-10 size-44 sm:size-64 md:size-80 lg:size-[22rem] rounded-full border border-primary/20 pointer-events-none"
-          animate={{ scale: [0.95, 1.05, 0.95], rotate: 360 }}
-          transition={{ scale: { duration: 4, repeat: Infinity, ease: "easeInOut" }, rotate: { duration: 25, repeat: Infinity, ease: "linear" } }}
+        {/* Minecraft Beacon / Enchanting Circle Ring 1 */}
+        <motion.div
+          className="absolute -z-10 size-48 sm:size-68 md:size-84 lg:size-[23rem] rounded-full border border-primary/30 pointer-events-none"
+          animate={{ scale: [0.96, 1.04, 0.96], rotate: 360 }}
+          transition={{
+            scale: { duration: 4.5, repeat: Infinity, ease: "easeInOut" },
+            rotate: { duration: 30, repeat: Infinity, ease: "linear" },
+          }}
         />
-        <motion.div 
-          className="absolute -z-10 size-52 sm:size-72 md:size-[24rem] lg:size-[26rem] rounded-full border border-accent/15 border-dashed pointer-events-none"
+
+        {/* Minecraft Beacon / Enchanting Circle Ring 2 (Dashed Voxel Pattern) */}
+        <motion.div
+          className="absolute -z-10 size-56 sm:size-76 md:size-[25rem] lg:size-[27rem] rounded-full border border-accent/25 border-dashed pointer-events-none"
           animate={{ rotate: -360 }}
-          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
         />
 
-        {/* Massive Mascot Logo */}
-        <motion.div 
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
+        {/* Ambient Voxel Grid Specular Crosshairs */}
+        <div className="absolute -z-10 size-64 sm:size-88 md:size-[26rem] pointer-events-none opacity-20 dark:opacity-30">
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent" />
+          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-gradient-to-b from-transparent via-primary to-transparent" />
+        </div>
+
+        {/* Massive 3D Minecraft Voxel Mascot Logo with Edges Shaders & Enchanted Glint */}
+        <motion.div
+          initial={{ scale: 0.82, opacity: 0, y: 15 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="relative z-10 text-primary w-32 h-32 sm:w-48 sm:h-48 md:w-64 md:h-64 lg:w-80 lg:h-80 xl:w-96 xl:h-96 shrink-0 drop-shadow-[0_0_35px_rgba(var(--primary-rgb,99,102,241),0.4)] cursor-pointer"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          className="relative z-10 text-primary w-36 h-36 sm:w-52 sm:h-52 md:w-68 md:h-68 lg:w-84 lg:h-84 xl:w-96 xl:h-96 shrink-0 cursor-pointer filter drop-shadow-[0_12px_28px_rgba(0,0,0,0.35)] dark:drop-shadow-[0_14px_35px_rgba(0,0,0,0.65)]"
         >
-          <DsavizcoLogo className="w-full h-full filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.15)] dark:drop-shadow-[0_10px_25px_rgba(0,0,0,0.5)]" />
+          <DsavizcoLogo
+            className="w-full h-full"
+            interactive={true}
+            showGlint={true}
+            showParticles={true}
+            showShadow={true}
+          />
         </motion.div>
       </div>
 
-      {/* Brand Title Text Container */}
+      {/* Brand Title Text Container with Minecraft Typography & Luminescence */}
       <div className="dsavizco-title-container relative inline-flex flex-col items-center justify-center mt-2">
         {/* Soft, wide purplish ambient glow behind all characters of DSAVIZCO */}
         <span className="dsavizco-purplish-bg-glow" aria-hidden="true" />
-        
-        {/* Foreground Pixel Title */}
+
+        {/* Foreground Pixel Title with Minecraft cel text-shadow */}
         <span className="dsavizco-pixel-text text-4xl sm:text-6xl md:text-7xl lg:text-[5.5rem] tracking-wider relative z-10 text-foreground font-black">
           DSAVIZCO
         </span>
@@ -54,3 +71,4 @@ export function HeroBrandTitle() {
     </div>
   );
 }
+

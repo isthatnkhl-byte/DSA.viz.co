@@ -1756,6 +1756,80 @@ html.light .dsavizco-pixel-text {
   }
 }
 
+/* ===================================================================
+   MINECRAFT 3D EDGES & SHADERS ENGINE
+   =================================================================== */
+
+/* Minecraft Block Edges Shader: Crisp dark block boundary cel outline */
+.minecraft-cel-edges {
+  filter: drop-shadow(0 1.5px 0 rgba(0, 0, 0, 0.9))
+          drop-shadow(1.5px 0 0 rgba(0, 0, 0, 0.9))
+          drop-shadow(-1.5px 0 0 rgba(0, 0, 0, 0.9))
+          drop-shadow(0 -1.5px 0 rgba(0, 0, 0, 0.9));
+  image-rendering: pixelated;
+}
+
+/* Minecraft Specular Glint Shader: Sweeping chromatic enchanted sheen */
+@keyframes enchanted-glint-sweep {
+  0% {
+    transform: translate(-150%, -150%) rotate(25deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  45% {
+    opacity: 0.95;
+  }
+  65% {
+    opacity: 0.4;
+  }
+  75%, 100% {
+    transform: translate(250%, 250%) rotate(25deg);
+    opacity: 0;
+  }
+}
+
+.animate-enchanted-glint {
+  animation: enchanted-glint-sweep 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Minecraft Voxel Particle Rise (Experience Orbs, Runes, Sparks) */
+@keyframes voxel-particle-rise {
+  0% {
+    transform: translateY(0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.95;
+  }
+  75% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(-38px) scale(1.1) rotate(45deg);
+    opacity: 0;
+  }
+}
+
+.animate-voxel-particle {
+  animation: voxel-particle-rise 3.2s ease-in-out infinite;
+}
+
+/* Stepped Minecraft Voxel Cloud Bob */
+@keyframes voxel-cloud-bob {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.animate-voxel-cloud {
+  animation: voxel-cloud-bob 4.5s ease-in-out infinite;
+}
+
 @keyframes specular-sweep {
   0% {
     left: -150%;

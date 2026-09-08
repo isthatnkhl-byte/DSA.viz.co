@@ -1,4 +1,4 @@
-import type { CppTemplate } from "./compiler.types";
+import type { CppTemplate, SupportedLanguage } from "./compiler.types";
 
 export const PLAIN_CPP_STARTER = `#include <iostream>
 
@@ -875,3 +875,796 @@ int main() {
 }`,
   }
 ];
+
+// ==========================================
+// C Templates & Starters
+// ==========================================
+
+export const PLAIN_C_STARTER = `#include <stdio.h>
+
+int main() {
+    // Write your custom C code here
+    printf("Hello, World!\\n");
+    
+    return 0;
+}
+`;
+
+export const PLAIN_C_IO_TEMPLATE = `#include <stdio.h>
+
+int main() {
+    // Standard I/O in C
+    int a, b;
+    if (scanf("%d %d", &a, &b) == 2) {
+        printf("Sum: %d\\n", a + b);
+        printf("Product: %d\\n", a * b);
+    } else {
+        printf("Hello, C Playground!\\n");
+        printf("(Pass input in the 'Input (stdin)' panel below to test scanf)\\n");
+    }
+    
+    return 0;
+}
+`;
+
+export const C_DSA_TEMPLATES: CppTemplate[] = [
+  {
+    id: "c-starter-io",
+    title: "🚀 Starter I/O Boilerplate (C)",
+    category: "Basics",
+    difficulty: "Easy",
+    description: "Standard C template with fast scanf/printf I/O for DSA practice.",
+    defaultStdin: "5\n10 20 30 40 50",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    int n;
+    if (scanf("%d", &n) != 1) {
+        printf("Please provide array size n.\\n");
+        return 0;
+    }
+
+    int* arr = (int*)malloc(n * sizeof(int));
+    long long sum = 0;
+    for (int i = 0; i < n; i++) {
+        scanf("%d", &arr[i]);
+        sum += arr[i];
+    }
+
+    printf("=== C Array Statistics ===\\n");
+    printf("Elements count: %d\\n", n);
+    printf("Total sum: %lld\\n", sum);
+    printf("Average: %.2f\\n", (double)sum / n);
+
+    free(arr);
+    return 0;
+}`,
+  },
+  {
+    id: "c-two-sum",
+    title: "🔢 Two Pointers (C)",
+    category: "Arrays & Pointers",
+    difficulty: "Easy",
+    description: "Find two numbers in a sorted array that sum up to target using pointers in O(N).",
+    defaultStdin: "6 14\n2 3 5 8 11 15",
+    code: `#include <stdio.h>
+#include <stdbool.h>
+
+bool twoSumSorted(int arr[], int n, int target, int* out1, int* out2) {
+    int left = 0;
+    int right = n - 1;
+    while (left < right) {
+        int current = arr[left] + arr[right];
+        if (current == target) {
+            *out1 = arr[left];
+            *out2 = arr[right];
+            return true;
+        } else if (current < target) {
+            left++;
+        } else {
+            right--;
+        }
+    }
+    return false;
+}
+
+int main() {
+    int n, target;
+    if (scanf("%d %d", &n, &target) == 2) {
+        int arr[100];
+        for (int i = 0; i < n; i++) scanf("%d", &arr[i]);
+
+        int v1, v2;
+        if (twoSumSorted(arr, n, target, &v1, &v2)) {
+            printf("Found pair: %d + %d = %d\\n", v1, v2, target);
+        } else {
+            printf("No pair found for target %d\\n", target);
+        }
+    }
+    return 0;
+}`,
+  },
+  {
+    id: "c-binary-search",
+    title: "🔍 Binary Search (C)",
+    category: "Algorithms",
+    difficulty: "Easy",
+    description: "Iterative binary search with O(log N) runtime on a sorted array.",
+    defaultStdin: "7 23\n4 8 15 16 23 42 108",
+    code: `#include <stdio.h>
+
+int binarySearch(int arr[], int n, int target) {
+    int low = 0, high = n - 1;
+    while (low <= high) {
+        int mid = low + (high - low) / 2;
+        if (arr[mid] == target) return mid;
+        if (arr[mid] < target) low = mid + 1;
+        else high = mid - 1;
+    }
+    return -1;
+}
+
+int main() {
+    int n, target;
+    if (scanf("%d %d", &n, &target) == 2) {
+        int arr[100];
+        for (int i = 0; i < n; i++) scanf("%d", &arr[i]);
+
+        int idx = binarySearch(arr, n, target);
+        if (idx != -1) {
+            printf("Element %d found at 0-based index: %d\\n", target, idx);
+        } else {
+            printf("Element %d not present in array.\\n", target);
+        }
+    }
+    return 0;
+}`,
+  },
+  {
+    id: "c-linked-list",
+    title: "🔗 Singly Linked List (C)",
+    category: "Data Structures",
+    difficulty: "Medium",
+    description: "Node allocation, prepend, append, and display operations using dynamic memory.",
+    defaultStdin: "4\n10 20 30 40",
+    code: `#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct Node {
+    int data;
+    struct Node* next;
+} Node;
+
+Node* createNode(int val) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    newNode->data = val;
+    newNode->next = NULL;
+    return newNode;
+}
+
+void append(Node** head, int val) {
+    Node* newNode = createNode(val);
+    if (*head == NULL) {
+        *head = newNode;
+        return;
+    }
+    Node* curr = *head;
+    while (curr->next) curr = curr->next;
+    curr->next = newNode;
+}
+
+void printList(Node* head) {
+    Node* curr = head;
+    while (curr) {
+        printf("%d -> ", curr->data);
+        curr = curr->next;
+    }
+    printf("NULL\\n");
+}
+
+int main() {
+    int n;
+    if (scanf("%d", &n) == 1) {
+        Node* head = NULL;
+        for (int i = 0; i < n; i++) {
+            int val;
+            scanf("%d", &val);
+            append(&head, val);
+        }
+        printf("Constructed Linked List:\\n");
+        printList(head);
+    }
+    return 0;
+}`,
+  },
+  {
+    id: "c-quick-sort",
+    title: "⚡ In-Place Quick Sort (C)",
+    category: "Algorithms",
+    difficulty: "Medium",
+    description: "Hoare or Lomuto partitioning scheme for classic O(N log N) sorting.",
+    defaultStdin: "6\n64 25 12 22 11 90",
+    code: `#include <stdio.h>
+
+void swap(int* a, int* b) {
+    int t = *a;
+    *a = *b;
+    *b = t;
+}
+
+int partition(int arr[], int low, int high) {
+    int pivot = arr[high];
+    int i = low - 1;
+    for (int j = low; j < high; j++) {
+        if (arr[j] < pivot) {
+            i++;
+            swap(&arr[i], &arr[j]);
+        }
+    }
+    swap(&arr[i + 1], &arr[high]);
+    return i + 1;
+}
+
+void quickSort(int arr[], int low, int high) {
+    if (low < high) {
+        int pi = partition(arr, low, high);
+        quickSort(arr, low, pi - 1);
+        quickSort(arr, pi + 1, high);
+    }
+}
+
+int main() {
+    int n;
+    if (scanf("%d", &n) == 1) {
+        int arr[100];
+        for (int i = 0; i < n; i++) scanf("%d", &arr[i]);
+
+        printf("Original: ");
+        for (int i = 0; i < n; i++) printf("%d ", arr[i]);
+        printf("\\n");
+
+        quickSort(arr, 0, n - 1);
+
+        printf("Sorted:   ");
+        for (int i = 0; i < n; i++) printf("%d ", arr[i]);
+        printf("\\n");
+    }
+    return 0;
+}`,
+  }
+];
+
+// ==========================================
+// Java Templates & Starters
+// ==========================================
+
+export const PLAIN_JAVA_STARTER = `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        // Write your custom Java code here
+        System.out.println("Hello, World!");
+    }
+}
+`;
+
+export const PLAIN_JAVA_IO_TEMPLATE = `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        // Standard I/O with Scanner
+        Scanner sc = new Scanner(System.in);
+        
+        if (sc.hasNextInt()) {
+            int a = sc.nextInt();
+            int b = sc.nextInt();
+            System.out.println("Sum: " + (a + b));
+            System.out.println("Product: " + (a * b));
+        } else {
+            System.out.println("Hello, Java Playground!");
+            System.out.println("(Enter input in the 'Input (stdin)' panel below to test Scanner)");
+        }
+    }
+}
+`;
+
+export const JAVA_DSA_TEMPLATES: CppTemplate[] = [
+  {
+    id: "java-starter-io",
+    title: "🚀 Starter Fast I/O Boilerplate (Java)",
+    category: "Basics",
+    difficulty: "Easy",
+    description: "Standard Java template with Scanner and array processing.",
+    defaultStdin: "5\n10 20 30 40 50",
+    code: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (!sc.hasNextInt()) {
+            System.out.println("Please provide array size n.");
+            return;
+        }
+
+        int n = sc.nextInt();
+        int[] arr = new int[n];
+        long sum = 0;
+
+        for (int i = 0; i < n; i++) {
+            arr[i] = sc.nextInt();
+            sum += arr[i];
+        }
+
+        System.out.println("=== Java Array Statistics ===");
+        System.out.println("Size: " + n);
+        System.out.println("Elements: " + Arrays.toString(arr));
+        System.out.println("Total Sum: " + sum);
+        System.out.printf("Average: %.2f\\n", (double) sum / n);
+    }
+}`,
+  },
+  {
+    id: "java-two-sum",
+    title: "🔢 Two Sum (HashMap O(N))",
+    category: "Arrays & Pointers",
+    difficulty: "Easy",
+    description: "Hash map lookup for two numbers adding up to target in O(N) time and O(N) space.",
+    defaultStdin: "5 9\n2 7 11 15 3",
+    code: `import java.util.*;
+
+public class Main {
+    public static int[] twoSum(int[] nums, int target) {
+        Map<Integer, Integer> map = new HashMap<>();
+        for (int i = 0; i < nums.length; i++) {
+            int complement = target - nums[i];
+            if (map.containsKey(complement)) {
+                return new int[] { map.get(complement), i };
+            }
+            map.put(nums[i], i);
+        }
+        return new int[] { -1, -1 };
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (sc.hasNextInt()) {
+            int n = sc.nextInt();
+            int target = sc.nextInt();
+            int[] nums = new int[n];
+            for (int i = 0; i < n; i++) nums[i] = sc.nextInt();
+
+            int[] res = twoSum(nums, target);
+            if (res[0] != -1) {
+                System.out.printf("Found pair at indices [%d, %d]: %d + %d = %d\\n",
+                    res[0], res[1], nums[res[0]], nums[res[1]], target);
+            } else {
+                System.out.println("No matching pair found for target " + target);
+            }
+        }
+    }
+}`,
+  },
+  {
+    id: "java-binary-search",
+    title: "🔍 Binary Search (Java)",
+    category: "Algorithms",
+    difficulty: "Easy",
+    description: "Classic iterative binary search implementation on sorted integers.",
+    defaultStdin: "6 33\n11 22 33 44 55 66",
+    code: `import java.util.*;
+
+public class Main {
+    public static int binarySearch(int[] arr, int target) {
+        int low = 0, high = arr.length - 1;
+        while (low <= high) {
+            int mid = low + (high - low) / 2;
+            if (arr[mid] == target) return mid;
+            if (arr[mid] < target) low = mid + 1;
+            else high = mid - 1;
+        }
+        return -1;
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (sc.hasNextInt()) {
+            int n = sc.nextInt();
+            int target = sc.nextInt();
+            int[] arr = new int[n];
+            for (int i = 0; i < n; i++) arr[i] = sc.nextInt();
+
+            int idx = binarySearch(arr, target);
+            if (idx != -1) {
+                System.out.printf("Found %d at 0-based index: %d\\n", target, idx);
+            } else {
+                System.out.printf("%d not found in array\\n", target);
+            }
+        }
+    }
+}`,
+  },
+  {
+    id: "java-priority-queue",
+    title: "🏔️ Top K Frequent Elements (Min-Heap)",
+    category: "Data Structures",
+    difficulty: "Medium",
+    description: "Frequency bucket count and Min-Heap PriorityQueue to find top K frequent values in O(N log K).",
+    defaultStdin: "6 2\n1 1 1 2 2 3",
+    code: `import java.util.*;
+
+public class Main {
+    public static List<Integer> topKFrequent(int[] nums, int k) {
+        Map<Integer, Integer> count = new HashMap<>();
+        for (int x : nums) count.put(x, count.getOrDefault(x, 0) + 1);
+
+        PriorityQueue<Map.Entry<Integer, Integer>> minHeap =
+            new PriorityQueue<>(Comparator.comparingInt(Map.Entry::getValue));
+
+        for (Map.Entry<Integer, Integer> entry : count.entrySet()) {
+            minHeap.offer(entry);
+            if (minHeap.size() > k) minHeap.poll();
+        }
+
+        List<Integer> result = new ArrayList<>();
+        while (!minHeap.isEmpty()) result.add(minHeap.poll().getKey());
+        Collections.reverse(result);
+        return result;
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (sc.hasNextInt()) {
+            int n = sc.nextInt();
+            int k = sc.nextInt();
+            int[] nums = new int[n];
+            for (int i = 0; i < n; i++) nums[i] = sc.nextInt();
+
+            List<Integer> top = topKFrequent(nums, k);
+            System.out.println("Top " + k + " frequent elements: " + top);
+        }
+    }
+}`,
+  },
+  {
+    id: "java-bfs-graph",
+    title: "🌐 Breadth First Search (BFS Graph)",
+    category: "Trees & Graphs",
+    difficulty: "Medium",
+    description: "Level order shortest path graph exploration using LinkedList Queue and Adjacency List.",
+    defaultStdin: "5 4\n0 1\n0 2\n1 3\n2 4",
+    code: `import java.util.*;
+
+public class Main {
+    public static void bfs(int start, Map<Integer, List<Integer>> adj, int n) {
+        boolean[] visited = new boolean[n];
+        Queue<Integer> queue = new LinkedList<>();
+
+        visited[start] = true;
+        queue.offer(start);
+
+        System.out.print("BFS Traversal from " + start + ": ");
+        while (!queue.isEmpty()) {
+            int u = queue.poll();
+            System.out.print(u + " ");
+
+            for (int v : adj.getOrDefault(u, Collections.emptyList())) {
+                if (!visited[v]) {
+                    visited[v] = true;
+                    queue.offer(v);
+                }
+            }
+        }
+        System.out.println();
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (sc.hasNextInt()) {
+            int n = sc.nextInt();
+            int m = sc.nextInt();
+            Map<Integer, List<Integer>> adj = new HashMap<>();
+
+            for (int i = 0; i < m; i++) {
+                int u = sc.nextInt(), v = sc.nextInt();
+                adj.computeIfAbsent(u, k -> new ArrayList<>()).add(v);
+                adj.computeIfAbsent(v, k -> new ArrayList<>()).add(u);
+            }
+
+            bfs(0, adj, n);
+        }
+    }
+}`,
+  }
+];
+
+// ==========================================
+// Python Templates & Starters
+// ==========================================
+
+export const PLAIN_PYTHON_STARTER = `def main():
+    # Write your custom Python code here
+    print("Hello, World!")
+
+if __name__ == "__main__":
+    main()
+`;
+
+export const PLAIN_PYTHON_IO_TEMPLATE = `import sys
+
+def main():
+    # Fast I/O in Python using sys.stdin
+    tokens = sys.stdin.read().split()
+    if len(tokens) >= 2:
+        a, b = int(tokens[0]), int(tokens[1])
+        print(f"Sum: {a + b}")
+        print(f"Product: {a * b}")
+    else:
+        print("Hello, Python Playground!")
+        print("(Pass input in the 'Input (stdin)' panel below to test input)")
+
+if __name__ == "__main__":
+    main()
+`;
+
+export const PYTHON_DSA_TEMPLATES: CppTemplate[] = [
+  {
+    id: "python-starter-io",
+    title: "🚀 Starter Fast I/O Boilerplate (Python)",
+    category: "Basics",
+    difficulty: "Easy",
+    description: "Fast Python standard input processing with sys.stdin and list comprehension.",
+    defaultStdin: "5\n10 20 30 40 50",
+    code: `import sys
+
+def main():
+    data = sys.stdin.read().split()
+    if not data:
+        print("No input provided.")
+        return
+
+    n = int(data[0])
+    nums = [int(x) for x in data[1:n+1]]
+
+    total = sum(nums)
+    avg = total / n if n > 0 else 0
+
+    print(f"=== Python Array Statistics ===")
+    print(f"Count: {n}")
+    print(f"Elements: {nums}")
+    print(f"Sum: {total}")
+    print(f"Average: {avg:.2f}")
+
+if __name__ == "__main__":
+    main()`,
+  },
+  {
+    id: "python-two-sum",
+    title: "🔢 Two Sum (O(N) Hash Map)",
+    category: "Arrays & Pointers",
+    difficulty: "Easy",
+    description: "Dictionary lookup for two indices adding up to target in O(N) linear time.",
+    defaultStdin: "5 9\n2 7 11 15 3",
+    code: `import sys
+
+def two_sum(nums, target):
+    seen = {}
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return seen[complement], i
+        seen[num] = i
+    return None
+
+def main():
+    tokens = sys.stdin.read().split()
+    if len(tokens) >= 2:
+        n = int(tokens[0])
+        target = int(tokens[1])
+        nums = [int(x) for x in tokens[2:2+n]]
+
+        res = two_sum(nums, target)
+        if res:
+            print(f"Found indices: {res} -> {nums[res[0]]} + {nums[res[1]]} = {target}")
+        else:
+            print(f"No pair found that sums to {target}")
+
+if __name__ == "__main__":
+    main()`,
+  },
+  {
+    id: "python-binary-search",
+    title: "🔍 Binary Search (Python)",
+    category: "Algorithms",
+    difficulty: "Easy",
+    description: "O(log N) iterative binary search on a sorted integer list.",
+    defaultStdin: "7 23\n4 8 15 16 23 42 108",
+    code: `import sys
+
+def binary_search(arr, target):
+    low, high = 0, len(arr) - 1
+    while low <= high:
+        mid = (low + high) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            low = mid + 1
+        else:
+            high = mid - 1
+    return -1
+
+def main():
+    tokens = sys.stdin.read().split()
+    if len(tokens) >= 2:
+        n = int(tokens[0])
+        target = int(tokens[1])
+        arr = [int(x) for x in tokens[2:2+n]]
+
+        idx = binary_search(arr, target)
+        if idx != -1:
+            print(f"Target {target} found at index: {idx}")
+        else:
+            print(f"Target {target} not in array")
+
+if __name__ == "__main__":
+    main()`,
+  },
+  {
+    id: "python-bfs-grid",
+    title: "🗺️ 2D Grid Shortest Path BFS",
+    category: "Trees & Graphs",
+    difficulty: "Medium",
+    description: "Breadth-First Search on a 2D matrix using collections.deque.",
+    defaultStdin: "4 4\n0 0 0 0\n1 1 0 1\n0 0 0 0\n0 1 1 0",
+    code: `import sys
+from collections import deque
+
+def shortest_path(grid):
+    rows, cols = len(grid), len(grid[0])
+    if grid[0][0] == 1 or grid[rows-1][cols-1] == 1:
+        return -1
+
+    queue = deque([(0, 0, 1)]) # (r, c, dist)
+    visited = {(0, 0)}
+
+    directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+
+    while queue:
+        r, c, dist = queue.popleft()
+        if r == rows - 1 and c == cols - 1:
+            return dist
+
+        for dr, dc in directions:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 0 and (nr, nc) not in visited:
+                visited.add((nr, nc))
+                queue.append((nr, nc, dist + 1))
+
+    return -1
+
+def main():
+    tokens = sys.stdin.read().split()
+    if len(tokens) >= 2:
+        r, c = int(tokens[0]), int(tokens[1])
+        grid = []
+        idx = 2
+        for _ in range(r):
+            grid.append([int(tokens[idx + j]) for j in range(c)])
+            idx += c
+
+        ans = shortest_path(grid)
+        print(f"Shortest path distance from (0,0) to ({r-1},{c-1}): {ans}")
+
+if __name__ == "__main__":
+    main()`,
+  },
+  {
+    id: "python-heapq",
+    title: "🏔️ Kth Largest Element (heapq)",
+    category: "Data Structures",
+    difficulty: "Medium",
+    description: "Min-heap of size K using Python's built-in heapq module in O(N log K) time.",
+    defaultStdin: "6 2\n3 2 1 5 6 4",
+    code: `import sys
+import heapq
+
+def find_kth_largest(nums, k):
+    # Maintain a min-heap of size k
+    heap = []
+    for num in nums:
+        heapq.heappush(heap, num)
+        if len(heap) > k:
+            heapq.heappop(heap)
+    return heap[0]
+
+def main():
+    tokens = sys.stdin.read().split()
+    if len(tokens) >= 2:
+        n = int(tokens[0])
+        k = int(tokens[1])
+        nums = [int(x) for x in tokens[2:2+n]]
+
+        res = find_kth_largest(nums, k)
+        print(f"The {k}th largest element in {nums} is: {res}")
+
+if __name__ == "__main__":
+    main()`,
+  },
+  {
+    id: "python-dp-knapsack",
+    title: "🎒 0/1 Knapsack (Dynamic Programming)",
+    category: "Dynamic Programming",
+    difficulty: "Medium",
+    description: "Classical 0/1 Knapsack problem solved with 1D space-optimized DP table.",
+    defaultStdin: "4 7\n1 3 4 5\n1 4 5 7",
+    code: `import sys
+
+def knapsack(weights, values, capacity):
+    dp = [0] * (capacity + 1)
+    for w, v in zip(weights, values):
+        for cap in range(capacity, w - 1, -1):
+            dp[cap] = max(dp[cap], dp[cap - w] + v)
+    return dp[capacity]
+
+def main():
+    tokens = sys.stdin.read().split()
+    if len(tokens) >= 2:
+        n = int(tokens[0])
+        cap = int(tokens[1])
+        weights = [int(tokens[2 + i]) for i in range(n)]
+        values = [int(tokens[2 + n + i]) for i in range(n)]
+
+        max_val = knapsack(weights, values, cap)
+        print(f"Max value for Knapsack capacity {cap}: {max_val}")
+
+if __name__ == "__main__":
+    main()`,
+  }
+];
+
+// ==========================================
+// Language Helper Functions
+// ==========================================
+
+export function getStarterForLanguage(lang: SupportedLanguage): string {
+  switch (lang) {
+    case "c":
+      return PLAIN_C_STARTER;
+    case "java":
+      return PLAIN_JAVA_STARTER;
+    case "python":
+      return PLAIN_PYTHON_STARTER;
+    case "cpp":
+    default:
+      return PLAIN_CPP_STARTER;
+  }
+}
+
+export function getFastIoTemplateForLanguage(lang: SupportedLanguage): string {
+  switch (lang) {
+    case "c":
+      return PLAIN_C_IO_TEMPLATE;
+    case "java":
+      return PLAIN_JAVA_IO_TEMPLATE;
+    case "python":
+      return PLAIN_PYTHON_IO_TEMPLATE;
+    case "cpp":
+    default:
+      return PLAIN_CPP_IO_TEMPLATE;
+  }
+}
+
+export function getTemplatesForLanguage(lang: SupportedLanguage): CppTemplate[] {
+  switch (lang) {
+    case "c":
+      return C_DSA_TEMPLATES;
+    case "java":
+      return JAVA_DSA_TEMPLATES;
+    case "python":
+      return PYTHON_DSA_TEMPLATES;
+    case "cpp":
+    default:
+      return CPP_DSA_TEMPLATES;
+  }
+}
+

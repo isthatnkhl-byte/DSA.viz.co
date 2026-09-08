@@ -1,4 +1,4 @@
-import type { CppHeaderDoc } from "./compiler.types";
+import type { CppHeaderDoc, SupportedLanguage } from "./compiler.types";
 
 export const CPP_DSA_HEADERS: CppHeaderDoc[] = [
   {
@@ -420,3 +420,282 @@ int main() {
     ],
   },
 ];
+
+export const C_DSA_HEADERS: CppHeaderDoc[] = [
+  {
+    name: "stdio.h",
+    include: "#include <stdio.h>",
+    description: "Standard Input/Output functions in C (scanf, printf, fgets, getchar).",
+    commonFunctions: [
+      { name: "printf", signature: "printf(\"%d\", val);", desc: "Formatted output to stdout" },
+      { name: "scanf", signature: "scanf(\"%d\", &val);", desc: "Formatted input from stdin" },
+      { name: "fgets", signature: "fgets(str, size, stdin);", desc: "Safe line reading from stream" },
+    ],
+    exampleSnippet: `#include <stdio.h>
+
+int main() {
+    int x;
+    if (scanf("%d", &x) == 1) {
+        printf("Read integer: %d\\n", x);
+    }
+    return 0;
+}`,
+    dsaUseCases: ["Reading inputs", "Printing solution results"],
+    language: "c",
+  },
+  {
+    name: "stdlib.h",
+    include: "#include <stdlib.h>",
+    description: "Dynamic memory allocation (malloc, free, realloc) and sorting utilities (qsort).",
+    commonFunctions: [
+      { name: "malloc", signature: "void* p = malloc(size);", desc: "Heap allocation" },
+      { name: "free", signature: "free(p);", desc: "Deallocate heap memory" },
+      { name: "qsort", signature: "qsort(arr, n, sizeof(int), cmp);", desc: "Standard library quicksort" },
+      { name: "abs", signature: "abs(val);", desc: "Absolute integer value" },
+    ],
+    exampleSnippet: `#include <stdio.h>
+#include <stdlib.h>
+
+int cmp(const void* a, const void* b) {
+    return (*(int*)a - *(int*)b);
+}
+
+int main() {
+    int arr[] = {4, 2, 8, 1};
+    qsort(arr, 4, sizeof(int), cmp);
+    for (int i = 0; i < 4; i++) printf("%d ", arr[i]);
+    printf("\\n");
+    return 0;
+}`,
+    dsaUseCases: ["Dynamic arrays", "Linked list nodes", "Sorting arrays"],
+    language: "c",
+  },
+  {
+    name: "string.h",
+    include: "#include <string.h>",
+    description: "C-string operations (strlen, strcpy, strcmp, memset, memcpy).",
+    commonFunctions: [
+      { name: "memset", signature: "memset(arr, 0, sizeof(arr));", desc: "Fill memory block" },
+      { name: "strlen", signature: "strlen(str);", desc: "String length excluding null byte" },
+      { name: "strcmp", signature: "strcmp(s1, s2);", desc: "Lexicographical string comparison" },
+    ],
+    exampleSnippet: `#include <stdio.h>
+#include <string.h>
+
+int main() {
+    int dp[100];
+    memset(dp, -1, sizeof(dp));
+    printf("dp[0] initialized to: %d\\n", dp[0]);
+    return 0;
+}`,
+    dsaUseCases: ["Initializing DP tables", "String manipulation", "Buffer copying"],
+    language: "c",
+  },
+  {
+    name: "stdbool.h",
+    include: "#include <stdbool.h>",
+    description: "Standard boolean type definitions (bool, true, false) in C99/C17.",
+    commonFunctions: [
+      { name: "bool", signature: "bool visited = false;", desc: "Boolean primitive type" },
+    ],
+    exampleSnippet: `#include <stdio.h>
+#include <stdbool.h>
+
+bool isEven(int n) {
+    return n % 2 == 0;
+}
+
+int main() {
+    printf("Is 4 even? %s\\n", isEven(4) ? "true" : "false");
+    return 0;
+}`,
+    dsaUseCases: ["Visited arrays in BFS/DFS", "Predicate flags"],
+    language: "c",
+  },
+  {
+    name: "math.h",
+    include: "#include <math.h>",
+    description: "Mathematical operations (sqrt, pow, ceil, floor, fabs).",
+    commonFunctions: [
+      { name: "sqrt", signature: "double s = sqrt(x);", desc: "Square root" },
+      { name: "pow", signature: "double p = pow(base, exp);", desc: "Power calculation" },
+      { name: "fabs", signature: "double f = fabs(val);", desc: "Floating-point absolute value" },
+    ],
+    exampleSnippet: `#include <stdio.h>
+#include <math.h>
+
+int main() {
+    printf("sqrt(25) = %.2f\\n", sqrt(25.0));
+    return 0;
+}`,
+    dsaUseCases: ["Geometry algorithms", "Distance formulas", "Numeric approximations"],
+    language: "c",
+  },
+];
+
+export const JAVA_DSA_PACKAGES: CppHeaderDoc[] = [
+  {
+    name: "java.util.*",
+    include: "import java.util.*;",
+    description: "Java standard collections framework (List, Map, Set, Queue, PriorityQueue, Collections, Arrays).",
+    commonFunctions: [
+      { name: "ArrayList", signature: "List<Integer> list = new ArrayList<>();", desc: "Dynamic resizable array" },
+      { name: "HashMap", signature: "Map<K, V> map = new HashMap<>();", desc: "O(1) hash map lookup" },
+      { name: "PriorityQueue", signature: "PriorityQueue<Integer> pq = new PriorityQueue<>();", desc: "Min-heap priority queue" },
+      { name: "Arrays.sort", signature: "Arrays.sort(arr);", desc: "Dual-pivot quicksort / Timsort" },
+    ],
+    exampleSnippet: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        List<Integer> list = Arrays.asList(5, 1, 4, 2);
+        Collections.sort(list);
+        System.out.println("Sorted: " + list);
+    }
+}`,
+    dsaUseCases: ["Hash table lookups", "Heap algorithms", "Sorting & searching"],
+    language: "java",
+  },
+  {
+    name: "java.io.*",
+    include: "import java.io.*;",
+    description: "Fast I/O classes for competitive programming (BufferedReader, StringTokenizer, PrintWriter).",
+    commonFunctions: [
+      { name: "BufferedReader", signature: "BufferedReader br = new BufferedReader(new InputStreamReader(System.in));", desc: "High-speed buffered line reader" },
+      { name: "StringTokenizer", signature: "StringTokenizer st = new StringTokenizer(br.readLine());", desc: "Fast token parser" },
+    ],
+    exampleSnippet: `import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        String line = br.readLine();
+        if (line != null) {
+            System.out.println("Echo: " + line);
+        }
+    }
+}`,
+    dsaUseCases: ["Speeding up large I/O (>10^5 operations)", "Competitive programming boilerplate"],
+    language: "java",
+  },
+  {
+    name: "java.math.BigInteger",
+    include: "import java.math.BigInteger;",
+    description: "Arbitrary-precision integer arithmetic for problems with huge numbers beyond 64 bits.",
+    commonFunctions: [
+      { name: "add", signature: "a.add(b);", desc: "Big integer addition" },
+      { name: "multiply", signature: "a.multiply(b);", desc: "Big integer multiplication" },
+      { name: "mod", signature: "a.mod(m);", desc: "Big integer modulo" },
+    ],
+    exampleSnippet: `import java.math.BigInteger;
+
+public class Main {
+    public static void main(String[] args) {
+        BigInteger a = new BigInteger("12345678901234567890");
+        BigInteger b = a.multiply(a);
+        System.out.println("Squared: " + b);
+    }
+}`,
+    dsaUseCases: ["Combinatorics with huge factorials", "Cryptography & large integers"],
+    language: "java",
+  },
+];
+
+export const PYTHON_DSA_MODULES: CppHeaderDoc[] = [
+  {
+    name: "collections",
+    include: "import collections",
+    description: "High-performance container datatypes (deque, Counter, defaultdict, OrderedDict).",
+    commonFunctions: [
+      { name: "deque", signature: "q = collections.deque()", desc: "Double-ended queue with O(1) appends & pops from both ends" },
+      { name: "Counter", signature: "counts = collections.Counter(items)", desc: "Frequency map for iterable elements" },
+      { name: "defaultdict", signature: "d = collections.defaultdict(list)", desc: "Dictionary with default factory value" },
+    ],
+    exampleSnippet: `from collections import deque, Counter
+
+# BFS Queue
+queue = deque([1, 2, 3])
+queue.append(4)
+first = queue.popleft()
+
+# Frequency map
+counts = Counter("abracadabra")
+print(f"First element: {first}")
+print(f"Top 2 characters: {counts.most_common(2)}")`,
+    dsaUseCases: ["BFS tree & graph traversals", "Frequency counting", "LRU Cache building"],
+    language: "python",
+  },
+  {
+    name: "heapq",
+    include: "import heapq",
+    description: "Binary min-heap algorithm implementation directly on standard Python lists.",
+    commonFunctions: [
+      { name: "heappush", signature: "heapq.heappush(heap, item)", desc: "Push item onto heap in O(log N)" },
+      { name: "heappop", signature: "val = heapq.heappop(heap)", desc: "Pop smallest item in O(log N)" },
+      { name: "heapify", signature: "heapq.heapify(list)", desc: "Transform list into heap in-place in O(N)" },
+      { name: "nlargest", signature: "heapq.nlargest(k, iterable)", desc: "Return top K largest elements" },
+    ],
+    exampleSnippet: `import heapq
+
+nums = [7, 2, 5, 1, 9]
+heapq.heapify(nums)
+smallest = heapq.heappop(nums)
+print(f"Smallest element: {smallest}")
+print(f"Remaining min-heap: {nums}")`,
+    dsaUseCases: ["Dijkstra's algorithm", "Kth largest element", "Merge K sorted lists"],
+    language: "python",
+  },
+  {
+    name: "bisect",
+    include: "import bisect",
+    description: "Binary search utilities on sorted sequences without having to write custom binary search loops.",
+    commonFunctions: [
+      { name: "bisect_left", signature: "idx = bisect.bisect_left(arr, x)", desc: "Locate insertion point for x (lower_bound)" },
+      { name: "bisect_right", signature: "idx = bisect.bisect_right(arr, x)", desc: "Locate insertion point for x (upper_bound)" },
+      { name: "insort", signature: "bisect.insort(arr, x)", desc: "Insert x into sorted sequence" },
+    ],
+    exampleSnippet: `import bisect
+
+arr = [10, 20, 30, 40, 50]
+idx = bisect.bisect_left(arr, 30)
+print(f"Index of 30: {idx}")`,
+    dsaUseCases: ["Binary search range queries", "Longest Increasing Subsequence O(N log N)"],
+    language: "python",
+  },
+  {
+    name: "itertools & functools",
+    include: "import itertools, functools",
+    description: "Combinatoric iterators (permutations, combinations) and memoization (lru_cache).",
+    commonFunctions: [
+      { name: "lru_cache", signature: "@functools.lru_cache(None)", desc: "Automatic top-down DP memoization" },
+      { name: "permutations", signature: "itertools.permutations(iterable, r)", desc: "Generate r-length permutations" },
+      { name: "combinations", signature: "itertools.combinations(iterable, r)", desc: "Generate r-length combinations" },
+    ],
+    exampleSnippet: `from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def fib(n):
+    if n < 2: return n
+    return fib(n-1) + fib(n-2)
+
+print(f"Fib(30) = {fib(30)}")`,
+    dsaUseCases: ["Recursion memoization", "Backtracking search", "Subsets & permutations"],
+    language: "python",
+  },
+];
+
+export function getHeadersForLanguage(lang: SupportedLanguage): CppHeaderDoc[] {
+  switch (lang) {
+    case "c":
+      return C_DSA_HEADERS;
+    case "java":
+      return JAVA_DSA_PACKAGES;
+    case "python":
+      return PYTHON_DSA_MODULES;
+    case "cpp":
+    default:
+      return CPP_DSA_HEADERS;
+  }
+}
+

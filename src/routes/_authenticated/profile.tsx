@@ -180,12 +180,11 @@ function ProfilePage() {
         }
         toast.success("GitHub connected successfully!");
         queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-        refetch();
       }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [queryClient, refetch]);
+  }, [queryClient]);
 
   const handleConnectGithub = async () => {
     try {

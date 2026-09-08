@@ -168,11 +168,12 @@ export async function apiPlaygroundReview(payload: {
 }
 
 /**
- * Dispatches sandboxed C++ compilation to the Express compiler execution endpoint.
+ * Dispatches sandboxed compilation/execution for C, C++, Java, or Python to the Express compiler execution endpoint.
  */
-export async function apiExecuteCpp(payload: {
+export async function apiExecuteCode(payload: {
   code: string;
   stdin?: string;
+  language?: import("./compiler.types").SupportedLanguage;
 }): Promise<CppExecutionResult> {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/compiler/execute", {
@@ -191,6 +192,8 @@ export async function apiExecuteCpp(payload: {
 
   return response.json();
 }
+
+export const apiExecuteCpp = apiExecuteCode;
 
 /**
  * Live Interview: Evaluates a candidate's submitted solution tier.

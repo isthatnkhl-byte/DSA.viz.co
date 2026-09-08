@@ -87,14 +87,49 @@ When implementing this algorithm, candidates frequently encounter:
 Take a look at your current code lines: which condition or boundary check is closest to these potential traps?`;
   }
 
-  // 4. Default: Vizco Buddy Socratic Guidance
-  return `### ☁️ Vizco Buddy Guidance — "${pTitle}"
+  // 4. Code & Implementation Request
+  if (query.includes("code") || query.includes("solution") || query.includes("implement") || query.includes("python") || query.includes("c++") || query.includes("java")) {
+    return `### ⚡ Algorithmic Implementation Guide — "${pTitle}"
 
-Hello! As your 3D DSA companion, let's trace this together from first principles:
+Here is the optimal approach breakdown for **${pTitle}**:
 
-1. **The Invariant**: What property must hold true for all processed elements up to this point?
-2. **Minimal Trace**: If you trace this with an array of just 2 or 3 elements, what is the exact sequence of pointer states?
-3. **Branching Logic**: Under what specific condition does the algorithm decide between advancing the cursor versus updating an answer?
+1. **Approach & Paradigm**:
+   - Optimal strategy for this archetype utilizes invariants to minimize redundant operations.
+   - For hash table patterns, track seen elements to resolve targets in $O(1)$ lookup time.
+   - For two pointers or binary search, maintain search boundaries while strictly checking convergence.
 
-What hypothesis do you have for the next logical instruction? I'm floating right here to guide you! ✨`;
+2. **Core Template (C++)**:
+\`\`\`cpp
+// Production template for ${pTitle}
+// Expected Time Complexity: O(N) or O(N log N)
+class Solution {
+public:
+    auto solve(auto& input) {
+        // Guard against boundary cases
+        if (input.empty()) return {};
+
+        // State tracking & processing
+        // ...
+        return {};
+    }
+};
+\`\`\`
+
+3. **Key Invariants**:
+   - Guard against boundary cases (empty, singleton, duplicates).
+   - Ensure pointer updates strictly reduce the remaining search space.
+
+Ask me for language-specific implementations, line-by-line breakdown, or complexity proofs! ✨`;
+  }
+
+  // 5. Default: Vizco Buddy Guidance
+  return `### ⚡ Vizco Buddy Guidance — "${pTitle}"
+
+Hello! As your interactive DSA companion, let's break down this challenge together:
+
+1. **Pattern Recognition**: What algorithmic archetype fits this best (e.g., Two Pointers, Sliding Window, DP, Graph/Tree traversal)?
+2. **State & Invariants**: What property must hold true across all processed elements?
+3. **Optimization Goal**: Can we eliminate redundant work to reach optimal $O(N)$ time or $O(1)$ space?
+
+I can provide full optimal code, step-by-step intuition, edge-case analysis, or complexity breakdowns. What would you like to explore? ✨`;
 }

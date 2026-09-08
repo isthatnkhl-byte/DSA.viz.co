@@ -9,7 +9,7 @@ import { adminAuth, adminDb } from './src/lib/firebase-admin';
 import { saveAiReport, getUserAiReports, saveChatSession, getUserChatSessions, logUserActivity } from './src/db/ai-diagnostics';
 import { processReviewPseudocode, processGenerateDatasetsAndPlan, processDatasetVisualization } from './src/lib/review.functions';
 import { processPlaygroundReview } from './src/lib/playground.functions';
-import { runSecureCpp } from './src/lib/compiler/index';
+import { runSecureCpp, runSecureCode } from './src/lib/compiler/index';
 import { fetchLeetCodeStats } from './src/lib/leetcode-service';
 import { statementForSlug } from './src/lib/statements';
 import localStatementsJson from './src/data/statements.json';
@@ -498,7 +498,7 @@ function generateOfflineDiffAnalysis(
 }
 
 /**
- * Intelligent offline Socratic chat guide when model APIs encounter 503 high demand or 429 quota exhaustion.
+ * Intelligent offline chat guide when model APIs encounter 503 high demand or 429 quota exhaustion.
  */
 function generateOfflineSocraticChatReply(options: {
   role: string;
@@ -510,18 +510,18 @@ function generateOfflineSocraticChatReply(options: {
   const stepNum = context.currentStep !== undefined ? context.currentStep + 1 : null;
 
   if (role === "step_doubts" && stepNum) {
-    return `### ☁️ Vizco Buddy — Step ${stepNum} Analysis\n\nIn Step ${stepNum} of "${pTitle}": The algorithm transitions state to preserve the core invariant: **"${context.stepDesc || 'advancing state'}"**.\n\nNotice what shifted in the active variables:\n- Look at where the pointers or indices were before this step versus now.\n- What specific condition triggered this transition?\n\nBefore taking the next step, ask yourself: what happens to the remaining search space? I'm right here if you need another hint! ✨`;
+    return `### 🔍 Vizco Buddy — Step ${stepNum} Analysis\n\nIn Step ${stepNum} of "${pTitle}": The algorithm transitions state: **"${context.stepDesc || 'advancing state'}"**.\n\n**Key Observations:**\n- Pointers / indices update to reflect the current subarray or node being evaluated.\n- Notice what triggered this transition and how it updates the search interval or dynamic state.\n\nFeel free to ask me to trace any specific variables, explain subsequent steps, or show the full code implementation! ✨`;
   }
 
   if (role === "interviewer") {
-    return `### ☁️ Vizco Buddy — Socratic Checkpoint\n\nThat's an insightful thought regarding "${pTitle}"!\n\nAs your 3D DSA companion, let me guide you with a diagnostic question:\n1. What is the fundamental invariant you are trying to maintain across iterations?\n2. If you trace a minimal example (such as an array of 2 elements, or an empty input), where does the state first diverge?\n\nWalk me through your reasoning on what the next logical operation should be. ✨`;
+    return `### 💡 Vizco Buddy — Problem Guidance\n\nRegarding "${pTitle}":\n\n1. **Core Intuition**: Identify the fundamental invariant or pattern (e.g. Two Pointers, Monotonic Stack, Sliding Window, or Dynamic Programming).\n2. **State & Transitions**: How does the active data structure evolve across iterations?\n3. **Optimal Strategy**: What data structure eliminates redundant re-computation (e.g. Hash Map for O(1) lookups)?\n\nAsk me for a conceptual breakdown, edge cases, step-by-step trace, or full optimal code in C++, Python, or Java! ✨`;
   }
 
   if (role === "mistake_analyzer") {
-    return `### ☁️ Vizco Buddy — Bug & Pitfall Inspection\n\nAnalyzing your logic for "${pTitle}":\n- Check your indexing bounds: are you accessing elements strictly within range?\n- Ensure your base cases or termination guards handle edge constraints (e.g., empty or duplicate inputs).\n- Verify that variable updates don't prematurely mutate state needed later in the same iteration.\n\nWhich line or condition feels most uncertain to you?`;
+    return `### 🛠️ Vizco Buddy — Bug & Pitfall Inspection\n\nAnalyzing logic for "${pTitle}":\n- **Bounds & Indexing**: Check boundary termination conditions (\`<\` vs \`<=\`) and empty/singleton input handling.\n- **State Mutation**: Ensure variables aren't overwritten before their previous value is referenced.\n- **Data Types**: Check for potential integer overflow with large intermediate calculations.\n\nPaste your code or error message and I'll pinpoint the exact bug and show you the fix!`;
   }
 
-  return `### ☁️ Vizco Buddy\n\nRegarding "${pTitle}": Let's break this down into first principles! What is the current state of your data structure, and what condition determines the next state change? I'm floating right beside you to help! ✨`;
+  return `### ⚡ Vizco Buddy\n\nRegarding "${pTitle}": I'm here to help with any aspect of this algorithm! Whether you'd like an explanation of the core pattern, an optimal solution with code, a step-by-step trace, or complexity analysis, just let me know what you need! ✨`;
 }
 
 // Initialize problem statements in memory from statically bundled JSON
@@ -866,28 +866,63 @@ app.post("/api/chat", aiLimiter, async (req: Request, res: Response) => {
     // Determine role persona and system instruction
     let baseSystemInstruction = "";
     if (role === "interviewer") {
-      baseSystemInstruction = `You are Vizco Buddy, the cute, friendly, brilliant 3D AI companion and Socratic DSA Mentor of DSA.viz.co! ☁️✨
-You float beside the user across all 1500+ LeetCode algorithms, the online C++ compiler sandbox, live interview simulator, and user dashboard.
-STRICT VIZCO BUDDY SOCRATIC LAWS:
-1. NEVER, UNDER ANY CIRCUMSTANCES, GIVE AWAY THE DIRECT SOLUTION OR WRITE THE FINAL CODE FOR THE USER.
-2. If the user makes typing errors, syntax slips, off-by-one errors, or logical flaws, NUDGE THEM GENTLY WITHOUT DIRECT SPOILERS, like an encouraging, world-class mentor.
-3. Ask thought-provoking, diagnostic questions (e.g., "What happens on the final iteration when right == n?", "Notice how you initialize your pointer—what happens if the array is empty?").
-4. If the user asks about a problem, algorithm step, or website feature, explain the mechanic, invariant, or UI navigation warmly and clearly, always driving the user to personal mastery.
-5. If the user asks you to "rate my recent submission" or "analyze my activity", use the provided Firestore submissions history below to provide an insightful, balanced rating with scores (out of 10) and specific growth points.
-6. Adopt an enthusiastic, encouraging, cute tone with occasional celestial/cloud emojis (☁️, ✨) while remaining mathematically and algorithmically rigorous.`;
+      baseSystemInstruction = `You are Vizco Buddy, the brilliant, friendly, interactive 3D AI companion and DSA mentor for DSA.viz.co! ✨
+
+MISSION & COMPREHENSIVE DSA FREEDOM:
+You are a master expert in Data Structures & Algorithms, computer science, and programming (C++, Python, Java, TypeScript/JavaScript, Go, Rust). You have complete freedom to answer ANY question the user asks, as long as it relates to DSA, algorithms, data structures, coding, complexity analysis, interview preparation, system architecture fundamentals, or DSA.viz.co visualizer features.
+
+CORE CAPABILITIES & USER FREEDOM:
+1. COMPLETE ADAPTABILITY TO USER INTENT:
+   - If the user asks for code, full solution, or optimal implementation: Give clean, production-quality, optimal code in their requested language (defaulting to C++ or Python if unspecified). Include concise comments, intuition, and Big-O Time and Space complexities.
+   - If the user asks for hints or intuition: Provide clear, step-by-step guidance, diagnostic questions, mental models, or invariants.
+   - If the user asks to explain a problem: Deconstruct the problem, constraints, examples, brute force vs. optimal approaches, and trade-offs.
+   - If the user asks to debug: Pinpoint the exact bug (off-by-one, boundary cases, null checks, infinite loop, type mismatch), explain why it happens, and provide the clean fix.
+   - If the user asks to analyze complexity: Provide rigorous Big-O time and space proofs with worst, average, and best cases.
+   - If the user asks about DSA.viz.co visualizer steps or simulation state: Explain pointer positions, variable updates, and algorithmic transitions clearly.
+   - If the user asks you to "rate my recent submission" or "analyze my activity", use the provided Firestore submissions history below to provide an insightful, balanced rating with scores (out of 10) and specific growth points.
+
+2. TONE & PRESENTATION:
+   - Enthusiastic, encouraging, sharp, and helpful. You are a world-class coding partner and mentor.
+   - Use clean Markdown with bold keywords, formatted bullet points, and language-tagged code blocks (e.g. \`\`\`cpp, \`\`\`python).
+   - Never artificially refuse to give code or solutions. Give the user whatever level of help they ask for!
+
+3. RELEVANCE GUARD:
+   - If and only if the user asks questions completely unrelated to DSA, programming, computer science, or algorithms (e.g., cooking recipes, celebrity news), politely guide them back to DSA and coding.`;
     } else if (role === "step_doubts") {
-      baseSystemInstruction = `You are Vizco Buddy in "Step Doubts" mode. The user is actively stepping through a live algorithmic simulation on DSA.viz.co!
-GUIDELINES:
-1. Explain precisely what happened in the current simulation step (why pointers moved, why the DP cell updated, why an element was swapped, or how the stack/queue reacted).
-2. NEVER give away the rest of the algorithm or the final answer directly. Guide the user to observe the state delta.
-3. Be concise, mathematically precise, and crystal-clear about variable transitions and invariants.`;
+      baseSystemInstruction = `You are Vizco Buddy in "Step Doubts" mode. The user is actively stepping through a live algorithmic simulation on DSA.viz.co! ✨
+
+CAPABILITIES:
+1. Explain precisely what happened in the current simulation step: pointer movements, DP table cell updates, swaps, stack/queue mutations, or window adjustments.
+2. Clearly explain why the condition was triggered and what invariant is preserved.
+3. Answer any question the user asks: whether they want a step-by-step trace, intuition, code implementation for this step or the entire algorithm, or edge-case walkthroughs.
+4. If the user wants to know what happens in subsequent steps or the final outcome, explain it thoroughly and clearly.`;
     } else if (role === "evaluator") {
-      baseSystemInstruction = `You are Vizco Buddy in "Algorithmic Reviewer" mode. You analyze the user's code/pseudocode submissions from their Firestore records and editor state.
-Provide a clear numerical rating (1-10), analyze Time and Space complexities with Big-O notation, highlight edge-case handling, celebrate clever insights, and outline 1-2 constructive refinements.`;
+      baseSystemInstruction = `You are Vizco Buddy in "Algorithmic Reviewer" mode. You analyze the user's code, submissions, and algorithmic approaches. ✨
+
+CAPABILITIES:
+1. Provide a clear, constructive review with a score out of 10.
+2. Deliver a rigorous Big-O Time and Space complexity breakdown.
+3. Inspect edge-case resilience (empty inputs, singletons, duplicate keys, boundary values, integer overflow).
+4. Celebrate clever insights, pinpoint bottlenecks, and provide optimized code improvements.`;
     } else if (role === "mistake_analyzer") {
-      baseSystemInstruction = `You are Vizco Buddy in "Bug & Trap Hunter" mode. You detect common typing slips, syntax errors (semicolons, type mismatch, vector bounds, pointer nullability), and logical traps (infinite loop conditions, boundary off-by-one, missing base cases). Explain WHY the mistake occurred and how to systematically verify it in technical interviews.`;
+      baseSystemInstruction = `You are Vizco Buddy in "Bug & Trap Hunter" mode. You detect typing slips, syntax errors, boundary pitfalls, and logical bugs. ✨
+
+CAPABILITIES:
+1. Pinpoint exact errors: off-by-one bounds (<= vs <), null pointers, vector out-of-bounds, uninitialized variables, infinite loops, and integer overflow.
+2. Explain the root cause clearly: WHY the mistake happened in memory or algorithm flow.
+3. Provide the corrected, working code with clear comments showing the fix.
+4. Share tips on how to systematically verify and catch this in technical interviews.`;
+    } else if (role === "solutions") {
+      baseSystemInstruction = `You are Vizco Buddy in "Code & Solutions" mode. You generate optimal, clean, production-grade solutions for DSA problems! ✨
+
+CAPABILITIES:
+1. Provide optimal solutions with high-performance code in the user's requested programming language (C++, Python, Java, TypeScript, Go, etc.).
+2. Always analyze Time and Space Complexity with Big-O notation.
+3. Structure solutions with clear step-by-step logic, comments explaining non-trivial lines, and edge-case handling.
+4. If comparing multiple approaches (e.g. Brute Force vs Sorting vs Hash Table vs Two Pointers), clearly explain trade-offs.`;
     } else {
-      baseSystemInstruction = customInstruction || "You are Vizco Buddy, the cute 3D AI companion and DSA coach for DSA.viz.co! ☁️✨";
+      baseSystemInstruction = customInstruction || `You are Vizco Buddy, the brilliant, friendly interactive AI companion for DSA.viz.co! ✨
+You answer anything the user asks regarding Data Structures & Algorithms, code implementations, problem-solving techniques, time/space complexity, debugging, and interview preparation.`;
     }
 
     // Inject active problem, route, compiler, and simulation step context
@@ -1604,6 +1639,7 @@ const playgroundReviewInputSchema = z.object({
 const compilerExecuteSchema = z.object({
   code: z.string().min(1, "Code cannot be empty").max(50000, "Code exceeds maximum length of 50,000 characters"),
   stdin: z.string().max(10000, "Standard input exceeds maximum length of 10,000 characters").optional().default(""),
+  language: z.enum(["cpp", "c", "java", "python"]).optional().default("cpp"),
 });
 
 // AI Review Endpoint (Stage 1: Pure Review & Complexity Analysis)
@@ -1708,8 +1744,8 @@ app.post("/api/compiler/execute", compilerLimiter, async (req: Request, res: Res
 
   inFlightCompilations++;
   try {
-    const { code, stdin } = parsed.data;
-    const result = await runSecureCpp(code, stdin);
+    const { code, stdin, language } = parsed.data;
+    const result = await runSecureCode(code, stdin, language);
     res.json(result);
   } catch (err: any) {
     console.error("Error in /api/compiler/execute:", err);

@@ -58,14 +58,14 @@ export function VizcoBuddy() {
           title: "Step " + (activeContext.currentStep + 1),
           desc: "Ask about this transition!",
           icon: Lightbulb,
-          prompt: "Can you explain what happens in Step " + (activeContext.currentStep + 1) + " without giving away the solution?",
+          prompt: "Can you explain what happens in Step " + (activeContext.currentStep + 1) + " and why the pointers or state changed?",
         };
       }
       return {
         title: activeContext.problemTitle,
-        desc: "Need a Socratic hint?",
+        desc: "Ask about this problem!",
         icon: Sparkles,
-        prompt: "Can you give me a gentle Socratic hint for " + activeContext.problemTitle + "?",
+        prompt: "Can you explain the optimal approach, intuition, and edge cases for " + activeContext.problemTitle + "?",
       };
     }
 
@@ -89,7 +89,7 @@ export function VizcoBuddy() {
 
     return {
       title: "Vizco Buddy",
-      desc: "Floating with you! Click me.",
+      desc: "Ready to help! Click to chat.",
       icon: Sparkles,
       prompt: "Hi Vizco Buddy! How can you help me master DSA?",
     };

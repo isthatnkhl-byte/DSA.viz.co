@@ -135,7 +135,7 @@ export function ProblemDiffNudgePanel({
       role: "interviewer",
       customPrompt:
         customPrompt ||
-        `I have a question about my approach for "${problemTitle}". Can you nudge me on what edge cases or typing mistakes I should double check without giving away the direct answer?`,
+        `I have a question about my approach for "${problemTitle}". Can you analyze what edge cases, typing slips, or logic traps I should check, and guide me on how to fix them?`,
     });
   };
 

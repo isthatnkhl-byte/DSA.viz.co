@@ -13,6 +13,7 @@ import {
   Code2,
   Copy,
   Trash2,
+  Cpu,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -25,9 +26,18 @@ import {
   CPP_DSA_TEMPLATES,
   PLAIN_CPP_STARTER,
   PLAIN_CPP_IO_TEMPLATE,
+  PLAIN_C_STARTER,
+  PLAIN_C_IO_TEMPLATE,
+  PLAIN_JAVA_STARTER,
+  PLAIN_JAVA_IO_TEMPLATE,
+  PLAIN_PYTHON_STARTER,
+  PLAIN_PYTHON_IO_TEMPLATE,
+  getStarterForLanguage,
+  getFastIoTemplateForLanguage,
+  getTemplatesForLanguage,
 } from "@/lib/compiler-templates";
-import { apiExecuteCpp } from "@/lib/api-client";
-import type { CppExecutionResult, CppTemplate } from "@/lib/compiler.types";
+import { apiExecuteCode } from "@/lib/api-client";
+import type { CompilerExecutionResult, CppTemplate, SupportedLanguage } from "@/lib/compiler.types";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
@@ -36,20 +46,20 @@ import { useChat } from "@/context/ChatContext";
 export const Route = createFileRoute("/compiler")({
   head: () => ({
     meta: [
-      { title: "Online C++ Compiler & DSA Runner — DSA.viz" },
+      { title: "Online Compiler & DSA Runner (C++, C, Java, Python) — DSA.viz" },
       {
         name: "description",
         content:
-          "Fast online C++ compiler for raw DSA problem solving and freeform C++ scratchpad. Write standard C++, pass custom stdin, inspect stdout and compiler messages with rich syntax highlighting.",
+          "Fast online compiler & DSA execution engine supporting C++, C, Java, and Python. Interactive standard I/O streams, diagnostic output, and FAANG algorithm templates.",
       },
       {
         property: "og:title",
-        content: "Online C++ Compiler & DSA Runner — DSA.viz",
+        content: "Online Compiler & DSA Runner (C++, C, Java, Python) — DSA.viz",
       },
       {
         property: "og:description",
         content:
-          "Practice raw DSA questions in C++ with standard STL libraries, interactive stdin, stdout terminal, and rich syntax colorization.",
+          "Zero-latency online code runner for C++, C, Java, and Python with live stdin/stdout and algorithm templates.",
       },
     ],
   }),
@@ -58,12 +68,187 @@ export const Route = createFileRoute("/compiler")({
 
 type CompilerMode = "plain" | "templates";
 
-const STORAGE_KEY_PLAIN_CODE = "dsa_plain_cpp_code_v1";
-const STORAGE_KEY_PLAIN_STDIN = "dsa_plain_cpp_stdin_v1";
+interface LanguageSpec {
+  id: SupportedLanguage;
+  label: string;
+  name: string;
+  engine: string;
+  optimization: string;
+  ext: string;
+  storageKeyCode: string;
+  storageKeyStdin: string;
+}
+
+const LANGUAGES: LanguageSpec[] = [
+  {
+    id: "cpp",
+    label: "C++",
+    name: "C++20",
+    engine: "GCC 14.1 (C++20)",
+    optimization: "-O2 Fast",
+    ext: "cpp",
+    storageKeyCode: "dsa_plain_cpp_code_v1",
+    storageKeyStdin: "dsa_plain_cpp_stdin_v1",
+  },
+  {
+    id: "c",
+    label: "C",
+    name: "C17",
+    engine: "GCC 14.1 (C17)",
+    optimization: "-O2 Fast",
+    ext: "c",
+    storageKeyCode: "dsa_plain_c_code_v1",
+    storageKeyStdin: "dsa_plain_c_stdin_v1",
+  },
+  {
+    id: "java",
+    label: "Java",
+    name: "Java 25",
+    engine: "OpenJDK 25",
+    optimization: "Bytecode JIT",
+    ext: "java",
+    storageKeyCode: "dsa_plain_java_code_v1",
+    storageKeyStdin: "dsa_plain_java_stdin_v1",
+  },
+  {
+    id: "python",
+    label: "Python",
+    name: "Python 3.12",
+    engine: "Python 3.12",
+    optimization: "CPython 3.12",
+    ext: "py",
+    storageKeyCode: "dsa_plain_python_code_v1",
+    storageKeyStdin: "dsa_plain_python_stdin_v1",
+  },
+];
+
+const DEFAULT_LANGUAGE_SPEC: LanguageSpec = {
+  id: "cpp",
+  label: "C++",
+  name: "C++20",
+  engine: "GCC 14.1 (C++20)",
+  optimization: "-O2 Fast",
+  ext: "cpp",
+  storageKeyCode: "dsa_plain_cpp_code_v1",
+  storageKeyStdin: "dsa_plain_cpp_stdin_v1",
+};
+
+const LANGUAGE_PRO_TIPS: Record<
+  SupportedLanguage,
+  {
+    title: string;
+    subtitle: string;
+    tips: { title: string; code: string; desc: string }[];
+  }
+> = {
+  cpp: {
+    title: "C++ DSA Pro Tips",
+    subtitle: "Speed patterns for coding interviews & contests",
+    tips: [
+      {
+        title: "⚡ Fast I/O Boilerplate",
+        code: "ios_base::sync_with_stdio(false);\ncin.tie(NULL);",
+        desc: "Unties C++ streams from C stdio for 10x faster I/O execution.",
+      },
+      {
+        title: "🧭 4-Direction Grid Vectors",
+        code: "int dx[] = {0, 0, 1, -1};\nint dy[] = {1, -1, 0, 0};",
+        desc: "Iterate cleanly over adjacent cells in 2D grid BFS/DFS traversals.",
+      },
+      {
+        title: "🔢 Modulo 10^9 + 7",
+        code: "const int MOD = 1e9 + 7;\nans = (ans + val) % MOD;",
+        desc: "Prevents 64-bit integer overflow in combinatorial DP problems.",
+      },
+      {
+        title: "🗂️ Min-Heap Declaration",
+        code: "priority_queue<int, vector<int>, greater<int>> minHeap;",
+        desc: "Standard C++ default is Max-Heap. Use greater<int> for Min-Heap.",
+      },
+    ],
+  },
+  c: {
+    title: "C DSA Pro Tips",
+    subtitle: "Memory management & pointer discipline",
+    tips: [
+      {
+        title: "⚡ Dynamic Array Allocation",
+        code: "int* arr = (int*)malloc(n * sizeof(int));\n// ... work ...\nfree(arr);",
+        desc: "Always remember to free heap memory to prevent memory leaks.",
+      },
+      {
+        title: "🧭 qsort Comparator",
+        code: "int cmp(const void* a, const void* b) {\n    return (*(int*)a - *(int*)b);\n}",
+        desc: "qsort uses void pointers. Cast to appropriate pointer type before dereferencing.",
+      },
+      {
+        title: "🔢 Fast Scanf / Printf",
+        code: "scanf(\"%d %d\", &a, &b);\nprintf(\"%d\\n\", ans);",
+        desc: "C stdio is inherently fast and ideal for memory-constrained problems.",
+      },
+      {
+        title: "🗂️ Struct Pointer Shorthand",
+        code: "Node* curr = head;\nint val = curr->data;",
+        desc: "Arrow operator -> is syntactic sugar for (*curr).data.",
+      },
+    ],
+  },
+  java: {
+    title: "Java DSA Pro Tips",
+    subtitle: "JVM performance & collections framework",
+    tips: [
+      {
+        title: "⚡ Fast I/O with BufferedReader",
+        code: "BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\nStringTokenizer st = new StringTokenizer(br.readLine());",
+        desc: "Avoid Scanner in large input tests (>10^5 operations) to prevent TLE.",
+      },
+      {
+        title: "🧭 HashMap Frequency Counter",
+        code: "map.put(key, map.getOrDefault(key, 0) + 1);",
+        desc: "Single-line idiom for counting frequencies in O(1).",
+      },
+      {
+        title: "🔢 Min-Heap vs Max-Heap",
+        code: "PriorityQueue<Integer> minHeap = new PriorityQueue<>();\nPriorityQueue<Integer> maxHeap = new PriorityQueue<>(Collections.reverseOrder());",
+        desc: "Default PriorityQueue in Java is Min-Heap. Use reverseOrder() for Max-Heap.",
+      },
+      {
+        title: "🗂️ Sort Pairs with Lambda",
+        code: "Arrays.sort(intervals, (a, b) -> Integer.compare(a[0], b[0]));",
+        desc: "Use Integer.compare instead of subtraction to avoid 32-bit integer overflow.",
+      },
+    ],
+  },
+  python: {
+    title: "Python DSA Pro Tips",
+    subtitle: "Pythonic algorithmic speed & built-ins",
+    tips: [
+      {
+        title: "⚡ Ultra-Fast Standard Input",
+        code: "import sys\ninput = sys.stdin.read\ntokens = input().split()",
+        desc: "Reads entire stdin in one syscall. 5x faster than line-by-line input().",
+      },
+      {
+        title: "🧭 Double-Ended Queue (BFS)",
+        code: "from collections import deque\nqueue = deque([root])\nnode = queue.popleft()",
+        desc: "list.pop(0) is O(N). Always use collections.deque for O(1) pops.",
+      },
+      {
+        title: "🔢 Min-Heap with heapq",
+        code: "import heapq\nheapq.heappush(heap, val)\nsmallest = heapq.heappop(heap)",
+        desc: "Python heapq implements an in-place binary min-heap on standard lists.",
+      },
+      {
+        title: "🗂️ Automatic DP Memoization",
+        code: "from functools import lru_cache\n@lru_cache(maxsize=None)\ndef dp(i, j): ...",
+        desc: "Converts recursive top-down logic into memoized DP in one line.",
+      },
+    ],
+  },
+};
 
 function CppCompilerPage() {
-  const { user } = useAuth();
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const { data: profileStats } = useQuery({
     queryKey: ["profile-stats"],
     queryFn: async () => {
@@ -75,18 +260,26 @@ function CppCompilerPage() {
     enabled: !!user && !!token,
   });
 
+  // Active language state
+  const [language, setLanguage] = useState<SupportedLanguage>("cpp");
+  const activeLangConfig: LanguageSpec = useMemo(
+    () => LANGUAGES.find((l) => l.id === language) ?? DEFAULT_LANGUAGE_SPEC,
+    [language]
+  );
+
   const [githubLoading, setGithubLoading] = useState(false);
   const handlePushToGithub = async (codeStr: string) => {
     if (!profileStats?.profile) {
-       toast.error("Please log in to push to GitHub.");
-       return;
+      toast.error("Please log in to push to GitHub.");
+      return;
     }
-    const isConnected = !!(profileStats.profile as any).githubConnected || !!(profileStats.profile as any).githubToken;
+    const isConnected =
+      !!(profileStats.profile as any).githubConnected || !!(profileStats.profile as any).githubToken;
     if (!isConnected) {
       toast.error("Please connect your GitHub account in your Profile first.");
       return;
     }
-    
+
     setGithubLoading(true);
     try {
       const auth = getAuth();
@@ -94,34 +287,35 @@ function CppCompilerPage() {
       const authToken = await currentUser?.getIdToken();
 
       const clientStoredToken =
-        (typeof window !== "undefined" && currentUser && localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)) ||
+        (typeof window !== "undefined" &&
+          currentUser &&
+          localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)) ||
         undefined;
 
-      // We will try to name the file based on the active template if one exists, otherwise 'sandbox'
-      const titleSlug = "cpp-sandbox";
-      
+      const titleSlug = `${language}-sandbox`;
+
       const res = await fetch("/api/github/push", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${authToken}`
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
           code: codeStr,
-          titleSlug: titleSlug,
-          lang: "cpp",
-          githubToken: clientStoredToken
-        })
+          titleSlug,
+          lang: language,
+          githubToken: clientStoredToken,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Failed to push to GitHub");
       } else {
-        toast.success("Successfully pushed C++ code to GitHub!", {
+        toast.success(`Successfully pushed ${activeLangConfig.label} code to GitHub!`, {
           action: {
             label: "View",
-            onClick: () => window.open(data.url, "_blank")
-          }
+            onClick: () => window.open(data.url, "_blank"),
+          },
         });
       }
     } catch (e) {
@@ -131,63 +325,81 @@ function CppCompilerPage() {
     }
   };
 
-
   // Active workspace mode: "plain" (freeform scratchpad) vs "templates" (guided DSA questions)
   const [mode, setMode] = useState<CompilerMode>("plain");
 
-  // Mode 1: Plain / Custom Freeform C++ Workspace State
+  // Mode 1: Plain / Custom Freeform Workspace State
   const [plainCode, setPlainCode] = useState<string>(PLAIN_CPP_STARTER);
   const [plainStdin, setPlainStdin] = useState<string>("");
-  const [plainResult, setPlainResult] = useState<CppExecutionResult | null>(null);
+  const [plainResult, setPlainResult] = useState<CompilerExecutionResult | null>(null);
 
   // Mode 2: DSA Templates Guided Practice State
-  const defaultTemplate = CPP_DSA_TEMPLATES[0]!;
+  const activeTemplates = useMemo(() => getTemplatesForLanguage(language), [language]);
+  const defaultTemplate = activeTemplates[0] || CPP_DSA_TEMPLATES[0]!;
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(defaultTemplate.id);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [templateCode, setTemplateCode] = useState<string>(defaultTemplate.code);
-  const [templateStdin, setTemplateStdin] = useState<string>(defaultTemplate.defaultStdin);
-  const [templateResult, setTemplateResult] = useState<CppExecutionResult | null>(null);
+  const [templateStdin, setTemplateStdin] = useState<string>(defaultTemplate.defaultStdin || "");
+  const [templateResult, setTemplateResult] = useState<CompilerExecutionResult | null>(null);
 
   // Loading state for server execution
   const [loading, setLoading] = useState(false);
 
   const { updateContext } = useChat();
 
+  // Load saved code from localStorage for the active language on mount or language switch
+  useEffect(() => {
+    try {
+      const savedCode = localStorage.getItem(activeLangConfig.storageKeyCode);
+      if (savedCode && typeof savedCode === "string" && savedCode.trim() && savedCode !== "[object Object]") {
+        setPlainCode(savedCode);
+      } else {
+        setPlainCode(getStarterForLanguage(language));
+      }
+
+      const savedStdin = localStorage.getItem(activeLangConfig.storageKeyStdin);
+      if (savedStdin !== null && typeof savedStdin === "string" && savedStdin !== "[object Object]") {
+        setPlainStdin(savedStdin);
+      } else {
+        setPlainStdin("");
+      }
+    } catch {
+      setPlainCode(getStarterForLanguage(language));
+      setPlainStdin("");
+    }
+  }, [language, activeLangConfig]);
+
+  // When active templates change (e.g. language switch), load the first template
+  useEffect(() => {
+    const firstTmpl = activeTemplates[0];
+    if (firstTmpl) {
+      setSelectedTemplateId(firstTmpl.id);
+      setTemplateCode(firstTmpl.code);
+      setTemplateStdin(firstTmpl.defaultStdin || "");
+      setTemplateResult(null);
+    }
+  }, [activeTemplates]);
+
+  // Update AI Buddy context
   useEffect(() => {
     const activeCode = mode === "plain" ? plainCode : templateCode;
     const activeRes = mode === "plain" ? plainResult : templateResult;
     updateContext({
       route: "/compiler",
-      problemTitle: mode === "plain" ? "C++ DSA Compiler Sandbox" : `C++ Template: ${selectedTemplateId}`,
+      problemTitle:
+        mode === "plain"
+          ? `${activeLangConfig.label} DSA Compiler Sandbox`
+          : `${activeLangConfig.label} Template: ${selectedTemplateId}`,
       userCode: activeCode,
       compilerOutput: activeRes ? `${activeRes.stdout || ""}\n${activeRes.stderr || ""}`.trim() : undefined,
     });
-  }, [mode, plainCode, templateCode, plainResult, templateResult, selectedTemplateId, updateContext]);
-
-  // Load saved plain scratchpad from localStorage on initial mount
-  useEffect(() => {
-    try {
-      const savedCode = localStorage.getItem(STORAGE_KEY_PLAIN_CODE);
-      if (savedCode && typeof savedCode === "string" && savedCode.trim() && savedCode !== "[object Object]") {
-        setPlainCode(savedCode);
-      }
-      const savedStdin = localStorage.getItem(STORAGE_KEY_PLAIN_STDIN);
-      if (savedStdin !== null && typeof savedStdin === "string" && savedStdin !== "[object Object]") {
-        setPlainStdin(savedStdin);
-      } else if (savedStdin === "[object Object]") {
-        localStorage.removeItem(STORAGE_KEY_PLAIN_STDIN);
-        setPlainStdin("");
-      }
-    } catch {
-      // Ignore localStorage errors in restricted environments
-    }
-  }, []);
+  }, [mode, plainCode, templateCode, plainResult, templateResult, selectedTemplateId, activeLangConfig, updateContext]);
 
   // Auto-persist plain scratchpad
   const updatePlainCode = (newCode: string) => {
     setPlainCode(newCode);
     try {
-      localStorage.setItem(STORAGE_KEY_PLAIN_CODE, newCode);
+      localStorage.setItem(activeLangConfig.storageKeyCode, newCode);
     } catch {
       // Ignore
     }
@@ -197,10 +409,30 @@ function CppCompilerPage() {
     const str = typeof newStdin === "string" ? newStdin : "";
     setPlainStdin(str);
     try {
-      localStorage.setItem(STORAGE_KEY_PLAIN_STDIN, str);
+      localStorage.setItem(activeLangConfig.storageKeyStdin, str);
     } catch {
       // Ignore
     }
+  };
+
+  // Language switcher
+  const handleSwitchLanguage = (newLang: SupportedLanguage) => {
+    if (newLang === language) return;
+    // Save current plain scratchpad before switching
+    try {
+      localStorage.setItem(activeLangConfig.storageKeyCode, plainCode);
+      localStorage.setItem(activeLangConfig.storageKeyStdin, plainStdin);
+    } catch {
+      // Ignore
+    }
+
+    setLanguage(newLang);
+    setPlainResult(null);
+    setTemplateResult(null);
+    setSelectedCategory("All");
+
+    const targetSpec = LANGUAGES.find((l) => l.id === newLang);
+    toast.info(`Switched to ${targetSpec?.label} (${targetSpec?.engine})`);
   };
 
   const categories = [
@@ -214,9 +446,9 @@ function CppCompilerPage() {
   ];
 
   const filteredTemplates = useMemo(() => {
-    if (selectedCategory === "All") return CPP_DSA_TEMPLATES;
-    return CPP_DSA_TEMPLATES.filter((t) => t.category === selectedCategory);
-  }, [selectedCategory]);
+    if (selectedCategory === "All") return activeTemplates;
+    return activeTemplates.filter((t) => t.category === selectedCategory);
+  }, [selectedCategory, activeTemplates]);
 
   const loadTemplate = (tmpl: CppTemplate) => {
     setSelectedTemplateId(tmpl.id);
@@ -233,13 +465,23 @@ function CppCompilerPage() {
     setPlainResult(null);
     setMode("plain");
     toast.success(
-      "Loaded template into Plain C++ Playground! You can now freely edit your own cin/cout.",
+      `Loaded template into Plain ${activeLangConfig.label} Playground! You can now freely edit and execute.`
     );
   };
 
   // Active Code, Stdin, and Execution Result based on selected mode
-  const activeCode = typeof (mode === "plain" ? plainCode : templateCode) === "string" ? (mode === "plain" ? plainCode : templateCode) : "";
-  const activeStdin = typeof (mode === "plain" ? plainStdin : templateStdin) === "string" ? (mode === "plain" ? plainStdin : templateStdin) : "";
+  const activeCode =
+    typeof (mode === "plain" ? plainCode : templateCode) === "string"
+      ? mode === "plain"
+        ? plainCode
+        : templateCode
+      : "";
+  const activeStdin =
+    typeof (mode === "plain" ? plainStdin : templateStdin) === "string"
+      ? mode === "plain"
+        ? plainStdin
+        : templateStdin
+      : "";
   const activeResult = mode === "plain" ? plainResult : templateResult;
 
   const setActiveCode = (val: string) => {
@@ -259,7 +501,7 @@ function CppCompilerPage() {
     }
   };
 
-  const setActiveResult = (res: CppExecutionResult | null) => {
+  const setActiveResult = (res: CompilerExecutionResult | null) => {
     if (mode === "plain") {
       setPlainResult(res);
     } else {
@@ -267,10 +509,10 @@ function CppCompilerPage() {
     }
   };
 
-  // Execute C++ code against the server function or direct API endpoint
+  // Execute code against the server endpoint
   const handleExecute = async (overrideStdin?: string) => {
     if (!activeCode.trim()) {
-      toast.error("Please enter some C++ code to run");
+      toast.error(`Please enter some ${activeLangConfig.label} code to run`);
       return;
     }
 
@@ -282,9 +524,10 @@ function CppCompilerPage() {
 
     setLoading(true);
     try {
-      const res = await apiExecuteCpp({
+      const res = await apiExecuteCode({
         code: activeCode.trim(),
         stdin: typeof stdinToUse === "string" ? stdinToUse : "",
+        language,
       });
 
       setActiveResult(res);
@@ -294,7 +537,7 @@ function CppCompilerPage() {
       } else if (res.status === "compilation_error") {
         toast.error("Compilation error. Check diagnostic output.");
       } else if (res.status === "timeout") {
-        toast.warning("Time limit exceeded (9.0s sandbox limit).");
+        toast.warning("Time limit exceeded (sandbox limit).");
       } else {
         toast.error("Runtime error occurred.");
       }
@@ -316,7 +559,6 @@ function CppCompilerPage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCode, activeStdin]);
 
   const handleInsertHeader = (headerInclude: string) => {
@@ -335,24 +577,26 @@ function CppCompilerPage() {
 
   // Plain mode helpers
   const handleResetPlainStarter = () => {
-    updatePlainCode(PLAIN_CPP_STARTER);
+    const starter = getStarterForLanguage(language);
+    updatePlainCode(starter);
     updatePlainStdin("");
     setPlainResult(null);
-    toast.info("Reset to standard 'Hello, World!' C++ starter");
+    toast.info(`Reset to standard 'Hello, World!' ${activeLangConfig.label} starter`);
   };
 
   const handleLoadPlainFastIO = () => {
-    updatePlainCode(PLAIN_CPP_IO_TEMPLATE);
+    const fastIo = getFastIoTemplateForLanguage(language);
+    updatePlainCode(fastIo);
     updatePlainStdin("10 25");
     setPlainResult(null);
-    toast.info("Loaded Fast I/O C++ boilerplate with cin >> a >> b");
+    toast.info(`Loaded Fast I/O ${activeLangConfig.label} boilerplate`);
   };
 
   const handleClearPlainEditor = () => {
     updatePlainCode("");
     updatePlainStdin("");
     setPlainResult(null);
-    toast.info("Cleared C++ editor");
+    toast.info(`Cleared ${activeLangConfig.label} editor`);
   };
 
   const snapshotRef = useRef<HTMLDivElement>(null);
@@ -363,20 +607,19 @@ function CppCompilerPage() {
     try {
       setIsExporting(true);
       toast.info("Generating beautiful snapshot...");
-      // small delay to allow UI to render the hidden box if we want
-      await new Promise(r => setTimeout(r, 100));
-      
+      await new Promise((r) => setTimeout(r, 100));
+
       const dataUrl = await toPng(snapshotRef.current, {
         quality: 1,
         pixelRatio: 2,
         style: {
           display: "flex",
           opacity: "1",
-        }
+        },
       });
-      
+
       const link = document.createElement("a");
-      link.download = `cpp-code-${Date.now()}.png`;
+      link.download = `${language}-code-${Date.now()}.png`;
       link.href = dataUrl;
       link.click();
       toast.success("Snapshot saved successfully!");
@@ -387,6 +630,8 @@ function CppCompilerPage() {
       setIsExporting(false);
     }
   };
+
+  const currentProTips = LANGUAGE_PRO_TIPS[language] || LANGUAGE_PRO_TIPS.cpp;
 
   return (
     <div className="min-h-screen pb-20">
@@ -410,13 +655,16 @@ function CppCompilerPage() {
               </Link>
               <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-2">
                 <Terminal className="size-3.5 text-primary" />
-                <span>Zero-Latency Cloud Execution Sandbox</span>
+                <span>Zero-Latency Multi-Language Cloud Execution Engine</span>
               </div>
               <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">
-                C++ <span className="bg-gradient-to-r from-primary via-accent to-emerald-400 bg-clip-text text-transparent">Sandbox &amp; Compiler</span>
+                Online{" "}
+                <span className="bg-gradient-to-r from-primary via-accent to-emerald-400 bg-clip-text text-transparent">
+                  Compiler &amp; Sandbox
+                </span>
               </h1>
               <p className="mt-2 text-sm sm:text-base text-muted-foreground font-sans max-w-2xl leading-relaxed">
-                Full-featured ISO C++20 development container with interactive standard I/O streams, compiler diagnostic traces, GitHub snapshot synchronization, and FAANG algorithmic templates.
+                High-performance sandboxed execution for C++, C, Java, and Python with interactive standard I/O streams, compiler diagnostic traces, GitHub snapshot push, and curated algorithmic templates.
               </p>
             </div>
 
@@ -424,18 +672,54 @@ function CppCompilerPage() {
             <div className="rounded-2xl border border-border/80 bg-background/80 p-4 font-mono shadow-md backdrop-blur-xl shrink-0 w-full sm:w-auto flex items-center gap-6">
               <div>
                 <div className="text-[10px] uppercase text-muted-foreground">Compiler Engine</div>
-                <div className="text-xl font-black text-foreground font-display">GCC 14.2 (C++20)</div>
+                <div className="text-xl font-black text-foreground font-display">
+                  {activeLangConfig.engine}
+                </div>
               </div>
               <div className="h-10 w-px bg-border/60" />
               <div>
-                <div className="text-[10px] uppercase text-muted-foreground">Optimization</div>
-                <div className="text-xl font-black text-emerald-400 font-display">-O3 Fast</div>
+                <div className="text-[10px] uppercase text-muted-foreground">Execution Tier</div>
+                <div className="text-xl font-black text-emerald-400 font-display">
+                  {activeLangConfig.optimization}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Mode Switcher Tabs */}
+          {/* Language Selector Bar */}
           <div className="mt-8 pt-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2 bg-background/80 p-1.5 rounded-2xl border border-border/70 shadow-inner">
+              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground px-2 flex items-center gap-1.5">
+                <Cpu className="size-3.5 text-primary" />
+                <span>Language:</span>
+              </span>
+              {LANGUAGES.map((lang) => {
+                const isSelected = language === lang.id;
+                return (
+                  <button
+                    key={lang.id}
+                    type="button"
+                    onClick={() => handleSwitchLanguage(lang.id)}
+                    className={`flex items-center gap-2 rounded-xl px-3.5 py-1.5 font-mono text-xs font-bold transition-all ${
+                      isSelected
+                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/25 scale-[1.02]"
+                        : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                    }`}
+                  >
+                    <span>{lang.label}</span>
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 text-[9px] ${
+                        isSelected ? "bg-white/20 text-white font-semibold" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {lang.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Mode Switcher Tabs */}
             <div className="flex items-center gap-2 bg-background/80 p-1 rounded-2xl border border-border/70 shadow-inner">
               <button
                 type="button"
@@ -447,12 +731,10 @@ function CppCompilerPage() {
                 }`}
               >
                 <Code2 className="size-4" />
-                <span>⚡ Plain C++ Playground</span>
+                <span>⚡ Plain {activeLangConfig.label} Playground</span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[9px] ${
-                    mode === "plain"
-                      ? "bg-white/20 text-white font-semibold"
-                      : "bg-muted text-muted-foreground"
+                    mode === "plain" ? "bg-white/20 text-white font-semibold" : "bg-muted text-muted-foreground"
                   }`}
                 >
                   Custom Code &amp; I/O
@@ -469,20 +751,20 @@ function CppCompilerPage() {
                 }`}
               >
                 <BookOpen className="size-4" />
-                <span>📚 DSA Question Templates</span>
+                <span>📚 {activeLangConfig.label} Templates</span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[9px] ${
-                    mode === "templates"
-                      ? "bg-white/20 text-white font-semibold"
-                      : "bg-muted text-muted-foreground"
+                    mode === "templates" ? "bg-white/20 text-white font-semibold" : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {CPP_DSA_TEMPLATES.length} Presets
+                  {activeTemplates.length} Presets
                 </span>
               </button>
             </div>
+          </div>
 
-            {/* Right: Quick Context Actions */}
+          {/* Quick Context Actions */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
             {mode === "plain" ? (
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -536,9 +818,8 @@ function CppCompilerPage() {
                 <div className="flex items-center gap-3">
                   <Sparkles className="size-5 shrink-0 text-primary" />
                   <span className="leading-relaxed">
-                    <strong>Freeform C++ Scratchpad:</strong> Write your own arbitrary C++ logic,
-                    pass custom inputs in the standard input panel below, and execute without fixed
-                    template boundaries. Your code is automatically saved in this browser.
+                    <strong>Freeform {activeLangConfig.label} Scratchpad:</strong> Write your own arbitrary {activeLangConfig.label} logic,
+                    pass custom inputs in the standard input panel below, and execute with zero restrictions. Your code is automatically persisted in your browser.
                   </span>
                 </div>
               </div>
@@ -548,7 +829,7 @@ function CppCompilerPage() {
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <span className="font-mono text-[13px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                     <Code2 className="size-4 text-primary" />
-                    <span>Filter Algorithms by Topic:</span>
+                    <span>Filter {activeLangConfig.label} Algorithms by Topic:</span>
                   </span>
 
                   {/* Category Pills */}
@@ -609,14 +890,15 @@ function CppCompilerPage() {
           </div>
         </div>
 
-        {/* Main Grid: Code Editor & Console (Left 8 cols), C++ Packages & Cheat Sheet (Right 4 cols) */}
+        {/* Main Grid: Code Editor & Console (Left 8 cols), Packages & Cheat Sheet (Right 4 cols) */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 xl:gap-10 mt-8">
-          {/* Left Column: C++ Code Editor & Output Console */}
+          {/* Left Column: Code Editor & Output Console */}
           <div className="flex flex-col gap-8 lg:col-span-8">
-            {/* C++ Code Editor */}
+            {/* Code Editor */}
             <div className="min-h-[600px] h-[calc(100vh-250px)]">
               <CppCodeEditor
                 code={activeCode}
+                language={language}
                 onChange={setActiveCode}
                 onRun={handleExecute}
                 onExportSnapshot={handleExportSnapshot}
@@ -627,22 +909,24 @@ function CppCompilerPage() {
               />
             </div>
 
-            {/* Terminal Console with Stdout, Stdin, and Compiler Diagnostic Messages */}
+            {/* Terminal Console with Stdout, Stdin, and Compiler Diagnostics */}
             <CppConsole
               result={activeResult}
               loading={loading}
               stdin={activeStdin}
               code={activeCode}
+              language={language}
               onStdinChange={setActiveStdin}
               onClear={handleClearConsole}
               onRun={handleExecute}
             />
           </div>
 
-          {/* Right Column: C++ DSA Headers Explorer & Competitive Programming Cheatsheet */}
+          {/* Right Column: Headers / Packages Explorer & Cheatsheet */}
           <div className="flex flex-col gap-8 lg:col-span-4">
             {/* Packages Explorer */}
             <CppPackageExplorer
+              language={language}
               onInsertHeader={handleInsertHeader}
               onLoadSnippet={(snippet) => {
                 setActiveCode(snippet);
@@ -650,73 +934,35 @@ function CppCompilerPage() {
               }}
             />
 
-            {/* Competitive Programming & DSA Cheatsheet Card */}
+            {/* Language-Specific DSA Cheatsheet Card */}
             <div className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-card/40 p-5 shadow-lg backdrop-blur-2xl">
               <div className="flex items-center gap-3">
                 <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-accent/30 to-accent/5 border border-accent/20 text-accent shadow-inner">
                   <Sparkles className="size-4" />
                 </div>
                 <div>
-                  <h3 className="font-mono text-sm font-bold text-foreground tracking-tight">C++ DSA Pro Tips</h3>
+                  <h3 className="font-mono text-sm font-bold text-foreground tracking-tight">
+                    {currentProTips.title}
+                  </h3>
                   <p className="text-[10px] text-muted-foreground/80 font-medium">
-                    Speed patterns for coding interviews &amp; contests
+                    {currentProTips.subtitle}
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-col gap-2.5 pt-2 text-xs">
-                {/* Tip 1 */}
-                <div className="rounded-xl border border-border/50 bg-background/40 p-3 hover:bg-background/60 transition-colors">
-                  <div className="font-bold text-primary font-mono text-[11px]">
-                    ⚡ Fast I/O Boilerplate
+                {currentProTips.tips.map((tip, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-xl border border-border/50 bg-background/40 p-3 hover:bg-background/60 transition-colors"
+                  >
+                    <div className="font-bold text-primary font-mono text-[11px]">{tip.title}</div>
+                    <pre className="mt-1 text-[10px] font-mono text-muted-foreground bg-muted/40 p-1.5 rounded whitespace-pre-wrap">
+                      {tip.code}
+                    </pre>
+                    <p className="mt-1 text-[10px] text-muted-foreground leading-tight">{tip.desc}</p>
                   </div>
-                  <pre className="mt-1 text-[10px] font-mono text-muted-foreground bg-muted/40 p-1.5 rounded">
-                    {`ios_base::sync_with_stdio(false);\ncin.tie(NULL);`}
-                  </pre>
-                  <p className="mt-1 text-[10px] text-muted-foreground leading-tight">
-                    Unties C++ streams from C stdio for 10x faster I/O execution.
-                  </p>
-                </div>
-
-                {/* Tip 2 */}
-                <div className="rounded-xl border border-border/50 bg-background/40 p-3 hover:bg-background/60 transition-colors">
-                  <div className="font-bold text-accent font-mono text-[11px]">
-                    🧭 4-Direction Grid Vectors
-                  </div>
-                  <pre className="mt-1 text-[10px] font-mono text-muted-foreground bg-muted/40 p-1.5 rounded">
-                    {`int dx[] = {0, 0, 1, -1};\nint dy[] = {1, -1, 0, 0};`}
-                  </pre>
-                  <p className="mt-1 text-[10px] text-muted-foreground leading-tight">
-                    Iterate cleanly over adjacent cells in 2D grid BFS/DFS traversals.
-                  </p>
-                </div>
-
-                {/* Tip 3 */}
-                <div className="rounded-xl border border-border/50 bg-background/40 p-3 hover:bg-background/60 transition-colors">
-                  <div className="font-bold text-foreground/90 font-mono text-[11px] flex items-center gap-1.5">
-                    <span className="text-primary">🔢</span> Modulo 10^9 + 7
-                  </div>
-                  <pre className="mt-1 text-[10px] font-mono text-muted-foreground bg-muted/40 p-1.5 rounded">
-                    {`const int MOD = 1e9 + 7;\nans = (ans + val) % MOD;`}
-                  </pre>
-                  <p className="mt-1 text-[10px] text-muted-foreground leading-tight">
-                    Prevents 64-bit integer overflow in combinatorial DP problems.
-                  </p>
-                </div>
-
-                {/* Tip 4 */}
-                <div className="rounded-xl border border-border/50 bg-background/40 p-3 hover:bg-background/60 transition-colors">
-                  <div className="font-bold text-foreground/90 font-mono text-[11px] flex items-center gap-1.5">
-                    <span className="text-amber-400">🗂️</span> Min-Heap Declaration
-                  </div>
-                  <pre className="mt-1 text-[10px] font-mono text-muted-foreground bg-muted/40 p-1.5 rounded">
-                    {`priority_queue<int, vector<int>, greater<int>> minHeap;`}
-                  </pre>
-                  <p className="mt-1 text-[10px] text-muted-foreground leading-tight">
-                    Standard C++ default is Max-Heap. Use{" "}
-                    <code className="text-foreground">greater&lt;int&gt;</code> for Min-Heap.
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
           </div>
@@ -731,7 +977,6 @@ function CppCompilerPage() {
           >
             {/* Inner Window */}
             <div className="flex flex-col rounded-2xl shadow-2xl bg-[#0d1117] border border-white/20 overflow-hidden backdrop-blur-xl">
-              
               {/* Window Header */}
               <div className="flex items-center justify-between px-6 py-4 bg-white/5 border-b border-white/10">
                 <div className="flex items-center gap-3">
@@ -741,12 +986,10 @@ function CppCompilerPage() {
                     <div className="w-3.5 h-3.5 rounded-full bg-[#27c93f]" />
                   </div>
                   <div className="text-white/80 font-mono text-sm font-bold ml-4">
-                    DSA.viz - C++ Engine
+                    DSA.viz — {activeLangConfig.label} Engine ({activeLangConfig.engine})
                   </div>
                 </div>
-                <div className="text-white/40 font-mono text-xs">
-                  {new Date().toLocaleDateString()}
-                </div>
+                <div className="text-white/40 font-mono text-xs">{new Date().toLocaleDateString()}</div>
               </div>
 
               {/* Window Body */}
@@ -754,15 +997,26 @@ function CppCompilerPage() {
                 {/* Code */}
                 <div className="flex flex-col gap-2">
                   <div className="text-white/50 text-xs font-mono uppercase tracking-widest font-bold">
-                    Source Code
+                    Source Code ({activeLangConfig.ext})
                   </div>
                   <Highlight
                     theme={themes.vsDark}
                     code={activeCode}
-                    language="cpp"
+                    language={
+                      language === "python"
+                        ? "python"
+                        : language === "java"
+                          ? "java"
+                          : language === "c"
+                            ? "c"
+                            : "cpp"
+                    }
                   >
                     {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                      <pre className="bg-black/40 border border-white/5 rounded-xl p-6 text-[15px] leading-relaxed font-mono whitespace-pre-wrap" style={{ ...style, backgroundColor: 'transparent' }}>
+                      <pre
+                        className="bg-black/40 border border-white/5 rounded-xl p-6 text-[15px] leading-relaxed font-mono whitespace-pre-wrap"
+                        style={{ ...style, backgroundColor: "transparent" }}
+                      >
                         {tokens.map((line, i) => (
                           <div key={i} {...getLineProps({ line })}>
                             {line.map((token, key) => (
@@ -785,18 +1039,20 @@ function CppCompilerPage() {
                       {activeStdin || "No input provided."}
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-col gap-2">
                     <div className="text-white/50 text-xs font-mono uppercase tracking-widest font-bold">
                       Standard Output
                     </div>
                     <div className="bg-black/40 border border-white/5 rounded-xl p-5 text-sm font-mono text-white/90 whitespace-pre-wrap min-h-[120px]">
-                      {activeResult?.stdout || activeResult?.stderr || activeResult?.compile_output || "No output generated."}
+                      {activeResult?.stdout ||
+                        activeResult?.stderr ||
+                        activeResult?.compile_output ||
+                        "No output generated."}
                     </div>
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
         </div>

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import type { EditorTheme } from "@/lib/compiler.types";
+import type { EditorTheme, SupportedLanguage } from "@/lib/compiler.types";
 import { useThemeColor } from "@/hooks/useThemeColor";
 
 interface CppCodeEditorProps {
@@ -29,6 +29,7 @@ interface CppCodeEditorProps {
   githubLoading?: boolean;
   loading?: boolean;
   disabled?: boolean;
+  language?: SupportedLanguage;
 }
 
 // Token types for rich C++ syntax highlighting
@@ -212,40 +213,158 @@ const CPP_FUNCTIONS = new Set([
   "fill",
 ]);
 
-// Tokenize C++ source code with rainbow bracket pair levels
-function tokenizeCpp(code: string): Token[][] {
+const PYTHON_KEYWORDS = new Set([
+  "def", "class", "return", "if", "elif", "else", "while", "for", "in",
+  "break", "continue", "pass", "import", "from", "as", "try", "except",
+  "finally", "raise", "with", "yield", "lambda", "assert", "global",
+  "nonlocal", "del", "None", "True", "False", "async", "await", "is",
+  "not", "and", "or",
+]);
+
+const PYTHON_TYPES = new Set([
+  "int", "float", "str", "bool", "list", "dict", "set", "tuple", "bytes",
+  "Any", "Optional", "List", "Dict", "Set", "Tuple", "Deque", "DefaultDict",
+]);
+
+const PYTHON_STD_OBJECTS = new Set([
+  "self", "cls", "print", "len", "range", "enumerate", "zip", "sum", "min", "max",
+  "abs", "sorted", "map", "filter", "input", "open", "type", "isinstance",
+  "heapq", "collections", "deque", "Counter", "defaultdict", "bisect", "math", "sys",
+]);
+
+const JAVA_KEYWORDS = new Set([
+  "public", "private", "protected", "class", "interface", "extends", "implements",
+  "static", "final", "abstract", "void", "return", "if", "else", "for", "while",
+  "do", "switch", "case", "default", "break", "continue", "new", "this", "super",
+  "try", "catch", "finally", "throw", "throws", "import", "package", "null",
+  "true", "false", "instanceof", "enum", "record",
+]);
+
+const JAVA_TYPES = new Set([
+  "int", "long", "short", "byte", "char", "boolean", "float", "double", "void",
+  "String", "Integer", "Long", "Double", "Boolean", "Character", "List", "ArrayList",
+  "Map", "HashMap", "Set", "HashSet", "Queue", "LinkedList", "PriorityQueue",
+  "Stack", "Arrays", "Collections", "Scanner", "Math", "System", "StringBuilder",
+  "TreeNode", "ListNode", "Node",
+]);
+
+const JAVA_STD_OBJECTS = new Set([
+  "System", "out", "in", "err", "println", "print", "printf", "Math", "Arrays",
+  "Collections", "Integer", "Long", "Double", "String", "Scanner",
+]);
+
+const C_KEYWORDS = new Set([
+  "return", "if", "else", "while", "for", "do", "switch", "case", "default",
+  "break", "continue", "goto", "const", "static", "inline", "typedef", "struct",
+  "enum", "union", "sizeof", "true", "false", "NULL",
+]);
+
+const C_TYPES = new Set([
+  "int", "long", "short", "char", "bool", "float", "double", "void",
+  "size_t", "int64_t", "uint64_t", "int32_t", "uint32_t", "Node", "ListNode",
+]);
+
+export const LANGUAGE_SNIPPETS: Record<SupportedLanguage, { label: string; code: string }[]> = {
+  cpp: [
+    { label: "cout << endl;", code: "cout <<  << endl;" },
+    { label: "cin >>", code: "cin >> ;" },
+    { label: "vector<int>", code: "vector<int> nums;" },
+    { label: "for loop", code: "for (int i = 0; i < n; ++i) {\n    \n}" },
+    { label: "unordered_map", code: "unordered_map<int, int> mp;" },
+    { label: "min-heap", code: "priority_queue<int, vector<int>, greater<int>> minPq;" },
+    { label: "sort()", code: "sort(nums.begin(), nums.end());" },
+    { label: "reverse()", code: "reverse(nums.begin(), nums.end());" },
+    { label: "2D vector", code: "vector<vector<int>> matrix(rows, vector<int>(cols, 0));" },
+    { label: "if-else", code: "if (condition) {\n    \n} else {\n    \n}" },
+  ],
+  c: [
+    { label: "printf()", code: 'printf("%d\\n", val);' },
+    { label: "scanf()", code: 'scanf("%d", &val);' },
+    { label: "for loop", code: "for (int i = 0; i < n; i++) {\n    \n}" },
+    { label: "malloc()", code: "int* arr = (int*)malloc(n * sizeof(int));" },
+    { label: "free()", code: "free(arr);" },
+    { label: "struct Node", code: "typedef struct Node {\n    int val;\n    struct Node* next;\n} Node;" },
+    { label: "if-else", code: "if (condition) {\n    \n} else {\n    \n}" },
+  ],
+  java: [
+    { label: "System.out.println()", code: "System.out.println();" },
+    { label: "Scanner sc", code: "Scanner sc = new Scanner(System.in);" },
+    { label: "for loop", code: "for (int i = 0; i < n; i++) {\n    \n}" },
+    { label: "List<Integer>", code: "List<Integer> list = new ArrayList<>();" },
+    { label: "Map<K, V>", code: "Map<Integer, Integer> map = new HashMap<>();" },
+    { label: "PriorityQueue", code: "PriorityQueue<Integer> minHeap = new PriorityQueue<>();" },
+    { label: "Arrays.sort()", code: "Arrays.sort(nums);" },
+    { label: "if-else", code: "if (condition) {\n    \n} else {\n    \n}" },
+  ],
+  python: [
+    { label: "print()", code: "print()" },
+    { label: "def func():", code: "def solve():\n    pass" },
+    { label: "for loop", code: "for i in range(n):\n    pass" },
+    { label: "list comp", code: "[x for x in nums]" },
+    { label: "seen = {}", code: "seen = {}" },
+    { label: "deque()", code: "queue = deque([])" },
+    { label: "heapq", code: "heapq.heappush(heap, item)" },
+    { label: "if-else", code: "if condition:\n    pass\nelse:\n    pass" },
+  ],
+};
+
+// Tokenize source code with rainbow bracket pair levels across C++, C, Java, and Python
+function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[][] {
   const lines = code.split("\n");
   let bracketDepth = 0;
+
+  const isPython = language === "python";
+  const isJava = language === "java";
+  const isC = language === "c";
+
+  const keywords = isPython ? PYTHON_KEYWORDS : isJava ? JAVA_KEYWORDS : isC ? C_KEYWORDS : CPP_KEYWORDS;
+  const types = isPython ? PYTHON_TYPES : isJava ? JAVA_TYPES : isC ? C_TYPES : CPP_TYPES;
+  const stdObjects = isPython
+    ? PYTHON_STD_OBJECTS
+    : isJava
+      ? JAVA_STD_OBJECTS
+      : isC
+        ? new Set(["NULL", "stdin", "stdout", "stderr"])
+        : CPP_STD_OBJECTS;
 
   return lines.map((line) => {
     const tokens: Token[] = [];
     let i = 0;
 
-    // Check for preprocessor directive (#include, #define, etc.)
-    const trimmed = line.trimStart();
-    if (trimmed.startsWith("#")) {
-      const hashIndex = line.indexOf("#");
-      if (hashIndex > 0) {
-        tokens.push({ type: "plain", text: line.slice(0, hashIndex) });
-      }
-
-      // Check for #include with <header> or "header"
-      const rest = line.slice(hashIndex);
-      const includeMatch = rest.match(
-        /^(#(?:include|define|pragma|ifdef|ifndef|endif|undef))\s*(.*)$/,
-      );
-      if (includeMatch && includeMatch[1]) {
-        tokens.push({ type: "directive", text: includeMatch[1] });
-        if (includeMatch[2]) {
-          const headerPart = includeMatch[2];
-          if (/^[<"][^>"]+[>"]/.test(headerPart.trim())) {
-            tokens.push({ type: "plain", text: " " });
-            tokens.push({ type: "header", text: headerPart.trim() });
-          } else {
-            tokens.push({ type: "plain", text: " " + headerPart });
-          }
+    // Directives for C / C++ (#include, #define) or Java (import / package)
+    if (!isPython) {
+      const trimmed = line.trimStart();
+      if (trimmed.startsWith("#")) {
+        const hashIndex = line.indexOf("#");
+        if (hashIndex > 0) {
+          tokens.push({ type: "plain", text: line.slice(0, hashIndex) });
         }
-        return tokens;
+        const rest = line.slice(hashIndex);
+        const includeMatch = rest.match(
+          /^(#(?:include|define|pragma|ifdef|ifndef|endif|undef))\s*(.*)$/,
+        );
+        if (includeMatch && includeMatch[1]) {
+          tokens.push({ type: "directive", text: includeMatch[1] });
+          if (includeMatch[2]) {
+            const headerPart = includeMatch[2];
+            if (/^[<"][^>"]+[>"]/.test(headerPart.trim())) {
+              tokens.push({ type: "plain", text: " " });
+              tokens.push({ type: "header", text: headerPart.trim() });
+            } else {
+              tokens.push({ type: "plain", text: " " + headerPart });
+            }
+          }
+          return tokens;
+        }
+      } else if (isJava && /^(import|package)\s+/.test(trimmed)) {
+        const match = trimmed.match(/^(import|package)\s+([^;]+)(;?)/);
+        if (match && match[1] && match[2]) {
+          tokens.push({ type: "directive", text: match[1] });
+          tokens.push({ type: "plain", text: " " });
+          tokens.push({ type: "header", text: match[2] });
+          if (match[3]) tokens.push({ type: "operator", text: match[3] });
+          return tokens;
+        }
       }
     }
 
@@ -253,14 +372,20 @@ function tokenizeCpp(code: string): Token[][] {
       const char = line[i] ?? "";
       const nextChar = line[i + 1] ?? "";
 
-      // Line comment //
-      if (char === "/" && nextChar === "/") {
+      // Python comments #
+      if (isPython && char === "#") {
         tokens.push({ type: "comment", text: line.slice(i) });
         break;
       }
 
-      // Block comment /* ... */
-      if (char === "/" && nextChar === "*") {
+      // C/C++/Java line comment //
+      if (!isPython && char === "/" && nextChar === "/") {
+        tokens.push({ type: "comment", text: line.slice(i) });
+        break;
+      }
+
+      // C/C++/Java block comment /* ... */
+      if (!isPython && char === "/" && nextChar === "*") {
         const endComment = line.indexOf("*/", i + 2);
         if (endComment !== -1) {
           tokens.push({ type: "comment", text: line.slice(i, endComment + 2) });
@@ -272,8 +397,12 @@ function tokenizeCpp(code: string): Token[][] {
         }
       }
 
-      // String literal "..."
+      // String literal "..." or Python """..."""
       if (char === '"') {
+        if (isPython && line.slice(i, i + 3) === '"""') {
+          tokens.push({ type: "string", text: line.slice(i) });
+          break;
+        }
         let str = '"';
         i++;
         while (i < line.length && (line[i] ?? "") !== '"') {
@@ -295,8 +424,12 @@ function tokenizeCpp(code: string): Token[][] {
         continue;
       }
 
-      // Char literal '.'
+      // Char literal '.' or Python single quoted string '...'
       if (char === "'") {
+        if (isPython && line.slice(i, i + 3) === "'''") {
+          tokens.push({ type: "string", text: line.slice(i) });
+          break;
+        }
         let chStr = "'";
         i++;
         while (i < line.length && (line[i] ?? "") !== "'") {
@@ -314,7 +447,7 @@ function tokenizeCpp(code: string): Token[][] {
           chStr += "'";
           i++;
         }
-        tokens.push({ type: "char", text: chStr });
+        tokens.push({ type: isPython ? "string" : "char", text: chStr });
         continue;
       }
 
@@ -365,11 +498,11 @@ function tokenizeCpp(code: string): Token[][] {
           isFuncCall = true;
         }
 
-        if (CPP_KEYWORDS.has(word)) {
+        if (keywords.has(word)) {
           tokens.push({ type: "keyword", text: word });
-        } else if (CPP_TYPES.has(word)) {
+        } else if (types.has(word)) {
           tokens.push({ type: "type", text: word });
-        } else if (CPP_STD_OBJECTS.has(word)) {
+        } else if (stdObjects.has(word)) {
           tokens.push({ type: "std", text: word });
         } else if (CPP_FUNCTIONS.has(word) || isFuncCall) {
           tokens.push({ type: "function", text: word });
@@ -398,6 +531,10 @@ function tokenizeCpp(code: string): Token[][] {
 
     return tokens;
   });
+}
+
+function tokenizeCpp(code: string): Token[][] {
+  return tokenizeCode(code, "cpp");
 }
 
 // Token CSS classes based on active theme
@@ -616,6 +753,7 @@ export function CppCodeEditor({
   githubLoading,
   loading = false,
   disabled = false,
+  language = "cpp",
 }: CppCodeEditorProps) {
   const { mode } = useThemeColor();
   const isLight = mode === "light";
@@ -663,7 +801,7 @@ export function CppCodeEditor({
   };
 
   // Tokenize code
-  const tokenizedLines = useMemo(() => tokenizeCpp(code), [code]);
+  const tokenizedLines = useMemo(() => tokenizeCode(code, language), [code, language]);
   const lineCount = tokenizedLines.length;
 
   // Handle Tab key, auto-closing brackets, and auto-indentation on Enter
@@ -758,23 +896,31 @@ export function CppCodeEditor({
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
-      toast.success("C++ code copied to clipboard!");
+      toast.success("Code copied to clipboard!");
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy code");
     }
   };
 
-  // Download .cpp file
+  // Download code file
   const handleDownload = () => {
+    const extensionMap: Record<SupportedLanguage, string> = {
+      cpp: "cpp",
+      c: "c",
+      java: "java",
+      python: "py",
+    };
+    const ext = extensionMap[language] || "cpp";
+    const filename = language === "java" ? "Main.java" : `solution.${ext}`;
     const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "solution.cpp";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Downloaded solution.cpp");
+    toast.success(`Downloaded ${filename}`);
   };
 
   // Format code (Simple auto-indentation)
@@ -801,7 +947,7 @@ export function CppCodeEditor({
       .join("\n");
 
     onChange(formatted);
-    toast.success("Auto-formatted C++ code!");
+    toast.success("Auto-formatted code!");
   };
 
   // Insert quick snippets
@@ -838,13 +984,15 @@ export function CppCodeEditor({
         {/* Editor Title & Status + Direct Run Button */}
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 text-primary shadow-inner font-black text-xs font-mono">
-            C++
+            {language === "cpp" ? "C++" : language === "c" ? "C" : language === "java" ? "Java" : "Py"}
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-2.5">
-              <span className="font-mono text-[13px] font-bold text-foreground/90">main.cpp</span>
+              <span className="font-mono text-[13px] font-bold text-foreground/90">
+                {language === "cpp" ? "main.cpp" : language === "c" ? "main.c" : language === "java" ? "Main.java" : "main.py"}
+              </span>
               <span className="rounded-full bg-primary/15 border border-primary/30 px-2 py-0.5 font-mono text-[9px] font-black tracking-wider uppercase text-primary shadow-[0_0_10px_-2px_rgba(var(--primary),0.4)]">
-                C++20
+                {language === "cpp" ? "C++20" : language === "c" ? "C17" : language === "java" ? "Java 25" : "Python 3.12"}
               </span>
             </div>
             <span className="text-[10px] text-muted-foreground/80 font-mono tracking-tight mt-0.5">
@@ -1014,102 +1162,21 @@ export function CppCodeEditor({
         </div>
       </div>
 
-      {/* Quick C++ Snippets Bar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/40 bg-card/20 px-4 py-3 text-xs backdrop-blur-sm">
+      {/* Quick Snippets Bar */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/40 bg-card/20 px-4 py-3 text-xs backdrop-blur-sm overflow-x-auto scrollbar-thin">
         <span className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mr-2 shrink-0">
           <Sparkles className="size-3 text-primary/80" /> Snippets
         </span>
-        <button
-          type="button"
-          onClick={() => insertSnippet("cout <<  << endl;")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          cout &lt;&lt; endl;
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("cin >> ;")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          cin &gt;&gt;
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("vector<int> nums;")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          vector&lt;int&gt;
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("for (int i = 0; i < n; ++i) {\n    \n}")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          for loop
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("unordered_map<int, int> mp;")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          unordered_map
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("priority_queue<int, vector<int>, greater<int>> minPq;")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          min-heap
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("sort(nums.begin(), nums.end());")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          sort()
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("reverse(nums.begin(), nums.end());")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          reverse()
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("for (auto const& [key, val] : mp) {\n    \n}")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          map iter
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("vector<vector<int>> matrix(rows, vector<int>(cols, 0));")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          2D vector
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("if (condition) {\n    \n} else {\n    \n}")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          if-else
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("while (condition) {\n    \n}")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          while loop
-        </button>
-        <button
-          type="button"
-          onClick={() => insertSnippet("ios_base::sync_with_stdio(false);\ncin.tie(NULL);\n")}
-          className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
-        >
-          Fast I/O
-        </button>
+        {(LANGUAGE_SNIPPETS[language] || LANGUAGE_SNIPPETS.cpp).map((snip) => (
+          <button
+            key={snip.label}
+            type="button"
+            onClick={() => insertSnippet(snip.code)}
+            className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
+          >
+            {snip.label}
+          </button>
+        ))}
       </div>
 
       {/* Editor Body: Line numbers + Synchronized Highlight Overlay + Textarea */}

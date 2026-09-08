@@ -20,6 +20,8 @@ import {
   Layers,
   ShieldCheck,
   ChevronRight,
+  RefreshCw,
+  Bug,
 } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,6 +38,59 @@ interface Message {
   modelUsed?: string;
 }
 
+function ChatCodeBlock({
+  language,
+  value,
+}: {
+  language?: string;
+  value: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    toast.success("Code copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const displayLang = (language || "code").toUpperCase();
+
+  return (
+    <div className="my-2.5 rounded-xl overflow-hidden border border-zinc-700/60 bg-zinc-950 text-zinc-100 shadow-md">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900/90 border-b border-zinc-800 text-[10px] font-mono text-zinc-400 select-none">
+        <span className="flex items-center gap-1.5 font-bold text-zinc-300">
+          <Code2 className="size-3 text-primary" />
+          {displayLang}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="flex items-center gap-1 rounded-md px-2 py-0.5 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+          title="Copy code"
+        >
+          {copied ? (
+            <>
+              <Check className="size-3 text-emerald-400" />
+              <span className="text-[10px] text-emerald-400 font-semibold">Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy className="size-3" />
+              <span className="text-[10px]">Copy code</span>
+            </>
+          )}
+        </button>
+      </div>
+      <div className="p-3 overflow-x-auto text-[11px] font-mono leading-relaxed selection:bg-primary/30 scrollbar-thin">
+        <pre className="!m-0 !p-0 bg-transparent whitespace-pre">
+          <code>{value}</code>
+        </pre>
+      </div>
+    </div>
+  );
+}
+
 export function VizcoCloudChatbox() {
   const { isOpen, closeChat, activeContext } = useChat();
   const { user } = useAuth();
@@ -45,7 +100,7 @@ export function VizcoCloudChatbox() {
       id: "vizco_welcome",
       role: "assistant",
       content:
-        "Hello! I am **Vizco Buddy**, your 3D AI companion and Socratic DSA Mentor! ☁️✨\n\nI float beside you across all 1500+ algorithms, the online C++ sandbox, and your interview practice. Ask me about simulation steps, code edge-cases, invariants, or complexity!",
+        "Hello! I am **Vizco Buddy**, your interactive 3D AI companion for DSA.viz.co! ✨\n\nI have complete freedom to help you with anything related to Data Structures & Algorithms—whether you want full optimal code implementations in C++, Python, or Java, step-by-step state traces, Big-O proofs, bug diagnosis, or interview preparation.\n\nAsk me anything or choose a quick prompt below!",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
   ]);
@@ -58,7 +113,7 @@ export function VizcoCloudChatbox() {
     "gemini-3.8-flash" | "gemini-3.5-flash" | "gemini-3.1-pro-preview" | "gemini-3.1-flash-lite"
   >("gemini-3.8-flash");
   const [selectedRole, setSelectedRole] = useState<
-    "interviewer" | "step_doubts" | "evaluator" | "mistake_analyzer"
+    "interviewer" | "solutions" | "step_doubts" | "evaluator" | "mistake_analyzer"
   >("interviewer");
 
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
@@ -101,7 +156,7 @@ export function VizcoCloudChatbox() {
         id: "vizco_cleared",
         role: "assistant",
         content:
-          "Clouds cleared! ☁️ What algorithm puzzle or simulation step can I help guide you through right now?",
+          "Conversation reset! ✨ What algorithm puzzle, code question, or simulation step can I help you with?",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       },
     ]);
@@ -200,7 +255,7 @@ export function VizcoCloudChatbox() {
 
         setMessages((prev) => [...prev, botMsg]);
       } else {
-        // Seamless offline Socratic reply fallback
+        // Offline reply fallback
         const fallbackReply = generateClientOfflineSocraticReply({
           role: selectedRole,
           lastUserMessage: text,
@@ -210,7 +265,7 @@ export function VizcoCloudChatbox() {
         const fallbackMsg: Message = {
           id: "bot_offline_" + Date.now(),
           role: "assistant",
-          content: fallbackReply + "\n\n*Note: Operating in local cloud Socratic mode.*",
+          content: fallbackReply + "\n\n*Note: Operating in offline fallback mode.*",
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           modelUsed: "vizco-offline-companion",
         };
@@ -227,7 +282,7 @@ export function VizcoCloudChatbox() {
       const errMsg: Message = {
         id: "err_" + Date.now(),
         role: "assistant",
-        content: fallbackReply + "\n\n*Note: Local cloud mentor response.*",
+        content: fallbackReply + "\n\n*Note: Local offline assistant response.*",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         modelUsed: "vizco-offline-companion",
       };
@@ -244,7 +299,13 @@ export function VizcoCloudChatbox() {
     }
   };
 
-  // Generate contextual quick-action cloud chips
+  const handleRegenerate = async () => {
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUserMsg || loading) return;
+    await handleSendMessage(lastUserMsg.content);
+  };
+
+  // Generate contextual quick-action chips
   const getContextualChips = () => {
     const chips: { label: string; prompt: string; role?: typeof selectedRole }[] = [];
 
@@ -252,57 +313,87 @@ export function VizcoCloudChatbox() {
       const stepIdx = activeContext.currentStep + 1;
       chips.push({
         label: "🔍 Explain Step " + stepIdx,
-        prompt: "Can you explain what happens in Step " + stepIdx + " and why the pointers or state changed?",
+        prompt: `Can you explain what happens in Step ${stepIdx} and why the pointers or state changed?`,
         role: "step_doubts",
       });
       chips.push({
-        label: "🧠 Invariant check",
-        prompt: "What invariant is this algorithm maintaining at Step " + stepIdx + "?",
-        role: "interviewer",
+        label: "🔄 Invariant check",
+        prompt: `What invariant is maintained across Step ${stepIdx}?`,
+        role: "step_doubts",
       });
     }
 
     if (activeContext?.problemTitle) {
       chips.push({
-        label: "💡 Socratic hint",
-        prompt: "Can you provide a gentle Socratic nudge for " + activeContext.problemTitle + " without revealing the direct solution?",
+        label: "⚡ Optimal C++ Code",
+        prompt: `Can you give me the optimal C++ solution for ${activeContext.problemTitle} with clear code and complexity analysis?`,
+        role: "solutions",
+      });
+      chips.push({
+        label: "🐍 Python Solution",
+        prompt: `Can you provide the clean, optimal Python solution for ${activeContext.problemTitle}?`,
+        role: "solutions",
+      });
+      chips.push({
+        label: "💡 Core Intuition",
+        prompt: `What is the core intuition, mental model, and algorithmic pattern behind ${activeContext.problemTitle}?`,
         role: "interviewer",
       });
       chips.push({
-        label: "⚡ Edge cases & traps",
-        prompt: "What are the top edge cases (empty, duplicates, extreme bounds) for " + activeContext.problemTitle + "?",
+        label: "⚠️ Edge Cases & Traps",
+        prompt: `What are the top edge cases, boundary conditions, and common pitfalls for ${activeContext.problemTitle}?`,
         role: "mistake_analyzer",
+      });
+      chips.push({
+        label: "📊 Complexity Breakdown",
+        prompt: `Can you analyze the exact Time and Space complexities for the optimal approach to ${activeContext.problemTitle}?`,
+        role: "evaluator",
       });
     }
 
-    if (activeContext?.route?.includes("/compiler") || activeContext?.userCode) {
+    if (activeContext?.userCode || activeContext?.route?.includes("/compiler")) {
       chips.push({
-        label: "🛠️ Analyze my code",
-        prompt: "Can you analyze my code for logical pitfalls, off-by-one errors, or memory constraints?",
+        label: "🛠️ Debug My Code",
+        prompt: "Can you analyze my code for bugs, off-by-one errors, memory pitfalls, or syntax mistakes?",
         role: "mistake_analyzer",
+      });
+      chips.push({
+        label: "🚀 Optimize Code",
+        prompt: "Can this code be optimized for better Big-O time or space performance?",
+        role: "evaluator",
       });
     }
 
     if (chips.length === 0) {
       chips.push({
-        label: "✨ How does DSA.viz work?",
-        prompt: "Can you explain how to get the most out of DSA.viz.co visualizers and practice features?",
+        label: "🗺️ Top 10 DSA Patterns",
+        prompt: "What are the top 10 algorithmic patterns every software engineer must master for technical interviews?",
       });
       chips.push({
-        label: "🗺️ Recommend next problem",
-        prompt: "What classic algorithmic problem should I practice next?",
+        label: "💡 Dynamic Programming Guide",
+        prompt: "How can I systematically learn and master Dynamic Programming from 1D to 2D state transitions?",
       });
       chips.push({
-        label: "📊 Rate my progress",
-        prompt: "Can you review my recent solved problems and rate my consistency?",
+        label: "⚡ Two Pointers vs Sliding Window",
+        prompt: "Explain the key differences between Two Pointers and Sliding Window techniques with examples.",
+      });
+      chips.push({
+        label: "📊 Review My Submissions",
+        prompt: "Can you review my recent solved problems and rate my consistency and progress?",
         role: "evaluator",
       });
     }
 
-    return chips.slice(0, 4);
+    return chips.slice(0, 5);
   };
 
-  if (!isOpen) return null;
+  const ROLES = [
+    { id: "interviewer" as const, label: "💡 Coach", desc: "Intuition & Guidance" },
+    { id: "solutions" as const, label: "⚡ Solutions", desc: "Optimal Code" },
+    { id: "step_doubts" as const, label: "🔍 Step Doubts", desc: "Visualizer State" },
+    { id: "mistake_analyzer" as const, label: "🛠️ Bug Hunter", desc: "Debug Code" },
+    { id: "evaluator" as const, label: "📊 Reviewer", desc: "Complexity & Rating" },
+  ];
 
   return (
     <AnimatePresence>
@@ -313,41 +404,30 @@ export function VizcoCloudChatbox() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={closeChat}
-          className="fixed inset-0 bg-black/30 backdrop-blur-xs pointer-events-auto sm:hidden"
+          className="fixed inset-0 bg-black/40 backdrop-blur-xs pointer-events-auto sm:hidden"
         />
 
-        {/* Cloud Chatbox Container */}
+        {/* Interactive Chatbox Container */}
         <motion.aside
-          initial={{ opacity: 0, y: 40, scale: 0.92 }}
+          initial={{ opacity: 0, y: 40, scale: 0.94 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 30, scale: 0.94 }}
-          transition={{ type: "spring", stiffness: 280, damping: 25 }}
-          aria-label="Vizco Buddy Cloud Assistant"
-          className={"relative pointer-events-auto flex flex-col bg-card/95 backdrop-blur-3xl border border-primary/25 shadow-[0_20px_70px_-15px_rgba(0,0,0,0.45)] rounded-t-[2.2rem] sm:rounded-[2.5rem] overflow-hidden transition-all duration-300 " +
+          exit={{ opacity: 0, y: 30, scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 300, damping: 26 }}
+          aria-label="Vizco Buddy AI Companion"
+          className={
+            "relative pointer-events-auto flex flex-col bg-card/95 backdrop-blur-3xl border border-primary/25 shadow-[0_20px_70px_-15px_rgba(0,0,0,0.5)] rounded-t-[2rem] sm:rounded-[2rem] overflow-hidden transition-all duration-300 " +
             (isExpanded
-              ? "w-full md:w-[740px] h-[92vh]"
-              : "w-full sm:w-[480px] h-[660px] max-h-[92vh]")}
+              ? "w-full md:w-[760px] h-[92vh]"
+              : "w-full sm:w-[490px] h-[670px] max-h-[92vh]")
+          }
         >
-          {/* Cloud decoration scallops */}
-          <div className="absolute -top-3 left-8 right-8 flex justify-between pointer-events-none opacity-40 dark:opacity-60">
-            <div className="w-20 h-6 rounded-full bg-primary/20 blur-[3px]" />
-            <div className="w-28 h-8 rounded-full bg-accent/20 blur-[4px] -mt-1" />
-            <div className="w-24 h-6 rounded-full bg-primary/20 blur-[3px]" />
-          </div>
+          {/* Glowing Top Accent Border */}
+          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent pointer-events-none" />
 
-          {/* Ethereal Sky & Cloud Ambient Gradient */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-40 dark:opacity-60"
-            style={{
-              backgroundImage:
-                "radial-gradient(ellipse at top left, rgba(var(--primary-rgb, 120, 119, 198), 0.18), transparent 60%), radial-gradient(ellipse at bottom right, rgba(var(--accent-rgb, 244, 114, 182), 0.12), transparent 50%)",
-            }}
-          />
-
-          {/* Cloud Header Bar */}
+          {/* Header Bar */}
           <div className="relative z-10 flex items-center justify-between border-b border-border/70 px-4 sm:px-5 py-3.5 bg-muted/40 backdrop-blur-md shrink-0">
             <div className="flex items-center gap-3">
-              {/* Mini 3D Vizco Buddy on Cloud */}
+              {/* Mini 3D Vizco Buddy */}
               <div className="relative flex size-10 items-center justify-center rounded-2xl bg-primary/15 border border-primary/30 text-primary shadow-xs">
                 <VizcoBuddyAvatar
                   size="sm"
@@ -371,21 +451,24 @@ export function VizcoCloudChatbox() {
                     AI 3D
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                  <span>☁️ Floating beside you</span>
+                <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
+                  <span className="flex items-center gap-1 text-emerald-500 font-semibold">
+                    <span className="size-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                    Live Assistant
+                  </span>
                   <span>•</span>
-                  <span>Zero-spoilers coach</span>
+                  <span>Interactive DSA Intelligence</span>
                 </p>
               </div>
             </div>
 
-            {/* Header Window Controls */}
+            {/* Window Controls */}
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={handleClearChat}
-                title="Clear clouds / reset conversation"
-                className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="Reset conversation"
+                className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
               >
                 <RotateCcw className="size-4" />
               </button>
@@ -393,81 +476,60 @@ export function VizcoCloudChatbox() {
                 type="button"
                 onClick={() => setIsExpanded(!isExpanded)}
                 title={isExpanded ? "Collapse width" : "Expand width"}
-                className="hidden sm:inline-flex rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="hidden sm:inline-flex rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
               >
                 {isExpanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
               </button>
               <button
                 type="button"
                 onClick={closeChat}
-                title="Return Vizco Buddy to float"
-                className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="Close chat"
+                className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
               >
                 <X className="size-4.5" />
               </button>
             </div>
           </div>
 
-          {/* Role & Model Controls Strip */}
-          <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-4 py-2 bg-background/50 text-xs shrink-0">
-            {/* Role Pills */}
+          {/* Interactive Role Selector Bar */}
+          <div className="relative z-10 flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2 bg-background/60 text-xs shrink-0">
             <div className="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setSelectedRole("interviewer")}
-                className={"px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all " +
-                  (selectedRole === "interviewer"
-                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground")}
-              >
-                ☁️ Socratic Coach
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRole("step_doubts")}
-                className={"px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all " +
-                  (selectedRole === "step_doubts"
-                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground")}
-              >
-                🔍 Step Doubts
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRole("evaluator")}
-                className={"px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all " +
-                  (selectedRole === "evaluator"
-                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground")}
-              >
-                📊 Reviewer
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRole("mistake_analyzer")}
-                className={"px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all " +
-                  (selectedRole === "mistake_analyzer"
-                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground")}
-              >
-                🛠️ Bug Hunter
-              </button>
+              {ROLES.map((r) => {
+                const isActive = selectedRole === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setSelectedRole(r.id)}
+                    className={
+                      "px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all cursor-pointer whitespace-nowrap " +
+                      (isActive
+                        ? "bg-primary text-primary-foreground font-bold shadow-xs scale-100"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground")
+                    }
+                    title={r.desc}
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Model Switcher */}
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value as any)}
-              className="rounded-lg border border-border/70 bg-card px-2 py-1 font-mono text-[10px] text-muted-foreground hover:text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
+              className="rounded-lg border border-border/70 bg-card px-2 py-1 font-mono text-[10px] text-muted-foreground hover:text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer shrink-0"
+              title="Select AI Model"
             >
-              <option value="gemini-3.8-flash">Gemini 3.8 Flash (Fast & Smart)</option>
-              <option value="gemini-3.5-flash">Gemini 3.5 Flash (Balanced)</option>
-              <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Deep Analysis)</option>
-              <option value="gemini-3.1-flash-lite">Gemini 3.1 Lite (Speed)</option>
+              <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+              <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+              <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+              <option value="gemini-3.1-flash-lite">Gemini 3.1 Lite</option>
             </select>
           </div>
 
-          {/* Full Frontend Live Context Banner */}
+          {/* Interactive Active Context Banner */}
           {(activeContext?.problemTitle || activeContext?.currentStep !== undefined || activeContext?.route) && (
             <div className="relative z-10 flex items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-1.5 text-[11px] text-primary shrink-0">
               <div className="flex items-center gap-1.5 truncate">
@@ -475,6 +537,20 @@ export function VizcoCloudChatbox() {
                 <span className="font-semibold truncate">
                   {activeContext.problemTitle || activeContext.problemSlug || "Active on " + (activeContext.route || "DSA.viz")}
                 </span>
+                {activeContext.difficulty && (
+                  <span
+                    className={
+                      "rounded-full border px-1.5 py-0.1 font-mono text-[9px] font-bold uppercase " +
+                      (activeContext.difficulty.toLowerCase() === "easy"
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                        : activeContext.difficulty.toLowerCase() === "hard"
+                        ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                        : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30")
+                    }
+                  >
+                    {activeContext.difficulty}
+                  </span>
+                )}
                 {activeContext.currentStep !== undefined && (
                   <span className="rounded-full bg-primary/20 px-2 py-0.2 font-mono text-[10px] font-bold text-primary">
                     Step {activeContext.currentStep + 1}
@@ -483,20 +559,22 @@ export function VizcoCloudChatbox() {
                 )}
                 {activeContext.userCode && (
                   <span className="rounded-full bg-accent/15 px-2 py-0.2 font-mono text-[9px] font-semibold text-accent">
-                    Code attached
+                    Code attached ({activeContext.userCode.length} chars)
                   </span>
                 )}
               </div>
-              <span className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest shrink-0">
-                Live State Active
+              <span className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest shrink-0 ml-2">
+                Live State
               </span>
             </div>
           )}
 
           {/* Scrollable Messages Thread */}
           <div className="relative z-10 flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-            {messages.map((msg) => {
+            {messages.map((msg, index) => {
               const isUser = msg.role === "user";
+              const isLatestBot = !isUser && index === messages.length - 1;
+
               return (
                 <div
                   key={msg.id}
@@ -512,42 +590,203 @@ export function VizcoCloudChatbox() {
                   </div>
 
                   <div
-                    className={"relative group max-w-[88%] sm:max-w-[84%] " +
+                    className={
+                      "relative group max-w-[90%] sm:max-w-[85%] " +
                       (isUser
-                        ? "rounded-[1.4rem] rounded-tr-xs bg-gradient-to-r from-primary via-primary/95 to-primary/90 text-primary-foreground px-4 py-3 shadow-md shadow-primary/20"
-                        : "rounded-[1.6rem] rounded-tl-xs bg-muted/60 dark:bg-muted/40 border border-primary/20 px-4 py-3.5 text-foreground shadow-sm backdrop-blur-md")}
+                        ? "rounded-2xl rounded-tr-xs bg-gradient-to-r from-primary via-primary/95 to-primary/90 text-primary-foreground px-4 py-3 shadow-md shadow-primary/20"
+                        : "rounded-2xl rounded-tl-xs bg-muted/60 dark:bg-muted/40 border border-border/80 px-4 py-3.5 text-foreground shadow-sm backdrop-blur-md")
+                    }
                   >
                     {!isUser && (
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(msg.id, msg.content)}
-                        className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md bg-card/80 text-muted-foreground hover:text-foreground border border-border/50"
-                        title="Copy answer"
-                      >
-                        {copiedId === msg.id ? (
-                          <Check className="size-3 text-emerald-500" />
-                        ) : (
-                          <Copy className="size-3" />
+                      <div className="absolute top-2.5 right-2.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isLatestBot && !loading && (
+                          <button
+                            type="button"
+                            onClick={handleRegenerate}
+                            className="p-1 rounded-md bg-card/80 text-muted-foreground hover:text-foreground border border-border/50 transition-colors cursor-pointer"
+                            title="Regenerate response"
+                          >
+                            <RefreshCw className="size-3" />
+                          </button>
                         )}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(msg.id, msg.content)}
+                          className="p-1 rounded-md bg-card/80 text-muted-foreground hover:text-foreground border border-border/50 transition-colors cursor-pointer"
+                          title="Copy message"
+                        >
+                          {copiedId === msg.id ? (
+                            <Check className="size-3 text-emerald-500" />
+                          ) : (
+                            <Copy className="size-3" />
+                          )}
+                        </button>
+                      </div>
                     )}
 
                     <div className="prose prose-xs dark:prose-invert max-w-none break-words leading-relaxed">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <ReactMarkdown
+                        components={{
+                          code({ node, inline, className, children, ...props }: any) {
+                            const match = /language-(\w+)/.exec(className || "");
+                            const codeString = String(children).replace(/\n$/, "");
+                            const isMultiline = codeString.includes("\n");
+
+                            if (!inline && (match || isMultiline)) {
+                              return (
+                                <ChatCodeBlock
+                                  language={match ? match[1] : undefined}
+                                  value={codeString}
+                                />
+                              );
+                            }
+
+                            return (
+                              <code
+                                className="rounded-md bg-primary/10 border border-primary/20 px-1.5 py-0.5 font-mono text-[11px] text-primary font-semibold"
+                                {...props}
+                              >
+                                {children}
+                              </code>
+                            );
+                          },
+                          table({ children }) {
+                            return (
+                              <div className="my-2 overflow-x-auto rounded-lg border border-border/70">
+                                <table className="min-w-full divide-y divide-border/60 text-left text-[11px]">
+                                  {children}
+                                </table>
+                              </div>
+                            );
+                          },
+                          th({ children }) {
+                            return <th className="bg-muted/70 px-3 py-1.5 font-bold">{children}</th>;
+                          },
+                          td({ children }) {
+                            return <td className="border-t border-border/50 px-3 py-1.5">{children}</td>;
+                          },
+                          blockquote({ children }) {
+                            return (
+                              <blockquote className="my-2 border-l-2 border-primary/60 bg-primary/5 pl-3 py-1 italic text-muted-foreground rounded-r-md">
+                                {children}
+                              </blockquote>
+                            );
+                          },
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 </div>
               );
             })}
 
+            {/* Quick Starter Cards on Welcome Message */}
+            {messages.length === 1 && messages[0]?.id === "vizco_welcome" && (
+              <div className="pt-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Interactive Prompts
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole("solutions");
+                      handleSendMessage(
+                        activeContext?.problemTitle
+                          ? `Show me the optimal solution for "${activeContext.problemTitle}" with clean code and Big-O complexity.`
+                          : "Can you provide the optimal solution template for Two Pointers in C++?"
+                      );
+                    }}
+                    className="flex flex-col items-start p-3 rounded-xl border border-primary/20 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-foreground group-hover:text-primary">
+                      <Code2 className="size-3.5 text-primary" />
+                      <span>{activeContext?.problemTitle ? "Optimal Code & Solution" : "Algorithm Solution"}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {activeContext?.problemTitle
+                        ? `Full optimal implementation for ${activeContext.problemTitle}`
+                        : "Clean code with time & space complexity"}
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole("interviewer");
+                      handleSendMessage(
+                        activeContext?.problemTitle
+                          ? `Can you explain the intuition and underlying pattern for "${activeContext.problemTitle}"?`
+                          : "What are the top 10 most critical algorithmic patterns for coding interviews?"
+                      );
+                    }}
+                    className="flex flex-col items-start p-3 rounded-xl border border-primary/20 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-foreground group-hover:text-primary">
+                      <Brain className="size-3.5 text-accent" />
+                      <span>Core Intuition & Pattern</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Mental model, invariant, and trade-off comparison
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole("mistake_analyzer");
+                      handleSendMessage(
+                        activeContext?.problemTitle
+                          ? `What are the most common edge cases, traps, and off-by-one errors for "${activeContext.problemTitle}"?`
+                          : "What are the most common off-by-one errors in binary search and two pointers?"
+                      );
+                    }}
+                    className="flex flex-col items-start p-3 rounded-xl border border-primary/20 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-foreground group-hover:text-primary">
+                      <Bug className="size-3.5 text-rose-500" />
+                      <span>Edge Cases & Bug Traps</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Boundary guards, integer overflow, and indexing pitfalls
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole("evaluator");
+                      handleSendMessage(
+                        activeContext?.problemTitle
+                          ? `Can you break down the Time and Space complexity for "${activeContext.problemTitle}"?`
+                          : "How do you systematically analyze time and space complexity with Big-O?"
+                      );
+                    }}
+                    className="flex flex-col items-start p-3 rounded-xl border border-primary/20 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-foreground group-hover:text-primary">
+                      <Activity className="size-3.5 text-emerald-500" />
+                      <span>Complexity & Big-O</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Rigorous asymptotic analysis and space optimizations
+                    </p>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Interactive Loading Indicator */}
             {loading && (
               <div className="flex flex-col items-start gap-1">
                 <div className="flex items-center gap-1.5 px-1.5 text-[10px] text-muted-foreground">
-                  <span className="font-semibold">Vizco Buddy</span>
+                  <span className="font-semibold text-primary">Vizco Buddy</span>
                   <span>•</span>
-                  <span>thinking in clouds...</span>
+                  <span>analyzing...</span>
                 </div>
-                <div className="rounded-[1.4rem] rounded-tl-xs bg-muted/60 border border-primary/20 px-4 py-3 text-foreground flex items-center gap-2.5 shadow-sm">
+                <div className="rounded-2xl rounded-tl-xs bg-muted/60 border border-primary/20 px-4 py-3 text-foreground flex items-center gap-3 shadow-sm">
                   <div className="flex space-x-1.5">
                     <div className="size-2 rounded-full bg-primary animate-bounce"></div>
                     <div
@@ -560,7 +799,13 @@ export function VizcoCloudChatbox() {
                     ></div>
                   </div>
                   <span className="text-[11px] text-muted-foreground font-mono">
-                    Synthesizing Socratic insight...
+                    {selectedRole === "solutions"
+                      ? "Formulating optimal solution & code..."
+                      : selectedRole === "step_doubts"
+                      ? "Tracing simulation step & pointer transitions..."
+                      : selectedRole === "mistake_analyzer"
+                      ? "Inspecting logic & hunting edge-case traps..."
+                      : "Synthesizing algorithmic insight..."}
                   </span>
                 </div>
               </div>
@@ -568,8 +813,8 @@ export function VizcoCloudChatbox() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Cloud Quick-Chip Suggestions */}
-          <div className="relative z-10 px-4 py-1.5 bg-background/40 border-t border-border/40 shrink-0 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+          {/* Contextual Quick-Chip Suggestions */}
+          <div className="relative z-10 px-4 py-1.5 bg-background/50 border-t border-border/40 shrink-0 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
             {getContextualChips().map((chip, idx) => (
               <button
                 key={idx}
@@ -586,22 +831,67 @@ export function VizcoCloudChatbox() {
             ))}
           </div>
 
-          {/* Cloud Pill Input Composer */}
+          {/* Interactive Input Composer */}
           <div className="relative z-10 p-3 sm:p-4 bg-muted/40 border-t border-border/60 shrink-0">
+            {/* Quick Language Helpers */}
+            <div className="mb-1.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className="font-mono text-[9px] opacity-70">Ask in:</span>
+              {["C++", "Python", "Java", "JavaScript"].map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => {
+                    setSelectedRole("solutions");
+                    setInputText((prev) =>
+                      prev.trim()
+                        ? `${prev} in ${lang}`
+                        : `Show optimal solution for ${activeContext?.problemTitle || "this problem"} in ${lang}`
+                    );
+                    inputRef.current?.focus();
+                  }}
+                  className="rounded-md border border-border/60 bg-card/60 px-1.5 py-0.5 font-mono text-[9px] hover:border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                >
+                  +{lang}
+                </button>
+              ))}
+            </div>
+
             <div className="relative flex items-end gap-2 rounded-2xl border border-primary/30 bg-background/90 p-1.5 shadow-inner transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
               <textarea
                 ref={inputRef}
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={(e) => {
+                  setInputText(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                }}
                 onKeyDown={handleKeyDown}
                 placeholder={
-                  selectedRole === "step_doubts"
-                    ? "Ask Vizco about this simulation step or variable change..."
-                    : "Ask Vizco Buddy anything about DSA, complexity, or edge cases..."
+                  selectedRole === "solutions"
+                    ? "Ask for full optimal code, templates, or implementations in any language..."
+                    : selectedRole === "step_doubts"
+                    ? "Ask about this simulation step, pointer transition, or variable state..."
+                    : selectedRole === "mistake_analyzer"
+                    ? "Ask to debug code, fix bugs, or inspect edge-case traps..."
+                    : selectedRole === "evaluator"
+                    ? "Ask to analyze time/space complexity or score a solution..."
+                    : "Ask Vizco Buddy anything about DSA, solutions, complexity, or edge cases..."
                 }
                 rows={1}
                 className="flex-1 max-h-32 min-h-[38px] resize-none bg-transparent px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-hidden leading-relaxed"
               />
+
+              {inputText.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setInputText("")}
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+                  title="Clear input"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => handleSendMessage()}
@@ -609,12 +899,17 @@ export function VizcoCloudChatbox() {
                 className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 cursor-pointer"
                 title="Send message (Enter)"
               >
-                <Send className="size-4" />
+                {loading ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <Send className="size-4" />
+                )}
               </button>
             </div>
+
             <div className="mt-1.5 flex items-center justify-between px-1 text-[9px] text-muted-foreground font-mono">
               <span>Press Enter to send, Shift+Enter for new line</span>
-              <span className="hidden sm:inline">☁️ Full Website Context Aware</span>
+              <span className="hidden sm:inline">⚡ Context Aware & Live Sync</span>
             </div>
           </div>
         </motion.aside>

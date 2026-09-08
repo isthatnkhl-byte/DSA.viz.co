@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Package,
   Search,
@@ -13,34 +13,70 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CPP_DSA_HEADERS } from "@/lib/compiler-headers";
-import type { CppHeaderDoc } from "@/lib/compiler.types";
+import { getHeadersForLanguage } from "@/lib/compiler-headers";
+import type { CppHeaderDoc, SupportedLanguage } from "@/lib/compiler.types";
 import { toast } from "sonner";
 
 interface CppPackageExplorerProps {
   onInsertHeader: (headerInclude: string) => void;
   onLoadSnippet: (snippet: string) => void;
+  language?: SupportedLanguage;
 }
 
-export function CppPackageExplorer({ onInsertHeader, onLoadSnippet }: CppPackageExplorerProps) {
+export function CppPackageExplorer({
+  onInsertHeader,
+  onLoadSnippet,
+  language = "cpp",
+}: CppPackageExplorerProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedHeader, setExpandedHeader] = useState<string | null>("iostream");
+  const allHeaders = useMemo(() => getHeadersForLanguage(language), [language]);
+  const [expandedHeader, setExpandedHeader] = useState<string | null>(allHeaders[0]?.name || null);
+
+  // Sync expanded header when language changes
+  useEffect(() => {
+    setExpandedHeader(allHeaders[0]?.name || null);
+  }, [allHeaders]);
 
   const filteredHeaders = useMemo(() => {
-    if (!searchQuery.trim()) return CPP_DSA_HEADERS;
+    if (!searchQuery.trim()) return allHeaders;
     const q = searchQuery.toLowerCase();
-    return CPP_DSA_HEADERS.filter(
+    return allHeaders.filter(
       (h) =>
         h.name.toLowerCase().includes(q) ||
         h.description.toLowerCase().includes(q) ||
         h.dsaUseCases.some((u) => u.toLowerCase().includes(q)) ||
         h.commonFunctions.some((f) => f.name.toLowerCase().includes(q)),
     );
-  }, [searchQuery]);
+  }, [searchQuery, allHeaders]);
 
   const toggleExpand = (name: string) => {
     setExpandedHeader(expandedHeader === name ? null : name);
   };
+
+  const languageLabels: Record<SupportedLanguage, { title: string; subtitle: string; tag: string }> = {
+    cpp: {
+      title: "C++ DSA Libraries & STL",
+      subtitle: "Standard headers & containers for competitive programming",
+      tag: "Headers",
+    },
+    c: {
+      title: "C Standard Libraries",
+      subtitle: "Core C headers & memory utilities for DSA problem solving",
+      tag: "Headers",
+    },
+    java: {
+      title: "Java Collections & Packages",
+      subtitle: "Standard collections framework & I/O classes",
+      tag: "Packages",
+    },
+    python: {
+      title: "Python DSA Modules & Libs",
+      subtitle: "Built-in algorithmic data structures & standard modules",
+      tag: "Modules",
+    },
+  };
+
+  const activeLabel = languageLabels[language] || languageLabels.cpp;
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border/50 bg-card/40 p-5 shadow-lg backdrop-blur-2xl">
@@ -52,16 +88,16 @@ export function CppPackageExplorer({ onInsertHeader, onLoadSnippet }: CppPackage
           </div>
           <div>
             <h3 className="font-mono text-sm font-bold text-foreground tracking-tight">
-              C++ DSA Libraries &amp; Packages
+              {activeLabel.title}
             </h3>
             <p className="text-[10px] text-muted-foreground/80 font-medium">
-              Standard headers for raw DSA problem practice
+              {activeLabel.subtitle}
             </p>
           </div>
         </div>
 
         <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
-          {CPP_DSA_HEADERS.length} Packages
+          {allHeaders.length} {activeLabel.tag}
         </span>
       </div>
 
@@ -101,7 +137,7 @@ export function CppPackageExplorer({ onInsertHeader, onLoadSnippet }: CppPackage
                     <ChevronRight className="size-3.5 text-muted-foreground" />
                   )}
                   <code className="font-mono text-xs font-bold text-foreground">
-                    &lt;{header.name}&gt;
+                    {language === "cpp" || language === "c" ? `<${header.name}>` : header.name}
                   </code>
                 </div>
 
@@ -113,10 +149,10 @@ export function CppPackageExplorer({ onInsertHeader, onLoadSnippet }: CppPackage
                       onInsertHeader(header.include);
                       toast.success(`Inserted ${header.include}`);
                     }}
-                    title="Insert #include at top"
+                    title={language === "python" || language === "java" ? "Insert import at top" : "Insert #include at top"}
                     className="h-6 px-2 text-[10px] font-mono text-primary hover:bg-primary/15"
                   >
-                    <Plus className="mr-0.5 size-2.5" /> Include
+                    <Plus className="mr-0.5 size-2.5" /> {language === "python" || language === "java" ? "Import" : "Include"}
                   </Button>
                 </div>
               </div>
@@ -164,12 +200,12 @@ export function CppPackageExplorer({ onInsertHeader, onLoadSnippet }: CppPackage
                     size="sm"
                     onClick={() => {
                       onLoadSnippet(header.exampleSnippet);
-                      toast.info(`Loaded <${header.name}> practice example`);
+                      toast.info(`Loaded ${header.name} practice example`);
                     }}
                     className="mt-1 h-7 w-full gap-1.5 text-xs font-semibold"
                   >
                     <Code2 className="size-3 text-primary" />
-                    <span>Load &lt;{header.name}&gt; Example</span>
+                    <span>Load {header.name} Example</span>
                   </Button>
                 </div>
               )}
@@ -179,7 +215,7 @@ export function CppPackageExplorer({ onInsertHeader, onLoadSnippet }: CppPackage
 
         {filteredHeaders.length === 0 && (
           <div className="p-4 text-center text-xs text-muted-foreground">
-            No matching C++ packages found for &quot;{searchQuery}&quot;
+            No matching items found for &quot;{searchQuery}&quot;
           </div>
         )}
       </div>

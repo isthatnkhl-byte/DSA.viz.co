@@ -1607,7 +1607,7 @@ export const Visualizer = memo(function Visualizer({
                 totalSteps: safeSteps.length,
                 stepDesc: toText(current.desc),
                 stepVariables: current.variables || {},
-                customPrompt: `Can you explain what is happening in Step ${step + 1} of this simulation ("${toText(current.desc)}") without giving away the rest of the algorithm?`,
+                customPrompt: `Can you explain what is happening in Step ${step + 1} of this simulation ("${toText(current.desc)}") and what state transitions are taking place?`,
               });
             }}
             className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 px-2.5 py-1 text-[11px] font-bold text-primary transition-all shadow-xs"

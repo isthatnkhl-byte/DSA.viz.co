@@ -1,7 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateCppSource } from "./compiler/validator";
+import {
+  validateCppSource,
+  validateCSource,
+  validateJavaSource,
+  validatePythonSource,
+  validateSource,
+} from "./compiler/validator";
+import { executeLocalCode } from "./compiler/local-runner";
+import { runSecureCode } from "./compiler/index";
 
+// ==========================================
+// C++ Validation Tests
+// ==========================================
 test("validateCppSource - rejects empty code", () => {
   const res = validateCppSource("");
   assert.ok(res, "Returns error for empty code");
@@ -68,4 +79,278 @@ int main()
   const res = validateCppSource(circleCode);
   assert.equal(res, null, "Circle class structure passes static validation");
 });
+
+// ==========================================
+// C Validation Tests
+// ==========================================
+test("validateCSource - rejects empty code", () => {
+  const res = validateCSource("   ");
+  assert.ok(res);
+  assert.equal(res.status, "compilation_error");
+  assert.equal(res.language, "c");
+});
+
+test("validateCSource - rejects missing main function", () => {
+  const res = validateCSource("int helper(int a) { return a * 2; }");
+  assert.ok(res);
+  assert.equal(res.status, "compilation_error");
+  assert.ok(res.stderr.includes("missing main function"));
+});
+
+test("validateCSource - detects unbalanced braces in C", () => {
+  const res = validateCSource("int main() { int arr[5];");
+  assert.ok(res);
+  assert.equal(res.status, "compilation_error");
+  assert.ok(res.stderr.includes("unbalanced curly braces"));
+});
+
+test("validateCSource - passes valid C source with comments and strings", () => {
+  const code = `
+#include <stdio.h>
+#include <stdlib.h>
+
+// Comment with brace {
+/* Block comment { } */
+int main() {
+    const char *str = "Hello {world}";
+    printf("%s\\n", str);
+    return 0;
+}
+`;
+  const res = validateCSource(code);
+  assert.equal(res, null);
+});
+
+// ==========================================
+// Java Validation Tests
+// ==========================================
+test("validateJavaSource - rejects empty code", () => {
+  const res = validateJavaSource("");
+  assert.ok(res);
+  assert.equal(res.status, "compilation_error");
+  assert.equal(res.language, "java");
+});
+
+test("validateJavaSource - rejects code without class declaration", () => {
+  const code = `
+public static void main(String[] args) {
+    System.out.println("No class");
+}
+`;
+  const res = validateJavaSource(code);
+  assert.ok(res);
+  assert.equal(res.status, "compilation_error");
+  assert.ok(res.stderr.includes("class, interface, enum, or record expected"));
+});
+
+test("validateJavaSource - rejects code without main method", () => {
+  const code = `
+public class Solution {
+    public int add(int a, int b) {
+        return a + b;
+    }
+}
+`;
+  const res = validateJavaSource(code);
+  assert.ok(res);
+  assert.equal(res.status, "compilation_error");
+  assert.ok(res.stderr.includes("Main method not found"));
+});
+
+test("validateJavaSource - passes valid Java program with main", () => {
+  const code = `
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        List<Integer> list = new ArrayList<>();
+        list.add(42);
+        System.out.println("Value: " + list.get(0));
+    }
+}
+`;
+  const res = validateJavaSource(code);
+  assert.equal(res, null);
+});
+
+// ==========================================
+// Python Validation Tests
+// ==========================================
+test("validatePythonSource - rejects empty code", () => {
+  const res = validatePythonSource("   \n  \t ");
+  assert.ok(res);
+  assert.equal(res.status, "compilation_error");
+  assert.equal(res.language, "python");
+});
+
+test("validatePythonSource - detects unclosed parentheses", () => {
+  const code = `
+def solve(nums):
+    result = [x * 2 for x in nums (
+    return result
+`;
+  const res = validatePythonSource(code);
+  assert.ok(res);
+  assert.equal(res.status, "compilation_error");
+  assert.ok(res.stderr.includes("unclosed bracket"));
+});
+
+test("validatePythonSource - detects mismatched closing bracket", () => {
+  const code = `
+def solve():
+    pairs = [(1, 2], [3, 4)]
+`;
+  const res = validatePythonSource(code);
+  assert.ok(res);
+  assert.equal(res.status, "compilation_error");
+  assert.ok(res.stderr.includes("unmatched closing bracket"));
+});
+
+test("validatePythonSource - passes valid Python program with comments and quotes", () => {
+  const code = `
+import collections
+
+# Bracket in comment: ) ] }
+"""
+Triple quotes with brackets: ( [ {
+"""
+def two_sum(nums, target):
+    seen = {}
+    for i, num in enumerate(nums):
+        diff = target - num
+        if diff in seen:
+            return [seen[diff], i]
+        seen[num] = i
+    return []
+
+if __name__ == "__main__":
+    print(two_sum([2, 7, 11, 15], 9))
+`;
+  const res = validatePythonSource(code);
+  assert.equal(res, null);
+});
+
+// ==========================================
+// Unified validateSource Dispatcher Tests
+// ==========================================
+test("validateSource - routes validation based on language argument", () => {
+  assert.ok(validateSource("", "c"));
+  assert.ok(validateSource("", "java"));
+  assert.ok(validateSource("", "python"));
+  assert.ok(validateSource("", "cpp"));
+
+  const pyValid = "print('DSA.viz')\n";
+  assert.equal(validateSource(pyValid, "python"), null);
+});
+
+// ==========================================
+// Local Sandboxed Runner Tests (Python, C, Java, C++)
+// ==========================================
+test("executeLocalCode - runs Python code with stdout", async () => {
+  const code = "print(sum([10, 20, 30]))";
+  const res = await executeLocalCode(code, "", "python");
+  assert.equal(res.status, "success");
+  assert.equal(res.exitCode, 0);
+  assert.equal(res.stdout.trim(), "60");
+  assert.equal(res.language, "python");
+});
+
+test("executeLocalCode - handles Python stdin input", async () => {
+  const code = `
+a = int(input())
+b = int(input())
+print(f"SUM={a + b}")
+`;
+  const res = await executeLocalCode(code, "17\n25\n", "python");
+  assert.equal(res.status, "success");
+  assert.equal(res.exitCode, 0);
+  assert.ok(res.stdout.includes("SUM=42"));
+});
+
+test("executeLocalCode - compiles and runs C code with stdin", async () => {
+  const code = `
+#include <stdio.h>
+
+int main() {
+    int x;
+    if (scanf("%d", &x) == 1) {
+        printf("C_RESULT=%d\\n", x * 4);
+    }
+    return 0;
+}
+`;
+  const res = await executeLocalCode(code, "11\n", "c");
+  assert.equal(res.status, "success");
+  assert.equal(res.exitCode, 0);
+  assert.ok(res.stdout.includes("C_RESULT=44"));
+  assert.equal(res.language, "c");
+});
+
+test("executeLocalCode - compiles and runs Java code with stdin", async () => {
+  const code = `
+import java.util.Scanner;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (sc.hasNextInt()) {
+            int val = sc.nextInt();
+            System.out.println("JAVA_RESULT=" + (val * 3));
+        }
+    }
+}
+`;
+  const res = await executeLocalCode(code, "12\n", "java");
+  assert.equal(res.status, "success");
+  assert.equal(res.exitCode, 0);
+  assert.ok(res.stdout.includes("JAVA_RESULT=36"));
+  assert.equal(res.language, "java");
+});
+
+test("executeLocalCode - compiles and runs C++ code with stdin", async () => {
+  const code = `
+#include <iostream>
+
+int main() {
+    int n;
+    if (std::cin >> n) {
+        std::cout << "CPP_RESULT=" << (n * 5) << std::endl;
+    }
+    return 0;
+}
+`;
+  const res = await executeLocalCode(code, "8\n", "cpp");
+  assert.equal(res.status, "success");
+  assert.equal(res.exitCode, 0);
+  assert.ok(res.stdout.includes("CPP_RESULT=40"));
+  assert.equal(res.language, "cpp");
+});
+
+test("runSecureCode - appends stdin assistance hint on runtime EOF", async () => {
+  const pyCode = `
+val = input("Enter number: ")
+print("Val is " + val)
+`;
+  const res = await runSecureCode(pyCode, "", "python");
+  assert.equal(res.status, "runtime_error");
+  assert.ok(res.stderr.includes("[DSA.viz Input Notice]"));
+  assert.ok(res.stderr.includes("input()"));
+});
+
+test("runSecureCode - appends stdin assistance hint on C++ empty stdin success", async () => {
+  const cppCode = `
+#include <iostream>
+int main() {
+    int x = 0;
+    std::cin >> x;
+    std::cout << "Value: " << x << std::endl;
+    return 0;
+}
+`;
+  const res = await runSecureCode(cppCode, "", "cpp");
+  assert.equal(res.status, "success");
+  assert.ok(res.stdout.includes("[DSA.viz Input Notice]"));
+  assert.ok(res.stdout.includes("cin >>"));
+});
+
 

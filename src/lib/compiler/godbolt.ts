@@ -34,7 +34,8 @@ interface GodboltResponse {
 export async function executeOnGodbolt(
   code: string,
   stdin = "",
-  compilerId = "g132",
+  compilerId = "g141",
+  userArgs = "-O2 -std=c++20",
 ): Promise<CppExecutionResult> {
   const startTime = Date.now();
   const controller = new AbortController();
@@ -44,7 +45,7 @@ export async function executeOnGodbolt(
     const payload = {
       source: code,
       options: {
-        userArguments: "-O2 -std=c++20",
+        userArguments: userArgs,
         executeParameters: {
           args: [],
           stdin: stdin,

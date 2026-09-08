@@ -14,13 +14,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import type { CppExecutionResult } from "@/lib/compiler.types";
+import type { CppExecutionResult, SupportedLanguage } from "@/lib/compiler.types";
 
 interface CppConsoleProps {
   result: CppExecutionResult | null;
   loading: boolean;
   stdin?: string;
   code?: string;
+  language?: SupportedLanguage;
   onStdinChange: (val: string) => void;
   onClear: () => void;
   onRun: () => void;
@@ -30,6 +31,7 @@ export function CppConsole({
   result,
   loading,
   stdin = "",
+  language = "cpp",
   onStdinChange,
   onClear,
 }: CppConsoleProps) {
@@ -132,12 +134,28 @@ export function CppConsole({
         <Textarea
           value={safeStdin}
           onChange={(e) => onStdinChange(e.target.value)}
-          placeholder="Enter input values for standard cin >> here..."
+          placeholder={
+            language === "c"
+              ? "Enter input values for scanf here..."
+              : language === "java"
+                ? "Enter input values for Scanner / System.in here..."
+                : language === "python"
+                  ? "Enter input values for input() / sys.stdin here..."
+                  : "Enter input values for standard cin >> here..."
+          }
           className="min-h-[180px] max-h-[260px] resize-y rounded-none border-0 bg-transparent p-4 font-mono text-xs leading-relaxed focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/40"
         />
 
         <div className="border-t border-border/40 bg-muted/20 px-4 py-1.5 font-mono text-[10px] text-muted-foreground">
-          Passed to <code className="text-foreground font-semibold">std::cin</code> on Run
+          {language === "c" ? (
+            <>Passed to <code className="text-foreground font-semibold">scanf</code> on Run</>
+          ) : language === "java" ? (
+            <>Passed to <code className="text-foreground font-semibold">Scanner / System.in</code> on Run</>
+          ) : language === "python" ? (
+            <>Passed to <code className="text-foreground font-semibold">input() / sys.stdin</code> on Run</>
+          ) : (
+            <>Passed to <code className="text-foreground font-semibold">std::cin</code> on Run</>
+          )}
         </div>
       </div>
 
@@ -180,7 +198,15 @@ export function CppConsole({
           {loading ? (
             <div className="flex min-h-[140px] flex-col items-center justify-center gap-2 text-muted-foreground">
               <div className="size-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-              <span className="font-mono text-xs text-primary">Executing C++ code...</span>
+              <span className="font-mono text-xs text-primary">
+                {language === "c"
+                  ? "Executing C code..."
+                  : language === "java"
+                    ? "Compiling & executing Java bytecode..."
+                    : language === "python"
+                      ? "Executing Python script..."
+                      : "Executing C++ code..."}
+              </span>
             </div>
           ) : errorText ? (
             <div className="space-y-2">
@@ -223,7 +249,15 @@ export function CppConsole({
               </span>
             )}
           </div>
-          <span>GCC 13.2 (C++20)</span>
+          <span>
+            {language === "c"
+              ? "GCC 14.1 (C17)"
+              : language === "java"
+                ? "OpenJDK 25 (Java 25)"
+                : language === "python"
+                  ? "Python 3.12 (CPython)"
+                  : "GCC 14.1 (C++20)"}
+          </span>
         </div>
       </div>
     </div>

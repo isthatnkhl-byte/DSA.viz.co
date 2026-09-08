@@ -16,7 +16,7 @@ export interface ChatContextPayload {
   route?: string;
   pageTitle?: string;
   activeTab?: string;
-  role?: "interviewer" | "step_doubts" | "evaluator" | "mistake_analyzer" | "general";
+  role?: "interviewer" | "step_doubts" | "evaluator" | "mistake_analyzer" | "general" | "solutions";
   [key: string]: any;
 }
 

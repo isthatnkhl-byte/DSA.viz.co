@@ -1,10 +1,15 @@
-export interface CppExecutionRequest {
+export type SupportedLanguage = "cpp" | "c" | "java" | "python";
+
+export interface CompilerExecutionRequest {
   code: string;
   stdin?: string;
-  compilerVersion?: string; // e.g. "gcc-10.2.0" or "g++-17"
+  language?: SupportedLanguage;
+  compilerVersion?: string; // e.g. "gcc-14.1" or "openjdk-25" or "python-3.12"
 }
 
-export interface CppExecutionResult {
+export type CppExecutionRequest = CompilerExecutionRequest;
+
+export interface CompilerExecutionResult {
   stdout: string;
   stderr: string;
   compile_output?: string;
@@ -14,7 +19,10 @@ export interface CppExecutionResult {
   status: "success" | "compilation_error" | "runtime_error" | "timeout" | "error";
   statusMessage?: string;
   timestamp: string;
+  language?: SupportedLanguage;
 }
+
+export type CppExecutionResult = CompilerExecutionResult;
 
 export interface CppTemplate {
   id: string;
@@ -30,7 +38,10 @@ export interface CppTemplate {
   code: string;
   defaultStdin: string;
   difficulty: "Easy" | "Medium" | "Hard";
+  language?: SupportedLanguage;
 }
+
+export type CompilerTemplate = CppTemplate;
 
 export interface CppHeaderDoc {
   name: string;
@@ -39,6 +50,22 @@ export interface CppHeaderDoc {
   commonFunctions: { name: string; signature: string; desc: string }[];
   exampleSnippet: string;
   dsaUseCases: string[];
+  language?: SupportedLanguage;
+}
+
+export type CompilerPackageDoc = CppHeaderDoc;
+
+export interface LanguageConfig {
+  id: SupportedLanguage;
+  name: string;
+  label: string;
+  version: string;
+  extension: string;
+  monacoLang: string;
+  prismLang: string;
+  defaultTitleSlug: string;
+  storageCodeKey: string;
+  storageStdinKey: string;
 }
 
 export type EditorTheme =
@@ -52,3 +79,4 @@ export type EditorTheme =
   | "monokai"
   | "github-dark"
   | "nord";
+

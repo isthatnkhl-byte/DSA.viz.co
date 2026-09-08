@@ -74,10 +74,10 @@ export function LandingHero() {
 
         {/* Main Action CTAs with Smooth Theme Color Motion */}
         <div className="relative z-20 flex flex-col items-center gap-3.5 pt-2 sm:pt-4 w-full">
-          {/* Row 1: Primary browse button pill with smooth theme transition & ray shimmer */}
+          {/* Row 1: Primary browse button pill with dynamic theme gradient motion */}
           <Link
             to="/problems"
-            className="group relative inline-flex items-center justify-center gap-3 rounded-full bg-gradient-to-r from-primary via-primary/95 to-primary px-8 sm:px-10 py-3.5 text-base sm:text-lg font-sans font-bold tracking-wide text-primary-foreground shadow-xl shadow-primary/25 hover:shadow-2xl hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-500 ease-out overflow-hidden cursor-pointer"
+            className="group relative inline-flex items-center justify-center gap-3 rounded-full btn-moving-theme-gradient px-8 sm:px-10 py-3.5 text-base sm:text-lg font-sans font-bold tracking-wide text-white shadow-xl shadow-primary/25 hover:shadow-2xl hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 overflow-hidden cursor-pointer"
           >
             {/* Ambient Shimmer Light Ray Motion */}
             <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-1000 ease-in-out pointer-events-none" />

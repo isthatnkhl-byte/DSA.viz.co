@@ -31,20 +31,19 @@ export function HeroBrandTitle() {
         {/* Inner Dashed Concentric Ring (matches screenshot) */}
         <div className="absolute -z-10 size-40 sm:size-48 md:size-56 lg:size-64 rounded-full border border-dashed border-primary/30 pointer-events-none" />
 
-        {/* Refined DsavizcoLogo with extended horizontal wingspan & dynamic gradient */}
+        {/* 3D Mascot Logo from reference zip 12 */}
         <motion.div
           initial={{ scale: 0.88, opacity: 0, y: 12 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="relative z-10 text-primary w-36 sm:w-48 md:w-56 lg:w-64 aspect-[144/106] shrink-0 cursor-pointer filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.12)] dark:drop-shadow-[0_12px_28px_rgba(0,0,0,0.45)]"
+          className="relative z-10 text-primary w-36 h-36 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 aspect-[100/110] shrink-0 cursor-pointer filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.12)] dark:drop-shadow-[0_12px_28px_rgba(0,0,0,0.45)]"
         >
           <DsavizcoLogo
             className="w-full h-full"
             interactive={true}
             showShadow={true}
-            showGradient={true}
           />
         </motion.div>
       </div>

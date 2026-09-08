@@ -74,12 +74,12 @@ export function SiteHeader() {
             <div
               className="relative flex size-8 sm:size-9 shrink-0 items-center justify-center transition-transform duration-200 group-hover:scale-105 text-primary"
             >
-              <DsavizcoLogo className="w-full h-full text-primary" showShadow={true} interactive={false} />
+              <DsavizcoLogo className="w-full h-full text-primary transition-transform duration-200 group-hover:rotate-6" />
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
                 <span className="text-base sm:text-lg font-black tracking-tight text-foreground font-display">
-                  dsa<span className="text-primary font-black">.viz.co</span>
+                  dsa<span className="gradient-text">.viz.co</span>
                 </span>
               </div>
               <p className="-mt-0.5 font-mono text-[9px] sm:text-[10px] tracking-tight text-muted-foreground font-semibold">
@@ -132,102 +132,127 @@ export function SiteHeader() {
             <Link
               to="/compiler"
               activeProps={{
-                className: "bg-complement/15 text-complement font-bold border-complement/30 shadow-xs",
+                className: "bg-emerald-500/15 text-emerald-400 font-bold border-emerald-500/30 shadow-xs",
               }}
-              className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all duration-300 hover:bg-secondary hover:text-foreground active:scale-95"
+              className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
             >
-              <Code2 className="size-3.5 text-complement shrink-0" />
+              <Code2 className="size-3.5 text-emerald-400 shrink-0" />
               <span>C++ Compiler</span>
             </Link>
 
             <Link
               to={"/live-interview" as any}
               activeProps={{
-                className: "bg-primary/15 text-primary font-bold border-primary/30 shadow-xs",
-              }}
-              className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all duration-300 hover:bg-secondary hover:text-foreground active:scale-95"
-            >
-              <Video className="size-3.5 text-primary shrink-0" />
-              <span>Interview</span>
-            </Link>
-
-            <Link
-              to="/dashboard"
-              activeProps={{
-                className: "bg-primary/15 text-primary font-bold border-primary/30 shadow-xs",
+                className: "bg-rose-500/15 text-rose-400 font-bold border-rose-500/30 shadow-xs",
               }}
               className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
             >
-              <LayoutDashboard className="size-3.5 text-primary shrink-0" />
-              <span>Dashboard</span>
+              <Video className="size-3.5 text-rose-400 shrink-0" />
+              <span>Interview</span>
             </Link>
           </nav>
 
-          {/* Right: Quick Search, Theme Picker, Account & Menu Button (5 Circular Icon Buttons matching reference) */}
+          {/* Right: Quick Search, Theme Picker, Account & Menu Button */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* 1. Quick Search Button */}
+            {/* Quick Search Button (Both Android & Laptop) */}
             <button
               type="button"
               onClick={() => setSearchModalOpen(true)}
-              className="flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/60 text-muted-foreground hover:border-primary/50 hover:bg-secondary hover:text-foreground transition-all shadow-xs shrink-0"
+              className="flex h-9 sm:h-9.5 items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-2.5 sm:px-3 text-xs font-mono text-muted-foreground hover:border-primary/50 hover:bg-secondary hover:text-foreground transition-all shadow-xs min-w-[38px] justify-center"
               aria-label="Search problems and sheets (⌘K)"
               title="Search (⌘K)"
             >
-              <Search className="size-4 text-foreground/80" />
+              <Search className="size-3.5 text-primary shrink-0" />
+              <span className="hidden sm:inline">Search</span>
+              <kbd className="hidden md:inline-flex items-center gap-0.5 rounded bg-background/80 border border-border/70 px-1 py-0.5 text-[9px] text-muted-foreground">
+                <Command className="size-2.5" /> K
+              </kbd>
             </button>
 
-            {/* 2 & 3. Theme & Mode Picker (Sun/Moon and Palette Circle Buttons) */}
+            {/* Theme & Mode Picker */}
             <div className="flex items-center">
               <ThemeColorPicker align="right" />
             </div>
 
-            {/* 4. User Account / Auth Action (Circular Icon Button) */}
+            {/* User Account / Auth Actions */}
             <div className="flex items-center">
               {user ? (
-                <Link
-                  to="/profile"
-                  className="flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/60 text-muted-foreground transition-all hover:bg-secondary hover:border-primary/40 shadow-xs shrink-0"
-                  title={user.displayName || "Profile & Settings"}
-                >
-                  <UserIcon className="size-4 text-primary" />
-                </Link>
-              ) : (
-                <Link
-                  to="/auth"
-                  className="flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/60 text-muted-foreground transition-all hover:bg-secondary hover:border-primary/40 shadow-xs shrink-0"
-                  title="Sign In / Account"
-                >
-                  <UserIcon className="size-4 text-foreground/80" />
+                <div className="flex items-center gap-1">
+                  <Link
+                    to="/dashboard"
+                    activeProps={{
+                      className: "bg-primary/15 text-primary border-primary/40 shadow-xs font-bold",
+                    }}
+                    className="hidden lg:flex items-center gap-1.5 rounded-xl border border-transparent px-2.5 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
+                  >
+                    <LayoutDashboard className="size-3.5" />
+                    <span>Dashboard</span>
+                  </Link>
+
+                  <Link
+                    to="/profile"
+                    activeProps={{
+                      className: "bg-primary/15 text-primary border-primary/40 shadow-xs font-bold",
+                    }}
+                    className="flex h-9 sm:h-9.5 items-center gap-1.5 rounded-xl border border-border/60 bg-card/60 px-2.5 font-mono text-xs font-medium text-foreground transition-all hover:bg-secondary hover:border-primary/40 shadow-xs"
+                    title="Profile & Settings"
+                  >
+                    <UserIcon className="size-3.5 text-primary" />
+                    <span className="hidden md:inline max-w-[80px] truncate">{user.displayName || "Profile"}</span>
+                  </Link>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={signOut}
+                    aria-label="Sign out"
+                    title="Sign out"
+                    className="hidden sm:flex size-9 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0"
+                  >
+                    <LogOut className="size-3.5" />
+                  </Button>
+                </div>
+              ) : loading ? null : (
+                <Link to="/auth">
+                  <Button
+                    size="sm"
+                    className="h-9 sm:h-9.5 rounded-xl px-3 font-sans text-xs sm:text-sm font-semibold tracking-wide shadow-xs btn-moving-theme-gradient text-white"
+                  >
+                    Sign In
+                  </Button>
                 </Link>
               )}
             </div>
 
-            {/* 5. Comprehensive Menu Trigger Button (Circular Icon Button) */}
+            {/* Comprehensive Menu Trigger Button */}
             <button
               type="button"
               onClick={() => setNavDrawerOpen(true)}
-              className="flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/80 text-foreground hover:border-primary/50 hover:bg-secondary active:scale-95 transition-all shadow-xs cursor-pointer shrink-0"
+              className="flex h-9 sm:h-9.5 px-2.5 sm:px-3 items-center gap-1.5 rounded-xl border border-border/80 bg-card/80 text-foreground hover:border-primary/50 hover:bg-secondary active:scale-95 transition-all shadow-xs cursor-pointer min-w-[40px] justify-center"
               aria-label="Open navigation menu"
               title="Navigation Menu"
             >
-              <Menu className="size-4.5 text-foreground" />
+              <Menu className="size-4.5 text-primary shrink-0" />
+              <span className="font-mono text-xs font-semibold text-foreground hidden sm:inline">
+                Menu
+              </span>
             </button>
           </div>
         </div>
 
-        {/* Android Screen / Mobile Quick-Navigation Strip (Exact match to reference screenshot) */}
+        {/* Android Screen / Mobile Quick-Navigation Strip (Same core features as laptop!) */}
         <nav
           aria-label="Mobile Navigation Strip"
-          className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 border-t border-border/60 bg-background/95 backdrop-blur-md"
+          className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 border-t border-border/40 bg-background/95 backdrop-blur-md"
         >
           <Link
             to="/problems"
             activeProps={{
               className: "bg-primary text-primary-foreground font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-mono text-xs font-semibold text-foreground bg-card/80 border border-border/80 shrink-0 hover:bg-secondary active:scale-95 transition-all shadow-2xs"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[11px] font-medium text-muted-foreground bg-secondary/50 border border-border/50 shrink-0 active:scale-95 transition-all"
           >
-            <Layers className="size-3.5 text-primary shrink-0" />
+            <Layers className="size-3 text-primary shrink-0" />
             <span>Problems</span>
           </Link>
 
@@ -236,9 +261,9 @@ export function SiteHeader() {
             activeProps={{
               className: "bg-primary text-primary-foreground font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-mono text-xs font-semibold text-foreground bg-card/80 border border-border/80 shrink-0 hover:bg-secondary active:scale-95 transition-all shadow-2xs"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[11px] font-medium text-muted-foreground bg-secondary/50 border border-border/50 shrink-0 active:scale-95 transition-all"
           >
-            <BookOpen className="size-3.5 text-primary shrink-0" />
+            <BookOpen className="size-3 text-primary shrink-0" />
             <span>DSA Sheets</span>
           </Link>
 
@@ -247,43 +272,32 @@ export function SiteHeader() {
             activeProps={{
               className: "bg-primary text-primary-foreground font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-mono text-xs font-semibold text-foreground bg-card/80 border border-border/80 shrink-0 hover:bg-secondary active:scale-95 transition-all shadow-2xs"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[11px] font-medium text-muted-foreground bg-secondary/50 border border-border/50 shrink-0 active:scale-95 transition-all"
           >
-            <Sparkles className="size-3.5 text-primary shrink-0" />
+            <Sparkles className="size-3 text-primary shrink-0" />
             <span>Visualizer</span>
           </Link>
 
           <Link
             to="/compiler"
             activeProps={{
-              className: "bg-complement text-complement-foreground font-bold shadow-xs",
+              className: "bg-emerald-500 text-white font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-mono text-xs font-semibold text-foreground bg-card/80 border border-border/80 shrink-0 hover:bg-secondary active:scale-95 transition-all duration-300 shadow-2xs"
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[11px] font-medium text-muted-foreground bg-secondary/50 border border-border/50 shrink-0 active:scale-95 transition-all"
           >
-            <Code2 className="size-3.5 text-complement shrink-0" />
+            <Code2 className="size-3 text-emerald-400 shrink-0" />
             <span>Compiler</span>
           </Link>
 
           <Link
             to={"/live-interview" as any}
             activeProps={{
-              className: "bg-primary text-primary-foreground font-bold shadow-xs",
-            }}
-            className="flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-mono text-xs font-semibold text-foreground bg-card/80 border border-border/80 shrink-0 hover:bg-secondary active:scale-95 transition-all duration-300 shadow-2xs"
-          >
-            <Video className="size-3.5 text-primary shrink-0" />
-            <span>Interview</span>
-          </Link>
-
-          <Link
-            to="/dashboard"
-            activeProps={{
-              className: "bg-primary text-primary-foreground font-bold shadow-xs",
+              className: "bg-rose-500 text-white font-bold shadow-xs",
             }}
             className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[11px] font-medium text-muted-foreground bg-secondary/50 border border-border/50 shrink-0 active:scale-95 transition-all"
           >
-            <LayoutDashboard className="size-3 text-primary shrink-0" />
-            <span>Dashboard</span>
+            <Video className="size-3 text-rose-400 shrink-0" />
+            <span>Interview</span>
           </Link>
         </nav>
       </header>
@@ -522,38 +536,6 @@ export function SiteHeader() {
                     </Link>
                   </div>
                 </div>
-
-                {/* Legal & Privacy Compliance */}
-                <div className="pt-1">
-                  <span className="block px-1 pb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Legal &amp; Privacy
-                  </span>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1 font-mono text-xs text-muted-foreground">
-                    <Link
-                      to="/terms"
-                      onClick={() => setNavDrawerOpen(false)}
-                      className="hover:text-primary transition-colors"
-                    >
-                      Terms of Service
-                    </Link>
-                    <span>•</span>
-                    <Link
-                      to="/privacy"
-                      onClick={() => setNavDrawerOpen(false)}
-                      className="hover:text-primary transition-colors"
-                    >
-                      Privacy Policy
-                    </Link>
-                    <span>•</span>
-                    <Link
-                      to="/cookies"
-                      onClick={() => setNavDrawerOpen(false)}
-                      className="hover:text-primary transition-colors"
-                    >
-                      Cookie Policy
-                    </Link>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -599,6 +581,15 @@ export function SiteHeader() {
                   </Button>
                 </Link>
               )}
+
+              {/* Legal & Privacy Compliance */}
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] font-mono text-muted-foreground pt-1">
+                <Link to="/terms" onClick={() => setNavDrawerOpen(false)} className="hover:text-primary transition-colors">Terms</Link>
+                <span>•</span>
+                <Link to="/privacy" onClick={() => setNavDrawerOpen(false)} className="hover:text-primary transition-colors">Privacy</Link>
+                <span>•</span>
+                <Link to="/cookies" onClick={() => setNavDrawerOpen(false)} className="hover:text-primary transition-colors">Cookies</Link>
+              </div>
 
               <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground px-1">
                 <span>Press Esc to close</span>

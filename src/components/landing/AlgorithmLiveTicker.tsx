@@ -2,32 +2,32 @@ import { Link } from "@tanstack/react-router";
 import { Zap, GitCommit, CheckCircle2, ArrowRight, Play, Terminal } from "lucide-react";
 
 const ALGORITHM_ITEMS = [
-  { text: "Two Sum II", badge: "Two Pointers", color: "text-emerald-400" },
-  { text: "Binary Search", badge: "Divide & Conquer", color: "text-accent" },
-  { text: "Longest Substring", badge: "Sliding Window", color: "text-primary" },
-  { text: "Invert Binary Tree", badge: "Tree DFS", color: "text-amber-400" },
-  { text: "Coin Change", badge: "Dynamic Prog", color: "text-rose-400" },
-  { text: "Course Schedule", badge: "Graph Kahn's", color: "text-accent" },
-  { text: "Trapping Rain Water", badge: "Monotonic Stack", color: "text-teal-400" },
+  { text: "Two Sum II", badge: "Two Pointers", color: "text-complement border-complement/30 bg-complement/10" },
+  { text: "Binary Search", badge: "Divide & Conquer", color: "text-accent border-accent/30 bg-accent/10" },
+  { text: "Longest Substring", badge: "Sliding Window", color: "text-primary border-primary/30 bg-primary/10" },
+  { text: "Invert Binary Tree", badge: "Tree DFS", color: "text-complement border-complement/30 bg-complement/10" },
+  { text: "Coin Change", badge: "Dynamic Prog", color: "text-primary border-primary/30 bg-primary/10" },
+  { text: "Course Schedule", badge: "Graph Kahn's", color: "text-accent border-accent/30 bg-accent/10" },
+  { text: "Trapping Rain Water", badge: "Monotonic Stack", color: "text-complement border-complement/30 bg-complement/10" },
 ];
 
 const COMPANY_ITEMS = [
-  { text: "Google", color: "text-red-400" },
-  { text: "Meta", color: "text-primary" },
-  { text: "Amazon", color: "text-orange-400" },
-  { text: "Netflix", color: "text-red-500" },
-  { text: "Apple", color: "text-gray-300" },
-  { text: "Microsoft", color: "text-green-400" },
-  { text: "Uber", color: "text-foreground" },
-  { text: "Airbnb", color: "text-rose-400" },
+  { text: "Google", color: "text-foreground group-hover/comp:text-primary" },
+  { text: "Meta", color: "text-primary font-black" },
+  { text: "Amazon", color: "text-foreground group-hover/comp:text-complement" },
+  { text: "Netflix", color: "text-primary font-black" },
+  { text: "Apple", color: "text-foreground group-hover/comp:text-accent" },
+  { text: "Microsoft", color: "text-complement font-black" },
+  { text: "Uber", color: "text-foreground group-hover/comp:text-primary" },
+  { text: "Airbnb", color: "text-accent font-black" },
 ];
 
 const CONCEPT_ITEMS = [
-  { text: "l=2, r=3 (6+8=14) → Match Found!", color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" },
+  { text: "l=2, r=3 (6+8=14) → Match Found!", color: "text-complement border-complement/30 bg-complement/10" },
   { text: "mid=3 (nums[3]=12 < 23) → Discard [0..3]", color: "text-accent border-accent/30 bg-accent/10" },
   { text: "seen['b']=true → shrink left window", color: "text-primary border-primary/30 bg-primary/10" },
-  { text: "swap(node.left, node.right)", color: "text-amber-400 border-amber-500/30 bg-amber-500/10" },
-  { text: "dp[11] = min(dp[10], dp[6]) + 1", color: "text-rose-400 border-rose-500/30 bg-rose-500/10" },
+  { text: "swap(node.left, node.right)", color: "text-complement border-complement/30 bg-complement/10" },
+  { text: "dp[11] = min(dp[10], dp[6]) + 1", color: "text-primary border-primary/30 bg-primary/10" },
   { text: "inDegree[curr] == 0 → push to queue", color: "text-accent border-accent/30 bg-accent/10" },
 ];
 

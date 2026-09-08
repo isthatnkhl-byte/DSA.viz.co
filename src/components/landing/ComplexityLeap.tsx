@@ -391,8 +391,8 @@ export function ComplexityLeap() {
             </h2>
 
             <p className="text-sm sm:text-base text-muted-foreground font-sans leading-relaxed">
-              In technical interviews, the jump from <span className="font-mono text-rose-400 font-bold">O(n²)</span> to{" "}
-              <span className="font-mono text-emerald-400 font-bold">O(n)</span> isn&apos;t just about memorizing hash tables—it is about recognizing loop invariants and eliminating redundant state traversal.
+              In technical interviews, the jump from <span className="font-mono text-rose-400 dark:text-rose-400 font-bold">O(n²)</span> to{" "}
+              <span className="font-mono text-complement font-bold">O(n)</span> isn&apos;t just about memorizing hash tables—it is about recognizing loop invariants and eliminating redundant state traversal.
             </p>
 
             <div className="space-y-3 pt-2">

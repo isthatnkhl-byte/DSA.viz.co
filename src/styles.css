@@ -2105,3 +2105,32 @@ html.light .dsavizco-pixel-text {
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
 }
 
+/* Smooth color changing motion for buttons and interactive pills across theme switches */
+button,
+.btn-smooth,
+a[class*="rounded-full"],
+a[class*="rounded-2xl"],
+a[class*="rounded-xl"],
+button[class*="rounded-full"],
+button[class*="rounded-2xl"],
+button[class*="rounded-xl"] {
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-duration: 400ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Subtle continuous ambient button glow breathing motion */
+@keyframes button-glow-motion {
+  0%, 100% {
+    box-shadow: 0 10px 25px -5px var(--glow-primary, rgba(225, 29, 72, 0.25));
+  }
+  50% {
+    box-shadow: 0 14px 35px -2px var(--glow-primary, rgba(225, 29, 72, 0.45));
+  }
+}
+
+.animate-btn-pulse {
+  animation: button-glow-motion 3.5s ease-in-out infinite;
+}
+
+

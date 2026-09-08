@@ -132,22 +132,22 @@ export function SiteHeader() {
             <Link
               to="/compiler"
               activeProps={{
-                className: "bg-emerald-500/15 text-emerald-400 font-bold border-emerald-500/30 shadow-xs",
+                className: "bg-complement/15 text-complement font-bold border-complement/30 shadow-xs",
               }}
-              className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+              className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all duration-300 hover:bg-secondary hover:text-foreground active:scale-95"
             >
-              <Code2 className="size-3.5 text-emerald-400 shrink-0" />
+              <Code2 className="size-3.5 text-complement shrink-0" />
               <span>C++ Compiler</span>
             </Link>
 
             <Link
               to={"/live-interview" as any}
               activeProps={{
-                className: "bg-rose-500/15 text-rose-400 font-bold border-rose-500/30 shadow-xs",
+                className: "bg-primary/15 text-primary font-bold border-primary/30 shadow-xs",
               }}
-              className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95"
+              className="flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 font-mono text-xs font-semibold text-muted-foreground transition-all duration-300 hover:bg-secondary hover:text-foreground active:scale-95"
             >
-              <Video className="size-3.5 text-rose-400 shrink-0" />
+              <Video className="size-3.5 text-primary shrink-0" />
               <span>Interview</span>
             </Link>
 
@@ -256,22 +256,22 @@ export function SiteHeader() {
           <Link
             to="/compiler"
             activeProps={{
-              className: "bg-emerald-500 text-white font-bold shadow-xs",
+              className: "bg-complement text-complement-foreground font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-mono text-xs font-semibold text-foreground bg-card/80 border border-border/80 shrink-0 hover:bg-secondary active:scale-95 transition-all shadow-2xs"
+            className="flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-mono text-xs font-semibold text-foreground bg-card/80 border border-border/80 shrink-0 hover:bg-secondary active:scale-95 transition-all duration-300 shadow-2xs"
           >
-            <Code2 className="size-3.5 text-emerald-500 shrink-0" />
+            <Code2 className="size-3.5 text-complement shrink-0" />
             <span>Compiler</span>
           </Link>
 
           <Link
             to={"/live-interview" as any}
             activeProps={{
-              className: "bg-rose-500 text-white font-bold shadow-xs",
+              className: "bg-primary text-primary-foreground font-bold shadow-xs",
             }}
-            className="flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-mono text-xs font-semibold text-foreground bg-card/80 border border-border/80 shrink-0 hover:bg-secondary active:scale-95 transition-all shadow-2xs"
+            className="flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-mono text-xs font-semibold text-foreground bg-card/80 border border-border/80 shrink-0 hover:bg-secondary active:scale-95 transition-all duration-300 shadow-2xs"
           >
-            <Video className="size-3.5 text-rose-500 shrink-0" />
+            <Video className="size-3.5 text-primary shrink-0" />
             <span>Interview</span>
           </Link>
 

@@ -31,8 +31,8 @@ export function LandingHero() {
           <h1 className="relative z-30 text-3xl sm:text-5xl md:text-6xl lg:text-[4.15rem] font-display font-extrabold tracking-tight text-foreground leading-[1.18] max-w-4xl mx-auto drop-shadow-sm flex flex-col items-center">
             <span>Understand algorithms by</span>
             <span className="relative inline-block z-40 px-1 py-0.5 align-baseline mt-1 sm:mt-2 group/underline">
-              {/* Vibrant Multi-color Gradient Text */}
-              <span className="relative z-20 bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 dark:from-rose-400 dark:via-purple-400 dark:to-indigo-400 bg-clip-text text-transparent font-black tracking-tight select-none">
+              {/* Vibrant Dynamic Theme Gradient Text */}
+              <span className="relative z-20 bg-gradient-to-r from-primary via-complement to-accent bg-clip-text text-transparent font-black tracking-tight select-none transition-all duration-500">
                 watching how they work
               </span>
 
@@ -50,10 +50,11 @@ export function LandingHero() {
                 >
                   <path
                     d="M 2 7 Q 6 1, 10 7 T 18 7 T 26 7 T 34 7 T 42 7 T 50 7 T 58 7 T 66 7 T 74 7 T 82 7 T 90 7 T 98 7 T 106 7 T 114 7 T 122 7 T 130 7 T 138 7 T 146 7 T 154 7 T 162 7 T 170 7 T 178 7 T 186 7 T 194 7 T 202 7 T 210 7 T 218 7 T 226 7 T 234 7 T 242 7 T 250 7 T 258 7 T 266 7 T 274 7 T 282 7 T 290 7 T 298 7 T 306 7 T 314 7 T 322 7 T 330 7 T 338 7 T 346 7 T 354 7 T 362 7 T 370 7 T 378 7"
-                    stroke="var(--hero-wavy-color, #fda4af)"
+                    stroke="var(--hero-wavy-color, var(--primary))"
                     strokeWidth="3.2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    className="transition-colors duration-500"
                   />
                 </svg>
               </span>
@@ -71,32 +72,37 @@ export function LandingHero() {
           Step through code line by line, inspect variable mutations, follow pointer motions, and build lasting structural intuition for technical interviews.
         </p>
 
-        {/* Main Action CTAs (2-tier pill button arrangement exactly matching screenshot) */}
+        {/* Main Action CTAs with Smooth Theme Color Motion */}
         <div className="relative z-20 flex flex-col items-center gap-3.5 pt-2 sm:pt-4 w-full">
-          {/* Row 1: Primary browse button pill */}
+          {/* Row 1: Primary browse button pill with smooth theme transition & ray shimmer */}
           <Link
             to="/problems"
-            className="group relative inline-flex items-center justify-center gap-3 rounded-full bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 px-8 sm:px-10 py-3.5 text-base sm:text-lg font-sans font-bold tracking-wide text-white shadow-xl shadow-rose-600/30 hover:shadow-2xl hover:shadow-rose-600/40 hover:scale-[1.02] active:scale-[0.98] transition-all overflow-hidden"
+            className="group relative inline-flex items-center justify-center gap-3 rounded-full bg-gradient-to-r from-primary via-primary/95 to-primary px-8 sm:px-10 py-3.5 text-base sm:text-lg font-sans font-bold tracking-wide text-primary-foreground shadow-xl shadow-primary/25 hover:shadow-2xl hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-500 ease-out overflow-hidden cursor-pointer"
           >
+            {/* Ambient Shimmer Light Ray Motion */}
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-1000 ease-in-out pointer-events-none" />
+            {/* Dynamic Glow Halo */}
+            <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-primary via-complement to-primary opacity-35 blur-md group-hover:opacity-75 transition-opacity duration-500 -z-10" />
+
             <Layers className="size-5 relative z-10" />
             <span className="relative z-10">Browse 1,500+ Problems</span>
-            <ArrowRight className="size-5 relative z-10 transition-transform group-hover:translate-x-1" />
+            <ArrowRight className="size-5 relative z-10 transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
 
-          {/* Row 2: Secondary buttons side by side */}
+          {/* Row 2: Secondary buttons side by side with dynamic complementary highlights */}
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 w-full">
             <Link
               to="/playground"
-              className="inline-flex items-center gap-2 rounded-2xl border border-border/80 bg-card/90 dark:bg-card/90 px-5 sm:px-6 py-3 text-sm sm:text-base font-mono font-semibold text-foreground hover:bg-secondary/90 hover:border-primary/50 transition-all shadow-xs backdrop-blur-md"
+              className="group inline-flex items-center gap-2 rounded-2xl border border-border/80 bg-card/90 dark:bg-card/90 px-5 sm:px-6 py-3 text-sm sm:text-base font-mono font-semibold text-foreground hover:bg-secondary/90 hover:border-complement/60 hover:shadow-[0_0_20px_-3px_var(--glow-complement)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-xs backdrop-blur-md cursor-pointer"
             >
-              <Sparkles className="size-4 text-primary shrink-0" />
+              <Sparkles className="size-4 text-complement shrink-0 transition-transform duration-300 group-hover:rotate-12" />
               <span>Interactive Visualizer</span>
             </Link>
             <Link
               to={"/sheets" as any}
-              className="inline-flex items-center gap-2 rounded-2xl border border-border/80 bg-card/90 dark:bg-card/90 px-5 sm:px-6 py-3 text-sm sm:text-base font-mono font-semibold text-foreground hover:bg-secondary/90 hover:border-primary/50 transition-all shadow-xs backdrop-blur-md"
+              className="group inline-flex items-center gap-2 rounded-2xl border border-border/80 bg-card/90 dark:bg-card/90 px-5 sm:px-6 py-3 text-sm sm:text-base font-mono font-semibold text-foreground hover:bg-secondary/90 hover:border-primary/60 hover:shadow-[0_0_20px_-3px_var(--glow-primary)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-xs backdrop-blur-md cursor-pointer"
             >
-              <BookOpen className="size-4 text-primary shrink-0" />
+              <BookOpen className="size-4 text-primary shrink-0 transition-transform duration-300 group-hover:rotate-6" />
               <span>DSA Sheets</span>
             </Link>
           </div>

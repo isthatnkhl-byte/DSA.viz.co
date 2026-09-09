@@ -19,6 +19,9 @@ API calls are not working on Vercel because environment variables are not proper
 | `GITHUB_CLIENT_ID` | GitHub OAuth Client ID | Production, Preview, Development |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth Client Secret | Production, Preview, Development |
 | `ENCRYPTION_KEY` | AES-256 Token Encryption Key (≥ 32 chars) | Production, Preview, Development |
+| `LIVEKIT_URL` | LiveKit Cloud WebSocket URL (`wss://nikhil-2fnvf789.livekit.cloud`) | Production, Preview, Development |
+| `LIVEKIT_API_KEY` | LiveKit Cloud Project API Key (`APISRx8GpvZyxXd`) | Production, Preview, Development |
+| `LIVEKIT_API_SECRET` | LiveKit Cloud Project API Secret | Production, Preview, Development |
 
 ### 🌐 Public Client Variables (Exposed to browser bundle)
 | Variable Name | Description | Scope |
@@ -84,7 +87,11 @@ After setup, these should work:
 - `POST /api/visualize-dataset` - Dataset visualization
 - `POST /api/chat` - Interview chat with Gemini
 - `POST /api/playground-review` - Playground code review
-- `GET /api/debug/env` - Check environment variables
+- `POST /api/interview-evaluate` - Multi-tier code evaluation (Brute Force / Better / Optimal)
+- `POST /api/interview-respond` - Real-time conversational interviewer responses
+- `POST /api/interview-scorecard` - Comprehensive FAANG-grade interview scorecard
+- `GET /api/livekit-token` - LiveKit WebRTC access token generator for real-time voice
+- `GET /api/debug/env` - Check environment variables status
 
 ---
 

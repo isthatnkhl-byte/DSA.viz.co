@@ -290795,6 +290795,49 @@ Return strictly valid JSON matching this schema:
     };
   }
 }
+async function generateInterviewerResponse(payload) {
+  const { question, tier, code, candidateSpeech } = payload;
+  const questionTitle = question?.title || "Technical Problem";
+  try {
+    const ai = getGeminiClient();
+    const prompt = `You are an elite, supportive Senior Technical Interviewer conducting a live FAANG technical interview.
+The candidate is working on "${questionTitle}" at the ${tier} tier.
+Candidate Code so far:
+\`\`\`
+${code || "No code written yet."}
+\`\`\`
+
+The candidate just verbally asked or said:
+"${candidateSpeech}"
+
+INSTRUCTIONS:
+1. Answer their question or respond to their observation directly, naturally, and concisely in 2 to 3 spoken sentences.
+2. DO NOT write code for them or give away the complete solution! Use Socratic guidance.
+3. Keep the tone encouraging, calm, and professional.
+4. Return strictly valid JSON:
+{
+  "spokenText": "What you speak aloud to the candidate (2-3 sentences max)",
+  "writtenNote": "Brief note for interviewer transcript"
+}`;
+    const { text } = await generateContentWithFallback(ai, "gemini-3.8-flash", {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.4
+      }
+    });
+    const parsed = JSON.parse(text || "{}");
+    return {
+      spokenText: parsed.spokenText || "That is an interesting observation. Consider how your pointer or boundary conditions behave when edge inputs are passed.",
+      writtenNote: parsed.writtenNote || `Responded to candidate question on ${questionTitle}.`
+    };
+  } catch {
+    return {
+      spokenText: "That makes sense. Focus on your loop invariant and consider what happens at the boundary conditions before advancing.",
+      writtenNote: `Fallback response for question regarding ${questionTitle}.`
+    };
+  }
+}
 
 // server.ts
 var import_path5 = __toESM(require("path"), 1);
@@ -291875,6 +291918,8 @@ var API_ENDPOINTS = [
   "/chat-sessions",
   "/interview-evaluate",
   "/interview-scorecard",
+  "/interview-respond",
+  "/livekit-token",
   "/generate-plan",
   "/verify-trace",
   "/visualize-dataset",
@@ -292285,6 +292330,7 @@ app.get("/api/debug/env", (_req, res) => {
     openrouter,
     github: !!(process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID),
     firebase: !!(process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID),
+    livekit: !!(cleanEnv2(process.env.LIVEKIT_API_KEY) && cleanEnv2(process.env.LIVEKIT_API_SECRET)),
     nodeEnv: process.env.NODE_ENV
   });
 });
@@ -292971,6 +293017,80 @@ app.post("/api/interview-evaluate", aiLimiter, async (req, res) => {
   } catch (error61) {
     console.error("Interview tier evaluation error:", error61);
     return res.status(500).json({ error: "Failed to evaluate interview tier." });
+  }
+});
+app.post("/api/interview-respond", aiLimiter, async (req, res) => {
+  try {
+    const { question, tier, code, candidateSpeech, transcriptHistory } = req.body;
+    if (!candidateSpeech) {
+      return res.status(400).json({ error: "Missing candidateSpeech field." });
+    }
+    const response = await generateInterviewerResponse({
+      question,
+      tier: tier || "bruteForce",
+      code: code || "",
+      candidateSpeech,
+      transcriptHistory
+    });
+    return res.json(response);
+  } catch (error61) {
+    console.error("Interview respond error:", error61);
+    return res.status(500).json({ error: "Failed to generate interviewer response." });
+  }
+});
+function generateLiveKitAccessToken(apiKey, apiSecret, identity, room, name, ttlSeconds = 3600) {
+  const header = { alg: "HS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1e3);
+  const payload = {
+    exp: now + ttlSeconds,
+    nbf: now - 5,
+    iat: now,
+    iss: apiKey,
+    sub: identity,
+    identity,
+    name: name || identity,
+    video: {
+      room,
+      roomJoin: true,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true
+    }
+  };
+  const encHeader = Buffer.from(JSON.stringify(header)).toString("base64url");
+  const encPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = import_crypto.default.createHmac("sha256", apiSecret).update(`${encHeader}.${encPayload}`).digest("base64url");
+  return `${encHeader}.${encPayload}.${signature}`;
+}
+app.all("/api/livekit-token", (req, res) => {
+  try {
+    const apiKey = cleanEnv2(process.env.LIVEKIT_API_KEY);
+    const apiSecret = cleanEnv2(process.env.LIVEKIT_API_SECRET);
+    const livekitUrl = cleanEnv2(
+      process.env.LIVEKIT_URL || process.env.VITE_LIVEKIT_URL || process.env.NEXT_PUBLIC_LIVEKIT_URL
+    );
+    if (!apiKey || !apiSecret) {
+      return res.json({
+        configured: false,
+        message: "LiveKit credentials (LIVEKIT_API_KEY / LIVEKIT_API_SECRET) are not configured."
+      });
+    }
+    const query = req.query || {};
+    const body = req.body || {};
+    const room = (query.room || body.room)?.trim() || `interview-${Date.now().toString(36)}`;
+    const identity = (query.identity || body.identity)?.trim() || `candidate-${Math.random().toString(36).substring(2, 8)}`;
+    const name = (query.name || body.name)?.trim() || identity;
+    const token = generateLiveKitAccessToken(apiKey, apiSecret, identity, room, name, 3600);
+    return res.json({
+      configured: true,
+      token,
+      url: livekitUrl || "wss://nikhil-2fnvf789.livekit.cloud",
+      room,
+      identity
+    });
+  } catch (error61) {
+    console.error("LiveKit token generation error:", error61);
+    return res.status(500).json({ error: "Failed to generate LiveKit token." });
   }
 });
 app.post("/api/interview-scorecard", aiLimiter, async (req, res) => {

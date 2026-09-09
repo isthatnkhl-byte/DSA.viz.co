@@ -91,6 +91,7 @@ const API_ENDPOINTS = [
   "/statement", "/review", "/solve", "/explain", "/compile", "/profile",
   "/sync-leetcode", "/submissions", "/auth", "/debug-token", "/github",
   "/chat", "/chat-sessions", "/interview-evaluate", "/interview-scorecard",
+  "/interview-respond", "/livekit-token",
   "/generate-plan", "/verify-trace", "/visualize-dataset", "/playground-review",
   "/code-diff-nudge", "/rate-submission", "/generate-mistakes-report",
   "/user-reports", "/compiler", "/health", "/debug"
@@ -571,6 +572,7 @@ app.get("/api/debug/env", (_req: Request, res: Response) => {
     openrouter,
     github: !!(process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID),
     firebase: !!(process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID),
+    livekit: !!(cleanEnv(process.env.LIVEKIT_API_KEY) && cleanEnv(process.env.LIVEKIT_API_SECRET)),
     nodeEnv: process.env.NODE_ENV,
   });
 });
@@ -1356,6 +1358,86 @@ app.post("/api/interview-respond", aiLimiter, async (req: Request, res: Response
   } catch (error: any) {
     console.error("Interview respond error:", error);
     return res.status(500).json({ error: "Failed to generate interviewer response." });
+  }
+});
+
+/**
+ * Generate a standard LiveKit WebRTC Access Token (HS256 JWT) using native Node crypto.
+ * Conforms directly to LiveKit Server SDK token specifications without external dependencies.
+ */
+function generateLiveKitAccessToken(
+  apiKey: string,
+  apiSecret: string,
+  identity: string,
+  room: string,
+  name?: string,
+  ttlSeconds: number = 3600
+): string {
+  const header = { alg: "HS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    exp: now + ttlSeconds,
+    nbf: now - 5,
+    iat: now,
+    iss: apiKey,
+    sub: identity,
+    identity,
+    name: name || identity,
+    video: {
+      room,
+      roomJoin: true,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    },
+  };
+
+  const encHeader = Buffer.from(JSON.stringify(header)).toString("base64url");
+  const encPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = crypto
+    .createHmac("sha256", apiSecret)
+    .update(`${encHeader}.${encPayload}`)
+    .digest("base64url");
+
+  return `${encHeader}.${encPayload}.${signature}`;
+}
+
+// API: Live Interview - LiveKit WebRTC Access Token for Real-Time AI Voice Interviewer
+app.all("/api/livekit-token", (req: Request, res: Response) => {
+  try {
+    const apiKey = cleanEnv(process.env.LIVEKIT_API_KEY);
+    const apiSecret = cleanEnv(process.env.LIVEKIT_API_SECRET);
+    const livekitUrl = cleanEnv(
+      process.env.LIVEKIT_URL ||
+      process.env.VITE_LIVEKIT_URL ||
+      process.env.NEXT_PUBLIC_LIVEKIT_URL
+    );
+
+    if (!apiKey || !apiSecret) {
+      return res.json({
+        configured: false,
+        message: "LiveKit credentials (LIVEKIT_API_KEY / LIVEKIT_API_SECRET) are not configured.",
+      });
+    }
+
+    const query = req.query || {};
+    const body = req.body || {};
+    const room = ((query.room || body.room) as string)?.trim() || `interview-${Date.now().toString(36)}`;
+    const identity = ((query.identity || body.identity) as string)?.trim() || `candidate-${Math.random().toString(36).substring(2, 8)}`;
+    const name = ((query.name || body.name) as string)?.trim() || identity;
+
+    const token = generateLiveKitAccessToken(apiKey, apiSecret, identity, room, name, 3600);
+
+    return res.json({
+      configured: true,
+      token,
+      url: livekitUrl || "wss://nikhil-2fnvf789.livekit.cloud",
+      room,
+      identity,
+    });
+  } catch (error: any) {
+    console.error("LiveKit token generation error:", error);
+    return res.status(500).json({ error: "Failed to generate LiveKit token." });
   }
 });
 

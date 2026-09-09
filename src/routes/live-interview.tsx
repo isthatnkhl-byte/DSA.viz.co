@@ -80,6 +80,7 @@ import {
   apiInterviewEvaluate,
   apiInterviewScorecard,
   apiInterviewRespond,
+  apiGetLiveKitToken,
 } from "@/lib/api-client";
 import type {
   SolutionTier,
@@ -181,6 +182,7 @@ function LiveInterviewPage() {
     Array<{ name: string; lang: string; uri: string; isNeural: boolean }>
   >([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>("");
+  const [livekitCloudActive, setLivekitCloudActive] = useState<boolean>(false);
 
   // Two-way Conversational Transcript
   const [conversationalChat, setConversationalChat] = useState<
@@ -194,9 +196,6 @@ function LiveInterviewPage() {
 
   const interviewerStatusRef = useRef<"idle" | "speaking" | "evaluating">("idle");
   interviewerStatusRef.current = interviewerStatus;
-
-  const isEvaluatingRef = useRef<boolean>(false);
-  isEvaluatingRef.current = isEvaluating;
 
   const silenceQuestionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const handleSendQueryRef = useRef<((text?: string) => Promise<void>) | null>(null);
@@ -228,6 +227,8 @@ function LiveInterviewPage() {
 
   // 9. Results & Scorecard State
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const isEvaluatingRef = useRef<boolean>(false);
+  isEvaluatingRef.current = isEvaluating;
   const [isGeneratingScorecard, setIsGeneratingScorecard] = useState(false);
   const [scorecard, setScorecard] = useState<InterviewScorecardResult | null>(null);
   const [activeTab, setActiveTab] = useState<"problem" | "chat" | "proctoring">("problem");
@@ -270,6 +271,17 @@ function LiveInterviewPage() {
         }
       }
     }, 400);
+
+    // Check if LiveKit Cloud credentials are configured in server environment
+    apiGetLiveKitToken()
+      .then((res) => {
+        if (res?.configured) {
+          setLivekitCloudActive(true);
+        }
+      })
+      .catch(() => {
+        // Fallback silently to browser neural voice
+      });
 
     // Audio tracker callbacks
     audioTrackerRef.current.onVolumeUpdate = (vol) => {
@@ -1059,9 +1071,20 @@ function LiveInterviewPage() {
                 {/* Voicepack Engine Picker */}
                 <div className="rounded-2xl border border-border/70 bg-muted/20 p-3.5 space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Volume2 className="size-3.5 text-primary" /> AI Interviewer Neural Voice:
-                    </label>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Volume2 className="size-3.5 text-primary" /> AI Voice Engine:
+                      </label>
+                      {livekitCloudActive ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" /> LiveKit Cloud
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                          Neural Voicepack
+                        </span>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={handleTestVoice}

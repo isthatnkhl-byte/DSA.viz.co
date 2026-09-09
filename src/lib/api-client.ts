@@ -283,4 +283,36 @@ export async function apiInterviewRespond(payload: {
   return response.json();
 }
 
+/**
+ * Live Interview: Retrieve LiveKit WebRTC access token if configured on the server.
+ */
+export async function apiGetLiveKitToken(room?: string, identity?: string): Promise<{
+  configured: boolean;
+  token?: string;
+  url?: string;
+  room?: string;
+  identity?: string;
+  message?: string;
+}> {
+  const params = new URLSearchParams();
+  if (room) params.append("room", room);
+  if (identity) params.append("identity", identity);
+
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  const response = await fetch(`/api/livekit-token${qs}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `LiveKit token error (${response.status})`);
+  }
+
+  return response.json();
+}
+
+
 

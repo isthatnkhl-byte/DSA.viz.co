@@ -17,6 +17,9 @@ import {
   TrendingUp,
   AlertTriangle,
   Target,
+  Github,
+  ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 import { LeetCodeHeatmap } from "@/components/dashboard/LeetCodeHeatmap";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -102,31 +105,70 @@ function Dashboard() {
       }
 
       const effectiveDisplayName =
-        clientProfile?.displayName ||
-        clientProfile?.display_name ||
+        (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) ||
         serverProfile?.displayName ||
         serverProfile?.display_name ||
+        clientProfile?.displayName ||
+        clientProfile?.display_name ||
         currentUser?.displayName ||
         currentUser?.email?.split("@")[0] ||
         "Explorer";
 
       const effectiveLcStats =
-        clientProfile?.leetcodeStats ||
-        clientProfile?.leetcode_stats ||
         serverProfile?.leetcodeStats ||
         serverProfile?.leetcode_stats ||
+        clientProfile?.leetcodeStats ||
+        clientProfile?.leetcode_stats ||
         null;
 
       const effectiveLcUsername =
-        clientProfile?.leetcodeUsername ||
-        clientProfile?.leetcode_username ||
         serverProfile?.leetcodeUsername ||
         serverProfile?.leetcode_username ||
+        clientProfile?.leetcodeUsername ||
+        clientProfile?.leetcode_username ||
         null;
 
+      const localConnected = typeof window !== "undefined" && currentUser
+        ? localStorage.getItem(`dsa_viz_github_connected_${currentUser.uid}`) === "true"
+        : false;
+      const localToken = typeof window !== "undefined" && currentUser
+        ? localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)
+        : null;
+
+      const effectiveGithubUsername =
+        serverProfile?.githubUsername ||
+        serverProfile?.github_username ||
+        (typeof window !== "undefined" && currentUser ? localStorage.getItem(`dsa_viz_github_username_${currentUser.uid}`) : null) ||
+        null;
+
+      const effectiveGithubAvatar =
+        serverProfile?.githubAvatar ||
+        serverProfile?.github_avatar ||
+        (typeof window !== "undefined" && currentUser ? localStorage.getItem(`dsa_viz_github_avatar_${currentUser.uid}`) : null) ||
+        null;
+
+      const isGithubConnected =
+        !!serverProfile?.githubConnected ||
+        !!serverProfile?.githubToken ||
+        !!effectiveGithubUsername ||
+        !!clientProfile?.githubToken ||
+        !!(clientProfile as any)?.githubConnected ||
+        localConnected ||
+        !!localToken;
+
+      const effectiveGithubUrl =
+        serverProfile?.githubUrl ||
+        (effectiveGithubUsername ? `https://github.com/${effectiveGithubUsername}` : null);
+
       const mergedProfile = {
-        ...(serverProfile || {}),
         ...(clientProfile || {}),
+        ...(serverProfile || {}),
+        githubConnected: isGithubConnected,
+        githubUsername: effectiveGithubUsername,
+        github_username: effectiveGithubUsername,
+        githubAvatar: effectiveGithubAvatar,
+        github_avatar: effectiveGithubAvatar,
+        githubUrl: effectiveGithubUrl,
         displayName: effectiveDisplayName,
         display_name: effectiveDisplayName,
         leetcodeStats: effectiveLcStats,
@@ -159,7 +201,13 @@ function Dashboard() {
     enabled: !!user,
   });
 
-  const leetcodeStats = statsData?.profile?.leetcode_stats || statsData?.profile?.leetcodeStats;
+  const profile = statsData?.profile;
+  const leetcodeStats = profile?.leetcode_stats || profile?.leetcodeStats;
+  const leetcodeUsername = profile?.leetcode_username || profile?.leetcodeUsername;
+  const isGithubConnected = !!profile?.githubConnected;
+  const githubUsername = profile?.githubUsername || profile?.github_username;
+  const githubAvatar = profile?.githubAvatar || profile?.github_avatar;
+  const githubUrl = profile?.githubUrl;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["submissions"],
@@ -253,7 +301,119 @@ function Dashboard() {
           </Link>
         </div>
 
-        
+        {/* Connected Accounts & Telemetry Bar */}
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* GitHub Status Card */}
+          <div className="flex flex-col justify-between gap-3 rounded-2xl border border-border/80 bg-card/60 p-4 shadow-sm backdrop-blur-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-foreground/5 border border-foreground/10 text-foreground">
+                  <Github className="size-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-sm text-foreground">GitHub Profile</span>
+                    {isGithubConnected ? (
+                      <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-emerald-400 border border-emerald-500/30">
+                        CONNECTED
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[9px] font-semibold text-muted-foreground border border-border">
+                        NOT LINKED
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {isGithubConnected
+                      ? (githubUsername ? `@${githubUsername}` : "Account connected")
+                      : "Export solutions directly to your repos"}
+                  </p>
+                </div>
+              </div>
+
+              <Button asChild variant="outline" size="sm" className="h-7 px-2.5 text-xs font-mono gap-1 border-border/80 hover:border-primary/40">
+                <Link to="/profile">
+                  {isGithubConnected ? "Manage" : "Connect"}
+                  <ExternalLink className="size-3" />
+                </Link>
+              </Button>
+            </div>
+
+            {isGithubConnected ? (
+              <div className="flex items-center gap-2 rounded-lg bg-background/50 border border-border/40 px-3 py-2 text-xs font-mono text-muted-foreground">
+                {githubAvatar && (
+                  <img src={githubAvatar} alt="GitHub Avatar" className="size-5 rounded-full object-cover" />
+                )}
+                <span className="truncate">
+                  {githubUrl ? (
+                    <a href={githubUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline">
+                      {githubUrl}
+                    </a>
+                  ) : (
+                    "Ready to push solutions with 1-click"
+                  )}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-xs text-muted-foreground/80 font-mono">
+                <span>Connect to push verified pseudocode</span>
+                <Link to="/profile" className="text-primary hover:underline">Setup →</Link>
+              </div>
+            )}
+          </div>
+
+          {/* LeetCode Status Card */}
+          <div className="flex flex-col justify-between gap-3 rounded-2xl border border-border/80 bg-card/60 p-4 shadow-sm backdrop-blur-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400">
+                  <Target className="size-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-sm text-foreground">LeetCode Sync</span>
+                    {leetcodeUsername ? (
+                      <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-emerald-400 border border-emerald-500/30">
+                        SYNCED
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[9px] font-semibold text-muted-foreground border border-border">
+                        NOT LINKED
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {leetcodeUsername ? `@${leetcodeUsername}` : "Pull heatmaps & problem rankings"}
+                  </p>
+                </div>
+              </div>
+
+              <Button asChild variant="outline" size="sm" className="h-7 px-2.5 text-xs font-mono gap-1 border-border/80 hover:border-primary/40">
+                <Link to="/profile">
+                  {leetcodeUsername ? "Re-sync" : "Connect"}
+                  <ExternalLink className="size-3" />
+                </Link>
+              </Button>
+            </div>
+
+            {leetcodeStats ? (
+              <div className="flex items-center justify-between rounded-lg bg-background/50 border border-border/40 px-3 py-2 text-xs font-mono">
+                <span className="text-muted-foreground">
+                  Solved: <strong className="text-foreground">{leetcodeStats.totalSolved}</strong> / {leetcodeStats.totalQuestions}
+                </span>
+                <span className="text-emerald-400 font-bold">
+                  {leetcodeStats.streak || 0} day streak
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-xs text-muted-foreground/80 font-mono">
+                <span>Connect your profile to display activity</span>
+                <Link to="/profile" className="text-primary hover:underline">Connect →</Link>
+              </div>
+            )}
+          </div>
+        </div>
+
         {leetcodeStats && (
           <div className="mb-8">
             <div className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-4">

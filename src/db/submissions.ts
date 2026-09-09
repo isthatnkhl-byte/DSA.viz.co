@@ -1,8 +1,52 @@
+import fs from 'fs';
+import path from 'path';
 import { adminDb } from '../lib/firebase-admin';
+import { getCache, setCache, deleteCache } from '../lib/redis-cache';
 
+const SUBMISSIONS_FILE = path.join(process.cwd(), '.data', 'submissions.json');
 const memorySubmissionsStore = new Map<string, any[]>();
 
+// Load persistent submissions if present
+try {
+  if (fs.existsSync(SUBMISSIONS_FILE)) {
+    const raw = fs.readFileSync(SUBMISSIONS_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    for (const [k, v] of Object.entries(parsed)) {
+      if (Array.isArray(v)) {
+        memorySubmissionsStore.set(k, v);
+      }
+    }
+  }
+} catch {
+  // Silent fallback
+}
+
+function persistSubmissions() {
+  try {
+    const dir = path.dirname(SUBMISSIONS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const obj: Record<string, any[]> = {};
+    for (const [k, v] of memorySubmissionsStore.entries()) {
+      obj[k] = v;
+    }
+    fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch {
+    // Non-blocking fallback
+  }
+}
+
 export async function getSubmissions(userId: string) {
+  if (!userId) return [];
+
+  // 1. Check Redis cache first
+  try {
+    const cached = await getCache<any[]>(`submissions:${userId}`);
+    if (cached && Array.isArray(cached)) return cached;
+  } catch {
+    // Fall through
+  }
+
+  // 2. Try Firestore if configured
   try {
     const snapshot = await adminDb.collection('users').doc(userId).collection('submissions')
       .orderBy('createdAt', 'desc')
@@ -38,16 +82,25 @@ export async function getSubmissions(userId: string) {
         };
       });
       memorySubmissionsStore.set(userId, dbSubs);
+      persistSubmissions();
+      await setCache(`submissions:${userId}`, dbSubs, 600).catch(() => {});
       return dbSubs;
     }
-  } catch (err) {
-    // Admin DB credentials not present
+  } catch {
+    // Admin DB credentials not present or network unavailable
   }
 
-  return memorySubmissionsStore.get(userId) || [];
+  // 3. Fall back to local storage
+  const local = memorySubmissionsStore.get(userId) || [];
+  if (local.length > 0) {
+    await setCache(`submissions:${userId}`, local, 600).catch(() => {});
+  }
+  return local;
 }
 
 export async function addSubmission(userId: string, data: any) {
+  if (!userId) return null;
+
   const code = data.code || data.pseudocode || "";
   const pseudocode = data.pseudocode || data.code || "";
   const lang = data.lang || "pseudocode";
@@ -93,7 +146,10 @@ export async function addSubmission(userId: string, data: any) {
   };
 
   const existing = memorySubmissionsStore.get(userId) || [];
-  memorySubmissionsStore.set(userId, [formattedLocal, ...existing]);
+  const updatedList = [formattedLocal, ...existing];
+  memorySubmissionsStore.set(userId, updatedList);
+  persistSubmissions();
+  await setCache(`submissions:${userId}`, updatedList, 600).catch(() => {});
 
   try {
     const docRef = await adminDb.collection('users').doc(userId).collection('submissions').add(newSub);
@@ -115,7 +171,7 @@ export async function addSubmission(userId: string, data: any) {
       };
       return formatted;
     }
-  } catch (err) {
+  } catch {
     // Fall back to local submission record
   }
 
@@ -123,12 +179,18 @@ export async function addSubmission(userId: string, data: any) {
 }
 
 export async function deleteSubmission(userId: string, id: string) {
+  if (!userId) return;
+
   const existing = memorySubmissionsStore.get(userId) || [];
-  memorySubmissionsStore.set(userId, existing.filter(s => String(s.id) !== String(id)));
+  const updated = existing.filter(s => String(s.id) !== String(id));
+  memorySubmissionsStore.set(userId, updated);
+  persistSubmissions();
+  await setCache(`submissions:${userId}`, updated, 600).catch(() => {});
 
   try {
     await adminDb.collection('users').doc(userId).collection('submissions').doc(id).delete();
-  } catch (err) {
+  } catch {
     // Silently continue
   }
 }
+

@@ -5,6 +5,7 @@ import { httpsEnforcer, securityHeadersMiddleware } from './src/middleware/secur
 import { getOrCreateUser } from './src/db/users';
 import { getProfile, updateProfile } from './src/db/profiles';
 import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submissions';
+import { getCache, setCache, deleteCache } from './src/lib/redis-cache';
 import { adminAuth, adminDb } from './src/lib/firebase-admin';
 import { saveAiReport, getUserAiReports, saveChatSession, getUserChatSessions, logUserActivity } from './src/db/ai-diagnostics';
 import { processReviewPseudocode, processGenerateDatasetsAndPlan, processDatasetVisualization } from './src/lib/review.functions';
@@ -624,23 +625,42 @@ app.get("/api/statement", async (req: Request, res: Response) => {
 // --- DB API Routes ---
 app.get("/api/profile", requireAuth, async (req: any, res) => {
   try {
-    const user = await getOrCreateUser(req.user.uid, req.user.email || null).catch(() => null);
-    const profile = await getProfile(req.user.uid).catch(() => null);
+    const uid = req.user.uid;
+    const cacheKey = `profile:${uid}`;
+
+    // 1. Try Redis cache first
+    const cached = await getCache<any>(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const user = await getOrCreateUser(uid, req.user.email || null).catch(() => null);
+    const profile = await getProfile(uid).catch(() => null);
     
     // Privacy: Never return raw or encrypted githubToken to client
     const { githubToken, ...safeProfile } = (profile || {}) as any;
     
-    const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.email?.split("@")[0] || "Explorer";
-    const cleanAvatar = safeProfile?.avatarUrl || safeProfile?.avatar_url || req.user.picture || null;
+    const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.name || req.user.email?.split("@")[0] || "Explorer";
+    const cleanAvatar = safeProfile?.avatarUrl || safeProfile?.avatar_url || req.user.picture || user?.avatarUrl || null;
     const cleanLcUsername = safeProfile?.leetcodeUsername || safeProfile?.leetcode_username || null;
     const cleanLcStats = safeProfile?.leetcodeStats || safeProfile?.leetcode_stats || null;
+    const cleanGithubConnected = !!(safeProfile?.githubConnected || githubToken);
+    const cleanGithubUsername = safeProfile?.githubUsername || safeProfile?.github_username || null;
+    const cleanGithubAvatar = safeProfile?.githubAvatar || safeProfile?.github_avatar || null;
+    const cleanGithubUrl = safeProfile?.githubUrl || (cleanGithubUsername ? `https://github.com/${cleanGithubUsername}` : null);
 
-    res.json({
-      uid: req.user.uid,
+    const payload = {
+      uid,
       email: req.user.email,
-      githubConnected: !!githubToken,
       ...user,
       ...safeProfile,
+      githubConnected: cleanGithubConnected,
+      github_connected: cleanGithubConnected,
+      githubUsername: cleanGithubUsername,
+      github_username: cleanGithubUsername,
+      githubAvatar: cleanGithubAvatar,
+      github_avatar: cleanGithubAvatar,
+      githubUrl: cleanGithubUrl,
       displayName: cleanDisplayName,
       display_name: cleanDisplayName,
       avatarUrl: cleanAvatar,
@@ -649,13 +669,18 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
       leetcode_username: cleanLcUsername,
       leetcodeStats: cleanLcStats,
       leetcode_stats: cleanLcStats,
-    });
+    };
+
+    // Cache in Redis for 1800s (30 minutes)
+    await setCache(cacheKey, payload, 1800).catch(() => {});
+
+    res.json(payload);
   } catch (error) {
     res.json({
       uid: req.user.uid,
       email: req.user.email,
-      displayName: req.user.email?.split("@")[0] || "Explorer",
-      display_name: req.user.email?.split("@")[0] || "Explorer",
+      displayName: req.user.name || req.user.email?.split("@")[0] || "Explorer",
+      display_name: req.user.name || req.user.email?.split("@")[0] || "Explorer",
       avatarUrl: req.user.picture || null,
       avatar_url: req.user.picture || null,
       githubConnected: false,
@@ -677,15 +702,26 @@ app.post("/api/profile/update", requireAuth, async (req: any, res) => {
     if (!/^[a-zA-Z0-9_.-]+$/.test(clean)) {
       return res.status(400).json({ error: "Username can only contain letters, numbers, underscores, dashes, and periods." });
     }
-    const updated = await updateProfile(req.user.uid, { displayName: clean, display_name: clean }).catch(() => null);
+    const uid = req.user.uid;
+    const updated = await updateProfile(uid, { displayName: clean, display_name: clean }).catch(() => null);
+
+    // Invalidate Redis profile cache so fresh data is loaded
+    await deleteCache(`profile:${uid}`).catch(() => {});
+    await deleteCache(`user:${uid}`).catch(() => {});
+
+    const responsePayload = {
+      uid,
+      displayName: clean,
+      display_name: clean,
+      ...(updated || {}),
+    };
+
+    // Prime the cache with the updated profile
+    await setCache(`profile:${uid}`, responsePayload, 1800).catch(() => {});
+
     res.json({
       ok: true,
-      profile: {
-        uid: req.user.uid,
-        displayName: clean,
-        display_name: clean,
-        ...(updated || {}),
-      },
+      profile: responsePayload,
     });
   } catch (error) {
     console.error("Failed to update profile:", error);
@@ -722,7 +758,12 @@ app.delete("/api/profile", requireAuth, async (req: any, res: Response) => {
       console.warn("Firestore subcollections purge notice:", dbErr);
     }
 
-    // 3. Mark profile cleared/deleted
+    // 3. Invalidate Redis caches
+    await deleteCache(`profile:${uid}`).catch(() => {});
+    await deleteCache(`user:${uid}`).catch(() => {});
+    await deleteCache(`submissions:${uid}`).catch(() => {});
+
+    // 4. Mark profile cleared/deleted
     await updateProfile(uid, {
       displayName: "Deleted User",
       display_name: "Deleted User",
@@ -750,7 +791,16 @@ app.post("/api/sync-leetcode", requireAuth, async (req: any, res) => {
     }
     const cleanUsername = username.trim().replace(/^@+/, "");
 
-    const fetchedStats = await fetchLeetCodeStats(cleanUsername);
+    // 1. Check Redis cache for recent LeetCode stats (1 hour TTL)
+    const lcCacheKey = `leetcode:${cleanUsername.toLowerCase()}`;
+    let fetchedStats = await getCache<any>(lcCacheKey);
+
+    if (!fetchedStats) {
+      fetchedStats = await fetchLeetCodeStats(cleanUsername);
+      if (fetchedStats) {
+        await setCache(lcCacheKey, fetchedStats, 3600).catch(() => {});
+      }
+    }
 
     if (!fetchedStats) {
       return res.status(404).json({ error: `Could not load LeetCode data for "${cleanUsername}". Please verify the username is public.` });
@@ -765,6 +815,9 @@ app.post("/api/sync-leetcode", requireAuth, async (req: any, res) => {
           leetcodeStats: fetchedStats,
           leetcode_stats: fetchedStats,
         }).catch(() => null);
+
+        // Invalidate Redis profile cache to reflect fresh stats
+        await deleteCache(`profile:${req.user.uid}`).catch(() => {});
       }
     } catch (e) {
       console.warn("Server-side DB update warning in /api/sync-leetcode:", e);
@@ -1919,9 +1972,40 @@ app.get("/api/github/callback", async (req, res) => {
       return res.status(400).send("No access token returned by GitHub");
     }
     
+    // Fetch GitHub user profile info (username, avatar, url)
+    let ghUsername = null;
+    let ghAvatar = null;
+    let ghUrl = null;
+    try {
+      const userRes = await fetch("https://api.github.com/user", {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "User-Agent": "DSA-viz-App",
+          "Accept": "application/vnd.github.v3+json",
+        },
+      });
+      if (userRes.ok) {
+        const ghUser = await userRes.json();
+        ghUsername = ghUser.login || null;
+        ghAvatar = ghUser.avatar_url || null;
+        ghUrl = ghUser.html_url || null;
+      }
+    } catch (ghErr) {
+      console.warn("Could not fetch GitHub user info:", ghErr);
+    }
+
     // Encrypt and persist token
     const encryptedToken = encryptToken(accessToken);
-    await updateProfile(uid, { githubToken: encryptedToken, githubConnected: true });
+    await updateProfile(uid, {
+      githubToken: encryptedToken,
+      githubConnected: true,
+      githubUsername: ghUsername,
+      githubAvatar: ghAvatar,
+      githubUrl: ghUrl,
+    });
+
+    // Invalidate Redis profile cache so fresh data is loaded
+    await deleteCache(`profile:${uid}`).catch(() => {});
 
     res.send(`
       <!DOCTYPE html>
@@ -1944,7 +2028,9 @@ app.get("/api/github/callback", async (req, res) => {
                 window.opener.postMessage({
                   type: 'GITHUB_AUTH_SUCCESS',
                   githubConnected: true,
-                  githubToken: ${JSON.stringify(encryptedToken)}
+                  githubToken: ${JSON.stringify(encryptedToken)},
+                  githubUsername: ${JSON.stringify(ghUsername)},
+                  githubAvatar: ${JSON.stringify(ghAvatar)}
                 }, '*');
                 setTimeout(() => window.close(), 400);
               } else {
@@ -1966,7 +2052,14 @@ app.get("/api/github/callback", async (req, res) => {
 app.post("/api/github/disconnect", requireAuth, async (req: any, res) => {
   try {
     const uid = req.user.uid;
-    await updateProfile(uid, { githubToken: null, githubConnected: false });
+    await updateProfile(uid, {
+      githubToken: null,
+      githubConnected: false,
+      githubUsername: null,
+      githubAvatar: null,
+      githubUrl: null,
+    });
+    await deleteCache(`profile:${uid}`).catch(() => {});
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: "Failed to disconnect GitHub" });

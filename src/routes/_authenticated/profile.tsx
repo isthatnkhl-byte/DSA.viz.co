@@ -170,8 +170,14 @@ function ProfilePage() {
             if (event.data?.githubToken) {
               await updateUserProfile(currentUser.uid, {
                 githubToken: event.data.githubToken,
-              } as any);
+              } as any).catch(() => {});
               localStorage.setItem(`dsa_viz_github_token_${currentUser.uid}`, event.data.githubToken);
+            }
+            if (event.data?.githubUsername) {
+              localStorage.setItem(`dsa_viz_github_username_${currentUser.uid}`, event.data.githubUsername);
+            }
+            if (event.data?.githubAvatar) {
+              localStorage.setItem(`dsa_viz_github_avatar_${currentUser.uid}`, event.data.githubAvatar);
             }
             localStorage.setItem(`dsa_viz_github_connected_${currentUser.uid}`, "true");
           } catch (e) {
@@ -180,11 +186,13 @@ function ProfilePage() {
         }
         toast.success("GitHub connected successfully!");
         queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["profileStats"] });
+        refetch();
       }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [queryClient]);
+  }, [queryClient, refetch]);
 
   const handleConnectGithub = async () => {
     try {
@@ -243,34 +251,34 @@ function ProfilePage() {
       }
 
       const effectiveDisplayName =
-        clientProfile?.displayName ||
-        clientProfile?.display_name ||
+        (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) ||
         serverProfile?.displayName ||
         serverProfile?.display_name ||
-        (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) ||
+        clientProfile?.displayName ||
+        clientProfile?.display_name ||
         currentUser?.displayName ||
         currentUser?.email?.split("@")[0] ||
         "Explorer";
 
       const effectiveLcStats =
-        clientProfile?.leetcodeStats ||
-        clientProfile?.leetcode_stats ||
         serverProfile?.leetcodeStats ||
         serverProfile?.leetcode_stats ||
+        clientProfile?.leetcodeStats ||
+        clientProfile?.leetcode_stats ||
         null;
 
       const effectiveLcUsername =
-        clientProfile?.leetcodeUsername ||
-        clientProfile?.leetcode_username ||
         serverProfile?.leetcodeUsername ||
         serverProfile?.leetcode_username ||
+        clientProfile?.leetcodeUsername ||
+        clientProfile?.leetcode_username ||
         null;
 
       const effectiveAvatar =
-        clientProfile?.avatarUrl ||
-        clientProfile?.avatar_url ||
         serverProfile?.avatarUrl ||
         serverProfile?.avatar_url ||
+        clientProfile?.avatarUrl ||
+        clientProfile?.avatar_url ||
         currentUser?.photoURL ||
         null;
 
@@ -281,9 +289,22 @@ function ProfilePage() {
         ? localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)
         : null;
 
+      const effectiveGithubUsername =
+        serverProfile?.githubUsername ||
+        serverProfile?.github_username ||
+        (typeof window !== "undefined" && currentUser ? localStorage.getItem(`dsa_viz_github_username_${currentUser.uid}`) : null) ||
+        null;
+
+      const effectiveGithubAvatar =
+        serverProfile?.githubAvatar ||
+        serverProfile?.github_avatar ||
+        (typeof window !== "undefined" && currentUser ? localStorage.getItem(`dsa_viz_github_avatar_${currentUser.uid}`) : null) ||
+        null;
+
       const isGithubConnected =
         !!serverProfile?.githubConnected ||
         !!serverProfile?.githubToken ||
+        !!effectiveGithubUsername ||
         !!clientProfile?.githubToken ||
         !!(clientProfile as any)?.githubConnected ||
         localConnected ||
@@ -295,11 +316,20 @@ function ProfilePage() {
         localToken ||
         null;
 
+      const effectiveGithubUrl =
+        serverProfile?.githubUrl ||
+        (effectiveGithubUsername ? `https://github.com/${effectiveGithubUsername}` : null);
+
       const profile = {
-        ...(serverProfile || {}),
         ...(clientProfile || {}),
+        ...(serverProfile || {}),
         githubConnected: isGithubConnected,
         githubToken: effectiveGithubToken,
+        githubUsername: effectiveGithubUsername,
+        github_username: effectiveGithubUsername,
+        githubAvatar: effectiveGithubAvatar,
+        github_avatar: effectiveGithubAvatar,
+        githubUrl: effectiveGithubUrl,
         displayName: effectiveDisplayName,
         display_name: effectiveDisplayName,
         avatarUrl: effectiveAvatar,
@@ -397,6 +427,9 @@ function ProfilePage() {
 
   const updateProfileUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dsa_viz_display_name", username);
+      }
       try {
         await updateNickname(username);
       } catch (e) {
@@ -405,6 +438,13 @@ function ProfilePage() {
 
       const auth = getAuth();
       const currentUser = auth.currentUser;
+      if (currentUser) {
+        try {
+          const { updateProfile: updateFirebaseAuthProfile } = await import("firebase/auth");
+          await updateFirebaseAuthProfile(currentUser, { displayName: username }).catch(() => {});
+        } catch {}
+      }
+
       const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
       if (!currentToken) {
         return { ok: true, profile: { displayName: username, display_name: username } };
@@ -426,6 +466,7 @@ function ProfilePage() {
         queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
         queryClient.invalidateQueries({ queryKey: ["profileStats"] });
         refreshProfile();
+        refetch();
         setEditingUsername(false);
       } else {
         toast.error(res.error || "Could not update username.");
@@ -735,6 +776,55 @@ function ProfilePage() {
                   </div>
                 )}
               </div>
+
+              {/* GitHub Connected Profile Details */}
+              {profile?.githubConnected && (
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background/50 p-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {profile.githubAvatar ? (
+                      <img
+                        src={profile.githubAvatar}
+                        alt="GitHub Profile"
+                        className="size-11 rounded-full border border-primary/30 object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-11 items-center justify-center rounded-full bg-foreground/10 text-foreground">
+                        <Github className="size-6" />
+                      </div>
+                    )}
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm font-bold text-foreground truncate">
+                          {profile.githubUsername ? `@${profile.githubUsername}` : "Connected GitHub Account"}
+                        </span>
+                        <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
+                          Active &amp; Ready
+                        </span>
+                      </div>
+                      <p className="font-mono text-xs text-muted-foreground truncate">
+                        {profile.githubUrl ? (
+                          <a
+                            href={profile.githubUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            <span>{profile.githubUrl}</span>
+                            <ExternalLink className="size-3" />
+                          </a>
+                        ) : (
+                          "One-click solution export is active and ready."
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
+                    <CheckCircle2 className="size-4 text-emerald-400" />
+                    <span>Sync Enabled</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ------------------------------------------------------------------ */}

@@ -20,6 +20,57 @@ export interface TierEvaluationResult {
   };
 }
 
+export interface InterviewTemplate {
+  id: string;
+  title: string;
+  tagline: string;
+  description: string;
+  questionCount: number;
+  perQuestionMinutes: number;
+  totalMinutes: number;
+  difficulty: "Mixed" | "Medium" | "Hard";
+}
+
+export interface QuestionSubmissionSnapshot {
+  questionId: string;
+  questionTitle: string;
+  timeSpentSeconds: number;
+  tiersCompleted: Record<SolutionTier, boolean>;
+  tierCodes: Record<SolutionTier, string>;
+  tierEvaluations: Record<SolutionTier, TierEvaluationResult | null>;
+  scorecardPartial?: {
+    passedTiers: number;
+    highestTierReached: SolutionTier;
+  };
+}
+
+export type CameraTrackingStatus = "ok" | "looking_away" | "multiple_faces" | "no_face";
+
+export interface CameraTrackingState {
+  status: CameraTrackingStatus;
+  faceCount: number;
+  yawDegrees: number;
+  pitchDegrees: number;
+  isLookingAway: boolean;
+  alertMessage: string | null;
+  lastViolationTimestamp?: string;
+}
+
+export interface ConversationalTranscriptItem {
+  id: string;
+  timestamp: string;
+  speaker: "candidate" | "interviewer";
+  text: string;
+  type?: "speech" | "hint" | "evaluation" | "greeting" | "question";
+}
+
+export interface VoiceEngineSettings {
+  voiceURI: string;
+  rate: number; // default 0.95
+  pitch: number; // default 1.0
+  interSentencePauseMs: number; // default 200ms
+}
+
 export interface InterviewScorecardResult {
   overallScore: number; // 0 to 10
   craftScore: number; // 0 to 10
@@ -45,5 +96,9 @@ export interface InterviewScorecardResult {
     strikes: number;
     tabSwitches: number;
     blurCount: number;
+    cameraViolations?: number;
+    isTerminated?: boolean;
   };
+  questionSubmissions?: QuestionSubmissionSnapshot[];
+  audioRecordingUrl?: string;
 }

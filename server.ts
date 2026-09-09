@@ -14,7 +14,7 @@ import { runSecureCpp, runSecureCode } from './src/lib/compiler/index';
 import { fetchLeetCodeStats } from './src/lib/leetcode-service';
 import { statementForSlug } from './src/lib/statements';
 import localStatementsJson from './src/data/statements.json';
-import { evaluateInterviewTier, generateInterviewScorecard } from './src/lib/interview-evaluator.server';
+import { evaluateInterviewTier, generateInterviewScorecard, generateInterviewerResponse } from './src/lib/interview-evaluator.server';
 
 
 import path from "path";
@@ -1333,6 +1333,29 @@ app.post("/api/interview-evaluate", aiLimiter, async (req: Request, res: Respons
   } catch (error: any) {
     console.error("Interview tier evaluation error:", error);
     return res.status(500).json({ error: "Failed to evaluate interview tier." });
+  }
+});
+
+// API: Live Interview - Conversational Interviewer Response
+app.post("/api/interview-respond", aiLimiter, async (req: Request, res: Response) => {
+  try {
+    const { question, tier, code, candidateSpeech, transcriptHistory } = req.body;
+    if (!candidateSpeech) {
+      return res.status(400).json({ error: "Missing candidateSpeech field." });
+    }
+
+    const response = await generateInterviewerResponse({
+      question,
+      tier: tier || "bruteForce",
+      code: code || "",
+      candidateSpeech,
+      transcriptHistory,
+    });
+
+    return res.json(response);
+  } catch (error: any) {
+    console.error("Interview respond error:", error);
+    return res.status(500).json({ error: "Failed to generate interviewer response." });
   }
 });
 

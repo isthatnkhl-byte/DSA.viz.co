@@ -29,6 +29,12 @@ export interface ProctoringState {
   blurCount: number;
   pasteCount: number;
   integrityScore: number; // 0 to 10
+  pendingStrikeModal: {
+    isOpen: boolean;
+    strikeNumber: number;
+    reason: string;
+    isTerminated: boolean;
+  } | null;
 }
 
 export class InterviewProctoringEngine {
@@ -41,16 +47,25 @@ export class InterviewProctoringEngine {
   private blurCount: number = 0;
   private pasteCount: number = 0;
   private isActive: boolean = false;
+  private pendingStrikeModal: {
+    isOpen: boolean;
+    strikeNumber: number;
+    reason: string;
+    isTerminated: boolean;
+  } | null = null;
 
   private onStateChangeCallback?: (state: ProctoringState) => void;
   private onStrikeTriggeredCallback?: (strikeNumber: number, reason: string) => void;
+  private onAutoTerminateCallback?: (reason: string) => void;
 
   constructor(
     onStateChange?: (state: ProctoringState) => void,
-    onStrikeTriggered?: (strikeNumber: number, reason: string) => void
+    onStrikeTriggered?: (strikeNumber: number, reason: string) => void,
+    onAutoTerminate?: (reason: string) => void
   ) {
     this.onStateChangeCallback = onStateChange;
     this.onStrikeTriggeredCallback = onStrikeTriggered;
+    this.onAutoTerminateCallback = onAutoTerminate;
   }
 
   public getState(): ProctoringState {
@@ -67,11 +82,17 @@ export class InterviewProctoringEngine {
       blurCount: this.blurCount,
       pasteCount: this.pasteCount,
       integrityScore: integrity,
+      pendingStrikeModal: this.pendingStrikeModal,
     };
   }
 
   private notify() {
     this.onStateChangeCallback?.(this.getState());
+  }
+
+  public acknowledgeStrike() {
+    this.pendingStrikeModal = null;
+    this.notify();
   }
 
   private addEvent(
@@ -82,7 +103,20 @@ export class InterviewProctoringEngine {
   ) {
     if (addsStrike) {
       this.strikes = Math.min(this.maxStrikes, this.strikes + 1);
+      const isTerminated = this.strikes >= this.maxStrikes;
+      
+      this.pendingStrikeModal = {
+        isOpen: true,
+        strikeNumber: this.strikes,
+        reason: description,
+        isTerminated,
+      };
+
       this.onStrikeTriggeredCallback?.(this.strikes, description);
+
+      if (isTerminated) {
+        this.onAutoTerminateCallback?.(`Maximum strikes limit (${this.maxStrikes}) reached: ${description}`);
+      }
     }
 
     const newEvent: ProctoringEvent = {
@@ -143,6 +177,11 @@ export class InterviewProctoringEngine {
     this.notify();
   }
 
+  public recordCameraViolation(description: string) {
+    if (!this.isActive) return;
+    this.addEvent("camera_status", "warning", `AI Camera: ${description}`);
+  }
+
   private handleVisibilityChange = () => {
     if (!this.isActive) return;
     if (document.visibilityState === "hidden") {
@@ -150,9 +189,17 @@ export class InterviewProctoringEngine {
       this.addEvent(
         "tab_switch",
         "strike",
-        `Proctoring Violation: Tab switch or minimization detected! (#${this.tabSwitchCount})`,
+        `Proctoring Violation: Tab switch or browser minimization detected! (#${this.tabSwitchCount})`,
         true
       );
+    } else if (document.visibilityState === "visible") {
+      // Automatic Revert: Re-request fullscreen immediately upon focus return
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } catch {}
+      this.notify();
     }
   };
 

@@ -255,3 +255,32 @@ export async function apiInterviewScorecard(payload: {
   return response.json();
 }
 
+/**
+ * Live Interview: Ask interviewer a spoken question or request feedback.
+ */
+export async function apiInterviewRespond(payload: {
+  question: any;
+  tier: string;
+  code: string;
+  candidateSpeech: string;
+  transcriptHistory?: string;
+}): Promise<{ spokenText: string; writtenNote: string }> {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch("/api/interview-respond", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Interviewer respond error (${response.status})`);
+  }
+
+  return response.json();
+}
+
+

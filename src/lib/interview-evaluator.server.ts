@@ -425,3 +425,60 @@ Return strictly valid JSON matching this schema:
     };
   }
 }
+
+export async function generateInterviewerResponse(payload: {
+  question: any;
+  tier: string;
+  code: string;
+  candidateSpeech: string;
+  transcriptHistory?: string;
+}): Promise<{ spokenText: string; writtenNote: string }> {
+  const { question, tier, code, candidateSpeech } = payload;
+  const questionTitle = question?.title || "Technical Problem";
+
+  try {
+    const ai = getGeminiClient();
+    const prompt = `You are an elite, supportive Senior Technical Interviewer conducting a live FAANG technical interview.
+The candidate is working on "${questionTitle}" at the ${tier} tier.
+Candidate Code so far:
+\`\`\`
+${code || "No code written yet."}
+\`\`\`
+
+The candidate just verbally asked or said:
+"${candidateSpeech}"
+
+INSTRUCTIONS:
+1. Answer their question or respond to their observation directly, naturally, and concisely in 2 to 3 spoken sentences.
+2. DO NOT write code for them or give away the complete solution! Use Socratic guidance.
+3. Keep the tone encouraging, calm, and professional.
+4. Return strictly valid JSON:
+{
+  "spokenText": "What you speak aloud to the candidate (2-3 sentences max)",
+  "writtenNote": "Brief note for interviewer transcript"
+}`;
+
+    const { text } = await generateContentWithFallback(ai, "gemini-3.8-flash", {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.4,
+      },
+    });
+
+    const parsed = JSON.parse(text || "{}");
+    return {
+      spokenText:
+        parsed.spokenText ||
+        "That is an interesting observation. Consider how your pointer or boundary conditions behave when edge inputs are passed.",
+      writtenNote: parsed.writtenNote || `Responded to candidate question on ${questionTitle}.`,
+    };
+  } catch {
+    return {
+      spokenText:
+        "That makes sense. Focus on your loop invariant and consider what happens at the boundary conditions before advancing.",
+      writtenNote: `Fallback response for question regarding ${questionTitle}.`,
+    };
+  }
+}
+

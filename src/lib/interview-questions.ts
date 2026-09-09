@@ -379,3 +379,70 @@ export function getRandomInterviewQuestion(excludeId?: string): InterviewQuestio
   const randomIndex = Math.floor(Math.random() * pool.length);
   return pool[randomIndex] || INTERVIEW_QUESTIONS[0]!;
 }
+
+export const INTERVIEW_TEMPLATES = [
+  {
+    id: "faang-round",
+    title: "FAANG Coding Round",
+    tagline: "3 Questions in 45 Minutes",
+    description: "Industry-standard full loop simulation covering arrays, two-pointers, and hash table invariants with strict 15-minute question slots.",
+    questionCount: 3,
+    perQuestionMinutes: 15,
+    totalMinutes: 45,
+    difficulty: "Mixed" as const,
+  },
+  {
+    id: "startup-sprint",
+    title: "Startup Rapid Sprint",
+    tagline: "2 Questions in 30 Minutes",
+    description: "High-cadence round emphasizing fast brute-force baseline scaffolding progressing immediately into optimal space efficiency.",
+    questionCount: 2,
+    perQuestionMinutes: 15,
+    totalMinutes: 30,
+    difficulty: "Medium" as const,
+  },
+  {
+    id: "invariant-deep-dive",
+    title: "Algorithm & Invariant Deep Dive",
+    tagline: "1 Question in 25 Minutes",
+    description: "Exhaustive single-problem deep dive testing granular progression across all 3 complexity tiers with socratic hint guidance.",
+    questionCount: 1,
+    perQuestionMinutes: 25,
+    totalMinutes: 25,
+    difficulty: "Medium" as const,
+  },
+  {
+    id: "speed-drill",
+    title: "Speed Drill Sprint",
+    tagline: "3 Questions in 20 Minutes",
+    description: "High-pressure interview sprint with 6.5 minutes per question to test instinctive algorithmic agility under time constraints.",
+    questionCount: 3,
+    perQuestionMinutes: 7,
+    totalMinutes: 20,
+    difficulty: "Mixed" as const,
+  },
+];
+
+export function getQuestionQueueForTemplate(templateId: string): InterviewQuestion[] {
+  const template = INTERVIEW_TEMPLATES.find((t) => t.id === templateId) || INTERVIEW_TEMPLATES[0]!;
+  const shuffled = [...INTERVIEW_QUESTIONS].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, template.questionCount);
+}
+
+export function getTierStarterCode(
+  question: InterviewQuestion,
+  tier: "bruteForce" | "better" | "optimal",
+  language: "cpp" | "python" | "javascript" | "java"
+): string {
+  const baseCode = question.starterCode[language] || "";
+  const tierInfo = question.tierDetails[tier];
+  const targetNote = `// Phase: ${tier === "bruteForce" ? "1. BRUTE FORCE" : tier === "better" ? "2. BETTER APPROACH" : "3. OPTIMAL SOLUTION"}\n// Target Complexity: ${tierInfo.targetTime} Time, ${tierInfo.targetSpace} Space\n// Strategy: ${tierInfo.description}`;
+
+  if (language === "python") {
+    const pyNote = `# Phase: ${tier === "bruteForce" ? "1. BRUTE FORCE" : tier === "better" ? "2. BETTER APPROACH" : "3. OPTIMAL SOLUTION"}\n# Target Complexity: ${tierInfo.targetTime} Time, ${tierInfo.targetSpace} Space\n# Strategy: ${tierInfo.description}`;
+    return baseCode.replace(/# Tier 1:[^\n]+|# Step 1:[^\n]+/, pyNote);
+  }
+
+  return baseCode.replace(/\/\/ Tier 1:[^\n]+|\/\/ Step 1:[^\n]+/, targetNote);
+}
+

@@ -255849,38 +255849,87 @@ var requireAuth = async (req, res, next) => {
 };
 
 // src/middleware/security.ts
+function isLocalhostHost(host) {
+  if (!host) return false;
+  let hostname3 = host.toLowerCase().trim();
+  if (hostname3.startsWith("[")) {
+    const closeBracket = hostname3.indexOf("]");
+    if (closeBracket !== -1) {
+      hostname3 = hostname3.slice(1, closeBracket);
+    }
+  } else {
+    hostname3 = hostname3.split(":")[0] ?? hostname3;
+  }
+  return hostname3 === "localhost" || hostname3 === "127.0.0.1" || hostname3 === "0.0.0.0" || hostname3 === "::1" || hostname3.endsWith(".local") || hostname3.endsWith(".internal") || hostname3.endsWith(".localhost");
+}
+function getSanitizedHost(req) {
+  const rawForwardedHost = req.headers["x-forwarded-host"];
+  const rawHost = typeof rawForwardedHost === "string" ? rawForwardedHost.split(",")[0]?.trim() || req.headers.host : req.headers.host;
+  if (!rawHost) return void 0;
+  const sanitized = rawHost.trim().replace(/[^a-zA-Z0-9.:\-_[\]]/g, "");
+  return sanitized || void 0;
+}
+function isSecureRequest(req) {
+  if (req.secure) return true;
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  if (typeof forwardedProto === "string") {
+    const firstProto = forwardedProto.split(",")[0]?.trim().toLowerCase();
+    if (firstProto === "https") return true;
+  }
+  const forwardedSsl = req.headers["x-forwarded-ssl"];
+  if (typeof forwardedSsl === "string" && forwardedSsl.trim().toLowerCase() === "on") {
+    return true;
+  }
+  const urlScheme = req.headers["x-url-scheme"];
+  if (typeof urlScheme === "string" && urlScheme.trim().toLowerCase() === "https") {
+    return true;
+  }
+  const frontEndHttps = req.headers["front-end-https"];
+  if (typeof frontEndHttps === "string" && frontEndHttps.trim().toLowerCase() === "on") {
+    return true;
+  }
+  return false;
+}
 function httpsEnforcer(req, res, next) {
-  if (process.env.NODE_ENV === "production" || process.env.FORCE_HTTPS === "true") {
-    const proto = req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
-    const host = req.headers.host;
-    const isLocalhost = host && (host.startsWith("localhost") || host.startsWith("127.0.0.1"));
-    if (proto !== "https" && !isLocalhost && host) {
+  const isProductionOrForced = process.env.NODE_ENV === "production" || process.env.FORCE_HTTPS === "true";
+  if (isProductionOrForced) {
+    const isSecure = isSecureRequest(req);
+    const host = getSanitizedHost(req);
+    const isLocal = isLocalhostHost(host);
+    if (!isSecure && !isLocal && host) {
+      if (typeof res.setHeader === "function") {
+        res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("X-Frame-Options", "SAMEORIGIN");
+      }
       return res.redirect(301, `https://${host}${req.originalUrl || req.url}`);
     }
   }
   next();
 }
 function securityHeadersMiddleware(_req, res, next) {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("X-XSS-Protection", "0");
-  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
-  const isProductionOrForced = process.env.NODE_ENV === "production" || process.env.FORCE_HTTPS === "true";
-  const cspDirectives = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: blob: https:",
-    "connect-src 'self' https: wss:",
-    "media-src 'self' blob: data:",
-    "frame-ancestors 'self'",
-    isProductionOrForced ? "upgrade-insecure-requests" : ""
-  ].filter(Boolean).join("; ");
-  res.setHeader("Content-Security-Policy", cspDirectives);
-  if (isProductionOrForced) {
-    res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  if (typeof res.setHeader === "function") {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("X-XSS-Protection", "0");
+    res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
+    const isProductionOrForced = process.env.NODE_ENV === "production" || process.env.FORCE_HTTPS === "true";
+    const cspDirectives = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self' https: wss:",
+      "media-src 'self' blob: data:",
+      "frame-ancestors 'self'",
+      isProductionOrForced ? "upgrade-insecure-requests" : ""
+    ].filter(Boolean).join("; ");
+    res.setHeader("Content-Security-Policy", cspDirectives);
+    if (isProductionOrForced) {
+      res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+    }
   }
   next();
 }
@@ -256804,7 +256853,10 @@ function validateSource(code, language = "cpp") {
 }
 
 // src/lib/compiler/godbolt.ts
-async function executeOnGodbolt(code, stdin = "", compilerId = "g141", userArgs = "-O2 -std=c++20") {
+function stripAnsi(text) {
+  return text.replace(/[\u001b\x1b]\[[0-?]*[ -/]*[@-~]/g, "");
+}
+async function executeOnGodbolt(code, stdin = "", compilerId = "g141", userArgs = "-O2 -std=c++20", language) {
   const startTime = Date.now();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 9e3);
@@ -256842,32 +256894,52 @@ async function executeOnGodbolt(code, stdin = "", compilerId = "g141", userArgs 
     }
     const data = await response.json();
     const executionTimeMs = Date.now() - startTime;
-    const buildStderr = (data.buildResult?.stderr || data.stderr || []).map((item) => item.text).join("\n").trim();
-    const buildCode = data.buildResult?.code ?? data.code;
-    const didFailCompilation = buildCode !== void 0 && buildCode !== 0 || buildStderr.length > 0 && !data.execResponse;
-    if (didFailCompilation) {
+    const didExecute = data.didExecute === true || data.execResponse?.didExecute === true;
+    const buildCode = data.buildResult?.code;
+    const isCompilationFailure = !didExecute && (buildCode !== void 0 && buildCode !== 0 || data.code === -1 || data.code !== 0 && !data.stdout?.length && Boolean(data.buildResult?.stderr?.length));
+    if (isCompilationFailure) {
+      const rawBuildErr = (data.buildResult?.stderr || data.stderr || []).map((item) => item.text).join("\n").trim();
+      const cleanBuildErr = stripAnsi(rawBuildErr);
       return {
         stdout: "",
-        stderr: buildStderr,
-        compile_output: buildStderr || "Compilation failed.",
+        stderr: cleanBuildErr,
+        compile_output: cleanBuildErr || "Compilation failed.",
         exitCode: buildCode ?? 1,
         executionTimeMs,
         status: "compilation_error",
         statusMessage: "Compilation Error",
-        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        language
       };
     }
-    const execStdout = (data.execResponse?.stdout || data.stdout || []).map((item) => item.text).join("\n");
-    const execStderr = (data.execResponse?.stderr || []).map((item) => item.text).join("\n");
-    const exitCode = data.execResponse?.code ?? 0;
+    const stdoutItems = data.execResponse?.stdout || data.stdout || [];
+    const stderrItems = data.execResponse?.stderr || data.stderr || [];
+    const execStdout = stripAnsi(stdoutItems.map((item) => item.text).join("\n"));
+    const execStderr = stripAnsi(stderrItems.map((item) => item.text).join("\n"));
+    const isServerTimeout = data.timedOut === true || data.buildResult?.timedOut === true || data.execResponse?.timedOut === true;
+    if (isServerTimeout) {
+      return {
+        stdout: execStdout,
+        stderr: (execStderr ? execStderr + "\n" : "") + "Execution timed out (Time Limit exceeded).",
+        exitCode: 124,
+        executionTimeMs,
+        status: "timeout",
+        statusMessage: "Time Limit Exceeded",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        language
+      };
+    }
+    const exitCode = data.execResponse?.code ?? (didExecute ? data.code ?? 0 : buildCode ?? 0);
+    const isSuccess = exitCode === 0;
     return {
       stdout: execStdout,
       stderr: execStderr,
       exitCode,
       executionTimeMs,
-      status: exitCode === 0 ? "success" : "runtime_error",
-      statusMessage: exitCode === 0 ? "Execution Succeeded" : `Runtime Error (Exit Code: ${exitCode})`,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      status: isSuccess ? "success" : "runtime_error",
+      statusMessage: isSuccess ? "Execution Succeeded" : `Runtime Error (Exit Code: ${exitCode})`,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      language
     };
   } catch (error61) {
     clearTimeout(timeoutId);
@@ -256880,7 +256952,8 @@ async function executeOnGodbolt(code, stdin = "", compilerId = "g141", userArgs 
         executionTimeMs: 9e3,
         status: "timeout",
         statusMessage: "Time Limit Exceeded",
-        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        language
       };
     }
     throw error61;
@@ -256966,31 +257039,101 @@ var import_node_path2 = __toESM(require("node:path"), 1);
 var import_node_child_process = require("node:child_process");
 var MAX_OUTPUT_LENGTH = 15e4;
 var DEFAULT_TIMEOUT_MS = 8e3;
-function resolveBinary(preferredCandidates, fallback) {
-  for (const candidate of preferredCandidates) {
+function findExecutable(candidatePaths, binaryName) {
+  for (const candidate of candidatePaths) {
+    if (!candidate) continue;
     try {
       if (import_node_fs2.default.existsSync(candidate)) {
-        return candidate;
+        const stat3 = import_node_fs2.default.statSync(candidate);
+        if (stat3.isFile() || stat3.isSymbolicLink()) {
+          return candidate;
+        }
       }
     } catch {
     }
   }
-  return fallback;
+  const pathEnv = process.env.PATH || "";
+  const pathDirs = pathEnv.split(import_node_path2.default.delimiter);
+  const extensions = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+  for (const dir of pathDirs) {
+    if (!dir) continue;
+    for (const ext of extensions) {
+      const fullPath = import_node_path2.default.join(dir, binaryName + ext);
+      try {
+        if (import_node_fs2.default.existsSync(fullPath)) {
+          const stat3 = import_node_fs2.default.statSync(fullPath);
+          if (stat3.isFile() || stat3.isSymbolicLink()) {
+            return fullPath;
+          }
+        }
+      } catch {
+      }
+    }
+  }
+  return null;
 }
-var PYTHON_BIN = resolveBinary(
-  ["/home/codespace/.python/current/bin/python3", "/usr/bin/python3", "/usr/local/bin/python3"],
-  "python3"
-);
-var JAVAC_BIN = resolveBinary(
-  ["/home/codespace/java/current/bin/javac", "/usr/bin/javac", "/usr/local/bin/javac"],
-  "javac"
-);
-var JAVA_BIN = resolveBinary(
-  ["/home/codespace/java/current/bin/java", "/usr/bin/java", "/usr/local/bin/java"],
-  "java"
-);
-var GCC_BIN = resolveBinary(["/usr/bin/gcc", "/usr/local/bin/gcc"], "gcc");
-var GPP_BIN = resolveBinary(["/usr/bin/g++", "/usr/local/bin/g++"], "g++");
+function getPythonBin() {
+  return findExecutable(
+    [
+      process.env.PYTHON_PATH,
+      "/home/codespace/.python/current/bin/python3",
+      "/home/codespace/.python/current/bin/python",
+      "/usr/bin/python3",
+      "/usr/local/bin/python3",
+      "/usr/bin/python",
+      "/usr/local/bin/python",
+      "/opt/homebrew/bin/python3",
+      "/opt/homebrew/bin/python"
+    ],
+    "python3"
+  ) || findExecutable([], "python");
+}
+function getJavacBin() {
+  const javaHomeBin = process.env.JAVA_HOME ? import_node_path2.default.join(process.env.JAVA_HOME, "bin", "javac") : void 0;
+  return findExecutable(
+    [
+      javaHomeBin,
+      "/home/codespace/java/current/bin/javac",
+      "/usr/bin/javac",
+      "/usr/local/bin/javac",
+      "/usr/lib/jvm/default-java/bin/javac",
+      "/usr/lib/jvm/java-21-openjdk-amd64/bin/javac",
+      "/usr/lib/jvm/java-17-openjdk-amd64/bin/javac",
+      "/usr/lib/jvm/java-11-openjdk-amd64/bin/javac",
+      "/opt/homebrew/bin/javac"
+    ],
+    "javac"
+  );
+}
+function getJavaBin() {
+  const javaHomeBin = process.env.JAVA_HOME ? import_node_path2.default.join(process.env.JAVA_HOME, "bin", "java") : void 0;
+  return findExecutable(
+    [
+      javaHomeBin,
+      "/home/codespace/java/current/bin/java",
+      "/usr/bin/java",
+      "/usr/local/bin/java",
+      "/usr/lib/jvm/default-java/bin/java",
+      "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+      "/usr/lib/jvm/java-17-openjdk-amd64/bin/java",
+      "/usr/lib/jvm/java-11-openjdk-amd64/bin/java",
+      "/opt/homebrew/bin/java"
+    ],
+    "java"
+  );
+}
+function getGccBin() {
+  return findExecutable(
+    ["/usr/bin/gcc", "/usr/local/bin/gcc", "/opt/homebrew/bin/gcc"],
+    "gcc"
+  );
+}
+function getGppBin() {
+  return findExecutable(
+    ["/usr/bin/g++", "/usr/local/bin/g++", "/opt/homebrew/bin/g++"],
+    "g++"
+  );
+}
 function runSpawnedProcess(cmd, args, cwd, stdinText = "", timeoutMs = DEFAULT_TIMEOUT_MS) {
   return new Promise((resolve) => {
     let stdoutBuffer = "";
@@ -257048,7 +257191,7 @@ function runSpawnedProcess(cmd, args, cwd, stdinText = "", timeoutMs = DEFAULT_T
       } catch {
       }
     }
-    const settle = (exitCode) => {
+    const settle = (exitCode, isNotFound = false) => {
       if (isSettled) return;
       isSettled = true;
       clearTimeout(timer);
@@ -257056,15 +257199,17 @@ function runSpawnedProcess(cmd, args, cwd, stdinText = "", timeoutMs = DEFAULT_T
         stdout: stdoutBuffer,
         stderr: stderrBuffer,
         exitCode,
-        timedOut
+        timedOut,
+        isNotFound
       });
     };
     child.on("error", (err) => {
-      stderrBuffer += "\nProcess execution error: " + err.message;
-      settle(1);
+      const isEnoent = err?.code === "ENOENT" || typeof err?.message === "string" && err.message.includes("ENOENT");
+      stderrBuffer += "\nProcess execution error: " + (err?.message || String(err));
+      settle(1, isEnoent);
     });
     child.on("close", (code) => {
-      settle(code ?? (timedOut ? 124 : 0));
+      settle(code ?? (timedOut ? 124 : 0), false);
     });
   });
 }
@@ -257073,10 +257218,36 @@ async function executeLocalCode(code, stdin = "", language = "cpp") {
   const tmpDir = await import_promises.default.mkdtemp(import_node_path2.default.join(import_node_os.default.tmpdir(), `dsaviz-${language}-`));
   try {
     if (language === "python") {
+      const pythonBin = getPythonBin();
+      if (!pythonBin) {
+        const executionTimeMs3 = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: "Local Python interpreter (python3) is not installed on this server.",
+          exitCode: 1,
+          executionTimeMs: executionTimeMs3,
+          status: "error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          language: "python"
+        };
+      }
       const scriptPath = import_node_path2.default.join(tmpDir, "main.py");
       await import_promises.default.writeFile(scriptPath, code, "utf-8");
-      const execRes2 = await runSpawnedProcess(PYTHON_BIN, ["-u", "main.py"], tmpDir, stdin);
+      const execRes2 = await runSpawnedProcess(pythonBin, ["-u", "main.py"], tmpDir, stdin);
       const executionTimeMs2 = Date.now() - startTime;
+      if (execRes2.isNotFound) {
+        return {
+          stdout: "",
+          stderr: `Local Python interpreter (${pythonBin}) could not be spawned (ENOENT).`,
+          exitCode: 1,
+          executionTimeMs: executionTimeMs2,
+          status: "error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          language: "python"
+        };
+      }
       if (execRes2.timedOut) {
         return {
           stdout: execRes2.stdout,
@@ -257102,12 +257273,42 @@ async function executeLocalCode(code, stdin = "", language = "cpp") {
       };
     }
     if (language === "java") {
+      const javacBin = getJavacBin();
+      const javaBin = getJavaBin();
+      if (!javacBin || !javaBin) {
+        const executionTimeMs3 = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: "Local Java Development Kit (javac/java) is not installed on this server.",
+          compile_output: "javac compiler binary not found.",
+          exitCode: 1,
+          executionTimeMs: executionTimeMs3,
+          status: "compilation_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          language: "java"
+        };
+      }
       const publicClassMatch = code.match(/\bpublic\s+class\s+([A-Za-z0-9_]+)/);
       const anyClassMatch = code.match(/\bclass\s+([A-Za-z0-9_]+)/);
       const className = publicClassMatch && publicClassMatch[1] || anyClassMatch && anyClassMatch[1] || "Main";
       const sourcePath2 = import_node_path2.default.join(tmpDir, `${className}.java`);
       await import_promises.default.writeFile(sourcePath2, code, "utf-8");
-      const compileRes2 = await runSpawnedProcess(JAVAC_BIN, [import_node_path2.default.basename(sourcePath2)], tmpDir, "", 6e3);
+      const compileRes2 = await runSpawnedProcess(javacBin, [import_node_path2.default.basename(sourcePath2)], tmpDir, "", 6e3);
+      if (compileRes2.isNotFound) {
+        const executionTimeMs3 = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: `Local Java compiler (${javacBin}) could not be spawned (ENOENT).`,
+          compile_output: `spawn ${javacBin} ENOENT`,
+          exitCode: 1,
+          executionTimeMs: executionTimeMs3,
+          status: "compilation_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          language: "java"
+        };
+      }
       if (compileRes2.timedOut || compileRes2.exitCode !== 0) {
         const executionTimeMs3 = Date.now() - startTime;
         const compileErr = compileRes2.stderr || compileRes2.stdout || "Java compilation failed.";
@@ -257124,12 +257325,24 @@ async function executeLocalCode(code, stdin = "", language = "cpp") {
         };
       }
       const execRes2 = await runSpawnedProcess(
-        JAVA_BIN,
+        javaBin,
         ["-Xmx256m", "-cp", ".", className],
         tmpDir,
         stdin
       );
       const executionTimeMs2 = Date.now() - startTime;
+      if (execRes2.isNotFound) {
+        return {
+          stdout: "",
+          stderr: `Local Java runtime (${javaBin}) could not be spawned (ENOENT).`,
+          exitCode: 1,
+          executionTimeMs: executionTimeMs2,
+          status: "runtime_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          language: "java"
+        };
+      }
       if (execRes2.timedOut) {
         return {
           stdout: execRes2.stdout,
@@ -257155,16 +257368,45 @@ async function executeLocalCode(code, stdin = "", language = "cpp") {
       };
     }
     if (language === "c") {
+      const gccBin = getGccBin();
+      if (!gccBin) {
+        const executionTimeMs3 = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: "Local C compiler (gcc) is not installed on this server.",
+          compile_output: "gcc compiler binary not found.",
+          exitCode: 1,
+          executionTimeMs: executionTimeMs3,
+          status: "compilation_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          language: "c"
+        };
+      }
       const sourcePath2 = import_node_path2.default.join(tmpDir, "main.c");
       const binPath2 = import_node_path2.default.join(tmpDir, "main");
       await import_promises.default.writeFile(sourcePath2, code, "utf-8");
       const compileRes2 = await runSpawnedProcess(
-        GCC_BIN,
+        gccBin,
         ["-O2", "-std=c17", "main.c", "-o", "main", "-lm"],
         tmpDir,
         "",
         6e3
       );
+      if (compileRes2.isNotFound) {
+        const executionTimeMs3 = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: `Local C compiler (${gccBin}) could not be spawned (ENOENT).`,
+          compile_output: `spawn ${gccBin} ENOENT`,
+          exitCode: 1,
+          executionTimeMs: executionTimeMs3,
+          status: "compilation_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          language: "c"
+        };
+      }
       if (compileRes2.timedOut || compileRes2.exitCode !== 0) {
         const executionTimeMs3 = Date.now() - startTime;
         const compileErr = compileRes2.stderr || compileRes2.stdout || "C compilation failed.";
@@ -257206,16 +257448,45 @@ async function executeLocalCode(code, stdin = "", language = "cpp") {
         language: "c"
       };
     }
+    const gppBin = getGppBin();
+    if (!gppBin) {
+      const executionTimeMs2 = Date.now() - startTime;
+      return {
+        stdout: "",
+        stderr: "Local C++ compiler (g++) is not installed on this server.",
+        compile_output: "g++ compiler binary not found.",
+        exitCode: 1,
+        executionTimeMs: executionTimeMs2,
+        status: "compilation_error",
+        statusMessage: "Toolchain Not Found",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        language: "cpp"
+      };
+    }
     const sourcePath = import_node_path2.default.join(tmpDir, "main.cpp");
     const binPath = import_node_path2.default.join(tmpDir, "main");
     await import_promises.default.writeFile(sourcePath, code, "utf-8");
     const compileRes = await runSpawnedProcess(
-      GPP_BIN,
+      gppBin,
       ["-O2", "-std=c++20", "main.cpp", "-o", "main", "-lm"],
       tmpDir,
       "",
       6e3
     );
+    if (compileRes.isNotFound) {
+      const executionTimeMs2 = Date.now() - startTime;
+      return {
+        stdout: "",
+        stderr: `Local C++ compiler (${gppBin}) could not be spawned (ENOENT).`,
+        compile_output: `spawn ${gppBin} ENOENT`,
+        exitCode: 1,
+        executionTimeMs: executionTimeMs2,
+        status: "compilation_error",
+        statusMessage: "Toolchain Not Found",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        language: "cpp"
+      };
+    }
     if (compileRes.timedOut || compileRes.exitCode !== 0) {
       const executionTimeMs2 = Date.now() - startTime;
       const compileErr = compileRes.stderr || compileRes.stdout || "C++ compilation failed.";
@@ -257270,38 +257541,74 @@ async function runSecureCode(code, stdin = "", language = "cpp") {
   }
   let result = null;
   if (language === "python") {
-    result = await executeLocalCode(code, stdin, "python");
-  } else if (language === "java") {
-    result = await executeLocalCode(code, stdin, "java");
-  } else if (language === "c") {
     try {
-      result = await executeOnGodbolt(code, stdin, "g141", "-O2 -x c -std=c17");
-      if (result) {
-        result.language = "c";
-      }
+      result = await executeOnGodbolt(code, stdin, "python312", "", "python");
     } catch (godboltErr) {
-      console.warn("[Compiler:C] Godbolt failed, falling back to local GCC runner:", godboltErr);
-      try {
-        result = await executeLocalCode(code, stdin, "c");
-      } catch (localErr) {
-        console.error("[Compiler:C] All C compiler providers failed:", localErr);
+      console.warn("[Compiler:Python] Godbolt sandbox unavailable, trying local runner:", godboltErr);
+      const localResult = await executeLocalCode(code, stdin, "python");
+      if (localResult.statusMessage === "Toolchain Not Found") {
         return {
           stdout: "",
-          stderr: "C compiler service temporarily unavailable. Please try again.",
+          stderr: "Python execution service is temporarily unavailable. Cloud sandbox timed out and local Python interpreter is not installed on this server.",
           exitCode: 1,
           status: "error",
           statusMessage: "Execution Service Unavailable",
           timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-          language: "c"
+          language: "python"
         };
+      }
+      result = localResult;
+    }
+  } else if (language === "java") {
+    try {
+      const sanitizedJava = code.replace(
+        /\bpublic\s+(?:final\s+|abstract\s+)?class\b/g,
+        (match2) => match2.replace(/\bpublic\s+/, "")
+      );
+      result = await executeOnGodbolt(sanitizedJava, stdin, "java2102", "", "java");
+    } catch (godboltErr) {
+      console.warn("[Compiler:Java] Godbolt sandbox unavailable, trying local runner:", godboltErr);
+      const localResult = await executeLocalCode(code, stdin, "java");
+      if (localResult.statusMessage === "Toolchain Not Found") {
+        return {
+          stdout: "",
+          stderr: "Java compiler service is temporarily unavailable. Cloud sandbox timed out and local Java Development Kit (javac/java) is not installed on this server.",
+          exitCode: 1,
+          status: "error",
+          statusMessage: "Execution Service Unavailable",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          language: "java"
+        };
+      }
+      result = localResult;
+    }
+  } else if (language === "c") {
+    try {
+      result = await executeOnGodbolt(code, stdin, "cg141", "-O2 -std=c17", "c");
+    } catch (primaryErr) {
+      console.warn("[Compiler:C] Godbolt cg141 unavailable, trying g141 fallback:", primaryErr);
+      try {
+        result = await executeOnGodbolt(code, stdin, "g141", "-O2 -x c -std=c17", "c");
+      } catch (secondaryErr) {
+        console.warn("[Compiler:C] Godbolt secondary unavailable, falling back to local GCC runner:", secondaryErr);
+        const localResult = await executeLocalCode(code, stdin, "c");
+        if (localResult.statusMessage === "Toolchain Not Found") {
+          return {
+            stdout: "",
+            stderr: "C compiler service is temporarily unavailable. Cloud sandbox timed out and local GCC compiler is not installed on this server.",
+            exitCode: 1,
+            status: "error",
+            statusMessage: "Execution Service Unavailable",
+            timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+            language: "c"
+          };
+        }
+        result = localResult;
       }
     }
   } else {
     try {
-      result = await executeOnGodbolt(code, stdin, "g141", "-O2 -std=c++20");
-      if (result) {
-        result.language = "cpp";
-      }
+      result = await executeOnGodbolt(code, stdin, "g141", "-O2 -std=c++20", "cpp");
     } catch (primaryErr) {
       console.warn("[Compiler:CPP] Godbolt failed, trying secondary provider Wandbox:", primaryErr);
       try {
@@ -257311,13 +257618,11 @@ async function runSecureCode(code, stdin = "", language = "cpp") {
         }
       } catch (secondaryErr) {
         console.warn("[Compiler:CPP] Wandbox failed, falling back to local G++ runner:", secondaryErr);
-        try {
-          result = await executeLocalCode(code, stdin, "cpp");
-        } catch (localErr) {
-          console.error("[Compiler:CPP] All C++ compiler providers failed:", localErr);
+        const localResult = await executeLocalCode(code, stdin, "cpp");
+        if (localResult.statusMessage === "Toolchain Not Found") {
           return {
             stdout: "",
-            stderr: "Sandbox compiler service temporarily unavailable. Please check your connection or try again in a moment.",
+            stderr: "C++ compiler service is temporarily unavailable. Cloud sandbox timed out and local G++ compiler is not installed on this server.",
             exitCode: 1,
             status: "error",
             statusMessage: "Execution Service Unavailable",
@@ -257325,6 +257630,7 @@ async function runSecureCode(code, stdin = "", language = "cpp") {
             language: "cpp"
           };
         }
+        result = localResult;
       }
     }
   }
@@ -281199,8 +281505,8 @@ var app = (0, import_express.default)();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 var PORT = 3e3;
-app.use(httpsEnforcer);
 app.use(securityHeadersMiddleware);
+app.use(httpsEnforcer);
 var API_ENDPOINTS = [
   "/statement",
   "/review",
@@ -281943,7 +282249,49 @@ CAPABILITIES:
       baseSystemInstruction = customInstruction || `You are Vizco Buddy, the brilliant, friendly interactive AI companion for DSA.viz.co! \u2728
 You answer anything the user asks regarding Data Structures & Algorithms, code implementations, problem-solving techniques, time/space complexity, debugging, and interview preparation.`;
     }
+    const platformKnowledge = `
+[DSA.VIZ.CO COMPREHENSIVE PLATFORM ARCHITECTURE & CAPABILITIES]:
+You have complete, authoritative knowledge of every frontend feature, page, routing, and backend API on DSA.viz.co to help users anywhere on the platform:
+
+1. FRONTEND PAGES & USER CAPABILITIES:
+   \u2022 "/" (Home / Landing): Hero showcase, interactive Complexity Leap card, live visualizer preview, Topic Tracks (Arrays, Strings, Linked Lists, Trees, Graphs, DP, Sorting & Searching, Greedy, Bit Manipulation), Algorithm Live Ticker, Curated Sheets section (LeetCode 75, NeetCode 150, Blind 75, Striver SDE), Theme Switcher (Dark/Light + Purple, Emerald, Ocean, Amber themes).
+   \u2022 "/problems": Catalog of 1500+ LeetCode problems with topic filters, difficulty levels (Easy, Medium, Hard), search, and completion tags.
+   \u2022 "/problem/:slug": Interactive Visualizer Engine. Features live step-by-step state playback, pointer animations (left/right, slow/fast, matrix cell traversal, tree/graph node traversal), variables state inspection, custom dataset editor modal (DatasetToolbar), pseudocode editor with line highlighting, AI Diff Nudge panel (ProblemDiffNudgePanel) for progressive hints without spoilers, and ReviewCard.
+   \u2022 "/compiler": Multi-language Sandboxed Online Compiler supporting 4 execution targets:
+     - C++20 (GCC 14.1)
+     - C17 (GCC 14.1)
+     - Java 25 (OpenJDK 25)
+     - Python 3.12 (CPython 3.12)
+     Features interactive Standard Input (stdin) and Output (stdout), compiler diagnostics, execution time (ms) and memory (KB) metrics, curated FAANG algorithm templates, Fast I/O snippets, GitHub direct repository push, and code snapshot export. Keyboard shortcut: Ctrl + Enter (Cmd + Enter) to run code immediately.
+   \u2022 "/live-interview": AI Mock Technical Interview Room. Voice/audio interaction, real-time live coding sandbox, live evaluation, behavioral and algorithmic rubric scorecard, camera/microphone controls.
+   \u2022 "/sheets": Curated DSA Roadmaps (LeetCode 75, NeetCode 150, Blind 75, Striver's SDE Sheet, and topic-wise mastery roadmaps) with checklist progress tracking.
+   \u2022 "/playground": Interactive visualizer playground for experimenting with sorting algorithms, tree traversals, graph algorithms, and custom arrays.
+   \u2022 "/dashboard" (and "/_authenticated/dashboard"): Personal user progress dashboard, LeetCode heatmap & account sync, AI mistake pattern analysis, and solved problem metrics.
+   \u2022 Global features: Quick Search Modal ("/" or Ctrl+K), Theme Color Picker, Custom Cursor, Cookie Preferences, and Skip to main content landmark.
+
+2. BACKEND API ENDPOINTS & ARCHITECTURE:
+   \u2022 "POST /api/chat": Multi-turn Gemini AI assistant with roles (interviewer, solutions, step_doubts, mistake_analyzer, evaluator), session memory, Firestore profile integration, and client offline Socratic fallback.
+   \u2022 "POST /api/compiler/execute": Sandboxed multi-tier code runner for C++, C, Java, and Python with pre-execution validation, resource limits, and stdin support.
+   \u2022 "POST /api/review": AI pseudocode evaluation and logic gap identification.
+   \u2022 "POST /api/code-diff-nudge": Step-by-step guidance comparing user implementation against optimal algorithmic patterns without spoiling full solutions.
+   \u2022 "POST /api/rate-submission": Scores submissions out of 10 with Big-O time and space proofs.
+   \u2022 "POST /api/interview-evaluate" & "POST /api/interview-scorecard": Technical interview grading across communication, problem-solving, code quality, and edge cases.
+   \u2022 "POST /api/generate-mistakes-report": Aggregates recurring user mistakes into cognitive and algorithmic growth plans.
+   \u2022 "GET /api/statement": Retrieves problem descriptions and test cases.
+   \u2022 "GET /api/submissions" & "POST /api/submissions": User submission persistence in Firestore.
+   \u2022 "POST /api/sync-leetcode": Synchronizes solved problem stats from official LeetCode profiles.
+   \u2022 "POST /api/visualize-dataset" & "POST /api/verify-trace": Dynamic step trace generation for custom user datasets.
+   \u2022 "GET /api/github/url" & "POST /api/github/push": GitHub OAuth integration to push code to user repositories.
+
+3. OMNISCIENT PLATFORM GUIDANCE:
+   \u2022 Help users navigate anywhere on the platform, explain features, give keyboard shortcuts, guide their preparation path, interpret compiler errors, and assist with any DSA concept.
+`.trim();
     let siteContextStr = "";
+    if (context2.isCustom) {
+      siteContextStr += `
+[USER CUSTOM CONTEXT SPECIFIED]: Topic: "${context2.problemTitle || "Custom"}"`;
+      if (context2.customGoal) siteContextStr += ` | User Goal/Focus: "${context2.customGoal}"`;
+    }
     if (context2.route) {
       siteContextStr += `
 [CURRENT USER WEBSITE LOCATION]: Route: "${context2.route}"${context2.pageTitle ? ` | Page: "${context2.pageTitle}"` : ""}`;
@@ -281976,6 +282324,7 @@ ${context2.compilerOutput}
       }
     }
     const fullSystemInstruction = `${baseSystemInstruction}
+${platformKnowledge}
 ${siteContextStr}
 ${userProfileContext}
 ${userSubmissionsContext}`.trim();

@@ -353,4 +353,50 @@ int main() {
   assert.ok(res.stdout.includes("cin >>"));
 });
 
+test("runSecureCode - executes Java code with public class and stdin", async () => {
+  const javaCode = `
+import java.util.Scanner;
+
+public class Solution {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int val = sc.nextInt();
+        System.out.println("JAVA_OUT=" + (val * 10));
+    }
+}
+`;
+  const res = await runSecureCode(javaCode, "7\n", "java");
+  assert.equal(res.status, "success");
+  assert.equal(res.exitCode, 0);
+  assert.ok(res.stdout.includes("JAVA_OUT=70"));
+});
+
+test("runSecureCode - executes Python code with calculations", async () => {
+  const pyCode = `
+def solve():
+    nums = [1, 2, 3, 4, 5]
+    print(f"PY_SUM={sum(nums)}")
+
+solve()
+`;
+  const res = await runSecureCode(pyCode, "", "python");
+  assert.equal(res.status, "success");
+  assert.equal(res.exitCode, 0);
+  assert.ok(res.stdout.includes("PY_SUM=15"));
+});
+
+test("runSecureCode - executes C code with standard I/O", async () => {
+  const cCode = `
+#include <stdio.h>
+
+int main() {
+    printf("C_PIPELINE_OK\\n");
+    return 0;
+}
+`;
+  const res = await runSecureCode(cCode, "", "c");
+  assert.equal(res.status, "success");
+  assert.equal(res.exitCode, 0);
+  assert.ok(res.stdout.includes("C_PIPELINE_OK"));
+});
 

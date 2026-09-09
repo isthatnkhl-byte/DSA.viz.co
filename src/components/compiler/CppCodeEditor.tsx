@@ -970,6 +970,8 @@ export function CppCodeEditor({
 
   const themeClasses = THEME_CLASSES[effectiveTheme];
   const themeBg = THEME_BACKGROUNDS[effectiveTheme];
+  const langLabel = language === "java" ? "Java" : language === "python" ? "Python" : language === "c" ? "C" : "C++";
+  const langExt = language === "python" ? "py" : language === "java" ? "java" : language === "c" ? "c" : "cpp";
 
   return (
     <div
@@ -1026,17 +1028,17 @@ export function CppCodeEditor({
                 disabled={loading || disabled}
                 size="sm"
                 className="ml-2 h-9 gap-2 rounded-xl px-4 font-mono text-[11px] font-bold shadow-lg shadow-primary/25 transition-all duration-300 hover:scale-105 hover:shadow-primary/40 active:scale-95 bg-primary text-primary-foreground border border-primary-foreground/10"
-                title="Run C++ Code (Ctrl + Enter)"
+                title={`Run ${langLabel} Code (Ctrl + Enter)`}
               >
                 {loading ? (
                   <>
                     <Zap className="size-4 animate-spin" />
-                    <span className="tracking-wide">RUNNING...</span>
+                    <span className="tracking-wide">RUNNING {langLabel.toUpperCase()}...</span>
                   </>
                 ) : (
                   <>
                     <Play className="size-4 fill-current" />
-                    <span className="tracking-wide">RUN CODE</span>
+                    <span className="tracking-wide">RUN {langLabel.toUpperCase()} CODE</span>
                     <kbd className="hidden sm:flex items-center justify-center rounded bg-primary-foreground/25 px-1.5 py-0.5 text-[9px] font-mono opacity-100 ml-1 shadow-inner">
                       Ctrl+↵
                     </kbd>
@@ -1143,7 +1145,7 @@ export function CppCodeEditor({
             variant="ghost"
             size="sm"
             onClick={handleDownload}
-            title="Download .cpp file"
+            title={`Download .${langExt} file`}
             className="h-8 px-2 text-xs text-muted-foreground hover:bg-secondary active:scale-95"
           >
             <Download className="size-3.5" />

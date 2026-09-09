@@ -27,6 +27,8 @@ interface ChatContextType {
   toggleChat: () => void;
   activeContext: ChatContextPayload | null;
   updateContext: (payload: Partial<ChatContextPayload>) => void;
+  clearContext: () => void;
+  setCustomContext: (payload: Partial<ChatContextPayload> | null) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -54,6 +56,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setActiveContext((prev) => ({ ...(prev || {}), ...payload }));
   }, []);
 
+  const clearContext = useCallback(() => {
+    setActiveContext(null);
+  }, []);
+
+  const setCustomContext = useCallback((payload: Partial<ChatContextPayload> | null) => {
+    setActiveContext(payload as ChatContextPayload | null);
+  }, []);
+
   return (
     <ChatContext.Provider
       value={{
@@ -63,6 +73,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         toggleChat,
         activeContext,
         updateContext,
+        clearContext,
+        setCustomContext,
       }}
     >
       {children}

@@ -10,6 +10,7 @@ import {
   HardDrive,
   FileInput,
   Zap,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +35,7 @@ export function CppConsole({
   language = "cpp",
   onStdinChange,
   onClear,
+  onRun,
 }: CppConsoleProps) {
   const [copied, setCopied] = useState(false);
   const safeStdin = typeof stdin === "string" ? stdin : "";
@@ -120,15 +122,30 @@ export function CppConsole({
               Input (stdin)
             </span>
           </div>
-          {safeStdin.trim() && (
-            <button
-              type="button"
-              onClick={() => onStdinChange("")}
-              className="font-mono text-[10px] text-muted-foreground hover:text-destructive transition-colors"
-            >
-              Clear Input
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {safeStdin.trim() && (
+              <button
+                type="button"
+                onClick={() => onStdinChange("")}
+                className="font-mono text-[10px] text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+              >
+                Clear Input
+              </button>
+            )}
+            {onRun && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRun}
+                disabled={loading}
+                className="h-6 px-2 text-[10px] font-mono font-bold gap-1 rounded-md text-primary border-primary/40 hover:bg-primary/10 transition-all cursor-pointer"
+                title={`Run ${language.toUpperCase()} with this stdin input (Ctrl+Enter)`}
+              >
+                <Play className="size-2.5 fill-current" />
+                <span>Run</span>
+              </Button>
+            )}
+          </div>
         </div>
 
         <Textarea
@@ -170,6 +187,19 @@ export function CppConsole({
           </div>
 
           <div className="flex items-center gap-2">
+            {onRun && (
+              <Button
+                size="sm"
+                onClick={onRun}
+                disabled={loading}
+                className="h-7 px-2.5 font-mono text-[11px] font-bold gap-1.5 rounded-lg bg-primary text-primary-foreground hover:scale-105 active:scale-95 transition-all shadow-xs cursor-pointer"
+                title={`Run ${language.toUpperCase()} Code (Ctrl+Enter)`}
+              >
+                <Play className="size-3 fill-current" />
+                <span>RUN {language.toUpperCase()}</span>
+              </Button>
+            )}
+
             {renderStatusBadge()}
 
             <Button
@@ -228,9 +258,20 @@ export function CppConsole({
               {outputText}
             </pre>
           ) : (
-            <div className="flex min-h-[140px] flex-col items-center justify-center gap-1.5 text-center text-muted-foreground/50">
-              <Terminal className="size-6 text-muted-foreground/30" />
-              <p className="text-xs">No output yet. Click &quot;Run Code&quot; (Ctrl+Enter) to execute.</p>
+            <div className="flex min-h-[140px] flex-col items-center justify-center gap-2 text-center text-muted-foreground/60">
+              <Terminal className="size-6 text-muted-foreground/40" />
+              <p className="text-xs">No output yet. Click below or press Ctrl+Enter to execute.</p>
+              {onRun && (
+                <Button
+                  size="sm"
+                  onClick={onRun}
+                  disabled={loading}
+                  className="rounded-xl font-mono text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Play className="size-3.5 fill-current" />
+                  <span>RUN {language.toUpperCase()} CODE</span>
+                </Button>
+              )}
             </div>
           )}
         </div>

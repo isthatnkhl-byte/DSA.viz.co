@@ -74,8 +74,8 @@ app.set("trust proxy", 1);
 const PORT = 3000;
 
 // Force HTTPS & Hardened HTTP Security Headers Middleware (OWASP Defense-in-Depth & Strict Transport Security)
-app.use(httpsEnforcer);
 app.use(securityHeadersMiddleware);
+app.use(httpsEnforcer);
 
 // Dual-Path Prefix Normalizer for API paths (only if accessing an API endpoint without /api prefix)
 const API_ENDPOINTS = [
@@ -925,8 +925,51 @@ CAPABILITIES:
 You answer anything the user asks regarding Data Structures & Algorithms, code implementations, problem-solving techniques, time/space complexity, debugging, and interview preparation.`;
     }
 
+    // Comprehensive Platform Knowledge Base (Frontend & Backend Data Context)
+    const platformKnowledge = `
+[DSA.VIZ.CO COMPREHENSIVE PLATFORM ARCHITECTURE & CAPABILITIES]:
+You have complete, authoritative knowledge of every frontend feature, page, routing, and backend API on DSA.viz.co to help users anywhere on the platform:
+
+1. FRONTEND PAGES & USER CAPABILITIES:
+   • "/" (Home / Landing): Hero showcase, interactive Complexity Leap card, live visualizer preview, Topic Tracks (Arrays, Strings, Linked Lists, Trees, Graphs, DP, Sorting & Searching, Greedy, Bit Manipulation), Algorithm Live Ticker, Curated Sheets section (LeetCode 75, NeetCode 150, Blind 75, Striver SDE), Theme Switcher (Dark/Light + Purple, Emerald, Ocean, Amber themes).
+   • "/problems": Catalog of 1500+ LeetCode problems with topic filters, difficulty levels (Easy, Medium, Hard), search, and completion tags.
+   • "/problem/:slug": Interactive Visualizer Engine. Features live step-by-step state playback, pointer animations (left/right, slow/fast, matrix cell traversal, tree/graph node traversal), variables state inspection, custom dataset editor modal (DatasetToolbar), pseudocode editor with line highlighting, AI Diff Nudge panel (ProblemDiffNudgePanel) for progressive hints without spoilers, and ReviewCard.
+   • "/compiler": Multi-language Sandboxed Online Compiler supporting 4 execution targets:
+     - C++20 (GCC 14.1)
+     - C17 (GCC 14.1)
+     - Java 25 (OpenJDK 25)
+     - Python 3.12 (CPython 3.12)
+     Features interactive Standard Input (stdin) and Output (stdout), compiler diagnostics, execution time (ms) and memory (KB) metrics, curated FAANG algorithm templates, Fast I/O snippets, GitHub direct repository push, and code snapshot export. Keyboard shortcut: Ctrl + Enter (Cmd + Enter) to run code immediately.
+   • "/live-interview": AI Mock Technical Interview Room. Voice/audio interaction, real-time live coding sandbox, live evaluation, behavioral and algorithmic rubric scorecard, camera/microphone controls.
+   • "/sheets": Curated DSA Roadmaps (LeetCode 75, NeetCode 150, Blind 75, Striver's SDE Sheet, and topic-wise mastery roadmaps) with checklist progress tracking.
+   • "/playground": Interactive visualizer playground for experimenting with sorting algorithms, tree traversals, graph algorithms, and custom arrays.
+   • "/dashboard" (and "/_authenticated/dashboard"): Personal user progress dashboard, LeetCode heatmap & account sync, AI mistake pattern analysis, and solved problem metrics.
+   • Global features: Quick Search Modal ("/" or Ctrl+K), Theme Color Picker, Custom Cursor, Cookie Preferences, and Skip to main content landmark.
+
+2. BACKEND API ENDPOINTS & ARCHITECTURE:
+   • "POST /api/chat": Multi-turn Gemini AI assistant with roles (interviewer, solutions, step_doubts, mistake_analyzer, evaluator), session memory, Firestore profile integration, and client offline Socratic fallback.
+   • "POST /api/compiler/execute": Sandboxed multi-tier code runner for C++, C, Java, and Python with pre-execution validation, resource limits, and stdin support.
+   • "POST /api/review": AI pseudocode evaluation and logic gap identification.
+   • "POST /api/code-diff-nudge": Step-by-step guidance comparing user implementation against optimal algorithmic patterns without spoiling full solutions.
+   • "POST /api/rate-submission": Scores submissions out of 10 with Big-O time and space proofs.
+   • "POST /api/interview-evaluate" & "POST /api/interview-scorecard": Technical interview grading across communication, problem-solving, code quality, and edge cases.
+   • "POST /api/generate-mistakes-report": Aggregates recurring user mistakes into cognitive and algorithmic growth plans.
+   • "GET /api/statement": Retrieves problem descriptions and test cases.
+   • "GET /api/submissions" & "POST /api/submissions": User submission persistence in Firestore.
+   • "POST /api/sync-leetcode": Synchronizes solved problem stats from official LeetCode profiles.
+   • "POST /api/visualize-dataset" & "POST /api/verify-trace": Dynamic step trace generation for custom user datasets.
+   • "GET /api/github/url" & "POST /api/github/push": GitHub OAuth integration to push code to user repositories.
+
+3. OMNISCIENT PLATFORM GUIDANCE:
+   • Help users navigate anywhere on the platform, explain features, give keyboard shortcuts, guide their preparation path, interpret compiler errors, and assist with any DSA concept.
+`.trim();
+
     // Inject active problem, route, compiler, and simulation step context
     let siteContextStr = "";
+    if (context.isCustom) {
+      siteContextStr += `\n[USER CUSTOM CONTEXT SPECIFIED]: Topic: "${context.problemTitle || 'Custom'}"`;
+      if (context.customGoal) siteContextStr += ` | User Goal/Focus: "${context.customGoal}"`;
+    }
     if (context.route) {
       siteContextStr += `\n[CURRENT USER WEBSITE LOCATION]: Route: "${context.route}"${context.pageTitle ? ` | Page: "${context.pageTitle}"` : ""}`;
     }
@@ -949,6 +992,7 @@ You answer anything the user asks regarding Data Structures & Algorithms, code i
     }
 
     const fullSystemInstruction = `${baseSystemInstruction}
+${platformKnowledge}
 ${siteContextStr}
 ${userProfileContext}
 ${userSubmissionsContext}`.trim();

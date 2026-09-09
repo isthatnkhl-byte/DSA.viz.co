@@ -763,10 +763,34 @@ function CppCompilerPage() {
             </div>
           </div>
 
-          {/* Quick Context Actions */}
+          {/* Quick Context Actions & Primary Run Bar */}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
             {mode === "plain" ? (
               <div className="flex flex-wrap items-center gap-2">
+                {/* Primary Prominent Run Button for active language (C++, C, Java, Python) */}
+                <Button
+                  onClick={() => handleExecute()}
+                  disabled={loading}
+                  size="sm"
+                  className="rounded-xl font-mono text-xs font-bold gap-2 bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                  title={`Execute ${activeLangConfig.label} code (Ctrl + Enter)`}
+                >
+                  {loading ? (
+                    <>
+                      <Zap className="size-3.5 animate-spin" />
+                      <span>RUNNING {activeLangConfig.label.toUpperCase()}...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="size-3.5 fill-current" />
+                      <span>RUN {activeLangConfig.label.toUpperCase()} CODE</span>
+                      <kbd className="hidden sm:inline-flex rounded bg-primary-foreground/25 px-1.5 py-0.2 text-[9px] font-mono shadow-inner">
+                        Ctrl+↵
+                      </kbd>
+                    </>
+                  )}
+                </Button>
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -796,7 +820,31 @@ function CppCompilerPage() {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Primary Prominent Run Button for templates mode */}
+                <Button
+                  onClick={() => handleExecute()}
+                  disabled={loading}
+                  size="sm"
+                  className="rounded-xl font-mono text-xs font-bold gap-2 bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                  title={`Execute template in ${activeLangConfig.label} (Ctrl + Enter)`}
+                >
+                  {loading ? (
+                    <>
+                      <Zap className="size-3.5 animate-spin" />
+                      <span>RUNNING {activeLangConfig.label.toUpperCase()}...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="size-3.5 fill-current" />
+                      <span>RUN {activeLangConfig.label.toUpperCase()} CODE</span>
+                      <kbd className="hidden sm:inline-flex rounded bg-primary-foreground/25 px-1.5 py-0.2 text-[9px] font-mono shadow-inner">
+                        Ctrl+↵
+                      </kbd>
+                    </>
+                  )}
+                </Button>
+
                 <Button
                   variant="outline"
                   size="sm"

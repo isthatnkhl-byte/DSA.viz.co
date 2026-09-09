@@ -8,42 +8,135 @@ import type { CompilerExecutionResult, SupportedLanguage } from "../compiler.typ
 const MAX_OUTPUT_LENGTH = 150000; // 150 KB max output before truncation
 const DEFAULT_TIMEOUT_MS = 8000; // 8 seconds sandbox timeout
 
-function resolveBinary(preferredCandidates: string[], fallback: string): string {
-  for (const candidate of preferredCandidates) {
+function findExecutable(candidatePaths: (string | undefined)[], binaryName: string): string | null {
+  for (const candidate of candidatePaths) {
+    if (!candidate) continue;
     try {
       if (fsSync.existsSync(candidate)) {
-        return candidate;
+        const stat = fsSync.statSync(candidate);
+        if (stat.isFile() || stat.isSymbolicLink()) {
+          return candidate;
+        }
       }
     } catch {
       // Ignore
     }
   }
-  return fallback;
+
+  const pathEnv = process.env.PATH || "";
+  const pathDirs = pathEnv.split(path.delimiter);
+  const extensions = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+
+  for (const dir of pathDirs) {
+    if (!dir) continue;
+    for (const ext of extensions) {
+      const fullPath = path.join(dir, binaryName + ext);
+      try {
+        if (fsSync.existsSync(fullPath)) {
+          const stat = fsSync.statSync(fullPath);
+          if (stat.isFile() || stat.isSymbolicLink()) {
+            return fullPath;
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  return null;
 }
 
-const PYTHON_BIN = resolveBinary(
-  ["/home/codespace/.python/current/bin/python3", "/usr/bin/python3", "/usr/local/bin/python3"],
-  "python3"
-);
+export function getPythonBin(): string | null {
+  return (
+    findExecutable(
+      [
+        process.env.PYTHON_PATH,
+        "/home/codespace/.python/current/bin/python3",
+        "/home/codespace/.python/current/bin/python",
+        "/usr/bin/python3",
+        "/usr/local/bin/python3",
+        "/usr/bin/python",
+        "/usr/local/bin/python",
+        "/opt/homebrew/bin/python3",
+        "/opt/homebrew/bin/python",
+      ],
+      "python3"
+    ) || findExecutable([], "python")
+  );
+}
 
-const JAVAC_BIN = resolveBinary(
-  ["/home/codespace/java/current/bin/javac", "/usr/bin/javac", "/usr/local/bin/javac"],
-  "javac"
-);
+export function getJavacBin(): string | null {
+  const javaHomeBin = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", "javac") : undefined;
+  return findExecutable(
+    [
+      javaHomeBin,
+      "/home/codespace/java/current/bin/javac",
+      "/usr/bin/javac",
+      "/usr/local/bin/javac",
+      "/usr/lib/jvm/default-java/bin/javac",
+      "/usr/lib/jvm/java-21-openjdk-amd64/bin/javac",
+      "/usr/lib/jvm/java-17-openjdk-amd64/bin/javac",
+      "/usr/lib/jvm/java-11-openjdk-amd64/bin/javac",
+      "/opt/homebrew/bin/javac",
+    ],
+    "javac"
+  );
+}
 
-const JAVA_BIN = resolveBinary(
-  ["/home/codespace/java/current/bin/java", "/usr/bin/java", "/usr/local/bin/java"],
-  "java"
-);
+export function getJavaBin(): string | null {
+  const javaHomeBin = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", "java") : undefined;
+  return findExecutable(
+    [
+      javaHomeBin,
+      "/home/codespace/java/current/bin/java",
+      "/usr/bin/java",
+      "/usr/local/bin/java",
+      "/usr/lib/jvm/default-java/bin/java",
+      "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+      "/usr/lib/jvm/java-17-openjdk-amd64/bin/java",
+      "/usr/lib/jvm/java-11-openjdk-amd64/bin/java",
+      "/opt/homebrew/bin/java",
+    ],
+    "java"
+  );
+}
 
-const GCC_BIN = resolveBinary(["/usr/bin/gcc", "/usr/local/bin/gcc"], "gcc");
-const GPP_BIN = resolveBinary(["/usr/bin/g++", "/usr/local/bin/g++"], "g++");
+export function getGccBin(): string | null {
+  return findExecutable(
+    ["/usr/bin/gcc", "/usr/local/bin/gcc", "/opt/homebrew/bin/gcc"],
+    "gcc"
+  );
+}
+
+export function getGppBin(): string | null {
+  return findExecutable(
+    ["/usr/bin/g++", "/usr/local/bin/g++", "/opt/homebrew/bin/g++"],
+    "g++"
+  );
+}
+
+export function isLocalToolchainAvailable(language: SupportedLanguage): boolean {
+  switch (language) {
+    case "python":
+      return Boolean(getPythonBin());
+    case "java":
+      return Boolean(getJavacBin() && getJavaBin());
+    case "c":
+      return Boolean(getGccBin());
+    case "cpp":
+      return Boolean(getGppBin());
+    default:
+      return false;
+  }
+}
 
 interface ProcessOutput {
   stdout: string;
   stderr: string;
   exitCode: number;
   timedOut: boolean;
+  isNotFound?: boolean;
 }
 
 function runSpawnedProcess(
@@ -119,7 +212,7 @@ function runSpawnedProcess(
       }
     }
 
-    const settle = (exitCode: number) => {
+    const settle = (exitCode: number, isNotFound = false) => {
       if (isSettled) return;
       isSettled = true;
       clearTimeout(timer);
@@ -128,16 +221,20 @@ function runSpawnedProcess(
         stderr: stderrBuffer,
         exitCode,
         timedOut,
+        isNotFound,
       });
     };
 
-    child.on("error", (err) => {
-      stderrBuffer += "\nProcess execution error: " + err.message;
-      settle(1);
+    child.on("error", (err: any) => {
+      const isEnoent =
+        err?.code === "ENOENT" ||
+        (typeof err?.message === "string" && err.message.includes("ENOENT"));
+      stderrBuffer += "\nProcess execution error: " + (err?.message || String(err));
+      settle(1, isEnoent);
     });
 
     child.on("close", (code) => {
-      settle(code ?? (timedOut ? 124 : 0));
+      settle(code ?? (timedOut ? 124 : 0), false);
     });
   });
 }
@@ -156,11 +253,39 @@ export async function executeLocalCode(
 
   try {
     if (language === "python") {
+      const pythonBin = getPythonBin();
+      if (!pythonBin) {
+        const executionTimeMs = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: "Local Python interpreter (python3) is not installed on this server.",
+          exitCode: 1,
+          executionTimeMs,
+          status: "error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: new Date().toISOString(),
+          language: "python",
+        };
+      }
+
       const scriptPath = path.join(tmpDir, "main.py");
       await fs.writeFile(scriptPath, code, "utf-8");
 
-      const execRes = await runSpawnedProcess(PYTHON_BIN, ["-u", "main.py"], tmpDir, stdin);
+      const execRes = await runSpawnedProcess(pythonBin, ["-u", "main.py"], tmpDir, stdin);
       const executionTimeMs = Date.now() - startTime;
+
+      if (execRes.isNotFound) {
+        return {
+          stdout: "",
+          stderr: `Local Python interpreter (${pythonBin}) could not be spawned (ENOENT).`,
+          exitCode: 1,
+          executionTimeMs,
+          status: "error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: new Date().toISOString(),
+          language: "python",
+        };
+      }
 
       if (execRes.timedOut) {
         return {
@@ -189,6 +314,24 @@ export async function executeLocalCode(
     }
 
     if (language === "java") {
+      const javacBin = getJavacBin();
+      const javaBin = getJavaBin();
+
+      if (!javacBin || !javaBin) {
+        const executionTimeMs = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: "Local Java Development Kit (javac/java) is not installed on this server.",
+          compile_output: "javac compiler binary not found.",
+          exitCode: 1,
+          executionTimeMs,
+          status: "compilation_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: new Date().toISOString(),
+          language: "java",
+        };
+      }
+
       // Find class name or default to Main
       const publicClassMatch = code.match(/\bpublic\s+class\s+([A-Za-z0-9_]+)/);
       const anyClassMatch = code.match(/\bclass\s+([A-Za-z0-9_]+)/);
@@ -197,7 +340,23 @@ export async function executeLocalCode(
       await fs.writeFile(sourcePath, code, "utf-8");
 
       // 1. Compile with javac
-      const compileRes = await runSpawnedProcess(JAVAC_BIN, [path.basename(sourcePath)], tmpDir, "", 6000);
+      const compileRes = await runSpawnedProcess(javacBin, [path.basename(sourcePath)], tmpDir, "", 6000);
+
+      if (compileRes.isNotFound) {
+        const executionTimeMs = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: `Local Java compiler (${javacBin}) could not be spawned (ENOENT).`,
+          compile_output: `spawn ${javacBin} ENOENT`,
+          exitCode: 1,
+          executionTimeMs,
+          status: "compilation_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: new Date().toISOString(),
+          language: "java",
+        };
+      }
+
       if (compileRes.timedOut || compileRes.exitCode !== 0) {
         const executionTimeMs = Date.now() - startTime;
         const compileErr = compileRes.stderr || compileRes.stdout || "Java compilation failed.";
@@ -216,12 +375,25 @@ export async function executeLocalCode(
 
       // 2. Execute with java
       const execRes = await runSpawnedProcess(
-        JAVA_BIN,
+        javaBin,
         ["-Xmx256m", "-cp", ".", className],
         tmpDir,
         stdin
       );
       const executionTimeMs = Date.now() - startTime;
+
+      if (execRes.isNotFound) {
+        return {
+          stdout: "",
+          stderr: `Local Java runtime (${javaBin}) could not be spawned (ENOENT).`,
+          exitCode: 1,
+          executionTimeMs,
+          status: "runtime_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: new Date().toISOString(),
+          language: "java",
+        };
+      }
 
       if (execRes.timedOut) {
         return {
@@ -250,18 +422,49 @@ export async function executeLocalCode(
     }
 
     if (language === "c") {
+      const gccBin = getGccBin();
+      if (!gccBin) {
+        const executionTimeMs = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: "Local C compiler (gcc) is not installed on this server.",
+          compile_output: "gcc compiler binary not found.",
+          exitCode: 1,
+          executionTimeMs,
+          status: "compilation_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: new Date().toISOString(),
+          language: "c",
+        };
+      }
+
       const sourcePath = path.join(tmpDir, "main.c");
       const binPath = path.join(tmpDir, "main");
       await fs.writeFile(sourcePath, code, "utf-8");
 
       // 1. Compile with gcc
       const compileRes = await runSpawnedProcess(
-        GCC_BIN,
+        gccBin,
         ["-O2", "-std=c17", "main.c", "-o", "main", "-lm"],
         tmpDir,
         "",
         6000
       );
+
+      if (compileRes.isNotFound) {
+        const executionTimeMs = Date.now() - startTime;
+        return {
+          stdout: "",
+          stderr: `Local C compiler (${gccBin}) could not be spawned (ENOENT).`,
+          compile_output: `spawn ${gccBin} ENOENT`,
+          exitCode: 1,
+          executionTimeMs,
+          status: "compilation_error",
+          statusMessage: "Toolchain Not Found",
+          timestamp: new Date().toISOString(),
+          language: "c",
+        };
+      }
 
       if (compileRes.timedOut || compileRes.exitCode !== 0) {
         const executionTimeMs = Date.now() - startTime;
@@ -310,18 +513,49 @@ export async function executeLocalCode(
     }
 
     // Default to C++
+    const gppBin = getGppBin();
+    if (!gppBin) {
+      const executionTimeMs = Date.now() - startTime;
+      return {
+        stdout: "",
+        stderr: "Local C++ compiler (g++) is not installed on this server.",
+        compile_output: "g++ compiler binary not found.",
+        exitCode: 1,
+        executionTimeMs,
+        status: "compilation_error",
+        statusMessage: "Toolchain Not Found",
+        timestamp: new Date().toISOString(),
+        language: "cpp",
+      };
+    }
+
     const sourcePath = path.join(tmpDir, "main.cpp");
     const binPath = path.join(tmpDir, "main");
     await fs.writeFile(sourcePath, code, "utf-8");
 
     // 1. Compile with g++
     const compileRes = await runSpawnedProcess(
-      GPP_BIN,
+      gppBin,
       ["-O2", "-std=c++20", "main.cpp", "-o", "main", "-lm"],
       tmpDir,
       "",
       6000
     );
+
+    if (compileRes.isNotFound) {
+      const executionTimeMs = Date.now() - startTime;
+      return {
+        stdout: "",
+        stderr: `Local C++ compiler (${gppBin}) could not be spawned (ENOENT).`,
+        compile_output: `spawn ${gppBin} ENOENT`,
+        exitCode: 1,
+        executionTimeMs,
+        status: "compilation_error",
+        statusMessage: "Toolchain Not Found",
+        timestamp: new Date().toISOString(),
+        language: "cpp",
+      };
+    }
 
     if (compileRes.timedOut || compileRes.exitCode !== 0) {
       const executionTimeMs = Date.now() - startTime;

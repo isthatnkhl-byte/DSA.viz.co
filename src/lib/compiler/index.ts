@@ -23,42 +23,87 @@ export async function runSecureCode(
 
   // 2. Language-specific execution engine dispatch
   if (language === "python") {
-    // Python runs in sandboxed ephemeral process with resource isolation
-    result = await executeLocalCode(code, stdin, "python");
-  } else if (language === "java") {
-    // Java compiles with javac and executes in JVM sandbox with memory bounds
-    result = await executeLocalCode(code, stdin, "java");
-  } else if (language === "c") {
-    // C: Primary provider Godbolt (GCC 14.1 C17) -> Fallback to Local GCC sandbox
+    // Python: Primary Tier -> Godbolt python312
+    //         Fallback Tier -> Sandboxed Local Python runner
     try {
-      result = await executeOnGodbolt(code, stdin, "g141", "-O2 -x c -std=c17");
-      if (result) {
-        result.language = "c";
-      }
+      result = await executeOnGodbolt(code, stdin, "python312", "", "python");
     } catch (godboltErr) {
-      console.warn("[Compiler:C] Godbolt failed, falling back to local GCC runner:", godboltErr);
-      try {
-        result = await executeLocalCode(code, stdin, "c");
-      } catch (localErr) {
-        console.error("[Compiler:C] All C compiler providers failed:", localErr);
+      console.warn("[Compiler:Python] Godbolt sandbox unavailable, trying local runner:", godboltErr);
+      const localResult = await executeLocalCode(code, stdin, "python");
+      if (localResult.statusMessage === "Toolchain Not Found") {
         return {
           stdout: "",
-          stderr: "C compiler service temporarily unavailable. Please try again.",
+          stderr:
+            "Python execution service is temporarily unavailable. Cloud sandbox timed out and local Python interpreter is not installed on this server.",
           exitCode: 1,
           status: "error",
           statusMessage: "Execution Service Unavailable",
           timestamp: new Date().toISOString(),
-          language: "c",
+          language: "python",
         };
+      }
+      result = localResult;
+    }
+  } else if (language === "java") {
+    // Java: Primary Tier -> Godbolt java2102 (OpenJDK 21 LTS)
+    //       (Transform 'public class' -> 'class' to adhere to single-file constraints)
+    //       Fallback Tier -> Sandboxed Local OpenJDK runner
+    try {
+      const sanitizedJava = code.replace(/\bpublic\s+(?:final\s+|abstract\s+)?class\b/g, (match) =>
+        match.replace(/\bpublic\s+/, "")
+      );
+      result = await executeOnGodbolt(sanitizedJava, stdin, "java2102", "", "java");
+    } catch (godboltErr) {
+      console.warn("[Compiler:Java] Godbolt sandbox unavailable, trying local runner:", godboltErr);
+      const localResult = await executeLocalCode(code, stdin, "java");
+      if (localResult.statusMessage === "Toolchain Not Found") {
+        return {
+          stdout: "",
+          stderr:
+            "Java compiler service is temporarily unavailable. Cloud sandbox timed out and local Java Development Kit (javac/java) is not installed on this server.",
+          exitCode: 1,
+          status: "error",
+          statusMessage: "Execution Service Unavailable",
+          timestamp: new Date().toISOString(),
+          language: "java",
+        };
+      }
+      result = localResult;
+    }
+  } else if (language === "c") {
+    // C: Primary Tier -> Godbolt cg141 (GCC 14.1 C17)
+    //    Secondary Tier -> Godbolt g141 (-O2 -x c -std=c17)
+    //    Fallback Tier -> Sandboxed Local GCC runner
+    try {
+      result = await executeOnGodbolt(code, stdin, "cg141", "-O2 -std=c17", "c");
+    } catch (primaryErr) {
+      console.warn("[Compiler:C] Godbolt cg141 unavailable, trying g141 fallback:", primaryErr);
+      try {
+        result = await executeOnGodbolt(code, stdin, "g141", "-O2 -x c -std=c17", "c");
+      } catch (secondaryErr) {
+        console.warn("[Compiler:C] Godbolt secondary unavailable, falling back to local GCC runner:", secondaryErr);
+        const localResult = await executeLocalCode(code, stdin, "c");
+        if (localResult.statusMessage === "Toolchain Not Found") {
+          return {
+            stdout: "",
+            stderr:
+              "C compiler service is temporarily unavailable. Cloud sandbox timed out and local GCC compiler is not installed on this server.",
+            exitCode: 1,
+            status: "error",
+            statusMessage: "Execution Service Unavailable",
+            timestamp: new Date().toISOString(),
+            language: "c",
+          };
+        }
+        result = localResult;
       }
     }
   } else {
-    // C++: Primary provider Godbolt -> Secondary Wandbox -> Tertiary Local G++ sandbox
+    // C++: Primary Tier -> Godbolt g141 (GCC 14.1 C++20)
+    //      Secondary Tier -> Wandbox Cloud Sandbox
+    //      Fallback Tier -> Sandboxed Local G++ runner
     try {
-      result = await executeOnGodbolt(code, stdin, "g141", "-O2 -std=c++20");
-      if (result) {
-        result.language = "cpp";
-      }
+      result = await executeOnGodbolt(code, stdin, "g141", "-O2 -std=c++20", "cpp");
     } catch (primaryErr) {
       console.warn("[Compiler:CPP] Godbolt failed, trying secondary provider Wandbox:", primaryErr);
       try {
@@ -68,14 +113,12 @@ export async function runSecureCode(
         }
       } catch (secondaryErr) {
         console.warn("[Compiler:CPP] Wandbox failed, falling back to local G++ runner:", secondaryErr);
-        try {
-          result = await executeLocalCode(code, stdin, "cpp");
-        } catch (localErr) {
-          console.error("[Compiler:CPP] All C++ compiler providers failed:", localErr);
+        const localResult = await executeLocalCode(code, stdin, "cpp");
+        if (localResult.statusMessage === "Toolchain Not Found") {
           return {
             stdout: "",
             stderr:
-              "Sandbox compiler service temporarily unavailable. Please check your connection or try again in a moment.",
+              "C++ compiler service is temporarily unavailable. Cloud sandbox timed out and local G++ compiler is not installed on this server.",
             exitCode: 1,
             status: "error",
             statusMessage: "Execution Service Unavailable",
@@ -83,6 +126,7 @@ export async function runSecureCode(
             language: "cpp",
           };
         }
+        result = localResult;
       }
     }
   }

@@ -22,6 +22,9 @@ import {
   ChevronRight,
   RefreshCw,
   Bug,
+  SlidersHorizontal,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -92,7 +95,7 @@ function ChatCodeBlock({
 }
 
 export function VizcoCloudChatbox() {
-  const { isOpen, closeChat, activeContext } = useChat();
+  const { isOpen, closeChat, activeContext, clearContext, setCustomContext } = useChat();
   const { user } = useAuth();
 
   const [messages, setMessages] = useState<Message[]>([
@@ -119,6 +122,57 @@ export function VizcoCloudChatbox() {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Custom Context management state
+  const [showContextManager, setShowContextManager] = useState(false);
+  const [customProblemTitle, setCustomProblemTitle] = useState("");
+  const [customGoal, setCustomGoal] = useState("");
+  const [customUserCode, setCustomUserCode] = useState("");
+
+  // Sync inputs when activeContext changes
+  useEffect(() => {
+    if (activeContext) {
+      if (activeContext.problemTitle) setCustomProblemTitle(activeContext.problemTitle);
+      if (activeContext.customGoal) setCustomGoal(activeContext.customGoal);
+      if (activeContext.userCode) setCustomUserCode(activeContext.userCode);
+    }
+  }, [activeContext]);
+
+  // Keyboard shortcut to close chat on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        closeChat();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, closeChat]);
+
+  const handleRemoveContext = () => {
+    clearContext();
+    setCustomProblemTitle("");
+    setCustomGoal("");
+    setCustomUserCode("");
+    setShowContextManager(false);
+    toast.success("Context detached. Vizco Buddy is now in freeform mode!");
+  };
+
+  const handleApplyCustomContext = () => {
+    if (!customProblemTitle.trim() && !customGoal.trim() && !customUserCode.trim()) {
+      toast.error("Please enter a title, goal, or code snippet for your custom context.");
+      return;
+    }
+    setCustomContext({
+      problemTitle: customProblemTitle.trim() || "Custom Topic",
+      customGoal: customGoal.trim() || undefined,
+      userCode: customUserCode.trim() || undefined,
+      isCustom: true,
+      route: "Custom Context",
+    });
+    setShowContextManager(false);
+    toast.success("Custom context applied to Vizco Buddy!");
+  };
 
   // Auto-scroll on new messages
   const scrollToBottom = useCallback(() => {
@@ -397,177 +451,300 @@ export function VizcoCloudChatbox() {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 pointer-events-none flex items-end justify-end sm:p-5">
-        {/* Subtle backdrop scrim on mobile */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={closeChat}
-          className="fixed inset-0 bg-black/40 backdrop-blur-xs pointer-events-auto sm:hidden"
-        />
+      {isOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none flex items-end justify-end sm:p-5">
+          {/* Subtle backdrop scrim on mobile */}
+          <motion.div
+            key="chatbox-scrim"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeChat}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs pointer-events-auto sm:hidden"
+          />
 
-        {/* Interactive Chatbox Container */}
-        <motion.aside
-          initial={{ opacity: 0, y: 40, scale: 0.94 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 30, scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 300, damping: 26 }}
-          aria-label="Vizco Buddy AI Companion"
-          className={
-            "relative pointer-events-auto flex flex-col bg-card/95 backdrop-blur-3xl border border-primary/25 shadow-[0_20px_70px_-15px_rgba(0,0,0,0.5)] rounded-t-[2rem] sm:rounded-[2rem] overflow-hidden transition-all duration-300 " +
-            (isExpanded
-              ? "w-full md:w-[760px] h-[92vh]"
-              : "w-full sm:w-[490px] h-[670px] max-h-[92vh]")
-          }
-        >
-          {/* Glowing Top Accent Border */}
-          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent pointer-events-none" />
+          {/* Interactive Chatbox Container */}
+          <motion.aside
+            key="chatbox-window"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Vizco Buddy AI Companion"
+            initial={{ opacity: 0, y: 40, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 26 }}
+            className={
+              "relative pointer-events-auto flex flex-col bg-card/95 backdrop-blur-3xl border border-primary/25 shadow-[0_20px_70px_-15px_rgba(0,0,0,0.5)] rounded-t-[2rem] sm:rounded-[2rem] overflow-hidden transition-all duration-300 " +
+              (isExpanded
+                ? "w-full md:w-[760px] h-[92vh]"
+                : "w-full sm:w-[490px] h-[670px] max-h-[92vh]")
+            }
+          >
+            {/* Glowing Top Accent Border */}
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent pointer-events-none" />
 
-          {/* Header Bar */}
-          <div className="relative z-10 flex items-center justify-between border-b border-border/70 px-4 sm:px-5 py-3.5 bg-muted/40 backdrop-blur-md shrink-0">
-            <div className="flex items-center gap-3">
-              {/* Mini 3D Vizco Buddy */}
-              <div className="relative flex size-10 items-center justify-center rounded-2xl bg-primary/15 border border-primary/30 text-primary shadow-xs">
-                <VizcoBuddyAvatar
-                  size="sm"
-                  mood={loading ? "thinking" : "happy"}
-                  showCloudBase={false}
-                  showHalo={false}
-                  interactive={false}
-                />
-                <span className="absolute -top-0.5 -right-0.5 flex size-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500"></span>
-                </span>
-              </div>
-
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-sm sm:text-base tracking-tight bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
-                    Vizco Buddy
-                  </span>
-                  <span className="rounded-full bg-primary/20 border border-primary/30 px-2 py-0.2 font-mono text-[9px] font-bold text-primary">
-                    AI 3D
+            {/* Header Bar */}
+            <div className="relative z-10 flex items-center justify-between border-b border-border/70 px-4 sm:px-5 py-3.5 bg-muted/40 backdrop-blur-md shrink-0">
+              <div className="flex items-center gap-3">
+                {/* Mini 3D Vizco Buddy */}
+                <div className="relative flex size-10 items-center justify-center rounded-2xl bg-primary/15 border border-primary/30 text-primary shadow-xs">
+                  <VizcoBuddyAvatar
+                    size="sm"
+                    mood={loading ? "thinking" : "happy"}
+                    showCloudBase={false}
+                    showHalo={false}
+                    interactive={false}
+                  />
+                  <span className="absolute -top-0.5 -right-0.5 flex size-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500"></span>
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
-                  <span className="flex items-center gap-1 text-emerald-500 font-semibold">
-                    <span className="size-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                    Live Assistant
-                  </span>
-                  <span>•</span>
-                  <span>Interactive DSA Intelligence</span>
-                </p>
+
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-sm sm:text-base tracking-tight bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+                      Vizco Buddy
+                    </span>
+                    <span className="rounded-full bg-primary/20 border border-primary/30 px-2 py-0.2 font-mono text-[9px] font-bold text-primary">
+                      AI 3D
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
+                    <span className="flex items-center gap-1 text-emerald-500 font-semibold">
+                      <span className="size-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                      Live Assistant
+                    </span>
+                    <span>•</span>
+                    <span>Interactive DSA Intelligence</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Window Controls */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleClearChat}
+                  title="Reset conversation"
+                  className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  title={isExpanded ? "Collapse width" : "Expand width"}
+                  className="hidden sm:inline-flex rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                >
+                  {isExpanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeChat}
+                  title="Close chat (Esc)"
+                  aria-label="Close chat window"
+                  className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <X className="size-4.5" />
+                </button>
               </div>
             </div>
 
-            {/* Window Controls */}
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={handleClearChat}
-                title="Reset conversation"
-                className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-              >
-                <RotateCcw className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsExpanded(!isExpanded)}
-                title={isExpanded ? "Collapse width" : "Expand width"}
-                className="hidden sm:inline-flex rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-              >
-                {isExpanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-              </button>
-              <button
-                type="button"
-                onClick={closeChat}
-                title="Close chat"
-                className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-              >
-                <X className="size-4.5" />
-              </button>
-            </div>
-          </div>
+            {/* Interactive Role Selector Bar */}
+            <div className="relative z-10 flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2 bg-background/60 text-xs shrink-0">
+              <div className="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-none">
+                {ROLES.map((r) => {
+                  const isActive = selectedRole === r.id;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setSelectedRole(r.id)}
+                      className={
+                        "px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all cursor-pointer whitespace-nowrap " +
+                        (isActive
+                          ? "bg-primary text-primary-foreground font-bold shadow-xs scale-100"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground")
+                      }
+                      title={r.desc}
+                    >
+                      {r.label}
+                    </button>
+                  );
+                })}
+              </div>
 
-          {/* Interactive Role Selector Bar */}
-          <div className="relative z-10 flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2 bg-background/60 text-xs shrink-0">
-            <div className="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-none">
-              {ROLES.map((r) => {
-                const isActive = selectedRole === r.id;
-                return (
+              {/* Model Switcher */}
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value as any)}
+                className="rounded-lg border border-border/70 bg-card px-2 py-1 font-mono text-[10px] text-muted-foreground hover:text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer shrink-0"
+                title="Select AI Model"
+              >
+                <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+                <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+                <option value="gemini-3.1-flash-lite">Gemini 3.1 Lite</option>
+              </select>
+            </div>
+
+            {/* Interactive Active Context Banner & Remove Context Controls */}
+            {(activeContext?.problemTitle || activeContext?.currentStep !== undefined || activeContext?.route || activeContext?.userCode || activeContext?.customGoal) ? (
+              <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b border-primary/20 bg-primary/5 px-4 py-1.5 text-[11px] text-primary shrink-0">
+                <div className="flex items-center gap-1.5 truncate max-w-[65%] sm:max-w-[70%]">
+                  <Sparkles className="size-3 shrink-0 text-accent animate-spin-slow" />
+                  <span className="font-semibold truncate">
+                    {activeContext.problemTitle || activeContext.problemSlug || "Active on " + (activeContext.route || "DSA.viz")}
+                  </span>
+                  {activeContext.difficulty && (
+                    <span
+                      className={
+                        "rounded-full border px-1.5 py-0.1 font-mono text-[9px] font-bold uppercase " +
+                        (activeContext.difficulty.toLowerCase() === "easy"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                          : activeContext.difficulty.toLowerCase() === "hard"
+                          ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                          : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30")
+                      }
+                    >
+                      {activeContext.difficulty}
+                    </span>
+                  )}
+                  {activeContext.currentStep !== undefined && (
+                    <span className="rounded-full bg-primary/20 px-2 py-0.2 font-mono text-[10px] font-bold text-primary">
+                      Step {activeContext.currentStep + 1}
+                      {activeContext.totalSteps ? " / " + activeContext.totalSteps : ""}
+                    </span>
+                  )}
+                  {activeContext.userCode && (
+                    <span className="rounded-full bg-accent/15 px-2 py-0.2 font-mono text-[9px] font-semibold text-accent truncate max-w-[90px]">
+                      Code ({activeContext.userCode.length}c)
+                    </span>
+                  )}
+                  {activeContext.isCustom && (
+                    <span className="rounded-full bg-primary/25 border border-primary/40 px-1.5 py-0.1 font-mono text-[9px] font-bold text-primary">
+                      Custom
+                    </span>
+                  )}
+                </div>
+
+                {/* Context Action Controls: Custom Context & Remove Context */}
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
-                    key={r.id}
                     type="button"
-                    onClick={() => setSelectedRole(r.id)}
-                    className={
-                      "px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all cursor-pointer whitespace-nowrap " +
-                      (isActive
-                        ? "bg-primary text-primary-foreground font-bold shadow-xs scale-100"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground")
-                    }
-                    title={r.desc}
+                    onClick={() => setShowContextManager((prev) => !prev)}
+                    className="flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                    title="Provide your own custom context"
                   >
-                    {r.label}
+                    <SlidersHorizontal className="size-2.5" />
+                    <span>{showContextManager ? "Close" : "Custom"}</span>
                   </button>
-                );
-              })}
-            </div>
-
-            {/* Model Switcher */}
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value as any)}
-              className="rounded-lg border border-border/70 bg-card px-2 py-1 font-mono text-[10px] text-muted-foreground hover:text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer shrink-0"
-              title="Select AI Model"
-            >
-              <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
-              <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-              <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
-              <option value="gemini-3.1-flash-lite">Gemini 3.1 Lite</option>
-            </select>
-          </div>
-
-          {/* Interactive Active Context Banner */}
-          {(activeContext?.problemTitle || activeContext?.currentStep !== undefined || activeContext?.route) && (
-            <div className="relative z-10 flex items-center justify-between border-b border-primary/20 bg-primary/5 px-4 py-1.5 text-[11px] text-primary shrink-0">
-              <div className="flex items-center gap-1.5 truncate">
-                <Sparkles className="size-3 shrink-0 text-accent animate-spin-slow" />
-                <span className="font-semibold truncate">
-                  {activeContext.problemTitle || activeContext.problemSlug || "Active on " + (activeContext.route || "DSA.viz")}
-                </span>
-                {activeContext.difficulty && (
-                  <span
-                    className={
-                      "rounded-full border px-1.5 py-0.1 font-mono text-[9px] font-bold uppercase " +
-                      (activeContext.difficulty.toLowerCase() === "easy"
-                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                        : activeContext.difficulty.toLowerCase() === "hard"
-                        ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
-                        : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30")
-                    }
+                  <button
+                    type="button"
+                    onClick={handleRemoveContext}
+                    className="flex items-center gap-1 rounded-lg border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                    title="Remove context (start fresh)"
                   >
-                    {activeContext.difficulty}
-                  </span>
-                )}
-                {activeContext.currentStep !== undefined && (
-                  <span className="rounded-full bg-primary/20 px-2 py-0.2 font-mono text-[10px] font-bold text-primary">
-                    Step {activeContext.currentStep + 1}
-                    {activeContext.totalSteps ? " / " + activeContext.totalSteps : ""}
-                  </span>
-                )}
-                {activeContext.userCode && (
-                  <span className="rounded-full bg-accent/15 px-2 py-0.2 font-mono text-[9px] font-semibold text-accent">
-                    Code attached ({activeContext.userCode.length} chars)
-                  </span>
-                )}
+                    <Trash2 className="size-2.5" />
+                    <span>Remove Context</span>
+                  </button>
+                </div>
               </div>
-              <span className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest shrink-0 ml-2">
-                Live State
-              </span>
-            </div>
-          )}
+            ) : (
+              <div className="relative z-10 flex items-center justify-between border-b border-border/40 bg-muted/20 px-4 py-1.5 text-[11px] text-muted-foreground shrink-0">
+                <span className="flex items-center gap-1.5 text-[10px]">
+                  <Sparkles className="size-3 text-muted-foreground" />
+                  <span>Freeform Mode (No attached context)</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowContextManager((prev) => !prev)}
+                  className="flex items-center gap-1 rounded-lg border border-border/70 bg-card px-2 py-0.5 text-[10px] font-semibold text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                  title="Attach custom context to guide Vizco Buddy"
+                >
+                  <Plus className="size-3 text-primary" />
+                  <span>Add Custom Context</span>
+                </button>
+              </div>
+            )}
+
+            {/* Context Manager Panel Drawer */}
+            {showContextManager && (
+              <div className="relative z-10 border-b border-primary/20 bg-card/98 p-3 sm:p-4 space-y-2.5 shadow-inner backdrop-blur-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-primary">
+                    <SlidersHorizontal className="size-3.5" />
+                    <span>Agent Context & Focus Manager</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowContextManager(false)}
+                    className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    title="Close context panel"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  Provide custom context (problem topic, custom instructions, or code snippet) for Vizco Buddy, or remove attached context to start fresh.
+                </p>
+
+                <div className="space-y-2 pt-1">
+                  <div>
+                    <label className="text-[10px] font-bold text-foreground">Topic or Problem Title:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Two Sum, LRU Cache, Custom Graph DFS"
+                      value={customProblemTitle}
+                      onChange={(e) => setCustomProblemTitle(e.target.value)}
+                      className="w-full mt-0.5 rounded-lg border border-border/80 bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-foreground">Custom Goal or Instructions:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Focus on recursive DP with space optimization, or review my syntax"
+                      value={customGoal}
+                      onChange={(e) => setCustomGoal(e.target.value)}
+                      className="w-full mt-0.5 rounded-lg border border-border/80 bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-foreground">Custom Code / Notes (Optional):</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Paste your code snippet or pseudocode here..."
+                      value={customUserCode}
+                      onChange={(e) => setCustomUserCode(e.target.value)}
+                      className="w-full mt-0.5 rounded-lg border border-border/80 bg-background px-2.5 py-1.5 font-mono text-[11px] text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary resize-y"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    {activeContext && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveContext}
+                        className="px-2.5 py-1 text-xs font-mono font-semibold rounded-lg border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                      >
+                        Remove Context
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleApplyCustomContext}
+                      className="px-3 py-1 text-xs font-mono font-bold rounded-lg bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors cursor-pointer"
+                    >
+                      Apply Custom Context
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
           {/* Scrollable Messages Thread */}
           <div className="relative z-10 flex-1 overflow-y-auto p-4 space-y-4 text-xs">
@@ -914,6 +1091,7 @@ export function VizcoCloudChatbox() {
           </div>
         </motion.aside>
       </div>
-    </AnimatePresence>
-  );
+    )}
+  </AnimatePresence>
+);
 }

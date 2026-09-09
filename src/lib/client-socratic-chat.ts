@@ -87,7 +87,65 @@ When implementing this algorithm, candidates frequently encounter:
 Take a look at your current code lines: which condition or boundary check is closest to these potential traps?`;
   }
 
-  // 4. Code & Implementation Request
+  // 4. Platform Navigation, Online Compiler & Features
+  if (query.includes("compiler") || query.includes("run code") || query.includes("stdin") || query.includes("execute")) {
+    return `### 💻 Online Compiler & Code Runner on DSA.viz.co
+
+DSA.viz.co features an isolated, multi-language sandboxed online compiler supporting:
+- **C++20** (GCC 14.1 -O2)
+- **C17** (GCC 14.1 -O2)
+- **Java 25** (OpenJDK 25 Bytecode JIT)
+- **Python 3.12** (CPython 3.12)
+
+**Key Capabilities:**
+1. **Interactive Standard Input (stdin)**: Pass custom test cases directly in the Input panel.
+2. **Keyboard Shortcut**: Press **Ctrl + Enter** (or **Cmd + Enter** on Mac) anytime to execute your code.
+3. **Run Buttons**: Prominent Run Code buttons are located in the top action bar, the code editor header, and the terminal console.
+4. **Presets & Boilerplates**: Hello World, Fast I/O, and curated FAANG algorithm templates.
+5. **GitHub Integration**: Push code solutions directly to your personal GitHub repository.
+
+👉 Head to **[/compiler](/compiler)** to run code now!`;
+  }
+
+  if (query.includes("sheet") || query.includes("striver") || query.includes("neetcode") || query.includes("roadmap") || query.includes("blind 75")) {
+    return `### 📚 Curated DSA Preparation Sheets on DSA.viz.co
+
+We offer curated algorithm roadmaps with progress tracking and direct visualizer integration:
+1. **Striver's SDE Sheet**: 180+ foundational interview problems covering arrays, trees, graphs, and dynamic programming.
+2. **NeetCode 150**: Systematic coverage of 18 algorithmic patterns.
+3. **LeetCode 75**: High-yield problem set for FAANG technical interviews.
+4. **Blind 75**: Essential algorithmic archetypes.
+
+👉 Explore all curated roadmaps at **[/sheets](/sheets)** or browse 1500+ problems at **[/problems](/problems)**!`;
+  }
+
+  if (query.includes("interview") || query.includes("mock")) {
+    return `### 🎙️ AI Live Technical Interview Room
+
+Prepare for real-world interviews with our AI Mock Interview platform:
+- **Live Voice & Speech**: Realistic conversational audio simulation.
+- **Synchronized Coding**: Live code editor with syntax checks and constraints.
+- **Algorithmic & Behavioral Rubric**: Comprehensive scorecard rating communication, complexity analysis, and edge-case handling.
+
+👉 Start a live session at **[/live-interview](/live-interview)**!`;
+  }
+
+  if (query.includes("platform") || query.includes("where") || query.includes("navigate") || query.includes("feature") || query.includes("backend") || query.includes("frontend")) {
+    return `### 🗺️ DSA.viz.co Complete Platform Guide
+
+Here is your complete roadmap to all features across the platform:
+- **[/problems](/problems)**: 1500+ LeetCode DSA problem catalog with topic filtering.
+- **[/problem/:slug](/problem/two-sum)**: Interactive visualizer with step-by-step state traces, custom datasets, and AI diff nudge hints.
+- **[/compiler](/compiler)**: Online sandbox compiler for C++, C, Java, and Python with live stdin/stdout and GitHub push.
+- **[/sheets](/sheets)**: Curated DSA sheets (Striver SDE, NeetCode 150, Blind 75, LeetCode 75).
+- **[/live-interview](/live-interview)**: Full AI mock technical interview room.
+- **[/playground](/playground)**: Interactive algorithm visualizer playground.
+- **[/dashboard](/dashboard)**: Your personal dashboard with LeetCode heatmap sync and mistake pattern reports.
+
+Need assistance on any specific page? Just ask and I will guide you! ✨`;
+  }
+
+  // 5. Code & Implementation Request
   if (query.includes("code") || query.includes("solution") || query.includes("implement") || query.includes("python") || query.includes("c++") || query.includes("java")) {
     return `### ⚡ Algorithmic Implementation Guide — "${pTitle}"
 
@@ -122,7 +180,7 @@ public:
 Ask me for language-specific implementations, line-by-line breakdown, or complexity proofs! ✨`;
   }
 
-  // 5. Default: Vizco Buddy Guidance
+  // 6. Default: Vizco Buddy Guidance
   return `### ⚡ Vizco Buddy Guidance — "${pTitle}"
 
 Hello! As your interactive DSA companion, let's break down this challenge together:
@@ -131,5 +189,5 @@ Hello! As your interactive DSA companion, let's break down this challenge togeth
 2. **State & Invariants**: What property must hold true across all processed elements?
 3. **Optimization Goal**: Can we eliminate redundant work to reach optimal $O(N)$ time or $O(1)$ space?
 
-I can provide full optimal code, step-by-step intuition, edge-case analysis, or complexity breakdowns. What would you like to explore? ✨`;
+I can provide full optimal code in C++, Python, or Java, step-by-step intuition, edge-case analysis, or complexity breakdowns. What would you like to explore? ✨`;
 }

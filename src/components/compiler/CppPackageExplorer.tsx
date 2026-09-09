@@ -10,6 +10,7 @@ import {
   Sparkles,
   ExternalLink,
   Code2,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -194,19 +195,29 @@ export function CppPackageExplorer({
                     </div>
                   </div>
 
-                  {/* Load Example Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      onLoadSnippet(header.exampleSnippet);
-                      toast.info(`Loaded ${header.name} practice example`);
-                    }}
-                    className="mt-1 h-7 w-full gap-1.5 text-xs font-semibold"
-                  >
-                    <Code2 className="size-3 text-primary" />
-                    <span>Load {header.name} Example</span>
-                  </Button>
+                  {/* Code Snippet Example Preview & Load */}
+                  <div className="mt-1.5 flex flex-col gap-1.5 rounded-xl border border-primary/20 bg-muted/40 p-2.5 shadow-inner">
+                    <div className="flex items-center justify-between text-[10px] font-mono font-bold text-primary uppercase tracking-wider">
+                      <span className="flex items-center gap-1.5">
+                        <Code2 className="size-3.5" /> Code Snippet:
+                      </span>
+                      <span className="text-[9px] text-muted-foreground font-normal">Example</span>
+                    </div>
+                    <pre className="max-h-28 overflow-x-auto rounded-lg bg-card/80 border border-border/70 p-2 font-mono text-[10px] text-foreground whitespace-pre-wrap leading-relaxed shadow-xs">
+                      {header.exampleSnippet}
+                    </pre>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        onLoadSnippet(header.exampleSnippet);
+                        toast.info(`Loaded ${header.name} code snippet`);
+                      }}
+                      className="mt-0.5 h-7 w-full gap-1.5 text-xs font-mono font-bold bg-primary text-primary-foreground shadow-sm hover:scale-[1.01] active:scale-95 transition-all cursor-pointer"
+                    >
+                      <Play className="size-3 fill-current" />
+                      <span>Load Snippet into Editor</span>
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

@@ -1002,32 +1002,14 @@ export function CppCodeEditor({
             </span>
           </div>
 
-          {/* Quick Run Action Button right beside main.cpp */}
+          {/* Quick Run & Export Action Buttons */}
           <div className="flex items-center gap-2">
-            {onPushToGithub && (
-              <Button
-                onClick={() => onPushToGithub(code)}
-                disabled={githubLoading || disabled}
-                variant="outline"
-                size="sm"
-                className="h-9 gap-1.5 rounded-xl px-3 font-mono text-[11px] font-bold transition-all duration-300 hover:scale-105 active:scale-95 border-[#24292e]/40 bg-[#24292e]/10 text-foreground hover:bg-[#24292e]/20 hover:border-[#24292e]/60 shadow-sm"
-                title="Push to GitHub"
-              >
-                {githubLoading ? (
-                  <Zap className="size-4 animate-spin" />
-                ) : (
-                  <Github className="size-4" />
-                )}
-                <span className="hidden sm:inline-block tracking-wide">PUSH TO GITHUB</span>
-              </Button>
-            )}
-
             {onRun && (
               <Button
                 onClick={() => onRun()}
                 disabled={loading || disabled}
                 size="sm"
-                className="ml-2 h-9 gap-2 rounded-xl px-4 font-mono text-[11px] font-bold shadow-lg shadow-primary/25 transition-all duration-300 hover:scale-105 hover:shadow-primary/40 active:scale-95 bg-primary text-primary-foreground border border-primary-foreground/10"
+                className="h-9 gap-2 rounded-xl px-4 font-mono text-[11px] font-bold shadow-lg shadow-primary/25 transition-all duration-300 hover:scale-105 hover:shadow-primary/40 active:scale-95 bg-primary text-primary-foreground border border-primary-foreground/10 cursor-pointer"
                 title={`Run ${langLabel} Code (Ctrl + Enter)`}
               >
                 {loading ? (
@@ -1046,16 +1028,39 @@ export function CppCodeEditor({
                 )}
               </Button>
             )}
+
             {onExportSnapshot && (
               <Button
                 onClick={onExportSnapshot}
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 rounded-xl px-3 font-mono text-[11px] font-bold transition-all duration-300 hover:scale-105 active:scale-95 border-border/60 bg-background/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30 shadow-sm"
-                title="Export Code Snapshot"
+                className="h-9 gap-1.5 rounded-xl px-3.5 font-mono text-[11px] font-bold transition-all duration-300 hover:scale-105 active:scale-95 border-purple-500/60 bg-gradient-to-r from-purple-500/20 via-indigo-500/20 to-pink-500/20 text-purple-700 dark:text-purple-300 hover:from-purple-600 hover:via-indigo-600 hover:to-pink-600 hover:text-white hover:border-purple-600 shadow-md shadow-purple-500/15 group cursor-pointer"
+                title="Export Code Snapshot (Download styled PNG card)"
               >
-                <Camera className="size-4" />
-                <span className="hidden sm:inline-block tracking-wide">SNAPSHOT</span>
+                <Camera className="size-4 text-purple-600 dark:text-purple-400 group-hover:text-white transition-colors" />
+                <span className="inline-flex tracking-wide font-bold">
+                  <span className="hidden md:inline">EXPORT </span>SNAPSHOT
+                </span>
+              </Button>
+            )}
+
+            {onPushToGithub && (
+              <Button
+                onClick={() => onPushToGithub(code)}
+                disabled={githubLoading || disabled}
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 rounded-xl px-3.5 font-mono text-[11px] font-bold transition-all duration-300 hover:scale-105 active:scale-95 border-zinc-700/80 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:hover:border-zinc-400 shadow-md shadow-black/25 cursor-pointer"
+                title="Export / Push code to GitHub repository"
+              >
+                {githubLoading ? (
+                  <Zap className="size-4 animate-spin text-amber-400" />
+                ) : (
+                  <Github className="size-4 text-white" />
+                )}
+                <span className="inline-flex tracking-wide font-bold">
+                  <span className="hidden md:inline">PUSH TO </span>GITHUB
+                </span>
               </Button>
             )}
           </div>
@@ -1165,18 +1170,21 @@ export function CppCodeEditor({
       </div>
 
       {/* Quick Snippets Bar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/40 bg-card/20 px-4 py-3 text-xs backdrop-blur-sm overflow-x-auto scrollbar-thin">
-        <span className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mr-2 shrink-0">
-          <Sparkles className="size-3 text-primary/80" /> Snippets
-        </span>
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/70 bg-muted/40 dark:bg-card/70 px-4 py-2.5 backdrop-blur-md overflow-x-auto scrollbar-thin">
+        <div className="flex items-center gap-1.5 rounded-lg bg-primary/15 border border-primary/30 px-2.5 py-1 text-[11px] font-mono font-bold uppercase tracking-wider text-primary shadow-xs shrink-0">
+          <Sparkles className="size-3.5 text-primary" />
+          <span>Code Snippets:</span>
+        </div>
         {(LANGUAGE_SNIPPETS[language] || LANGUAGE_SNIPPETS.cpp).map((snip) => (
           <button
             key={snip.label}
             type="button"
             onClick={() => insertSnippet(snip.code)}
-            className="rounded-lg bg-background/50 border border-border/50 hover:border-primary/50 hover:bg-primary/10 hover:text-primary px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-all shrink-0 active:scale-95 shadow-sm"
+            title={`Insert snippet:\n${snip.code}`}
+            className="group inline-flex items-center gap-1.5 rounded-lg bg-background border border-border/80 hover:border-primary hover:bg-primary/15 hover:text-primary px-3 py-1 font-mono text-[11px] font-semibold text-foreground transition-all shrink-0 active:scale-95 shadow-xs hover:shadow-sm cursor-pointer"
           >
-            {snip.label}
+            <span className="text-primary/70 font-bold group-hover:text-primary text-[11px]">+</span>
+            <span>{snip.label}</span>
           </button>
         ))}
       </div>

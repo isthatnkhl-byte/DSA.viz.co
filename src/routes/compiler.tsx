@@ -14,6 +14,9 @@ import {
   Copy,
   Trash2,
   Cpu,
+  Camera,
+  Github,
+  Plus,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -791,6 +794,38 @@ function CppCompilerPage() {
                   )}
                 </Button>
 
+                {/* Prominent Snapshot Export Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportSnapshot}
+                  disabled={isExporting}
+                  className="rounded-xl font-mono text-xs font-bold gap-1.5 border-purple-500/50 bg-gradient-to-r from-purple-500/15 via-indigo-500/15 to-pink-500/15 text-purple-700 dark:text-purple-300 hover:from-purple-600 hover:via-indigo-600 hover:to-pink-600 hover:text-white hover:border-purple-600 shadow-sm shadow-purple-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                  title="Export Code Snapshot (Download styled PNG card)"
+                >
+                  <Camera className="size-3.5 text-purple-600 dark:text-purple-400 group-hover:text-white" />
+                  <span>Snapshot Export</span>
+                </Button>
+
+                {/* Prominent GitHub Export Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePushToGithub(activeCode)}
+                  disabled={githubLoading || loading}
+                  className="rounded-xl font-mono text-xs font-bold gap-1.5 border-zinc-700/80 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:hover:border-zinc-400 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                  title="Push and export active code to GitHub"
+                >
+                  {githubLoading ? (
+                    <Zap className="size-3.5 animate-spin text-amber-400" />
+                  ) : (
+                    <Github className="size-3.5 text-white" />
+                  )}
+                  <span>GitHub Export</span>
+                </Button>
+
+                <div className="h-6 w-px bg-border/60 mx-1 hidden sm:block" />
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -844,6 +879,38 @@ function CppCompilerPage() {
                     </>
                   )}
                 </Button>
+
+                {/* Prominent Snapshot Export Button in templates mode */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportSnapshot}
+                  disabled={isExporting}
+                  className="rounded-xl font-mono text-xs font-bold gap-1.5 border-purple-500/50 bg-gradient-to-r from-purple-500/15 via-indigo-500/15 to-pink-500/15 text-purple-700 dark:text-purple-300 hover:from-purple-600 hover:via-indigo-600 hover:to-pink-600 hover:text-white hover:border-purple-600 shadow-sm shadow-purple-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                  title="Export Code Snapshot (Download styled PNG card)"
+                >
+                  <Camera className="size-3.5 text-purple-600 dark:text-purple-400 group-hover:text-white" />
+                  <span>Snapshot Export</span>
+                </Button>
+
+                {/* Prominent GitHub Export Button in templates mode */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePushToGithub(activeCode)}
+                  disabled={githubLoading || loading}
+                  className="rounded-xl font-mono text-xs font-bold gap-1.5 border-zinc-700/80 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:hover:border-zinc-400 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                  title="Push and export active code to GitHub"
+                >
+                  {githubLoading ? (
+                    <Zap className="size-3.5 animate-spin text-amber-400" />
+                  ) : (
+                    <Github className="size-3.5 text-white" />
+                  )}
+                  <span>GitHub Export</span>
+                </Button>
+
+                <div className="h-6 w-px bg-border/60 mx-1 hidden sm:block" />
 
                 <Button
                   variant="outline"
@@ -1002,13 +1069,26 @@ function CppCompilerPage() {
                 {currentProTips.tips.map((tip, idx) => (
                   <div
                     key={idx}
-                    className="rounded-xl border border-border/50 bg-background/40 p-3 hover:bg-background/60 transition-colors"
+                    className="rounded-xl border border-border/70 bg-background/60 p-3 hover:bg-background/90 transition-all shadow-xs"
                   >
-                    <div className="font-bold text-primary font-mono text-[11px]">{tip.title}</div>
-                    <pre className="mt-1 text-[10px] font-mono text-muted-foreground bg-muted/40 p-1.5 rounded whitespace-pre-wrap">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-primary font-mono text-[11px]">{tip.title}</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveCode((prev) => prev + (prev.endsWith("\n") ? "" : "\n") + tip.code);
+                          toast.success(`Inserted "${tip.title}" snippet into editor`);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-bold text-primary bg-primary/15 hover:bg-primary hover:text-primary-foreground border border-primary/30 transition-all cursor-pointer"
+                        title="Insert code snippet into editor"
+                      >
+                        <Plus className="size-3" /> Insert Snippet
+                      </button>
+                    </div>
+                    <pre className="mt-2 text-[11px] font-mono font-medium text-foreground bg-card/90 border border-border/70 p-2.5 rounded-lg whitespace-pre-wrap shadow-inner leading-relaxed">
                       {tip.code}
                     </pre>
-                    <p className="mt-1 text-[10px] text-muted-foreground leading-tight">{tip.desc}</p>
+                    <p className="mt-1.5 text-[10px] text-muted-foreground leading-tight">{tip.desc}</p>
                   </div>
                 ))}
               </div>

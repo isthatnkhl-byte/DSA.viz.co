@@ -97,3 +97,21 @@ export async function getOrCreateUser(uid: string, email: string) {
   return newUser;
 }
 
+export async function updateUser(uid: string, data: any) {
+  if (!uid) return null;
+  const existing = memoryUserStore.get(uid) || {};
+  const merged = { ...existing, ...data, updatedAt: new Date().toISOString() };
+  memoryUserStore.set(uid, merged);
+  persistUsers();
+  await setCache(`user:${uid}`, merged, 1800).catch(() => {});
+
+  try {
+    const userRef = adminDb.collection('users').doc(uid);
+    await userRef.set(data, { merge: true });
+  } catch {
+    // Non-blocking Firestore write fallback
+  }
+
+  return merged;
+}
+

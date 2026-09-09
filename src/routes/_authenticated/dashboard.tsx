@@ -105,7 +105,7 @@ function Dashboard() {
       }
 
       const effectiveDisplayName =
-        (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) ||
+        (typeof window !== "undefined" && ((currentUser && localStorage.getItem(`dsa_viz_display_name_${currentUser.uid}`)) || localStorage.getItem("dsa_viz_display_name"))) ||
         serverProfile?.displayName ||
         serverProfile?.display_name ||
         clientProfile?.displayName ||

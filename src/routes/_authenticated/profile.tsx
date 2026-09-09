@@ -76,6 +76,13 @@ function ProfilePage() {
 
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameInput, setUsernameInput] = useState("");
+  const [customHandle, setCustomHandle] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("dsa_viz_display_name") || null;
+    }
+    return null;
+  });
+  const [isConnectingGithub, setIsConnectingGithub] = useState(false);
 
   const [cookieModalOpen, setCookieModalOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -116,7 +123,7 @@ function ProfilePage() {
       }
 
       const effectiveDisplayName =
-        (typeof window !== "undefined" && localStorage.getItem("dsa_viz_display_name")) ||
+        (typeof window !== "undefined" && ((currentUser && localStorage.getItem(`dsa_viz_display_name_${currentUser.uid}`)) || localStorage.getItem("dsa_viz_display_name"))) ||
         serverProfile?.displayName ||
         serverProfile?.display_name ||
         clientProfile?.displayName ||
@@ -342,25 +349,27 @@ function ProfilePage() {
   }, [queryClient, refetch]);
 
   const handleConnectGithub = async () => {
+    setIsConnectingGithub(true);
     try {
       const auth = getAuth();
-      const token = await auth.currentUser?.getIdToken();
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
       
-      const res = await fetch("/api/github/url", {
-        headers: { "Authorization": `Bearer ${token}` }
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const res = await fetch(`/api/github/url?origin=${encodeURIComponent(origin)}`, {
+        headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
       });
-      const { url } = await res.json();
-      
-      const authWindow = window.open(
-        url,
-        'oauth_popup',
-        'width=600,height=700'
-      );
-      if (!authWindow) {
-        toast.error('Please allow popups for this site to connect your GitHub account.');
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.url) {
+        throw new Error(d.error || "GitHub authorization is not configured or unavailable on the server.");
       }
-    } catch (e) {
-      toast.error("Failed to initiate GitHub connect");
+      
+      // Directly redirect browser to GitHub OAuth authorization login page
+      window.location.href = d.url;
+    } catch (e: any) {
+      console.error("GitHub connect error:", e);
+      toast.error(e?.message || "Failed to initiate GitHub connect");
+      setIsConnectingGithub(false);
     }
   };
 
@@ -419,8 +428,12 @@ function ProfilePage() {
 
   const updateProfileUsernameMutation = useMutation({
     mutationFn: async (username: string) => {
+      setCustomHandle(username);
       if (typeof window !== "undefined") {
         localStorage.setItem("dsa_viz_display_name", username);
+        if (user?.uid) {
+          localStorage.setItem(`dsa_viz_display_name_${user.uid}`, username);
+        }
       }
       try {
         await updateNickname(username);
@@ -452,17 +465,35 @@ function ProfilePage() {
       }
       return res.json();
     },
-    onSuccess: (res) => {
-      if (res.ok) {
-        toast.success("Username handle updated successfully!");
-        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-        queryClient.invalidateQueries({ queryKey: ["profileStats"] });
-        refreshProfile();
-        refetch();
-        setEditingUsername(false);
-      } else {
-        toast.error(res.error || "Could not update username.");
-      }
+    onSuccess: (_res, newUsername) => {
+      setCustomHandle(newUsername);
+      toast.success("Username handle updated successfully!");
+      queryClient.setQueryData(["profile-stats"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          profile: {
+            ...old.profile,
+            displayName: newUsername,
+            display_name: newUsername,
+          }
+        };
+      });
+      queryClient.setQueryData(["profileStats"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          profile: {
+            ...old.profile,
+            displayName: newUsername,
+            display_name: newUsername,
+          }
+        };
+      });
+      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["profileStats"] });
+      refreshProfile();
+      setEditingUsername(false);
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to update username.");
@@ -474,12 +505,17 @@ function ProfilePage() {
   const leetcodeUsername = (profile as any)?.leetcodeUsername || (profile as any)?.leetcode_username || null;
 
   const currentHandle = useMemo(() => {
+    if (customHandle) return customHandle;
     if (profile?.displayName) return profile.displayName;
     if (profile?.display_name) return profile.display_name;
+    if (typeof window !== "undefined") {
+      const stored = (user?.uid ? localStorage.getItem(`dsa_viz_display_name_${user.uid}`) : null) || localStorage.getItem("dsa_viz_display_name");
+      if (stored) return stored;
+    }
     if (user?.displayName) return user.displayName;
     if (user?.email) return user.email.split("@")[0];
     return "explorer";
-  }, [profile?.displayName, profile?.display_name, user?.displayName, user?.email]);
+  }, [customHandle, profile?.displayName, profile?.display_name, user?.displayName, user?.email, user?.uid]);
 
   function handleSaveUsername() {
     const trimmed = usernameInput.trim().replace(/^@+/, "");
@@ -495,6 +531,7 @@ function ProfilePage() {
       toast.error("Username can only contain letters, numbers, underscores, dashes, and periods.");
       return;
     }
+    setCustomHandle(trimmed);
     updateProfileUsernameMutation.mutate(trimmed);
   }
 
@@ -761,23 +798,30 @@ function ProfilePage() {
                 {!profile?.githubConnected ? (
                   <Button
                     onClick={handleConnectGithub}
-                    className="h-8 gap-1.5 font-mono text-xs bg-[#24292e] text-white hover:bg-[#24292e]/80 cursor-pointer"
+                    disabled={isConnectingGithub}
+                    className="h-8 gap-1.5 font-mono text-xs bg-[#24292e] text-white hover:bg-[#24292e]/80 cursor-pointer transition-all"
                   >
-                    <Github className="size-3.5" />
-                    <span>Connect GitHub</span>
+                    {isConnectingGithub ? (
+                      <RefreshCw className="size-3.5 animate-spin" />
+                    ) : (
+                      <Github className="size-3.5" />
+                    )}
+                    <span>{isConnectingGithub ? "Redirecting to GitHub…" : "Connect GitHub"}</span>
                   </Button>
                 ) : (
                   <div className="flex items-center gap-2">
                     <Button
                       onClick={handleConnectGithub}
+                      disabled={isConnectingGithub}
                       variant="outline"
                       className="h-8 gap-1.5 font-mono text-xs cursor-pointer"
                     >
-                      <RefreshCw className="size-3.5" />
-                      <span>Reconnect</span>
+                      <RefreshCw className={`size-3.5 ${isConnectingGithub ? "animate-spin" : ""}`} />
+                      <span>{isConnectingGithub ? "Redirecting…" : "Reconnect"}</span>
                     </Button>
                     <Button
                       onClick={handleDisconnectGithub}
+                      disabled={isConnectingGithub}
                       variant="ghost"
                       className="h-8 gap-1.5 font-mono text-xs text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
                     >

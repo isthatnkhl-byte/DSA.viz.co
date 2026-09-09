@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import express, { Request, Response } from "express";
 import { requireAuth, AuthRequest } from './src/middleware/auth';
 import { httpsEnforcer, securityHeadersMiddleware } from './src/middleware/security';
-import { getOrCreateUser } from './src/db/users';
+import { getOrCreateUser, updateUser } from './src/db/users';
 import { getProfile, updateProfile } from './src/db/profiles';
 import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submissions';
 import { getCache, setCache, deleteCache } from './src/lib/redis-cache';
@@ -29,17 +29,25 @@ import dotenv from "dotenv";
 dotenv.config();
 
 
+const cleanSecretEnv = (val?: string | null): string => {
+  if (!val) return "";
+  return val.trim().replace(/^["']|["']$/g, "").trim();
+};
+
 const getEncryptionKey = (): Buffer => {
-  const encKey = process.env.ENCRYPTION_KEY;
+  const encKey = cleanSecretEnv(process.env.ENCRYPTION_KEY);
   if (encKey && encKey.length >= 32) {
     return Buffer.from(encKey.slice(0, 32));
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("FATAL CONFIGURATION ERROR: ENCRYPTION_KEY (at least 32 characters) must be configured in production.");
+  if (encKey && encKey.length > 0) {
+    return crypto.scryptSync(encKey, "dsaviz_salt", 32);
   }
-  console.warn("⚠️ [Security Notice]: ENCRYPTION_KEY is not configured. Deriving local development encryption key.");
-  const secret = process.env.GITHUB_CLIENT_SECRET || "dev_insecure_local_encryption_fallback_32";
-  return crypto.scryptSync(secret, "dsaviz_salt", 32);
+  const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
+  if (secret) {
+    return crypto.scryptSync(secret, "dsaviz_salt", 32);
+  }
+  console.warn("⚠️ [Security Notice]: ENCRYPTION_KEY is not configured. Deriving fallback encryption key.");
+  return crypto.scryptSync("dev_insecure_local_encryption_fallback_32", "dsaviz_salt", 32);
 };
 
 function encryptToken(text: string): string {
@@ -704,6 +712,7 @@ app.post("/api/profile/update", requireAuth, async (req: any, res) => {
     }
     const uid = req.user.uid;
     const updated = await updateProfile(uid, { displayName: clean, display_name: clean }).catch(() => null);
+    await updateUser(uid, { displayName: clean, display_name: clean }).catch(() => null);
 
     // Invalidate Redis profile cache so fresh data is loaded
     await deleteCache(`profile:${uid}`).catch(() => {});
@@ -711,13 +720,14 @@ app.post("/api/profile/update", requireAuth, async (req: any, res) => {
 
     const responsePayload = {
       uid,
+      ...(updated || {}),
       displayName: clean,
       display_name: clean,
-      ...(updated || {}),
     };
 
     // Prime the cache with the updated profile
     await setCache(`profile:${uid}`, responsePayload, 1800).catch(() => {});
+    await setCache(`user:${uid}`, responsePayload, 1800).catch(() => {});
 
     res.json({
       ok: true,
@@ -1862,17 +1872,23 @@ app.post("/api/compiler/execute", compilerLimiter, async (req: Request, res: Res
 // GitHub OAuth Lifecycle
 app.get("/api/github/url", requireAuth, (req: any, res) => {
   const uid = req.user.uid;
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const secret = process.env.GITHUB_CLIENT_SECRET;
+  const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
+  const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
   
   if (!clientId || !secret) {
-    return res.status(500).json({ error: "GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET is not configured on the server" });
+    return res.status(500).json({
+      error: "GitHub OAuth is not configured on the server. Please configure GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in your environment settings.",
+      configured: false
+    });
   }
 
   // Construct canonical redirect URI
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  const origin = req.headers.origin || `${proto}://${host}`;
+  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim() || "https";
+  const host = (req.headers["x-forwarded-host"] as string)?.split(",")[0]?.trim() || req.headers.host;
+  const clientOrigin = typeof req.query.origin === "string" && req.query.origin.startsWith("http")
+    ? req.query.origin.replace(/\/+$/, "")
+    : null;
+  const origin = clientOrigin || req.headers.origin || `${proto}://${host}`;
   const redirectUri = `${origin}/api/github/callback`;
   
   // Nonce + Expiry (10 minutes) for tamper-proof, single-use state
@@ -1888,12 +1904,13 @@ app.get("/api/github/url", requireAuth, (req: any, res) => {
 
   const params = new URLSearchParams({
     client_id: clientId,
+    redirect_uri: redirectUri,
     response_type: "code",
     scope: "public_repo",
     state: state,
   });
 
-  const authUrl = `https://github.com/login/oauth/authorize?${params}`;
+  const authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
   res.json({ url: authUrl });
 });
 
@@ -1903,7 +1920,7 @@ app.get("/api/github/callback", async (req, res) => {
     return res.status(400).send("Missing code or state parameter");
   }
 
-  const secret = process.env.GITHUB_CLIENT_SECRET;
+  const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
   if (!secret) {
     return res.status(500).send("Server configuration error: GITHUB_CLIENT_SECRET missing");
   }
@@ -1911,6 +1928,7 @@ app.get("/api/github/callback", async (req, res) => {
   let uid: string;
   let nonce: string;
   let expiresAt: number;
+  let redirectUri: string | undefined;
 
   try {
     const decodedWrapper = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
@@ -1929,6 +1947,7 @@ app.get("/api/github/callback", async (req, res) => {
     uid = decoded.uid;
     nonce = decoded.nonce;
     expiresAt = decoded.expiresAt;
+    redirectUri = decoded.redirectUri;
 
     // 2. Verify state expiration
     if (Date.now() > expiresAt) {
@@ -1945,8 +1964,8 @@ app.get("/api/github/callback", async (req, res) => {
   }
 
   try {
-    const clientId = process.env.GITHUB_CLIENT_ID;
-    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
+    const clientSecret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
     
     const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
@@ -1958,6 +1977,7 @@ app.get("/api/github/callback", async (req, res) => {
         client_id: clientId,
         client_secret: clientSecret,
         code,
+        ...(redirectUri ? { redirect_uri: redirectUri } : {}),
       })
     });
     
@@ -2012,6 +2032,7 @@ app.get("/api/github/callback", async (req, res) => {
       <html>
         <head>
           <title>GitHub Connected</title>
+          <meta http-equiv="refresh" content="0; url=/profile" />
           <style>
             body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; }
             .card { text-align: center; padding: 2rem; background: #1e293b; border-radius: 1rem; border: 1px solid #334155; }
@@ -2020,7 +2041,7 @@ app.get("/api/github/callback", async (req, res) => {
         <body>
           <div class="card">
             <h3>GitHub Connected Successfully!</h3>
-            <p>Closing this window...</p>
+            <p>Redirecting back to your profile...</p>
           </div>
           <script>
             try {
@@ -2034,10 +2055,10 @@ app.get("/api/github/callback", async (req, res) => {
                 }, '*');
                 setTimeout(() => window.close(), 400);
               } else {
-                window.location.href = '/profile';
+                window.location.replace('/profile');
               }
             } catch (e) {
-              window.location.href = '/profile';
+              window.location.replace('/profile');
             }
           </script>
         </body>

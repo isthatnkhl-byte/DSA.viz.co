@@ -51,13 +51,14 @@ export const requireAuth = async (
           return res.status(401).json({ error: 'Unauthorized: Invalid token signature algorithm' });
         }
 
-        const projectId = process.env.VITE_FIREBASE_PROJECT_ID || fallbackConfig.projectId;
+        const cleanEnv = (v?: string | null) => v?.trim().replace(/^["']|["']$/g, "").trim();
+        const projectId = cleanEnv(process.env.VITE_FIREBASE_PROJECT_ID) || cleanEnv(process.env.FIREBASE_PROJECT_ID) || fallbackConfig.projectId;
         const expectedIssuer = `https://securetoken.google.com/${projectId}`;
         
         const now = Math.floor(Date.now() / 1000);
         // Allow clock skew
         const isNotExpired = typeof payload.exp === 'number' && payload.exp > now - 600;
-        const isMatchingAudience = payload.aud === projectId;
+        const isMatchingAudience = payload.aud === projectId || (typeof payload.iss === 'string' && payload.iss === `https://securetoken.google.com/${payload.aud}`);
         const isMatchingIssuer = payload.iss === expectedIssuer || (typeof payload.iss === 'string' && payload.iss.startsWith('https://securetoken.google.com/'));
         const hasValidUid = typeof (payload.sub || payload.user_id) === 'string' && (payload.sub || payload.user_id).length > 0;
 

@@ -83,7 +83,7 @@ export async function updateProfile(userId: string, data: any) {
     await adminDb.collection('users').doc(userId).set(data, { merge: true });
     const doc = await adminDb.collection('users').doc(userId).get();
     if (doc && doc.exists) {
-      const cloudData = { ...merged, ...doc.data() };
+      const cloudData = { ...doc.data(), ...merged, ...data };
       memoryProfileStore.set(userId, cloudData);
       persistProfiles();
       await setCache(`profile:${userId}`, cloudData, 1800).catch(() => {});

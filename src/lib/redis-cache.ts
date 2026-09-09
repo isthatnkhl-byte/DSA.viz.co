@@ -48,7 +48,8 @@ function persistMemoryCache() {
 let redisClient: Redis | null = null;
 let isConnectedToRedis = false;
 
-const REDIS_URL = process.env.REDIS_URL || process.env.REDIS_PRIVATE_URL || process.env.REDISCLOUD_URL;
+const rawRedisUrl = process.env.REDIS_URL || process.env.REDIS_PRIVATE_URL || process.env.REDISCLOUD_URL;
+const REDIS_URL = rawRedisUrl?.trim().replace(/^["']|["']$/g, "").trim();
 
 if (REDIS_URL) {
   try {

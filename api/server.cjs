@@ -265892,11 +265892,12 @@ var requireAuth = async (req, res, next) => {
           console.error("Authentication verification failed: Unsigned or invalid JWT algorithm");
           return res.status(401).json({ error: "Unauthorized: Invalid token signature algorithm" });
         }
-        const projectId2 = process.env.VITE_FIREBASE_PROJECT_ID || firebase_applet_config_default.projectId;
+        const cleanEnv3 = (v) => v?.trim().replace(/^["']|["']$/g, "").trim();
+        const projectId2 = cleanEnv3(process.env.VITE_FIREBASE_PROJECT_ID) || cleanEnv3(process.env.FIREBASE_PROJECT_ID) || firebase_applet_config_default.projectId;
         const expectedIssuer = `https://securetoken.google.com/${projectId2}`;
         const now = Math.floor(Date.now() / 1e3);
         const isNotExpired = typeof payload.exp === "number" && payload.exp > now - 600;
-        const isMatchingAudience = payload.aud === projectId2;
+        const isMatchingAudience = payload.aud === projectId2 || typeof payload.iss === "string" && payload.iss === `https://securetoken.google.com/${payload.aud}`;
         const isMatchingIssuer = payload.iss === expectedIssuer || typeof payload.iss === "string" && payload.iss.startsWith("https://securetoken.google.com/");
         const hasValidUid = typeof (payload.sub || payload.user_id) === "string" && (payload.sub || payload.user_id).length > 0;
         if (isNotExpired && isMatchingAudience && isMatchingIssuer && hasValidUid) {
@@ -266044,7 +266045,8 @@ function persistMemoryCache() {
 }
 var redisClient = null;
 var isConnectedToRedis = false;
-var REDIS_URL = process.env.REDIS_URL || process.env.REDIS_PRIVATE_URL || process.env.REDISCLOUD_URL;
+var rawRedisUrl = process.env.REDIS_URL || process.env.REDIS_PRIVATE_URL || process.env.REDISCLOUD_URL;
+var REDIS_URL = rawRedisUrl?.trim().replace(/^["']|["']$/g, "").trim();
 if (REDIS_URL) {
   try {
     redisClient = new import_ioredis.default(REDIS_URL, {
@@ -266198,6 +266200,21 @@ async function getOrCreateUser(uid, email3) {
   });
   return newUser;
 }
+async function updateUser(uid, data) {
+  if (!uid) return null;
+  const existing = memoryUserStore.get(uid) || {};
+  const merged = { ...existing, ...data, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+  memoryUserStore.set(uid, merged);
+  persistUsers();
+  await setCache(`user:${uid}`, merged, 1800).catch(() => {
+  });
+  try {
+    const userRef = adminDb.collection("users").doc(uid);
+    await userRef.set(data, { merge: true });
+  } catch {
+  }
+  return merged;
+}
 
 // src/db/profiles.ts
 var import_fs3 = __toESM(require("fs"), 1);
@@ -266266,7 +266283,7 @@ async function updateProfile(userId, data) {
     await adminDb.collection("users").doc(userId).set(data, { merge: true });
     const doc = await adminDb.collection("users").doc(userId).get();
     if (doc && doc.exists) {
-      const cloudData = { ...merged, ...doc.data() };
+      const cloudData = { ...doc.data(), ...merged, ...data };
       memoryProfileStore.set(userId, cloudData);
       persistProfiles();
       await setCache(`profile:${userId}`, cloudData, 1800).catch(() => {
@@ -291792,17 +291809,24 @@ var DAY = 24 * HOUR;
 init_zod();
 var import_dotenv = __toESM(require_main(), 1);
 import_dotenv.default.config();
+var cleanSecretEnv = (val) => {
+  if (!val) return "";
+  return val.trim().replace(/^["']|["']$/g, "").trim();
+};
 var getEncryptionKey = () => {
-  const encKey = process.env.ENCRYPTION_KEY;
+  const encKey = cleanSecretEnv(process.env.ENCRYPTION_KEY);
   if (encKey && encKey.length >= 32) {
     return Buffer.from(encKey.slice(0, 32));
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("FATAL CONFIGURATION ERROR: ENCRYPTION_KEY (at least 32 characters) must be configured in production.");
+  if (encKey && encKey.length > 0) {
+    return import_crypto.default.scryptSync(encKey, "dsaviz_salt", 32);
   }
-  console.warn("\u26A0\uFE0F [Security Notice]: ENCRYPTION_KEY is not configured. Deriving local development encryption key.");
-  const secret = process.env.GITHUB_CLIENT_SECRET || "dev_insecure_local_encryption_fallback_32";
-  return import_crypto.default.scryptSync(secret, "dsaviz_salt", 32);
+  const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
+  if (secret) {
+    return import_crypto.default.scryptSync(secret, "dsaviz_salt", 32);
+  }
+  console.warn("\u26A0\uFE0F [Security Notice]: ENCRYPTION_KEY is not configured. Deriving fallback encryption key.");
+  return import_crypto.default.scryptSync("dev_insecure_local_encryption_fallback_32", "dsaviz_salt", 32);
 };
 function encryptToken(text) {
   const iv = import_crypto.default.randomBytes(16);
@@ -292376,17 +292400,20 @@ app.post("/api/profile/update", requireAuth, async (req, res) => {
     }
     const uid = req.user.uid;
     const updated = await updateProfile(uid, { displayName: clean3, display_name: clean3 }).catch(() => null);
+    await updateUser(uid, { displayName: clean3, display_name: clean3 }).catch(() => null);
     await deleteCache(`profile:${uid}`).catch(() => {
     });
     await deleteCache(`user:${uid}`).catch(() => {
     });
     const responsePayload = {
       uid,
+      ...updated || {},
       displayName: clean3,
-      display_name: clean3,
-      ...updated || {}
+      display_name: clean3
     };
     await setCache(`profile:${uid}`, responsePayload, 1800).catch(() => {
+    });
+    await setCache(`user:${uid}`, responsePayload, 1800).catch(() => {
     });
     res.json({
       ok: true,
@@ -293415,14 +293442,18 @@ app.post("/api/compiler/execute", compilerLimiter, async (req, res) => {
 });
 app.get("/api/github/url", requireAuth, (req, res) => {
   const uid = req.user.uid;
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const secret = process.env.GITHUB_CLIENT_SECRET;
+  const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
+  const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
   if (!clientId || !secret) {
-    return res.status(500).json({ error: "GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET is not configured on the server" });
+    return res.status(500).json({
+      error: "GitHub OAuth is not configured on the server. Please configure GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in your environment settings.",
+      configured: false
+    });
   }
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  const origin = req.headers.origin || `${proto}://${host}`;
+  const proto = req.headers["x-forwarded-proto"]?.split(",")[0]?.trim() || "https";
+  const host = req.headers["x-forwarded-host"]?.split(",")[0]?.trim() || req.headers.host;
+  const clientOrigin = typeof req.query.origin === "string" && req.query.origin.startsWith("http") ? req.query.origin.replace(/\/+$/, "") : null;
+  const origin = clientOrigin || req.headers.origin || `${proto}://${host}`;
   const redirectUri = `${origin}/api/github/callback`;
   const nonce = import_crypto.default.randomBytes(16).toString("hex");
   const issuedAt = Date.now();
@@ -293434,11 +293465,12 @@ app.get("/api/github/url", requireAuth, (req, res) => {
   const state = Buffer.from(JSON.stringify({ payload, signature })).toString("base64");
   const params = new URLSearchParams({
     client_id: clientId,
+    redirect_uri: redirectUri,
     response_type: "code",
     scope: "public_repo",
     state
   });
-  const authUrl = `https://github.com/login/oauth/authorize?${params}`;
+  const authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
   res.json({ url: authUrl });
 });
 app.get("/api/github/callback", async (req, res) => {
@@ -293446,13 +293478,14 @@ app.get("/api/github/callback", async (req, res) => {
   if (!code || !state || typeof state !== "string" || typeof code !== "string") {
     return res.status(400).send("Missing code or state parameter");
   }
-  const secret = process.env.GITHUB_CLIENT_SECRET;
+  const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
   if (!secret) {
     return res.status(500).send("Server configuration error: GITHUB_CLIENT_SECRET missing");
   }
   let uid;
   let nonce;
   let expiresAt;
+  let redirectUri;
   try {
     const decodedWrapper = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
     const { payload, signature } = decodedWrapper;
@@ -293466,6 +293499,7 @@ app.get("/api/github/callback", async (req, res) => {
     uid = decoded.uid;
     nonce = decoded.nonce;
     expiresAt = decoded.expiresAt;
+    redirectUri = decoded.redirectUri;
     if (Date.now() > expiresAt) {
       return res.status(400).send("OAuth state expired. Please initiate GitHub login again.");
     }
@@ -293477,8 +293511,8 @@ app.get("/api/github/callback", async (req, res) => {
     return res.status(400).send("Invalid or malformed state payload");
   }
   try {
-    const clientId = process.env.GITHUB_CLIENT_ID;
-    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
+    const clientSecret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
     const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: {
@@ -293488,7 +293522,8 @@ app.get("/api/github/callback", async (req, res) => {
       body: JSON.stringify({
         client_id: clientId,
         client_secret: clientSecret,
-        code
+        code,
+        ...redirectUri ? { redirect_uri: redirectUri } : {}
       })
     });
     const tokenData = await tokenRes.json();
@@ -293535,6 +293570,7 @@ app.get("/api/github/callback", async (req, res) => {
       <html>
         <head>
           <title>GitHub Connected</title>
+          <meta http-equiv="refresh" content="0; url=/profile" />
           <style>
             body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; }
             .card { text-align: center; padding: 2rem; background: #1e293b; border-radius: 1rem; border: 1px solid #334155; }
@@ -293543,7 +293579,7 @@ app.get("/api/github/callback", async (req, res) => {
         <body>
           <div class="card">
             <h3>GitHub Connected Successfully!</h3>
-            <p>Closing this window...</p>
+            <p>Redirecting back to your profile...</p>
           </div>
           <script>
             try {
@@ -293557,10 +293593,10 @@ app.get("/api/github/callback", async (req, res) => {
                 }, '*');
                 setTimeout(() => window.close(), 400);
               } else {
-                window.location.href = '/profile';
+                window.location.replace('/profile');
               }
             } catch (e) {
-              window.location.href = '/profile';
+              window.location.replace('/profile');
             }
           </script>
         </body>

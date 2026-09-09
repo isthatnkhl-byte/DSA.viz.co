@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import {
   Trophy,
   Sparkles,
-  Target, Github,
+  Target,
+  Github,
   ArrowLeft,
   RefreshCw,
   Save,
@@ -43,11 +43,8 @@ import {
   updateUserProfile,
   getUserSubmissions,
 } from "@/lib/firestore-service";
-import {
-  getProfileStats,
-  updateLeetcodeUsername,
-  updateProfileUsername,
-} from "@/lib/submissions.functions";
+import { LeetCodeHeatmap } from "@/components/dashboard/LeetCodeHeatmap";
+import { AiMistakesSection } from "@/components/dashboard/AiMistakesSection";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/profile")({
@@ -70,9 +67,6 @@ export const Route = createFileRoute("/_authenticated/profile")({
   component: ProfilePage,
 });
 
-import { LeetCodeHeatmap } from "@/components/dashboard/LeetCodeHeatmap";
-import { AiMistakesSection } from "@/components/dashboard/AiMistakesSection";
-
 function ProfilePage() {
   const { user, token, refreshProfile, updateNickname, signOut } = useAuth();
   const queryClient = useQueryClient();
@@ -87,135 +81,6 @@ function ProfilePage() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const handleExportData = () => {
-    const dataToExport = {
-      profile: data?.profile || user,
-      submissions: data?.submissions || [],
-      exportedAt: new Date().toISOString(),
-      platform: "DSA.viz.co",
-    };
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `dsaviz-data-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("All personal data exported successfully.");
-  };
-
-  const handleDeleteAccount = async () => {
-    if (confirmDeleteText !== "DELETE MY ACCOUNT") {
-      toast.error('Please type "DELETE MY ACCOUNT" to confirm.');
-      return;
-    }
-    setIsDeletingAccount(true);
-    try {
-      const currentToken = await user?.getIdToken();
-      const res = await fetch("/api/profile", {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${currentToken || "mock-guest-token-dev"}`,
-        },
-      });
-      if (!res.ok) throw new Error("Failed to delete account");
-      toast.success("Account and associated data deleted permanently.");
-      await signOut();
-      window.location.href = "/";
-    } catch (err: any) {
-      toast.error(err?.message || "Could not complete account deletion");
-    } finally {
-      setIsDeletingAccount(false);
-    }
-  };
-
-  const handleDisconnectGithub = async () => {
-    try {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      const currentToken = currentUser ? await currentUser.getIdToken() : null;
-      if (currentUser) {
-        try {
-          localStorage.removeItem(`dsa_viz_github_connected_${currentUser.uid}`);
-          localStorage.removeItem(`dsa_viz_github_token_${currentUser.uid}`);
-          await updateUserProfile(currentUser.uid, {
-            githubToken: null,
-          } as any);
-        } catch (e) {
-          console.warn("Could not clear client firestore githubToken:", e);
-        }
-      }
-      if (currentToken) {
-        await fetch("/api/github/disconnect", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${currentToken}` },
-        }).catch(() => {});
-      }
-      toast.success("GitHub disconnected");
-      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-      refetch();
-    } catch {
-      toast.error("Failed to disconnect GitHub");
-    }
-  };
-
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data?.type === "GITHUB_AUTH_SUCCESS") {
-        const auth = getAuth();
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          try {
-            if (event.data?.githubToken) {
-              await updateUserProfile(currentUser.uid, {
-                githubToken: event.data.githubToken,
-              } as any).catch(() => {});
-              localStorage.setItem(`dsa_viz_github_token_${currentUser.uid}`, event.data.githubToken);
-            }
-            if (event.data?.githubUsername) {
-              localStorage.setItem(`dsa_viz_github_username_${currentUser.uid}`, event.data.githubUsername);
-            }
-            if (event.data?.githubAvatar) {
-              localStorage.setItem(`dsa_viz_github_avatar_${currentUser.uid}`, event.data.githubAvatar);
-            }
-            localStorage.setItem(`dsa_viz_github_connected_${currentUser.uid}`, "true");
-          } catch (e) {
-            console.warn("Could not save githubToken to client profile:", e);
-          }
-        }
-        toast.success("GitHub connected successfully!");
-        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-        queryClient.invalidateQueries({ queryKey: ["profileStats"] });
-        refetch();
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [queryClient, refetch]);
-
-  const handleConnectGithub = async () => {
-    try {
-      const auth = getAuth();
-      const token = await auth.currentUser?.getIdToken();
-      
-      const res = await fetch("/api/github/url", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      const { url } = await res.json();
-      
-      const authWindow = window.open(
-        url,
-        'oauth_popup',
-        'width=600,height=700'
-      );
-      if (!authWindow) {
-        toast.error('Please allow popups for this site to connect your GitHub account.');
-      }
-    } catch (e) {
-      toast.error("Failed to initiate GitHub connect");
-    }
-  };
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["profile-stats"],
@@ -367,16 +232,143 @@ function ProfilePage() {
         hard: byDifficulty.Hard.size,
       };
     },
-    enabled: !!token,
+    enabled: !!user || !!token,
   });
 
-  const { token: authContextToken } = useAuth();
+  const handleExportData = () => {
+    const dataToExport = {
+      profile: data?.profile || user,
+      submissions: data?.submissions || [],
+      exportedAt: new Date().toISOString(),
+      platform: "DSA.viz.co",
+    };
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dsaviz-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("All personal data exported successfully.");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (confirmDeleteText !== "DELETE MY ACCOUNT") {
+      toast.error('Please type "DELETE MY ACCOUNT" to confirm.');
+      return;
+    }
+    setIsDeletingAccount(true);
+    try {
+      const currentToken = await user?.getIdToken();
+      const res = await fetch("/api/profile", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${currentToken || "mock-guest-token-dev"}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to delete account");
+      toast.success("Account and associated data deleted permanently.");
+      await signOut();
+      window.location.href = "/";
+    } catch (err: any) {
+      toast.error(err?.message || "Could not complete account deletion");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const handleDisconnectGithub = async () => {
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      const currentToken = currentUser ? await currentUser.getIdToken() : null;
+      if (currentUser) {
+        try {
+          localStorage.removeItem(`dsa_viz_github_connected_${currentUser.uid}`);
+          localStorage.removeItem(`dsa_viz_github_token_${currentUser.uid}`);
+          await updateUserProfile(currentUser.uid, {
+            githubToken: null,
+          } as any);
+        } catch (e) {
+          console.warn("Could not clear client firestore githubToken:", e);
+        }
+      }
+      if (currentToken) {
+        await fetch("/api/github/disconnect", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${currentToken}` },
+        }).catch(() => {});
+      }
+      toast.success("GitHub disconnected");
+      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+      refetch();
+    } catch {
+      toast.error("Failed to disconnect GitHub");
+    }
+  };
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === "GITHUB_AUTH_SUCCESS") {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          try {
+            if (event.data?.githubToken) {
+              await updateUserProfile(currentUser.uid, {
+                githubToken: event.data.githubToken,
+              } as any).catch(() => {});
+              localStorage.setItem(`dsa_viz_github_token_${currentUser.uid}`, event.data.githubToken);
+            }
+            if (event.data?.githubUsername) {
+              localStorage.setItem(`dsa_viz_github_username_${currentUser.uid}`, event.data.githubUsername);
+            }
+            if (event.data?.githubAvatar) {
+              localStorage.setItem(`dsa_viz_github_avatar_${currentUser.uid}`, event.data.githubAvatar);
+            }
+            localStorage.setItem(`dsa_viz_github_connected_${currentUser.uid}`, "true");
+          } catch (e) {
+            console.warn("Could not save githubToken to client profile:", e);
+          }
+        }
+        toast.success("GitHub connected successfully!");
+        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["profileStats"] });
+        refetch();
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [queryClient, refetch]);
+
+  const handleConnectGithub = async () => {
+    try {
+      const auth = getAuth();
+      const token = await auth.currentUser?.getIdToken();
+      
+      const res = await fetch("/api/github/url", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const { url } = await res.json();
+      
+      const authWindow = window.open(
+        url,
+        'oauth_popup',
+        'width=600,height=700'
+      );
+      if (!authWindow) {
+        toast.error('Please allow popups for this site to connect your GitHub account.');
+      }
+    } catch (e) {
+      toast.error("Failed to initiate GitHub connect");
+    }
+  };
 
   const syncMutation = useMutation({
     mutationFn: async (username: string) => {
       const auth = getAuth();
       const currentUser = auth.currentUser;
-      const currentToken = currentUser ? await currentUser.getIdToken().catch(() => authContextToken) : authContextToken;
+      const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
       
       const res = await fetch("/api/sync-leetcode", {
         method: "POST",
@@ -527,7 +519,25 @@ function ProfilePage() {
           <span>Back to Problem Explorer</span>
         </Link>
 
-        {isLoading || !data ? (
+        {!user ? (
+          <div className="flex min-h-[340px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border/80 bg-card/50 p-8 text-center backdrop-blur-sm">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/15 border border-primary/30 text-primary">
+              <Sparkles className="size-7" />
+            </div>
+            <div className="max-w-md">
+              <h2 className="text-xl font-black text-foreground">Sign In to View Your Profile</h2>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
+                Connect your LeetCode and GitHub accounts, view personal telemetry stats, review AI feedback, and manage your DSA visualizer portfolio.
+              </p>
+            </div>
+            <Link
+              to="/auth"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-mono text-xs font-bold text-primary-foreground shadow-lg shadow-primary/25 hover:scale-105 active:scale-95 transition-all"
+            >
+              Sign In with Google
+            </Link>
+          </div>
+        ) : isLoading || !data ? (
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/80 bg-card/40 p-8 text-center animate-pulse">
             <Trophy className="size-8 text-primary animate-bounce" />
             <p className="font-mono text-sm text-muted-foreground">

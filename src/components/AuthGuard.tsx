@@ -19,10 +19,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!loading) {
       if (!isAuthenticated && !isPublicRoute) {
         // Enforce authorized login across the website
-        router.navigate({ to: "/auth" });
+        const redirectParam = location.pathname && location.pathname !== "/" ? { redirect: location.pathname } : undefined;
+        router.navigate({ to: "/auth", search: redirectParam });
       } else if (isAuthenticated && location.pathname === "/auth") {
-        // Already authenticated, redirect away from login page
-        router.navigate({ to: "/" });
+        // Already authenticated, redirect away from login page to target or home
+        const redirectParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("redirect") : null;
+        const target = redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//") ? redirectParam : "/";
+        router.navigate({ to: target as any });
       }
       setInitialLoading(false);
     }

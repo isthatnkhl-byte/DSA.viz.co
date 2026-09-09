@@ -19075,11 +19075,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path4) {
-      if (!path4 || typeof path4 !== "string") {
+    function lookup(path8) {
+      if (!path8 || typeof path8 !== "string") {
         return false;
       }
-      var extension3 = extname("x." + path4).toLowerCase().slice(1);
+      var extension3 = extname("x." + path8).toLowerCase().slice(1);
       if (!extension3) {
         return false;
       }
@@ -21672,19 +21672,15 @@ var require_utils2 = __commonJS({
       if (!obj || typeof obj !== "object") {
         return false;
       }
-      return !!(obj.constructor && typeof obj.constructor.isBuffer === "function" && obj.constructor.isBuffer(obj));
+      return !!(obj.constructor && obj.constructor.isBuffer && obj.constructor.isBuffer(obj));
     };
     var combine = function combine2(a, b, arrayLimit, plainObjects, throwOnLimitExceeded) {
       if (isOverflow(a)) {
         if (throwOnLimitExceeded) {
           throw new RangeError("Array limit exceeded. Only " + arrayLimit + " element" + (arrayLimit === 1 ? "" : "s") + " allowed in an array.");
         }
-        var bValues = isArray(b) ? b : [b];
-        var newIndex = getMaxIndex(a);
-        for (var i2 = 0; i2 < bValues.length; ++i2) {
-          newIndex += 1;
-          a[newIndex] = bValues[i2];
-        }
+        var newIndex = getMaxIndex(a) + 1;
+        a[newIndex] = b;
         setMaxIndex(a, newIndex);
         return a;
       }
@@ -21760,7 +21756,6 @@ var require_stringify = __commonJS({
       charsetSentinel: false,
       commaRoundTrip: false,
       delimiter: "&",
-      depth: Infinity,
       encode: true,
       encodeDotInKeys: false,
       encoder: utils.encode,
@@ -21780,11 +21775,8 @@ var require_stringify = __commonJS({
       return typeof v === "string" || typeof v === "number" || typeof v === "boolean" || typeof v === "symbol" || typeof v === "bigint";
     };
     var sentinel = {};
-    var stringify = function stringify2(object2, prefix, generateArrayPrefix, commaRoundTrip, allowEmptyArrays, strictNullHandling, skipNulls, encodeDotInKeys, encoder2, filter, sort, allowDots, serializeDate, format, formatter, encodeValuesOnly, charset, sideChannel, depth, currentDepth) {
+    var stringify = function stringify2(object2, prefix, generateArrayPrefix, commaRoundTrip, allowEmptyArrays, strictNullHandling, skipNulls, encodeDotInKeys, encoder2, filter, sort, allowDots, serializeDate, format, formatter, encodeValuesOnly, charset, sideChannel) {
       var obj = object2;
-      if (currentDepth > depth) {
-        throw new RangeError("Input depth exceeded depth option of " + depth);
-      }
       var tmpSc = sideChannel;
       var step = 0;
       var findFlag = false;
@@ -21802,8 +21794,9 @@ var require_stringify = __commonJS({
           step = 0;
         }
       }
-      obj = typeof filter === "function" ? filter(prefix, obj) : obj;
-      if (obj instanceof Date) {
+      if (typeof filter === "function") {
+        obj = filter(prefix, obj);
+      } else if (obj instanceof Date) {
         obj = serializeDate(obj);
       } else if (generateArrayPrefix === "comma" && isArray(obj)) {
         obj = utils.maybeMap(obj, function(value2) {
@@ -21846,7 +21839,7 @@ var require_stringify = __commonJS({
       }
       var encodedPrefix = encodeDotInKeys ? String(prefix).replace(/\./g, "%2E") : String(prefix);
       var adjustedPrefix = commaRoundTrip && isArray(obj) && obj.length === 1 ? encodedPrefix + "[]" : encodedPrefix;
-      if (allowEmptyArrays && isArray(obj) && obj.length === 0 && Object.keys(obj).length === 0) {
+      if (allowEmptyArrays && isArray(obj) && obj.length === 0) {
         return adjustedPrefix + "[]";
       }
       for (var j = 0; j < objKeys.length; ++j) {
@@ -21878,9 +21871,7 @@ var require_stringify = __commonJS({
           formatter,
           encodeValuesOnly,
           charset,
-          valueSideChannel,
-          depth,
-          currentDepth + 1
+          valueSideChannel
         ));
       }
       return values;
@@ -21935,7 +21926,6 @@ var require_stringify = __commonJS({
         charsetSentinel: typeof opts.charsetSentinel === "boolean" ? opts.charsetSentinel : defaults.charsetSentinel,
         commaRoundTrip: !!opts.commaRoundTrip,
         delimiter: typeof opts.delimiter === "undefined" ? defaults.delimiter : opts.delimiter,
-        depth: typeof opts.depth === "number" ? opts.depth : defaults.depth,
         encode: typeof opts.encode === "boolean" ? opts.encode : defaults.encode,
         encodeDotInKeys: typeof opts.encodeDotInKeys === "boolean" ? opts.encodeDotInKeys : defaults.encodeDotInKeys,
         encoder: typeof opts.encoder === "function" ? opts.encoder : defaults.encoder,
@@ -21983,10 +21973,9 @@ var require_stringify = __commonJS({
         if (options.skipNulls && value === null) {
           continue;
         }
-        var encodedKey = options.encodeDotInKeys ? String(key).replace(/\./g, "%2E") : String(key);
         pushToArray(keys, stringify(
           value,
-          encodedKey,
+          key,
           generateArrayPrefix,
           commaRoundTrip,
           options.allowEmptyArrays,
@@ -22002,9 +21991,7 @@ var require_stringify = __commonJS({
           options.formatter,
           options.encodeValuesOnly,
           options.charset,
-          sideChannel,
-          options.depth,
-          0
+          sideChannel
         ));
       }
       var joined = keys.join(options.delimiter);
@@ -22057,9 +22044,9 @@ var require_parse = __commonJS({
         return String.fromCharCode(parseInt(numberStr, 10));
       });
     };
-    var parseArrayValue = function(val, options, currentArrayLength) {
+    var parseArrayValue = function(val, options, currentArrayLength, isFlatArrayValue) {
       if (val && typeof val === "string" && options.comma && val.indexOf(",") > -1) {
-        if (options.throwOnLimitExceeded) {
+        if (isFlatArrayValue && options.throwOnLimitExceeded) {
           var commaCount = 0;
           var commaIndex = val.indexOf(",");
           while (commaIndex > -1) {
@@ -22126,7 +22113,8 @@ var require_parse = __commonJS({
               parseArrayValue(
                 part.slice(pos + 1),
                 options,
-                isArray(obj[key]) ? obj[key].length : 0
+                isArray(obj[key]) ? obj[key].length : 0,
+                part.indexOf("[]=") === -1
               ),
               function(encodedVal) {
                 return options.decoder(encodedVal, defaults.decoder, charset, "value");
@@ -22766,13 +22754,13 @@ var require_view = __commonJS({
   "node_modules/express/lib/view.js"(exports2, module2) {
     "use strict";
     var debug = require_src()("express:view");
-    var path4 = require("node:path");
-    var fs5 = require("node:fs");
-    var dirname = path4.dirname;
-    var basename3 = path4.basename;
-    var extname = path4.extname;
-    var join = path4.join;
-    var resolve = path4.resolve;
+    var path8 = require("node:path");
+    var fs9 = require("node:fs");
+    var dirname = path8.dirname;
+    var basename3 = path8.basename;
+    var extname = path8.extname;
+    var join = path8.join;
+    var resolve = path8.resolve;
     module2.exports = View;
     function View(name, options) {
       var opts = options || {};
@@ -22801,17 +22789,17 @@ var require_view = __commonJS({
       this.path = this.lookup(fileName);
     }
     View.prototype.lookup = function lookup(name) {
-      var path5;
+      var path9;
       var roots = [].concat(this.root);
       debug('lookup "%s"', name);
-      for (var i2 = 0; i2 < roots.length && !path5; i2++) {
+      for (var i2 = 0; i2 < roots.length && !path9; i2++) {
         var root = roots[i2];
         var loc = resolve(root, name);
         var dir = dirname(loc);
         var file2 = basename3(loc);
-        path5 = this.resolve(dir, file2);
+        path9 = this.resolve(dir, file2);
       }
-      return path5;
+      return path9;
     };
     View.prototype.render = function render(options, callback) {
       var sync = true;
@@ -22833,21 +22821,21 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve2(dir, file2) {
       var ext = this.ext;
-      var path5 = join(dir, file2);
-      var stat3 = tryStat(path5);
+      var path9 = join(dir, file2);
+      var stat3 = tryStat(path9);
       if (stat3 && stat3.isFile()) {
-        return path5;
+        return path9;
       }
-      path5 = join(dir, basename3(file2, ext), "index" + ext);
-      stat3 = tryStat(path5);
+      path9 = join(dir, basename3(file2, ext), "index" + ext);
+      stat3 = tryStat(path9);
       if (stat3 && stat3.isFile()) {
-        return path5;
+        return path9;
       }
     };
-    function tryStat(path5) {
-      debug('stat "%s"', path5);
+    function tryStat(path9) {
+      debug('stat "%s"', path9);
       try {
-        return fs5.statSync(path5);
+        return fs9.statSync(path9);
       } catch (e2) {
         return void 0;
       }
@@ -24087,15 +24075,15 @@ var require_dist3 = __commonJS({
       let index = 0;
       function consumeUntil(end) {
         const output2 = [];
-        let path4 = "";
+        let path8 = "";
         function writePath() {
-          if (!path4)
+          if (!path8)
             return;
           output2.push({
             type: "text",
-            value: encodePath(path4)
+            value: encodePath(path8)
           });
-          path4 = "";
+          path8 = "";
         }
         while (index < chars.length) {
           const value = chars[index++];
@@ -24107,7 +24095,7 @@ var require_dist3 = __commonJS({
             if (index === chars.length) {
               throw new PathError(`Unexpected end after \\ at index ${index}`, str);
             }
-            path4 += chars[index++];
+            path8 += chars[index++];
             continue;
           }
           if (value === ":" || value === "*") {
@@ -24151,7 +24139,7 @@ var require_dist3 = __commonJS({
           if (value === "}" || value === "(" || value === ")" || value === "[" || value === "]" || value === "+" || value === "?" || value === "!") {
             throw new PathError(`Unexpected ${value} at index ${index - 1}`, str);
           }
-          path4 += value;
+          path8 += value;
         }
         if (end) {
           throw new PathError(`Unexpected end at index ${index}, expected ${end}`, str);
@@ -24161,17 +24149,17 @@ var require_dist3 = __commonJS({
       }
       return new TokenData(consumeUntil(""), str);
     }
-    function compile2(path4, options = {}) {
+    function compile2(path8, options = {}) {
       const { encode: encode5 = encodeURIComponent, delimiter = DEFAULT_DELIMITER } = options;
-      const data = typeof path4 === "object" ? path4 : parse3(path4, options);
+      const data = typeof path8 === "object" ? path8 : parse3(path8, options);
       const fn = tokensToFunction(data.tokens, delimiter, encode5);
-      return function path5(params = {}) {
+      return function path9(params = {}) {
         const missing = [];
-        const path6 = fn(params, missing);
+        const path10 = fn(params, missing);
         if (missing.length) {
           throw new TypeError(`Missing parameters: ${missing.join(", ")}`);
         }
-        return path6;
+        return path10;
       };
     }
     function tokensToFunction(tokens, delimiter, encode5) {
@@ -24233,9 +24221,9 @@ var require_dist3 = __commonJS({
         return encodeValue(value);
       };
     }
-    function match2(path4, options = {}) {
+    function match2(path8, options = {}) {
       const { decode: decode4 = decodeURIComponent, delimiter = DEFAULT_DELIMITER } = options;
-      const { regexp, keys } = pathToRegexp(path4, options);
+      const { regexp, keys } = pathToRegexp(path8, options);
       const decoders = keys.map((key) => {
         if (decode4 === false)
           return NOOP_VALUE;
@@ -24247,7 +24235,7 @@ var require_dist3 = __commonJS({
         const m2 = regexp.exec(input2);
         if (!m2)
           return false;
-        const path5 = m2[0];
+        const path9 = m2[0];
         const params = /* @__PURE__ */ Object.create(null);
         for (let i2 = 1; i2 < m2.length; i2++) {
           if (m2[i2] === void 0)
@@ -24256,21 +24244,21 @@ var require_dist3 = __commonJS({
           const decoder2 = decoders[i2 - 1];
           params[key.name] = decoder2(m2[i2]);
         }
-        return { path: path5, params };
+        return { path: path9, params };
       };
     }
-    function pathToRegexp(path4, options = {}) {
+    function pathToRegexp(path8, options = {}) {
       const { delimiter = DEFAULT_DELIMITER, end = true, sensitive = false, trailing = true } = options;
       const keys = [];
       let source = "";
       let combinations = 0;
-      function process3(path5) {
-        if (Array.isArray(path5)) {
-          for (const p of path5)
+      function process3(path9) {
+        if (Array.isArray(path9)) {
+          for (const p of path9)
             process3(p);
           return;
         }
-        const data = typeof path5 === "object" ? path5 : parse3(path5, options);
+        const data = typeof path9 === "object" ? path9 : parse3(path9, options);
         flatten(data.tokens, 0, [], (tokens) => {
           if (combinations >= 256) {
             throw new PathError("Too many path combinations", data.originalPath);
@@ -24281,7 +24269,7 @@ var require_dist3 = __commonJS({
           combinations++;
         });
       }
-      process3(path4);
+      process3(path8);
       let pattern = `^(?:${source})`;
       if (trailing)
         pattern += "(?:" + escape2(delimiter) + "$)?";
@@ -24421,18 +24409,18 @@ var require_layer = __commonJS({
     var TRAILING_SLASH_REGEXP = /\/+$/;
     var MATCHING_GROUP_REGEXP = /\((?:\?<(.*?)>)?(?!\?)/g;
     module2.exports = Layer;
-    function Layer(path4, options, fn) {
+    function Layer(path8, options, fn) {
       if (!(this instanceof Layer)) {
-        return new Layer(path4, options, fn);
+        return new Layer(path8, options, fn);
       }
-      debug("new %o", path4);
+      debug("new %o", path8);
       const opts = options || {};
       this.handle = fn;
       this.keys = [];
       this.name = fn.name || "<anonymous>";
       this.params = void 0;
       this.path = void 0;
-      this.slash = path4 === "/" && opts.end === false;
+      this.slash = path8 === "/" && opts.end === false;
       function matcher(_path) {
         if (_path instanceof RegExp) {
           const keys = [];
@@ -24471,7 +24459,7 @@ var require_layer = __commonJS({
           decode: decodeParam
         });
       }
-      this.matchers = Array.isArray(path4) ? path4.map(matcher) : [matcher(path4)];
+      this.matchers = Array.isArray(path8) ? path8.map(matcher) : [matcher(path8)];
     }
     Layer.prototype.handleError = function handleError(error61, req, res, next) {
       const fn = this.handle;
@@ -24511,9 +24499,9 @@ var require_layer = __commonJS({
         next(err);
       }
     };
-    Layer.prototype.match = function match2(path4) {
+    Layer.prototype.match = function match2(path8) {
       let match3;
-      if (path4 != null) {
+      if (path8 != null) {
         if (this.slash) {
           this.params = {};
           this.path = "";
@@ -24521,7 +24509,7 @@ var require_layer = __commonJS({
         }
         let i2 = 0;
         while (!match3 && i2 < this.matchers.length) {
-          match3 = this.matchers[i2](path4);
+          match3 = this.matchers[i2](path8);
           i2++;
         }
       }
@@ -24549,13 +24537,13 @@ var require_layer = __commonJS({
         throw err;
       }
     }
-    function loosen(path4) {
-      if (path4 instanceof RegExp || path4 === "/") {
-        return path4;
+    function loosen(path8) {
+      if (path8 instanceof RegExp || path8 === "/") {
+        return path8;
       }
-      return Array.isArray(path4) ? path4.map(function(p) {
+      return Array.isArray(path8) ? path8.map(function(p) {
         return loosen(p);
-      }) : String(path4).replace(TRAILING_SLASH_REGEXP, "");
+      }) : String(path8).replace(TRAILING_SLASH_REGEXP, "");
     }
   }
 });
@@ -24571,9 +24559,9 @@ var require_route = __commonJS({
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
     module2.exports = Route;
-    function Route(path4) {
-      debug("new %o", path4);
-      this.path = path4;
+    function Route(path8) {
+      debug("new %o", path8);
+      this.path = path8;
       this.stack = [];
       this.methods = /* @__PURE__ */ Object.create(null);
     }
@@ -24781,8 +24769,8 @@ var require_router = __commonJS({
         if (++sync > 100) {
           return setImmediate(next, err);
         }
-        const path4 = getPathname(req);
-        if (path4 == null) {
+        const path8 = getPathname(req);
+        if (path8 == null) {
           return done(layerError);
         }
         let layer;
@@ -24790,7 +24778,7 @@ var require_router = __commonJS({
         let route;
         while (match2 !== true && idx < stack.length) {
           layer = stack[idx++];
-          match2 = matchLayer(layer, path4);
+          match2 = matchLayer(layer, path8);
           route = layer.route;
           if (typeof match2 !== "boolean") {
             layerError = layerError || match2;
@@ -24828,18 +24816,18 @@ var require_router = __commonJS({
           } else if (route) {
             layer.handleRequest(req, res, next);
           } else {
-            trimPrefix(layer, layerError, layerPath, path4);
+            trimPrefix(layer, layerError, layerPath, path8);
           }
           sync = 0;
         });
       }
-      function trimPrefix(layer, layerError, layerPath, path4) {
+      function trimPrefix(layer, layerError, layerPath, path8) {
         if (layerPath.length !== 0) {
-          if (layerPath !== path4.substring(0, layerPath.length)) {
+          if (layerPath !== path8.substring(0, layerPath.length)) {
             next(layerError);
             return;
           }
-          const c = path4[layerPath.length];
+          const c = path8[layerPath.length];
           if (c && c !== "/") {
             next(layerError);
             return;
@@ -24863,7 +24851,7 @@ var require_router = __commonJS({
     };
     Router.prototype.use = function use(handler) {
       let offset = 0;
-      let path4 = "/";
+      let path8 = "/";
       if (typeof handler !== "function") {
         let arg = handler;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -24871,7 +24859,7 @@ var require_router = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path4 = handler;
+          path8 = handler;
         }
       }
       const callbacks = flatten.call(slice.call(arguments, offset), Infinity);
@@ -24883,8 +24871,8 @@ var require_router = __commonJS({
         if (typeof fn !== "function") {
           throw new TypeError("argument handler must be a function");
         }
-        debug("use %o %s", path4, fn.name || "<anonymous>");
-        const layer = new Layer(path4, {
+        debug("use %o %s", path8, fn.name || "<anonymous>");
+        const layer = new Layer(path8, {
           sensitive: this.caseSensitive,
           strict: false,
           end: false
@@ -24894,9 +24882,9 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router.prototype.route = function route(path4) {
-      const route2 = new Route(path4);
-      const layer = new Layer(path4, {
+    Router.prototype.route = function route(path8) {
+      const route2 = new Route(path8);
+      const layer = new Layer(path8, {
         sensitive: this.caseSensitive,
         strict: this.strict,
         end: true
@@ -24909,8 +24897,8 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router.prototype[method] = function(path4) {
-        const route = this.route(path4);
+      Router.prototype[method] = function(path8) {
+        const route = this.route(path8);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
@@ -24939,9 +24927,9 @@ var require_router = __commonJS({
       const fqdnIndex = url2.substring(0, pathLength).indexOf("://");
       return fqdnIndex !== -1 ? url2.substring(0, url2.indexOf("/", 3 + fqdnIndex)) : void 0;
     }
-    function matchLayer(layer, path4) {
+    function matchLayer(layer, path8) {
       try {
-        return layer.match(path4);
+        return layer.match(path8);
       } catch (err) {
         return err;
       }
@@ -25169,7 +25157,7 @@ var require_application = __commonJS({
     };
     app2.use = function use(fn) {
       var offset = 0;
-      var path4 = "/";
+      var path8 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -25177,7 +25165,7 @@ var require_application = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path4 = fn;
+          path8 = fn;
         }
       }
       var fns = flatten.call(slice.call(arguments, offset), Infinity);
@@ -25187,12 +25175,12 @@ var require_application = __commonJS({
       var router = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router.use(path4, fn2);
+          return router.use(path8, fn2);
         }
-        debug(".use app under %s", path4);
-        fn2.mountpath = path4;
+        debug(".use app under %s", path8);
+        fn2.mountpath = path8;
         fn2.parent = this;
-        router.use(path4, function mounted_app(req, res, next) {
+        router.use(path8, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -25204,8 +25192,8 @@ var require_application = __commonJS({
       }, this);
       return this;
     };
-    app2.route = function route(path4) {
-      return this.router.route(path4);
+    app2.route = function route(path8) {
+      return this.router.route(path8);
     };
     app2.engine = function engine(ext, fn) {
       if (typeof fn !== "function") {
@@ -25248,7 +25236,7 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app2.path = function path4() {
+    app2.path = function path8() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
     app2.enabled = function enabled(setting) {
@@ -25264,17 +25252,17 @@ var require_application = __commonJS({
       return this.set(setting, false);
     };
     methods.forEach(function(method) {
-      app2[method] = function(path4) {
+      app2[method] = function(path8) {
         if (method === "get" && arguments.length === 1) {
-          return this.set(path4);
+          return this.set(path8);
         }
-        var route = this.route(path4);
+        var route = this.route(path8);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
     });
-    app2.all = function all(path4) {
-      var route = this.route(path4);
+    app2.all = function all(path8) {
+      var route = this.route(path8);
       var args = slice.call(arguments, 1);
       for (var i2 = 0; i2 < methods.length; i2++) {
         route[methods[i2]].apply(route, args);
@@ -26259,7 +26247,7 @@ var require_request = __commonJS({
       var subdomains2 = !isIP3(hostname3) ? hostname3.split(".").reverse() : [hostname3];
       return subdomains2.slice(offset);
     });
-    defineGetter(req, "path", function path4() {
+    defineGetter(req, "path", function path8() {
       return parse3(this).pathname;
     });
     defineGetter(req, "host", function host() {
@@ -26470,8 +26458,8 @@ var require_content_disposition = __commonJS({
       this.type = type;
       this.parameters = parameters;
     }
-    function basename3(path4) {
-      const normalized = path4.replaceAll("\\", "/");
+    function basename3(path8) {
+      const normalized = path8.replaceAll("\\", "/");
       let end = normalized.length;
       while (end > 0 && normalized[end - 1] === "/") {
         end--;
@@ -26712,32 +26700,32 @@ var require_send = __commonJS({
     var escapeHtml = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var mime = require_mime_types();
     var ms = require_ms();
     var onFinished = require_on_finished();
     var parseRange = require_range_parser();
-    var path4 = require("path");
+    var path8 = require("path");
     var statuses = require_statuses();
     var Stream4 = require("stream");
     var util = require("util");
-    var extname = path4.extname;
-    var join = path4.join;
-    var normalize2 = path4.normalize;
-    var resolve = path4.resolve;
-    var sep = path4.sep;
+    var extname = path8.extname;
+    var join = path8.join;
+    var normalize2 = path8.normalize;
+    var resolve = path8.resolve;
+    var sep = path8.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
     module2.exports = send;
-    function send(req, path5, options) {
-      return new SendStream(req, path5, options);
+    function send(req, path9, options) {
+      return new SendStream(req, path9, options);
     }
-    function SendStream(req, path5, options) {
+    function SendStream(req, path9, options) {
       Stream4.call(this);
       var opts = options || {};
       this.options = opts;
-      this.path = path5;
+      this.path = path9;
       this.req = req;
       this._acceptRanges = opts.acceptRanges !== void 0 ? Boolean(opts.acceptRanges) : true;
       this._cacheControl = opts.cacheControl !== void 0 ? Boolean(opts.cacheControl) : true;
@@ -26851,10 +26839,10 @@ var require_send = __commonJS({
       var lastModified = this.res.getHeader("Last-Modified");
       return parseHttpDate(lastModified) <= parseHttpDate(ifRange);
     };
-    SendStream.prototype.redirect = function redirect(path5) {
+    SendStream.prototype.redirect = function redirect(path9) {
       var res = this.res;
       if (hasListeners(this, "directory")) {
-        this.emit("directory", res, path5);
+        this.emit("directory", res, path9);
         return;
       }
       if (this.hasTrailingSlash()) {
@@ -26874,38 +26862,38 @@ var require_send = __commonJS({
     SendStream.prototype.pipe = function pipe2(res) {
       var root = this._root;
       this.res = res;
-      var path5 = decode4(this.path);
-      if (path5 === -1) {
+      var path9 = decode4(this.path);
+      if (path9 === -1) {
         this.error(400);
         return res;
       }
-      if (~path5.indexOf("\0")) {
+      if (~path9.indexOf("\0")) {
         this.error(400);
         return res;
       }
       var parts;
       if (root !== null) {
-        if (path5) {
-          path5 = normalize2("." + sep + path5);
+        if (path9) {
+          path9 = normalize2("." + sep + path9);
         }
-        if (UP_PATH_REGEXP.test(path5)) {
-          debug('malicious path "%s"', path5);
+        if (UP_PATH_REGEXP.test(path9)) {
+          debug('malicious path "%s"', path9);
           this.error(403);
           return res;
         }
-        parts = path5.split(sep);
-        path5 = normalize2(join(root, path5));
+        parts = path9.split(sep);
+        path9 = normalize2(join(root, path9));
       } else {
-        if (UP_PATH_REGEXP.test(path5)) {
-          debug('malicious path "%s"', path5);
+        if (UP_PATH_REGEXP.test(path9)) {
+          debug('malicious path "%s"', path9);
           this.error(403);
           return res;
         }
-        parts = normalize2(path5).split(sep);
-        path5 = resolve(path5);
+        parts = normalize2(path9).split(sep);
+        path9 = resolve(path9);
       }
       if (containsDotFile(parts)) {
-        debug('%s dotfile "%s"', this._dotfiles, path5);
+        debug('%s dotfile "%s"', this._dotfiles, path9);
         switch (this._dotfiles) {
           case "allow":
             break;
@@ -26919,13 +26907,13 @@ var require_send = __commonJS({
         }
       }
       if (this._index.length && this.hasTrailingSlash()) {
-        this.sendIndex(path5);
+        this.sendIndex(path9);
         return res;
       }
-      this.sendFile(path5);
+      this.sendFile(path9);
       return res;
     };
-    SendStream.prototype.send = function send2(path5, stat3) {
+    SendStream.prototype.send = function send2(path9, stat3) {
       var len = stat3.size;
       var options = this.options;
       var opts = {};
@@ -26937,9 +26925,9 @@ var require_send = __commonJS({
         this.headersAlreadySent();
         return;
       }
-      debug('pipe "%s"', path5);
-      this.setHeader(path5, stat3);
-      this.type(path5);
+      debug('pipe "%s"', path9);
+      this.setHeader(path9, stat3);
+      this.type(path9);
       if (this.isConditionalGET()) {
         if (this.isPreconditionFailure()) {
           this.error(412);
@@ -26988,30 +26976,30 @@ var require_send = __commonJS({
         res.end();
         return;
       }
-      this.stream(path5, opts);
+      this.stream(path9, opts);
     };
-    SendStream.prototype.sendFile = function sendFile(path5) {
+    SendStream.prototype.sendFile = function sendFile(path9) {
       var i2 = 0;
       var self2 = this;
-      debug('stat "%s"', path5);
-      fs5.stat(path5, function onstat(err, stat3) {
-        var pathEndsWithSep = path5[path5.length - 1] === sep;
-        if (err && err.code === "ENOENT" && !extname(path5) && !pathEndsWithSep) {
+      debug('stat "%s"', path9);
+      fs9.stat(path9, function onstat(err, stat3) {
+        var pathEndsWithSep = path9[path9.length - 1] === sep;
+        if (err && err.code === "ENOENT" && !extname(path9) && !pathEndsWithSep) {
           return next(err);
         }
         if (err) return self2.onStatError(err);
-        if (stat3.isDirectory()) return self2.redirect(path5);
+        if (stat3.isDirectory()) return self2.redirect(path9);
         if (pathEndsWithSep) return self2.error(404);
-        self2.emit("file", path5, stat3);
-        self2.send(path5, stat3);
+        self2.emit("file", path9, stat3);
+        self2.send(path9, stat3);
       });
       function next(err) {
         if (self2._extensions.length <= i2) {
           return err ? self2.onStatError(err) : self2.error(404);
         }
-        var p = path5 + "." + self2._extensions[i2++];
+        var p = path9 + "." + self2._extensions[i2++];
         debug('stat "%s"', p);
-        fs5.stat(p, function(err2, stat3) {
+        fs9.stat(p, function(err2, stat3) {
           if (err2) return next(err2);
           if (stat3.isDirectory()) return next();
           self2.emit("file", p, stat3);
@@ -27019,7 +27007,7 @@ var require_send = __commonJS({
         });
       }
     };
-    SendStream.prototype.sendIndex = function sendIndex(path5) {
+    SendStream.prototype.sendIndex = function sendIndex(path9) {
       var i2 = -1;
       var self2 = this;
       function next(err) {
@@ -27027,9 +27015,9 @@ var require_send = __commonJS({
           if (err) return self2.onStatError(err);
           return self2.error(404);
         }
-        var p = join(path5, self2._index[i2]);
+        var p = join(path9, self2._index[i2]);
         debug('stat "%s"', p);
-        fs5.stat(p, function(err2, stat3) {
+        fs9.stat(p, function(err2, stat3) {
           if (err2) return next(err2);
           if (stat3.isDirectory()) return next();
           self2.emit("file", p, stat3);
@@ -27038,10 +27026,10 @@ var require_send = __commonJS({
       }
       next();
     };
-    SendStream.prototype.stream = function stream(path5, options) {
+    SendStream.prototype.stream = function stream(path9, options) {
       var self2 = this;
       var res = this.res;
-      var stream2 = fs5.createReadStream(path5, options);
+      var stream2 = fs9.createReadStream(path9, options);
       this.emit("stream", stream2);
       stream2.pipe(res);
       function cleanup() {
@@ -27056,17 +27044,17 @@ var require_send = __commonJS({
         self2.emit("end");
       });
     };
-    SendStream.prototype.type = function type(path5) {
+    SendStream.prototype.type = function type(path9) {
       var res = this.res;
       if (res.getHeader("Content-Type")) return;
-      var ext = extname(path5);
+      var ext = extname(path9);
       var type2 = mime.contentType(ext) || "application/octet-stream";
       debug("content-type %s", type2);
       res.setHeader("Content-Type", type2);
     };
-    SendStream.prototype.setHeader = function setHeader(path5, stat3) {
+    SendStream.prototype.setHeader = function setHeader(path9, stat3) {
       var res = this.res;
-      this.emit("headers", res, path5, stat3);
+      this.emit("headers", res, path9, stat3);
       if (this._acceptRanges && !res.getHeader("Accept-Ranges")) {
         debug("accept ranges");
         res.setHeader("Accept-Ranges", "bytes");
@@ -27124,9 +27112,9 @@ var require_send = __commonJS({
       }
       return err instanceof Error ? createError(status, err, { expose: false }) : createError(status, err);
     }
-    function decode4(path5) {
+    function decode4(path9) {
       try {
-        return decodeURIComponent(path5);
+        return decodeURIComponent(path9);
       } catch (err) {
         return -1;
       }
@@ -27270,7 +27258,7 @@ var require_response = __commonJS({
     var http3 = require("node:http");
     var onFinished = require_on_finished();
     var mime = require_mime_types();
-    var path4 = require("node:path");
+    var path8 = require("node:path");
     var pathIsAbsolute = require("node:path").isAbsolute;
     var statuses = require_statuses();
     var sign2 = require_cookie_signature().sign;
@@ -27279,8 +27267,8 @@ var require_response = __commonJS({
     var setCharset = require_utils3().setCharset;
     var cookie = require_cookie();
     var send = require_send();
-    var extname = path4.extname;
-    var resolve = path4.resolve;
+    var extname = path8.extname;
+    var resolve = path8.resolve;
     var vary = require_vary();
     var { Buffer: Buffer5 } = require("node:buffer");
     var res = Object.create(http3.ServerResponse.prototype);
@@ -27426,26 +27414,26 @@ var require_response = __commonJS({
       this.type("txt");
       return this.send(body);
     };
-    res.sendFile = function sendFile(path5, options, callback) {
+    res.sendFile = function sendFile(path9, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
       var next = req.next;
       var opts = options || {};
-      if (!path5) {
+      if (!path9) {
         throw new TypeError("path argument is required to res.sendFile");
       }
-      if (typeof path5 !== "string") {
+      if (typeof path9 !== "string") {
         throw new TypeError("path must be a string to res.sendFile");
       }
       if (typeof options === "function") {
         done = options;
         opts = {};
       }
-      if (!opts.root && !pathIsAbsolute(path5)) {
+      if (!opts.root && !pathIsAbsolute(path9)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
-      var pathname = encodeURI(path5);
+      var pathname = encodeURI(path9);
       opts.etag = this.app.enabled("etag");
       var file2 = send(req, pathname, opts);
       sendfile(res2, file2, opts, function(err) {
@@ -27456,7 +27444,7 @@ var require_response = __commonJS({
         }
       });
     };
-    res.download = function download(path5, filename, options, callback) {
+    res.download = function download(path9, filename, options, callback) {
       var done = callback;
       var name = filename;
       var opts = options || null;
@@ -27473,7 +27461,7 @@ var require_response = __commonJS({
         opts = filename;
       }
       var headers = {
-        "Content-Disposition": contentDisposition(name || path5)
+        "Content-Disposition": contentDisposition(name || path9)
       };
       if (opts && opts.headers) {
         var keys = Object.keys(opts.headers);
@@ -27486,7 +27474,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve(path5) : path5;
+      var fullPath = !opts.root ? resolve(path9) : path9;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -27769,11 +27757,11 @@ var require_serve_static = __commonJS({
         }
         var forwardError = !fallthrough;
         var originalUrl = parseUrl.original(req);
-        var path4 = parseUrl(req).pathname;
-        if (path4 === "/" && originalUrl.pathname.substr(-1) !== "/") {
-          path4 = "";
+        var path8 = parseUrl(req).pathname;
+        if (path8 === "/" && originalUrl.pathname.substr(-1) !== "/") {
+          path8 = "";
         }
-        var stream = send(req, path4, opts);
+        var stream = send(req, path8, opts);
         stream.on("directory", onDirectory);
         if (setHeaders) {
           stream.on("headers", setHeaders);
@@ -33726,22 +33714,22 @@ var init_from = __esm({
     init_file();
     init_fetch_blob();
     ({ stat } = import_node_fs.promises);
-    blobFromSync = (path4, type) => fromBlob((0, import_node_fs.statSync)(path4), path4, type);
-    blobFrom = (path4, type) => stat(path4).then((stat3) => fromBlob(stat3, path4, type));
-    fileFrom = (path4, type) => stat(path4).then((stat3) => fromFile(stat3, path4, type));
-    fileFromSync = (path4, type) => fromFile((0, import_node_fs.statSync)(path4), path4, type);
-    fromBlob = (stat3, path4, type = "") => new fetch_blob_default([new BlobDataItem({
-      path: path4,
+    blobFromSync = (path8, type) => fromBlob((0, import_node_fs.statSync)(path8), path8, type);
+    blobFrom = (path8, type) => stat(path8).then((stat3) => fromBlob(stat3, path8, type));
+    fileFrom = (path8, type) => stat(path8).then((stat3) => fromFile(stat3, path8, type));
+    fileFromSync = (path8, type) => fromFile((0, import_node_fs.statSync)(path8), path8, type);
+    fromBlob = (stat3, path8, type = "") => new fetch_blob_default([new BlobDataItem({
+      path: path8,
       size: stat3.size,
       lastModified: stat3.mtimeMs,
       start: 0
     })], { type });
-    fromFile = (stat3, path4, type = "") => new file_default([new BlobDataItem({
-      path: path4,
+    fromFile = (stat3, path8, type = "") => new file_default([new BlobDataItem({
+      path: path8,
       size: stat3.size,
       lastModified: stat3.mtimeMs,
       start: 0
-    })], (0, import_node_path.basename)(path4), { type, lastModified: stat3.mtimeMs });
+    })], (0, import_node_path.basename)(path8), { type, lastModified: stat3.mtimeMs });
     BlobDataItem = class _BlobDataItem {
       #path;
       #start;
@@ -38920,9 +38908,9 @@ var require_util2 = __commonJS({
     exports2.removeUndefinedValuesInObject = removeUndefinedValuesInObject;
     exports2.isValidFile = isValidFile;
     exports2.getWellKnownCertificateConfigFileLocation = getWellKnownCertificateConfigFileLocation;
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var os2 = require("os");
-    var path4 = require("path");
+    var path8 = require("path");
     var WELL_KNOWN_CERTIFICATE_CONFIG_FILE = "certificate_config.json";
     var CLOUDSDK_CONFIG_DIRECTORY = "gcloud";
     function snakeToCamel(str) {
@@ -39008,15 +38996,15 @@ var require_util2 = __commonJS({
     }
     async function isValidFile(filePath) {
       try {
-        const stats = await fs5.promises.lstat(filePath);
+        const stats = await fs9.promises.lstat(filePath);
         return stats.isFile();
       } catch (e2) {
         return false;
       }
     }
     function getWellKnownCertificateConfigFileLocation() {
-      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path4.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path4.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
-      return path4.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
+      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path8.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path8.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
+      return path8.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
     }
     function _isWindows() {
       return os2.platform().startsWith("win");
@@ -40962,11 +40950,11 @@ var require_getCredentials = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getCredentials = getCredentials;
-    var path4 = require("path");
-    var fs5 = require("fs");
+    var path8 = require("path");
+    var fs9 = require("fs");
     var util_1 = require("util");
     var errorWithCode_1 = require_errorWithCode();
-    var readFile = fs5.readFile ? (0, util_1.promisify)(fs5.readFile) : async () => {
+    var readFile = fs9.readFile ? (0, util_1.promisify)(fs9.readFile) : async () => {
       throw new errorWithCode_1.ErrorWithCode("use key rather than keyFile.", "MISSING_CREDENTIALS");
     };
     var ExtensionFiles;
@@ -41034,7 +41022,7 @@ var require_getCredentials = __commonJS({
        * @returns An instance of a class that implements ICredentialsProvider.
        */
       static create(keyFilePath) {
-        const keyFileExtension = path4.extname(keyFilePath);
+        const keyFileExtension = path8.extname(keyFilePath);
         switch (keyFileExtension) {
           case ExtensionFiles.JSON:
             return new JsonCredentialsProvider(keyFilePath);
@@ -42643,12 +42631,12 @@ var require_filesubjecttokensupplier = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileSubjectTokenSupplier = void 0;
     var util_1 = require("util");
-    var fs5 = require("fs");
-    var readFile = (0, util_1.promisify)(fs5.readFile ?? (() => {
+    var fs9 = require("fs");
+    var readFile = (0, util_1.promisify)(fs9.readFile ?? (() => {
     }));
-    var realpath = (0, util_1.promisify)(fs5.realpath ?? (() => {
+    var realpath = (0, util_1.promisify)(fs9.realpath ?? (() => {
     }));
-    var lstat = (0, util_1.promisify)(fs5.lstat ?? (() => {
+    var lstat = (0, util_1.promisify)(fs9.lstat ?? (() => {
     }));
     var FileSubjectTokenSupplier = class {
       filePath;
@@ -42766,7 +42754,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CertificateSubjectTokenSupplier = exports2.InvalidConfigurationError = exports2.CertificateSourceUnavailableError = exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = void 0;
     var util_1 = require_util2();
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var crypto_1 = require("crypto");
     var https2 = require("https");
     exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = "GOOGLE_API_CERTIFICATE_CONFIG";
@@ -42860,7 +42848,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
         const configPath = this.certificateConfigPath;
         let fileContents;
         try {
-          fileContents = await fs5.promises.readFile(configPath, "utf8");
+          fileContents = await fs9.promises.readFile(configPath, "utf8");
         } catch (err) {
           throw new CertificateSourceUnavailableError(`Failed to read certificate config file at: ${configPath}`);
         }
@@ -42885,14 +42873,14 @@ var require_certificatesubjecttokensupplier = __commonJS({
       async #getKeyAndCert(certPath, keyPath) {
         let cert2, key;
         try {
-          cert2 = await fs5.promises.readFile(certPath);
+          cert2 = await fs9.promises.readFile(certPath);
           new crypto_1.X509Certificate(cert2);
         } catch (err) {
           const message2 = err instanceof Error ? err.message : String(err);
           throw new CertificateSourceUnavailableError(`Failed to read certificate file at ${certPath}: ${message2}`);
         }
         try {
-          key = await fs5.promises.readFile(keyPath);
+          key = await fs9.promises.readFile(keyPath);
           (0, crypto_1.createPrivateKey)(key);
         } catch (err) {
           const message2 = err instanceof Error ? err.message : String(err);
@@ -42911,7 +42899,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
           return JSON.stringify([leafCert.raw.toString("base64")]);
         }
         try {
-          const chainPems = await fs5.promises.readFile(this.trustChainPath, "utf8");
+          const chainPems = await fs9.promises.readFile(this.trustChainPath, "utf8");
           const pemBlocks = chainPems.match(/-----BEGIN CERTIFICATE-----[^-]+-----END CERTIFICATE-----/g) ?? [];
           const chainCerts = pemBlocks.map((pem, index) => {
             try {
@@ -43613,7 +43601,7 @@ var require_pluggable_auth_handler = __commonJS({
     exports2.PluggableAuthHandler = exports2.ExecutableError = void 0;
     var executable_response_1 = require_executable_response();
     var childProcess = require("child_process");
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var ExecutableError = class extends Error {
       /**
        * The exit code returned by the executable.
@@ -43698,14 +43686,14 @@ var require_pluggable_auth_handler = __commonJS({
         }
         let filePath;
         try {
-          filePath = await fs5.promises.realpath(this.outputFile);
+          filePath = await fs9.promises.realpath(this.outputFile);
         } catch {
           return void 0;
         }
-        if (!(await fs5.promises.lstat(filePath)).isFile()) {
+        if (!(await fs9.promises.lstat(filePath)).isFile()) {
           return void 0;
         }
-        const responseString = await fs5.promises.readFile(filePath, {
+        const responseString = await fs9.promises.readFile(filePath, {
           encoding: "utf8"
         });
         if (responseString === "") {
@@ -44116,7 +44104,7 @@ var require_gdchclient = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GdchClient = exports2.GDCH_SERVICE_ACCOUNT_TYPE = void 0;
     var crypto3 = require("crypto");
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var https2 = require("https");
     var oauth2client_1 = require_oauth2client();
     var DEFAULT_LIFETIME_IN_SECONDS = 3600;
@@ -44339,7 +44327,7 @@ var require_gdchclient = __commonJS({
         const currentPath = this.caCertPath;
         this.caAgentPromise = (async () => {
           try {
-            const ca = await fs5.promises.readFile(currentPath);
+            const ca = await fs9.promises.readFile(currentPath);
             return new https2.Agent({ ca });
           } catch (err) {
             if (this.cachedCaCertPath === currentPath) {
@@ -44399,11 +44387,11 @@ var require_googleauth = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GoogleAuth = exports2.GoogleAuthExceptionMessages = void 0;
     var child_process_1 = require("child_process");
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var gaxios_1 = require_src2();
     var gcpMetadata = require_src4();
     var os2 = require("os");
-    var path4 = require("path");
+    var path8 = require("path");
     var crypto_1 = require_crypto3();
     var computeclient_1 = require_computeclient();
     var idtokenclient_1 = require_idtokenclient();
@@ -44688,20 +44676,20 @@ var require_googleauth = __commonJS({
         if (!configDir) {
           if (this._isWindows()) {
             if (process.env["APPDATA"]) {
-              configDir = path4.join(process.env["APPDATA"], "gcloud");
+              configDir = path8.join(process.env["APPDATA"], "gcloud");
             }
           } else {
             const home = process.env["HOME"];
             if (home) {
-              configDir = path4.join(home, ".config", "gcloud");
+              configDir = path8.join(home, ".config", "gcloud");
             }
           }
         }
         if (!configDir) {
           return null;
         }
-        const location = path4.join(configDir, "application_default_credentials.json");
-        if (!fs5.existsSync(location)) {
+        const location = path8.join(configDir, "application_default_credentials.json");
+        if (!fs9.existsSync(location)) {
           return null;
         }
         const client = await this._getApplicationCredentialsFromFilePath(location, options);
@@ -44718,8 +44706,8 @@ var require_googleauth = __commonJS({
           throw new Error("The file path is invalid.");
         }
         try {
-          filePath = fs5.realpathSync(filePath);
-          if (!fs5.lstatSync(filePath).isFile()) {
+          filePath = fs9.realpathSync(filePath);
+          if (!fs9.lstatSync(filePath).isFile()) {
             throw new Error();
           }
         } catch (err) {
@@ -44728,7 +44716,7 @@ var require_googleauth = __commonJS({
           }
           throw err;
         }
-        const readStream = fs5.createReadStream(filePath);
+        const readStream = fs9.createReadStream(filePath);
         return this.fromStream(readStream, options);
       }
       /**
@@ -45055,8 +45043,8 @@ var require_googleauth = __commonJS({
         if (this.jsonContent) {
           return this._cacheClientFromJSON(this.jsonContent, this.clientOptions);
         } else if (this.keyFilename) {
-          const filePath = path4.resolve(this.keyFilename);
-          const stream = fs5.createReadStream(filePath);
+          const filePath = path8.resolve(this.keyFilename);
+          const stream = fs9.createReadStream(filePath);
           return await this.fromStreamAsync(stream, this.clientOptions);
         } else if (this.apiKey) {
           const client = await this.fromAPIKey(this.apiKey, this.clientOptions);
@@ -45858,7 +45846,7 @@ var require_credential_internal = __commonJS({
     exports2.ImpersonatedServiceAccountCredential = exports2.RefreshTokenCredential = exports2.ServiceAccountCredential = exports2.ApplicationDefaultCredential = void 0;
     exports2.isApplicationDefault = isApplicationDefault;
     exports2.getApplicationDefault = getApplicationDefault;
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var node_crypto_1 = require("node:crypto");
     var google_auth_library_1 = require_src5();
     var error_1 = require_error2();
@@ -45976,7 +45964,7 @@ var require_credential_internal = __commonJS({
     var ServiceAccount = class _ServiceAccount {
       static fromPath(filePath) {
         try {
-          return new _ServiceAccount(JSON.parse(fs5.readFileSync(filePath, "utf8")));
+          return new _ServiceAccount(JSON.parse(fs9.readFileSync(filePath, "utf8")));
         } catch (error61) {
           throw new error_1.FirebaseAppError({
             code: error_1.AppErrorCode.INVALID_CREDENTIAL,
@@ -46062,7 +46050,7 @@ var require_credential_internal = __commonJS({
        */
       static validateFromPath(filePath) {
         try {
-          _RefreshToken.validateFromJSON(JSON.parse(fs5.readFileSync(filePath, "utf8")));
+          _RefreshToken.validateFromJSON(JSON.parse(fs9.readFileSync(filePath, "utf8")));
         } catch (error61) {
           throw new error_1.FirebaseAppError({
             code: error_1.AppErrorCode.INVALID_CREDENTIAL,
@@ -46137,7 +46125,7 @@ var require_credential_internal = __commonJS({
        */
       static validateFromPath(filePath) {
         try {
-          _ImpersonatedServiceAccount.validateFromJSON(JSON.parse(fs5.readFileSync(filePath, "utf8")));
+          _ImpersonatedServiceAccount.validateFromJSON(JSON.parse(fs9.readFileSync(filePath, "utf8")));
         } catch (error61) {
           throw new error_1.FirebaseAppError({
             code: error_1.AppErrorCode.INVALID_CREDENTIAL,
@@ -46955,7 +46943,7 @@ var require_lifecycle = __commonJS({
     exports2.getApp = getApp2;
     exports2.getApps = getApps2;
     exports2.deleteApp = deleteApp2;
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var validator = require_validator();
     var error_1 = require_error2();
     var credential_internal_1 = require_credential_internal();
@@ -47089,7 +47077,7 @@ var require_lifecycle = __commonJS({
         return {};
       }
       try {
-        const contents = config2.startsWith("{") ? config2 : fs5.readFileSync(config2, "utf8");
+        const contents = config2.startsWith("{") ? config2 : fs9.readFileSync(config2, "utf8");
         return JSON.parse(contents);
       } catch (error61) {
         throw new error_1.FirebaseAppError({
@@ -49162,20 +49150,20 @@ var require_parseParams = __commonJS({
 var require_basename = __commonJS({
   "node_modules/@fastify/busboy/lib/utils/basename.js"(exports2, module2) {
     "use strict";
-    module2.exports = function basename3(path4) {
-      if (typeof path4 !== "string") {
+    module2.exports = function basename3(path8) {
+      if (typeof path8 !== "string") {
         return "";
       }
-      for (var i2 = path4.length - 1; i2 >= 0; --i2) {
-        switch (path4.charCodeAt(i2)) {
+      for (var i2 = path8.length - 1; i2 >= 0; --i2) {
+        switch (path8.charCodeAt(i2)) {
           case 47:
           // '/'
           case 92:
-            path4 = path4.slice(i2 + 1);
-            return path4 === ".." || path4 === "." ? "" : path4;
+            path8 = path8.slice(i2 + 1);
+            return path8 === ".." || path8 === "." ? "" : path8;
         }
       }
-      return path4 === ".." || path4 === "." ? "" : path4;
+      return path8 === ".." || path8 === "." ? "" : path8;
     };
   }
 });
@@ -61812,10 +61800,10 @@ var require_request2 = __commonJS({
           throw new ArgumentError("Invalid JWKS URI: The provided URI is not a valid URL.");
         }
         const { hostname: hostname3, port, protocol, pathname, search } = url2;
-        const path4 = pathname + search;
+        const path8 = pathname + search;
         const requestOptions = {
           hostname: hostname3,
-          path: path4,
+          path: path8,
           port,
           method: "GET",
           ...options.headers && { headers: { ...options.headers } },
@@ -69098,17 +69086,17 @@ var require_codegen = __commonJS({
 var require_fs = __commonJS({
   "node_modules/@protobufjs/fetch/util/fs.js"(exports2, module2) {
     "use strict";
-    var fs5 = null;
+    var fs9 = null;
     try {
-      fs5 = require(
+      fs9 = require(
         /* webpackIgnore: true */
         "fs"
       );
-      if (!fs5 || !fs5.readFile || !fs5.readFileSync)
-        fs5 = null;
+      if (!fs9 || !fs9.readFile || !fs9.readFileSync)
+        fs9 = null;
     } catch (e2) {
     }
-    module2.exports = fs5;
+    module2.exports = fs9;
   }
 });
 
@@ -69118,7 +69106,7 @@ var require_fetch = __commonJS({
     "use strict";
     module2.exports = fetch3;
     var asPromise = require_aspromise();
-    var fs5 = require_fs();
+    var fs9 = require_fs();
     function fetch3(filename, options, callback) {
       if (typeof options === "function") {
         callback = options;
@@ -69127,8 +69115,8 @@ var require_fetch = __commonJS({
         options = {};
       if (!callback)
         return asPromise(fetch3, this, filename, options);
-      if (!options.xhr && fs5 && fs5.readFile)
-        return fs5.readFile(filename, function fetchReadFileCallback(err, contents) {
+      if (!options.xhr && fs9 && fs9.readFile)
+        return fs9.readFile(filename, function fetchReadFileCallback(err, contents) {
           return err && typeof XMLHttpRequest !== "undefined" ? fetch3.xhr(filename, options, callback) : err ? callback(err) : callback(null, options.binary ? contents : contents.toString("utf8"));
         });
       return fetch3.xhr(filename, options, callback);
@@ -69166,15 +69154,15 @@ var require_fetch = __commonJS({
 var require_path = __commonJS({
   "node_modules/@protobufjs/path/index.js"(exports2) {
     "use strict";
-    var path4 = exports2;
+    var path8 = exports2;
     var isAbsolute = (
       /**
        * Tests if the specified path is absolute.
        * @param {string} path Path to test
        * @returns {boolean} `true` if path is absolute
        */
-      path4.isAbsolute = function isAbsolute2(path5) {
-        return /^(?:\/|\w+:)/.test(path5);
+      path8.isAbsolute = function isAbsolute2(path9) {
+        return /^(?:\/|\w+:)/.test(path9);
       }
     );
     var normalize2 = (
@@ -69183,9 +69171,9 @@ var require_path = __commonJS({
        * @param {string} path Path to normalize
        * @returns {string} Normalized path
        */
-      path4.normalize = function normalize3(path5) {
-        path5 = path5.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
-        var parts = path5.split("/"), absolute = isAbsolute(path5), prefix = "";
+      path8.normalize = function normalize3(path9) {
+        path9 = path9.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+        var parts = path9.split("/"), absolute = isAbsolute(path9), prefix = "";
         if (absolute)
           prefix = parts.shift() + "/";
         for (var i2 = 0; i2 < parts.length; ) {
@@ -69204,7 +69192,7 @@ var require_path = __commonJS({
         return prefix + parts.join("/");
       }
     );
-    path4.resolve = function resolve(originPath, includePath, alreadyNormalized) {
+    path8.resolve = function resolve(originPath, includePath, alreadyNormalized) {
       if (!alreadyNormalized)
         includePath = normalize2(includePath);
       if (isAbsolute(includePath))
@@ -69231,17 +69219,17 @@ var require_patterns = __commonJS({
 var require_fs2 = __commonJS({
   "node_modules/protobufjs/src/util/fs.js"(exports2, module2) {
     "use strict";
-    var fs5 = null;
+    var fs9 = null;
     try {
-      fs5 = require(
+      fs9 = require(
         /* webpackIgnore: true */
         "fs"
       );
-      if (!fs5 || !fs5.readFile || !fs5.readFileSync)
-        fs5 = null;
+      if (!fs9 || !fs9.readFile || !fs9.readFileSync)
+        fs9 = null;
     } catch (e2) {
     }
-    module2.exports = fs5;
+    module2.exports = fs9;
   }
 });
 
@@ -69388,18 +69376,18 @@ var require_namespace = __commonJS({
       object2.onRemove(this);
       return clearCache(this);
     };
-    Namespace.prototype.define = function define2(path4, json3) {
-      if (util.isString(path4))
-        path4 = path4.split(".");
-      else if (!Array.isArray(path4))
+    Namespace.prototype.define = function define2(path8, json3) {
+      if (util.isString(path8))
+        path8 = path8.split(".");
+      else if (!Array.isArray(path8))
         throw TypeError("illegal path");
-      if (path4 && path4.length && path4[0] === "")
+      if (path8 && path8.length && path8[0] === "")
         throw Error("path must be relative");
-      if (path4.length > util.recursionLimit)
+      if (path8.length > util.recursionLimit)
         throw Error("max depth exceeded");
       var ptr = this;
-      while (path4.length > 0) {
-        var part = path4.shift();
+      while (path8.length > 0) {
+        var part = path8.shift();
         if (ptr.nested && ptr.nested[part]) {
           ptr = ptr.nested[part];
           if (!(ptr instanceof Namespace))
@@ -69434,26 +69422,26 @@ var require_namespace = __commonJS({
       });
       return this;
     };
-    Namespace.prototype.lookup = function lookup(path4, filterTypes, parentAlreadyChecked) {
+    Namespace.prototype.lookup = function lookup(path8, filterTypes, parentAlreadyChecked) {
       if (typeof filterTypes === "boolean") {
         parentAlreadyChecked = filterTypes;
         filterTypes = void 0;
       } else if (filterTypes && !Array.isArray(filterTypes))
         filterTypes = [filterTypes];
-      if (util.isString(path4) && path4.length) {
-        if (path4 === ".")
+      if (util.isString(path8) && path8.length) {
+        if (path8 === ".")
           return this.root;
-        path4 = path4.split(".");
-      } else if (!path4.length)
+        path8 = path8.split(".");
+      } else if (!path8.length)
         return this;
-      var flatPath = path4.join(".");
-      if (path4[0] === "")
-        return this.root.lookup(path4.slice(1), filterTypes);
+      var flatPath = path8.join(".");
+      if (path8[0] === "")
+        return this.root.lookup(path8.slice(1), filterTypes);
       var found = this.root._fullyQualifiedObjects && this.root._fullyQualifiedObjects["." + flatPath];
       if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
         return found;
       }
-      found = this._lookupImpl(path4, flatPath);
+      found = this._lookupImpl(path8, flatPath);
       if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
         return found;
       }
@@ -69461,7 +69449,7 @@ var require_namespace = __commonJS({
         return null;
       var current = this;
       while (current.parent) {
-        found = current.parent._lookupImpl(path4, flatPath);
+        found = current.parent._lookupImpl(path8, flatPath);
         if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
           return found;
         }
@@ -69469,22 +69457,22 @@ var require_namespace = __commonJS({
       }
       return null;
     };
-    Namespace.prototype._lookupImpl = function lookup(path4, flatPath) {
+    Namespace.prototype._lookupImpl = function lookup(path8, flatPath) {
       if (Object.prototype.hasOwnProperty.call(this._lookupCache, flatPath)) {
         return this._lookupCache[flatPath];
       }
-      var found = this.get(path4[0]);
+      var found = this.get(path8[0]);
       var exact = null;
       if (found) {
-        if (path4.length === 1) {
+        if (path8.length === 1) {
           exact = found;
         } else if (found instanceof Namespace) {
-          path4 = path4.slice(1);
-          exact = found._lookupImpl(path4, path4.join("."));
+          path8 = path8.slice(1);
+          exact = found._lookupImpl(path8, path8.join("."));
         }
       } else {
         for (var i2 = 0; i2 < this.nestedArray.length; ++i2)
-          if (this._nestedArray[i2] instanceof Namespace && (found = this._nestedArray[i2]._lookupImpl(path4, flatPath))) {
+          if (this._nestedArray[i2] instanceof Namespace && (found = this._nestedArray[i2]._lookupImpl(path8, flatPath))) {
             exact = found;
             break;
           }
@@ -69492,28 +69480,28 @@ var require_namespace = __commonJS({
       this._lookupCache[flatPath] = exact;
       return exact;
     };
-    Namespace.prototype.lookupType = function lookupType(path4) {
-      var found = this.lookup(path4, [Type2]);
+    Namespace.prototype.lookupType = function lookupType(path8) {
+      var found = this.lookup(path8, [Type2]);
       if (!found)
-        throw Error("no such type: " + path4);
+        throw Error("no such type: " + path8);
       return found;
     };
-    Namespace.prototype.lookupEnum = function lookupEnum(path4) {
-      var found = this.lookup(path4, [Enum]);
+    Namespace.prototype.lookupEnum = function lookupEnum(path8) {
+      var found = this.lookup(path8, [Enum]);
       if (!found)
-        throw Error("no such Enum '" + path4 + "' in " + this);
+        throw Error("no such Enum '" + path8 + "' in " + this);
       return found;
     };
-    Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path4) {
-      var found = this.lookup(path4, [Type2, Enum]);
+    Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path8) {
+      var found = this.lookup(path8, [Type2, Enum]);
       if (!found)
-        throw Error("no such Type or Enum '" + path4 + "' in " + this);
+        throw Error("no such Type or Enum '" + path8 + "' in " + this);
       return found;
     };
-    Namespace.prototype.lookupService = function lookupService(path4) {
-      var found = this.lookup(path4, [Service]);
+    Namespace.prototype.lookupService = function lookupService(path8) {
+      var found = this.lookup(path8, [Service]);
       if (!found)
-        throw Error("no such Service '" + path4 + "' in " + this);
+        throw Error("no such Service '" + path8 + "' in " + this);
       return found;
     };
     Namespace._configure = function(Type_, Service_, Enum_) {
@@ -70930,13 +70918,13 @@ var require_util3 = __commonJS({
       Object.defineProperty(object2, "$type", { value: enm, enumerable: false });
       return enm;
     };
-    util.setProperty = function setProperty(dst, path4, value, ifNotSet) {
-      function setProp(dst2, path5, value2) {
-        var part = path5.shift();
+    util.setProperty = function setProperty(dst, path8, value, ifNotSet) {
+      function setProp(dst2, path9, value2) {
+        var part = path9.shift();
         if (util.isUnsafeProperty(part))
           return dst2;
-        if (path5.length > 0) {
-          dst2[part] = setProp(dst2[part] || {}, path5, value2);
+        if (path9.length > 0) {
+          dst2[part] = setProp(dst2[part] || {}, path9, value2);
         } else {
           var prevValue = dst2[part];
           if (prevValue && ifNotSet)
@@ -70949,12 +70937,12 @@ var require_util3 = __commonJS({
       }
       if (typeof dst !== "object")
         throw TypeError("dst must be an object");
-      if (!path4)
+      if (!path8)
         throw TypeError("path must be specified");
-      path4 = path4.split(".");
-      if (path4.length > util.recursionLimit)
+      path8 = path8.split(".");
+      if (path8.length > util.recursionLimit)
         throw Error("max depth exceeded");
-      return setProp(dst, path4, value);
+      return setProp(dst, path8, value);
     };
     Object.defineProperty(util, "decorateRoot", {
       get: function() {
@@ -71500,12 +71488,12 @@ var require_object = __commonJS({
        */
       fullName: {
         get: function() {
-          var path4 = [this.name], ptr = this.parent;
+          var path8 = [this.name], ptr = this.parent;
           while (ptr) {
-            path4.unshift(ptr.name);
+            path8.unshift(ptr.name);
             ptr = ptr.parent;
           }
-          return path4.join(".");
+          return path8.join(".");
         }
       }
     });
@@ -74038,9 +74026,9 @@ var require_util5 = __commonJS({
     exports2.removeUndefinedValuesInObject = removeUndefinedValuesInObject;
     exports2.isValidFile = isValidFile;
     exports2.getWellKnownCertificateConfigFileLocation = getWellKnownCertificateConfigFileLocation;
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var os2 = require("os");
-    var path4 = require("path");
+    var path8 = require("path");
     var WELL_KNOWN_CERTIFICATE_CONFIG_FILE = "certificate_config.json";
     var CLOUDSDK_CONFIG_DIRECTORY = "gcloud";
     function snakeToCamel(str) {
@@ -74126,15 +74114,15 @@ var require_util5 = __commonJS({
     }
     async function isValidFile(filePath) {
       try {
-        const stats = await fs5.promises.lstat(filePath);
+        const stats = await fs9.promises.lstat(filePath);
         return stats.isFile();
       } catch (e2) {
         return false;
       }
     }
     function getWellKnownCertificateConfigFileLocation() {
-      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path4.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path4.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
-      return path4.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
+      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path8.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path8.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
+      return path8.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
     }
     function _isWindows() {
       return os2.platform().startsWith("win");
@@ -75442,10 +75430,10 @@ var require_src8 = __commonJS({
       value: true
     });
     exports2.GoogleToken = void 0;
-    var fs5 = _interopRequireWildcard(require("fs"));
+    var fs9 = _interopRequireWildcard(require("fs"));
     var _gaxios = require_src2();
     var jws = _interopRequireWildcard(require_jws());
-    var path4 = _interopRequireWildcard(require("path"));
+    var path8 = _interopRequireWildcard(require("path"));
     var _util = require("util");
     function _interopRequireWildcard(e2, t2) {
       if ("function" == typeof WeakMap) var r2 = /* @__PURE__ */ new WeakMap(), n = /* @__PURE__ */ new WeakMap();
@@ -75685,7 +75673,7 @@ var require_src8 = __commonJS({
         });
       };
     }
-    var readFile = fs5.readFile ? (0, _util.promisify)(fs5.readFile) : /* @__PURE__ */ _asyncToGenerator(/* @__PURE__ */ _regenerator().m(function _callee() {
+    var readFile = fs9.readFile ? (0, _util.promisify)(fs9.readFile) : /* @__PURE__ */ _asyncToGenerator(/* @__PURE__ */ _regenerator().m(function _callee() {
       return _regenerator().w(function(_context) {
         while (1) switch (_context.n) {
           case 0:
@@ -75819,7 +75807,7 @@ var require_src8 = __commonJS({
             return _regenerator().w(function(_context2) {
               while (1) switch (_context2.n) {
                 case 0:
-                  ext = path4.extname(keyFile);
+                  ext = path8.extname(keyFile);
                   _t = ext;
                   _context2.n = _t === ".json" ? 1 : _t === ".der" ? 4 : _t === ".crt" ? 4 : _t === ".pem" ? 4 : _t === ".p12" ? 6 : _t === ".pfx" ? 6 : 7;
                   break;
@@ -77439,12 +77427,12 @@ var require_filesubjecttokensupplier2 = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileSubjectTokenSupplier = void 0;
     var util_1 = require("util");
-    var fs5 = require("fs");
-    var readFile = (0, util_1.promisify)(fs5.readFile ?? (() => {
+    var fs9 = require("fs");
+    var readFile = (0, util_1.promisify)(fs9.readFile ?? (() => {
     }));
-    var realpath = (0, util_1.promisify)(fs5.realpath ?? (() => {
+    var realpath = (0, util_1.promisify)(fs9.realpath ?? (() => {
     }));
-    var lstat = (0, util_1.promisify)(fs5.lstat ?? (() => {
+    var lstat = (0, util_1.promisify)(fs9.lstat ?? (() => {
     }));
     var FileSubjectTokenSupplier = class {
       filePath;
@@ -77561,7 +77549,7 @@ var require_certificatesubjecttokensupplier2 = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CertificateSubjectTokenSupplier = exports2.InvalidConfigurationError = exports2.CertificateSourceUnavailableError = exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = void 0;
     var util_1 = require_util5();
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var crypto_1 = require("crypto");
     var https2 = require("https");
     exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = "GOOGLE_API_CERTIFICATE_CONFIG";
@@ -77655,7 +77643,7 @@ var require_certificatesubjecttokensupplier2 = __commonJS({
         const configPath = this.certificateConfigPath;
         let fileContents;
         try {
-          fileContents = await fs5.promises.readFile(configPath, "utf8");
+          fileContents = await fs9.promises.readFile(configPath, "utf8");
         } catch (err) {
           throw new CertificateSourceUnavailableError(`Failed to read certificate config file at: ${configPath}`);
         }
@@ -77680,14 +77668,14 @@ var require_certificatesubjecttokensupplier2 = __commonJS({
       async #getKeyAndCert(certPath, keyPath) {
         let cert2, key;
         try {
-          cert2 = await fs5.promises.readFile(certPath);
+          cert2 = await fs9.promises.readFile(certPath);
           new crypto_1.X509Certificate(cert2);
         } catch (err) {
           const message2 = err instanceof Error ? err.message : String(err);
           throw new CertificateSourceUnavailableError(`Failed to read certificate file at ${certPath}: ${message2}`);
         }
         try {
-          key = await fs5.promises.readFile(keyPath);
+          key = await fs9.promises.readFile(keyPath);
           (0, crypto_1.createPrivateKey)(key);
         } catch (err) {
           const message2 = err instanceof Error ? err.message : String(err);
@@ -77706,7 +77694,7 @@ var require_certificatesubjecttokensupplier2 = __commonJS({
           return JSON.stringify([leafCert.raw.toString("base64")]);
         }
         try {
-          const chainPems = await fs5.promises.readFile(this.trustChainPath, "utf8");
+          const chainPems = await fs9.promises.readFile(this.trustChainPath, "utf8");
           const pemBlocks = chainPems.match(/-----BEGIN CERTIFICATE-----[^-]+-----END CERTIFICATE-----/g) ?? [];
           const chainCerts = pemBlocks.map((pem, index) => {
             try {
@@ -78404,7 +78392,7 @@ var require_pluggable_auth_handler2 = __commonJS({
     exports2.PluggableAuthHandler = exports2.ExecutableError = void 0;
     var executable_response_1 = require_executable_response2();
     var childProcess = require("child_process");
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var ExecutableError = class extends Error {
       /**
        * The exit code returned by the executable.
@@ -78489,14 +78477,14 @@ var require_pluggable_auth_handler2 = __commonJS({
         }
         let filePath;
         try {
-          filePath = await fs5.promises.realpath(this.outputFile);
+          filePath = await fs9.promises.realpath(this.outputFile);
         } catch {
           return void 0;
         }
-        if (!(await fs5.promises.lstat(filePath)).isFile()) {
+        if (!(await fs9.promises.lstat(filePath)).isFile()) {
           return void 0;
         }
-        const responseString = await fs5.promises.readFile(filePath, {
+        const responseString = await fs9.promises.readFile(filePath, {
           encoding: "utf8"
         });
         if (responseString === "") {
@@ -78906,11 +78894,11 @@ var require_googleauth2 = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GoogleAuth = exports2.GoogleAuthExceptionMessages = void 0;
     var child_process_1 = require("child_process");
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var gaxios_1 = require_src2();
     var gcpMetadata = require_src4();
     var os2 = require("os");
-    var path4 = require("path");
+    var path8 = require("path");
     var crypto_1 = require_crypto6();
     var computeclient_1 = require_computeclient2();
     var idtokenclient_1 = require_idtokenclient2();
@@ -79196,12 +79184,12 @@ var require_googleauth2 = __commonJS({
         } else {
           const home = process.env["HOME"];
           if (home) {
-            location = path4.join(home, ".config");
+            location = path8.join(home, ".config");
           }
         }
         if (location) {
-          location = path4.join(location, "gcloud", "application_default_credentials.json");
-          if (!fs5.existsSync(location)) {
+          location = path8.join(location, "gcloud", "application_default_credentials.json");
+          if (!fs9.existsSync(location)) {
             location = null;
           }
         }
@@ -79222,8 +79210,8 @@ var require_googleauth2 = __commonJS({
           throw new Error("The file path is invalid.");
         }
         try {
-          filePath = fs5.realpathSync(filePath);
-          if (!fs5.lstatSync(filePath).isFile()) {
+          filePath = fs9.realpathSync(filePath);
+          if (!fs9.lstatSync(filePath).isFile()) {
             throw new Error();
           }
         } catch (err) {
@@ -79232,7 +79220,7 @@ var require_googleauth2 = __commonJS({
           }
           throw err;
         }
-        const readStream = fs5.createReadStream(filePath);
+        const readStream = fs9.createReadStream(filePath);
         return this.fromStream(readStream, options);
       }
       /**
@@ -79544,8 +79532,8 @@ var require_googleauth2 = __commonJS({
         if (this.jsonContent) {
           return this._cacheClientFromJSON(this.jsonContent, this.clientOptions);
         } else if (this.keyFilename) {
-          const filePath = path4.resolve(this.keyFilename);
-          const stream = fs5.createReadStream(filePath);
+          const filePath = path8.resolve(this.keyFilename);
+          const stream = fs9.createReadStream(filePath);
           return await this.fromStreamAsync(stream, this.clientOptions);
         } else if (this.apiKey) {
           const client = await this.fromAPIKey(this.apiKey, this.clientOptions);
@@ -96517,14 +96505,14 @@ var require_pathTemplate = __commonJS({
        * @return {Object} contains const names matched to binding values
        * @throws {TypeError} if path can't be matched to this template
        */
-      match(path4) {
-        let pathSegments = path4.split("/");
+      match(path8) {
+        let pathSegments = path8.split("/");
         const bindings = {};
         if (pathSegments.length !== this.segments.length) {
           if (!this.data.includes("**")) {
-            throw new TypeError(`This path ${path4} does not match path template ${this.data}, the number of parameters is not same.`);
+            throw new TypeError(`This path ${path8} does not match path template ${this.data}, the number of parameters is not same.`);
           } else if (pathSegments.length !== this.segments.length + 1) {
-            throw new TypeError(`This path ${path4} does not match path template ${this.data}, the number of parameters is not same with one wildcard.`);
+            throw new TypeError(`This path ${path8} does not match path template ${this.data}, the number of parameters is not same with one wildcard.`);
           }
         }
         for (let index = 0; index < this.segments.length && pathSegments.length > 0; index++) {
@@ -96579,7 +96567,7 @@ var require_pathTemplate = __commonJS({
         if (Object.keys(bindings).length !== Object.keys(this.bindings).length) {
           throw new TypeError(`The number of variables ${Object.keys(bindings).length} does not match the number of needed variables ${Object.keys(this.bindings).length}`);
         }
-        let path4 = this.inspect();
+        let path8 = this.inspect();
         for (const key of Object.keys(bindings)) {
           const b = bindings[key].toString();
           if (!this.bindings[key]) {
@@ -96590,15 +96578,15 @@ var require_pathTemplate = __commonJS({
             if (!b.match(/[^/{}]+/)) {
               throw new TypeError(`render fails for not matching ${b}`);
             }
-            path4 = path4.replace(`{${key}=*}`, `${b}`);
+            path8 = path8.replace(`{${key}=*}`, `${b}`);
           } else if (variable === "**") {
             if (!b.match(/[^{}]+/)) {
               throw new TypeError(`render fails for not matching ${b}`);
             }
-            path4 = path4.replace(`{${key}=**}`, `${b}`);
+            path8 = path8.replace(`{${key}=**}`, `${b}`);
           }
         }
-        return path4;
+        return path8;
       }
       /**
        * Renders the path template.
@@ -98409,14 +98397,14 @@ var require_tls_helpers = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CIPHER_SUITES = void 0;
     exports2.getDefaultRootsData = getDefaultRootsData;
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     exports2.CIPHER_SUITES = process.env.GRPC_SSL_CIPHER_SUITES;
     var DEFAULT_ROOTS_FILE_PATH = process.env.GRPC_DEFAULT_SSL_ROOTS_FILE_PATH;
     var defaultRootsData = null;
     function getDefaultRootsData() {
       if (DEFAULT_ROOTS_FILE_PATH) {
         if (defaultRootsData === null) {
-          defaultRootsData = fs5.readFileSync(DEFAULT_ROOTS_FILE_PATH);
+          defaultRootsData = fs9.readFileSync(DEFAULT_ROOTS_FILE_PATH);
         }
         return defaultRootsData;
       }
@@ -98447,19 +98435,19 @@ var require_uri_parser = __commonJS({
       };
     }
     var NUMBER_REGEX = /^\d+$/;
-    function splitHostPort(path4) {
-      if (path4.startsWith("[")) {
-        const hostEnd = path4.indexOf("]");
+    function splitHostPort(path8) {
+      if (path8.startsWith("[")) {
+        const hostEnd = path8.indexOf("]");
         if (hostEnd === -1) {
           return null;
         }
-        const host = path4.substring(1, hostEnd);
+        const host = path8.substring(1, hostEnd);
         if (host.indexOf(":") === -1) {
           return null;
         }
-        if (path4.length > hostEnd + 1) {
-          if (path4[hostEnd + 1] === ":") {
-            const portString = path4.substring(hostEnd + 2);
+        if (path8.length > hostEnd + 1) {
+          if (path8[hostEnd + 1] === ":") {
+            const portString = path8.substring(hostEnd + 2);
             if (NUMBER_REGEX.test(portString)) {
               return {
                 host,
@@ -98477,7 +98465,7 @@ var require_uri_parser = __commonJS({
           };
         }
       } else {
-        const splitPath = path4.split(":");
+        const splitPath = path8.split(":");
         if (splitPath.length === 2) {
           if (NUMBER_REGEX.test(splitPath[1])) {
             return {
@@ -98489,7 +98477,7 @@ var require_uri_parser = __commonJS({
           }
         } else {
           return {
-            host: path4
+            host: path8
           };
         }
       }
@@ -101489,14 +101477,14 @@ var require_client_interceptors = __commonJS({
       }
     };
     exports2.InterceptingCall = InterceptingCall;
-    function getCall(channel, path4, options) {
+    function getCall(channel, path8, options) {
       var _a4, _b;
       const deadline = (_a4 = options.deadline) !== null && _a4 !== void 0 ? _a4 : Infinity;
       const host = options.host;
       const parent = (_b = options.parent) !== null && _b !== void 0 ? _b : null;
       const propagateFlags = options.propagate_flags;
       const credentials = options.credentials;
-      const call = channel.createCall(path4, deadline, host, parent, propagateFlags);
+      const call = channel.createCall(path8, deadline, host, parent, propagateFlags);
       if (credentials) {
         call.setCredentials(credentials);
       }
@@ -102066,9 +102054,9 @@ var require_make_client = __commonJS({
       ServiceClientImpl.serviceName = serviceName;
       return ServiceClientImpl;
     }
-    function partial2(fn, path4, serialize, deserialize) {
+    function partial2(fn, path8, serialize, deserialize) {
       return function(...args) {
-        return fn.call(this, path4, serialize, deserialize, ...args);
+        return fn.call(this, path8, serialize, deserialize, ...args);
       };
     }
     function isProtobufTypeDefinition(obj) {
@@ -104821,19 +104809,19 @@ var require_util7 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.addCommonProtos = exports2.loadProtosWithOptionsSync = exports2.loadProtosWithOptions = void 0;
-    var fs5 = require("fs");
-    var path4 = require("path");
+    var fs9 = require("fs");
+    var path8 = require("path");
     var Protobuf = require_protobufjs();
     function addIncludePathResolver(root, includePaths) {
       const originalResolvePath = root.resolvePath;
       root.resolvePath = (origin, target) => {
-        if (path4.isAbsolute(target)) {
+        if (path8.isAbsolute(target)) {
           return target;
         }
         for (const directory of includePaths) {
-          const fullPath = path4.join(directory, target);
+          const fullPath = path8.join(directory, target);
           try {
-            fs5.accessSync(fullPath, fs5.constants.R_OK);
+            fs9.accessSync(fullPath, fs9.constants.R_OK);
             return fullPath;
           } catch (err) {
             continue;
@@ -110188,9 +110176,9 @@ var require_server_call = __commonJS({
       return status;
     }
     var ServerUnaryCallImpl = class extends events_1.EventEmitter {
-      constructor(path4, call, metadata, request) {
+      constructor(path8, call, metadata, request) {
         super();
-        this.path = path4;
+        this.path = path8;
         this.call = call;
         this.metadata = metadata;
         this.request = request;
@@ -110220,9 +110208,9 @@ var require_server_call = __commonJS({
     };
     exports2.ServerUnaryCallImpl = ServerUnaryCallImpl;
     var ServerReadableStreamImpl = class extends stream_1.Readable {
-      constructor(path4, call, metadata) {
+      constructor(path8, call, metadata) {
         super({ objectMode: true });
-        this.path = path4;
+        this.path = path8;
         this.call = call;
         this.metadata = metadata;
         this.cancelled = false;
@@ -110254,9 +110242,9 @@ var require_server_call = __commonJS({
     };
     exports2.ServerReadableStreamImpl = ServerReadableStreamImpl;
     var ServerWritableStreamImpl = class extends stream_1.Writable {
-      constructor(path4, call, metadata, request) {
+      constructor(path8, call, metadata, request) {
         super({ objectMode: true });
-        this.path = path4;
+        this.path = path8;
         this.call = call;
         this.metadata = metadata;
         this.request = request;
@@ -110310,9 +110298,9 @@ var require_server_call = __commonJS({
     };
     exports2.ServerWritableStreamImpl = ServerWritableStreamImpl;
     var ServerDuplexStreamImpl = class extends stream_1.Duplex {
-      constructor(path4, call, metadata) {
+      constructor(path8, call, metadata) {
         super({ objectMode: true });
-        this.path = path4;
+        this.path = path8;
         this.call = call;
         this.metadata = metadata;
         this.pendingStatus = {
@@ -112592,11 +112580,11 @@ var require_server = __commonJS({
           }
           return true;
         }
-        _retrieveHandler(path4) {
-          serverCallTrace("Received call to method " + path4 + " at address " + this.serverAddressString);
-          const handler = this.handlers.get(path4);
+        _retrieveHandler(path8) {
+          serverCallTrace("Received call to method " + path8 + " at address " + this.serverAddressString);
+          const handler = this.handlers.get(path8);
           if (handler === void 0) {
-            serverCallTrace("No handler registered for method " + path4 + ". Sending UNIMPLEMENTED status.");
+            serverCallTrace("No handler registered for method " + path8 + ". Sending UNIMPLEMENTED status.");
             return null;
           }
           return handler;
@@ -112620,10 +112608,10 @@ var require_server = __commonJS({
             channelzSessionInfo === null || channelzSessionInfo === void 0 ? void 0 : channelzSessionInfo.streamTracker.addCallFailed();
             return;
           }
-          const path4 = headers[HTTP2_HEADER_PATH];
-          const handler = this._retrieveHandler(path4);
+          const path8 = headers[HTTP2_HEADER_PATH];
+          const handler = this._retrieveHandler(path8);
           if (!handler) {
-            this._respondWithError(getUnimplementedStatusResponse(path4), stream, channelzSessionInfo);
+            this._respondWithError(getUnimplementedStatusResponse(path8), stream, channelzSessionInfo);
             return;
           }
           const callEventTracker = {
@@ -112673,10 +112661,10 @@ var require_server = __commonJS({
           if (this._verifyContentType(stream, headers) !== true) {
             return;
           }
-          const path4 = headers[HTTP2_HEADER_PATH];
-          const handler = this._retrieveHandler(path4);
+          const path8 = headers[HTTP2_HEADER_PATH];
+          const handler = this._retrieveHandler(path8);
           if (!handler) {
-            this._respondWithError(getUnimplementedStatusResponse(path4), stream, null);
+            this._respondWithError(getUnimplementedStatusResponse(path8), stream, null);
             return;
           }
           const call = (0, server_interceptors_1.getServerInterceptingCall)([...extraInterceptors, ...this.interceptors], stream, headers, null, handler, this.options);
@@ -113697,7 +113685,7 @@ var require_certificate_provider = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileWatcherCertificateProvider = void 0;
-    var fs5 = require("fs");
+    var fs9 = require("fs");
     var logging = require_logging();
     var constants_1 = require_constants2();
     var util_1 = require("util");
@@ -113705,7 +113693,7 @@ var require_certificate_provider = __commonJS({
     function trace2(text) {
       logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
     }
-    var readFilePromise = (0, util_1.promisify)(fs5.readFile);
+    var readFilePromise = (0, util_1.promisify)(fs9.readFile);
     var FileWatcherCertificateProvider = class {
       constructor(config2) {
         this.config = config2;
@@ -113960,13 +113948,13 @@ var require_resolver_uds = __commonJS({
         this.listener = listener;
         this.hasReturnedResult = false;
         this.endpoints = [];
-        let path4;
+        let path8;
         if (target.authority === "") {
-          path4 = "/" + target.path;
+          path8 = "/" + target.path;
         } else {
-          path4 = target.path;
+          path8 = target.path;
         }
-        this.endpoints = [{ addresses: [{ path: path4 }] }];
+        this.endpoints = [{ addresses: [{ path: path8 }] }];
       }
       updateResolution() {
         if (!this.hasReturnedResult) {
@@ -114026,12 +114014,12 @@ var require_resolver_ip = __commonJS({
           return;
         }
         const pathList = target.path.split(",");
-        for (const path4 of pathList) {
-          const hostPort = (0, uri_parser_1.splitHostPort)(path4);
+        for (const path8 of pathList) {
+          const hostPort = (0, uri_parser_1.splitHostPort)(path8);
           if (hostPort === null) {
             this.error = {
               code: constants_1.Status.UNAVAILABLE,
-              details: `Failed to parse ${target.scheme} address ${path4}`,
+              details: `Failed to parse ${target.scheme} address ${path8}`,
               metadata: new metadata_1.Metadata()
             };
             return;
@@ -114039,7 +114027,7 @@ var require_resolver_ip = __commonJS({
           if (target.scheme === IPV4_SCHEME && !(0, net_1.isIPv4)(hostPort.host) || target.scheme === IPV6_SCHEME && !(0, net_1.isIPv6)(hostPort.host)) {
             this.error = {
               code: constants_1.Status.UNAVAILABLE,
-              details: `Failed to parse ${target.scheme} address ${path4}`,
+              details: `Failed to parse ${target.scheme} address ${path8}`,
               metadata: new metadata_1.Metadata()
             };
             return;
@@ -115579,23 +115567,23 @@ var require_grpc = __commonJS({
     exports2.GoogleProtoFilesRoot = exports2.GrpcClient = exports2.ClientStub = void 0;
     var grpcProtoLoader = __importStar(require_src11());
     var child_process_1 = require("child_process");
-    var fs5 = __importStar(require("fs"));
+    var fs9 = __importStar(require("fs"));
     var google_auth_library_1 = require_src9();
     var grpc = __importStar(require_src12());
     var os2 = __importStar(require("os"));
     var path_1 = require("path");
-    var path4 = __importStar(require("path"));
+    var path8 = __importStar(require("path"));
     var protobuf = __importStar(require_protobufjs());
     var object_hash_1 = __importDefault(require_object_hash());
     var gax = __importStar(require_gax());
-    var googleProtoFilesDir = path4.join(__dirname, "..", "..", "build", "protos");
+    var googleProtoFilesDir = path8.join(__dirname, "..", "..", "build", "protos");
     var INCLUDE_DIRS = [];
     INCLUDE_DIRS.push(googleProtoFilesDir);
     var protosList_json_1 = __importDefault(require_protosList());
-    var COMMON_PROTO_FILES = protosList_json_1.default.map((file2) => file2.replace(/[/\\]/g, path4.sep));
-    async function readFileAsync(path5) {
+    var COMMON_PROTO_FILES = protosList_json_1.default.map((file2) => file2.replace(/[/\\]/g, path8.sep));
+    async function readFileAsync(path9) {
       return new Promise((resolve, reject) => {
-        fs5.readFile(path5, "utf8", (err, content) => {
+        fs9.readFile(path9, "utf8", (err, content) => {
           if (err)
             return reject(err);
           else
@@ -115756,8 +115744,8 @@ var require_grpc = __commonJS({
        */
       loadProto(protoPath, filename, ignoreCache = false) {
         if (!filename) {
-          filename = path4.basename(protoPath);
-          protoPath = path4.dirname(protoPath);
+          filename = path8.basename(protoPath);
+          protoPath = path8.dirname(protoPath);
         }
         if (Array.isArray(filename) && filename.length === 0) {
           return {};
@@ -115767,10 +115755,10 @@ var require_grpc = __commonJS({
         return this.loadFromProto(filename, options, ignoreCache);
       }
       static _resolveFile(protoPath, filename) {
-        if (fs5.existsSync(path4.join(protoPath, filename))) {
-          return path4.join(protoPath, filename);
+        if (fs9.existsSync(path8.join(protoPath, filename))) {
+          return path8.join(protoPath, filename);
         } else if (COMMON_PROTO_FILES.indexOf(filename) > -1) {
-          return path4.join(googleProtoFilesDir, filename);
+          return path8.join(googleProtoFilesDir, filename);
         }
         throw new Error(filename + " could not be found in " + protoPath);
       }
@@ -115962,32 +115950,32 @@ var require_grpc = __commonJS({
       // Causes the loading of an included proto to check if it is a common
       // proto. If it is a common proto, use the bundled proto.
       resolvePath(originPath, includePath) {
-        originPath = path4.normalize(originPath);
-        includePath = path4.normalize(includePath);
-        if (path4.isAbsolute(includePath)) {
-          if (!fs5.existsSync(includePath)) {
+        originPath = path8.normalize(originPath);
+        includePath = path8.normalize(includePath);
+        if (path8.isAbsolute(includePath)) {
+          if (!fs9.existsSync(includePath)) {
             throw new Error("The include `" + includePath + "` was not found.");
           }
           return includePath;
         }
         if (COMMON_PROTO_FILES.indexOf(includePath) > -1) {
-          return path4.join(googleProtoFilesDir, includePath);
+          return path8.join(googleProtoFilesDir, includePath);
         }
         return _GoogleProtoFilesRoot._findIncludePath(originPath, includePath);
       }
       static _findIncludePath(originPath, includePath) {
-        originPath = path4.normalize(originPath);
-        includePath = path4.normalize(includePath);
+        originPath = path8.normalize(originPath);
+        includePath = path8.normalize(includePath);
         let current = originPath;
-        let found = fs5.existsSync(path4.join(current, includePath));
+        let found = fs9.existsSync(path8.join(current, includePath));
         while (!found && current.length > 0) {
-          current = current.substring(0, current.lastIndexOf(path4.sep));
-          found = fs5.existsSync(path4.join(current, includePath));
+          current = current.substring(0, current.lastIndexOf(path8.sep));
+          found = fs9.existsSync(path8.join(current, includePath));
         }
         if (!found) {
           throw new Error("The include `" + includePath + "` was not found.");
         }
-        return path4.join(current, includePath);
+        return path8.join(current, includePath);
       }
     };
     exports2.GoogleProtoFilesRoot = GoogleProtoFilesRoot;
@@ -116617,8 +116605,8 @@ var require_validate = __commonJS({
     var url_1 = require("url");
     var util_1 = require_util8();
     var timestamp_1 = require_timestamp2();
-    function customObjectMessage(arg, value, path4) {
-      const fieldPathMessage = path4 ? ` (found in field "${path4}")` : "";
+    function customObjectMessage(arg, value, path8) {
+      const fieldPathMessage = path8 ? ` (found in field "${path8}")` : "";
       if ((0, util_1.isObject)(value)) {
         const typeName = value.constructor.name;
         switch (typeName) {
@@ -118165,8 +118153,8 @@ var require_path2 = __commonJS({
       constructor(...segments) {
         super(...segments);
       }
-      static fromDotNotation(path4) {
-        return new _ObjectValueFieldPath(...path4.split("."));
+      static fromDotNotation(path8) {
+        return new _ObjectValueFieldPath(...path8.split("."));
       }
       /**
        * Constructs a new instance of FieldPath. We need this instead of using
@@ -125533,8 +125521,8 @@ var require_query = __commonJS({
         (0, path_1.validateFieldPath)("fieldPath", fieldPath);
         operator = (0, helpers_1.validateQueryOperator)("opStr", operator, value);
         (0, helpers_1.validateQueryValue)("value", value, this._allowUndefined);
-        const path4 = index_1.FieldPath.fromArgument(fieldPath);
-        if (index_1.FieldPath.documentId().isEqual(path4)) {
+        const path8 = index_1.FieldPath.fromArgument(fieldPath);
+        if (index_1.FieldPath.documentId().isEqual(path8)) {
           if (operator === "array-contains" || operator === "array-contains-any") {
             throw new Error(`Invalid Query. You can't perform '${operator}' queries on FieldPath.documentId().`);
           } else if (operator === "in" || operator === "not-in") {
@@ -125546,7 +125534,7 @@ var require_query = __commonJS({
             value = this.validateReference(value);
           }
         }
-        return new field_filter_internal_1.FieldFilterInternal(this._serializer, path4, constants_1.comparisonOperators[operator], value);
+        return new field_filter_internal_1.FieldFilterInternal(this._serializer, path8, constants_1.comparisonOperators[operator], value);
       }
       /**
        * @internal
@@ -125995,9 +125983,9 @@ var require_query = __commonJS({
         const basePath = this._queryOptions.allDescendants ? this._queryOptions.parentPath : this._queryOptions.parentPath.append(this._queryOptions.collectionId);
         let reference;
         if (typeof val === "string") {
-          const path4 = basePath.append(val);
+          const path8 = basePath.append(val);
           if (this._queryOptions.allDescendants) {
-            if (!path4.isDocument) {
+            if (!path8.isDocument) {
               throw new Error(`When querying a collection group and ordering by FieldPath.documentId(), the corresponding value must result in a valid document path, but '${val}' is not because it contains an odd number of segments.`);
             }
           } else if (val.indexOf("/") !== -1) {
@@ -126704,8 +126692,8 @@ var require_collection_reference = __commonJS({
        * @param firestore The Firestore Database client.
        * @param path The Path of this collection.
        */
-      constructor(firestore, path4, converter) {
-        super(firestore, query_options_1.QueryOptions.forCollectionQuery(path4, converter));
+      constructor(firestore, path8, converter) {
+        super(firestore, query_options_1.QueryOptions.forCollectionQuery(path8, converter));
       }
       /**
        * Returns a resource path for this collection.
@@ -126811,8 +126799,8 @@ var require_collection_reference = __commonJS({
             };
             return this.firestore.request("listDocuments", request, tag2).then((documents) => {
               return documents.map((doc) => {
-                const path4 = path_1.QualifiedResourcePath.fromSlashSeparatedString(doc.name);
-                return this.doc(path4.id);
+                const path8 = path_1.QualifiedResourcePath.fromSlashSeparatedString(doc.name);
+                return this.doc(path8.id);
               });
             });
           });
@@ -126843,11 +126831,11 @@ var require_collection_reference = __commonJS({
         } else {
           (0, path_1.validateResourcePath)("documentPath", documentPath);
         }
-        const path4 = this._resourcePath.append(documentPath);
-        if (!path4.isDocument) {
+        const path8 = this._resourcePath.append(documentPath);
+        if (!path8.isDocument) {
           throw new Error(`Value for argument "documentPath" must point to a document, but was "${documentPath}". Your path does not contain an even number of components.`);
         }
-        return new document_reference_1.DocumentReference(this.firestore, path4, this._queryOptions.converter);
+        return new document_reference_1.DocumentReference(this.firestore, path8, this._queryOptions.converter);
       }
       /**
        * Add a new document to this collection with the specified data, assigning
@@ -127122,11 +127110,11 @@ var require_document_reference = __commonJS({
        */
       collection(collectionPath) {
         (0, path_1.validateResourcePath)("collectionPath", collectionPath);
-        const path4 = this._path.append(collectionPath);
-        if (!path4.isCollection) {
+        const path8 = this._path.append(collectionPath);
+        if (!path8.isCollection) {
           throw new Error(`Value for argument "collectionPath" must point to a collection, but was "${collectionPath}". Your path does not contain an odd number of components.`);
         }
-        return new collection_reference_1.CollectionReference(this._firestore, path4);
+        return new collection_reference_1.CollectionReference(this._firestore, path8);
       }
       /**
        * Fetches the subcollections that are direct children of this document.
@@ -128906,10 +128894,10 @@ var require_pipelines = __commonJS({
     exports2.PipelineResult = PipelineResult;
     function subcollection(pathOrOptions) {
       const options = (0, pipeline_util_1.isString)(pathOrOptions) ? {} : pathOrOptions;
-      const path4 = (0, pipeline_util_1.isString)(pathOrOptions) ? pathOrOptions : pathOrOptions.path;
+      const path8 = (0, pipeline_util_1.isString)(pathOrOptions) ? pathOrOptions : pathOrOptions.path;
       const internalOptions = {
         ...options,
-        path: path4
+        path: path8
       };
       return new Pipeline(void 0, [new stage_1.SubcollectionSource(internalOptions)]);
     }
@@ -134587,7 +134575,7 @@ var require_serializer = __commonJS({
       createInteger;
       constructor(firestore) {
         this.firestore = firestore;
-        this.createDocumentReference = (path4) => firestore.doc(path4);
+        this.createDocumentReference = (path8) => firestore.doc(path8);
         this.createInteger = (n) => firestore._settings.useBigInt ? BigInt(n) : Number(n);
         this.allowUndefined = !!firestore._settings.ignoreUndefinedProperties;
       }
@@ -134732,9 +134720,9 @@ var require_serializer = __commonJS({
         }
         throw new Error(`Cannot encode value: ${val}`);
       }
-      encodeReference(path4) {
+      encodeReference(path8) {
         return {
-          referenceValue: (0, pipeline_util_1.isString)(path4) ? path4 : path4.path
+          referenceValue: (0, pipeline_util_1.isString)(path8) ? path8 : path8.path
         };
       }
       /**
@@ -134902,13 +134890,13 @@ var require_serializer = __commonJS({
       }
     };
     exports2.Serializer = Serializer;
-    function validateUserInput(arg, value, desc, options, path4, level, inArray) {
-      if (path4 && path4.size - 1 > MAX_DEPTH) {
+    function validateUserInput(arg, value, desc, options, path8, level, inArray) {
+      if (path8 && path8.size - 1 > MAX_DEPTH) {
         throw new Error(`${(0, validate_1.invalidArgumentMessage)(arg, desc)} Input object is deeper than ${MAX_DEPTH} levels or contains a cycle.`);
       }
       level = level || 0;
       inArray = inArray || false;
-      const fieldPathMessage = path4 ? ` (found in field "${path4}")` : "";
+      const fieldPathMessage = path8 ? ` (found in field "${path8}")` : "";
       if (Array.isArray(value)) {
         for (let i2 = 0; i2 < value.length; ++i2) {
           validateUserInput(
@@ -134916,7 +134904,7 @@ var require_serializer = __commonJS({
             value[i2],
             desc,
             options,
-            path4 ? path4.append(String(i2)) : new path_1.FieldPath(String(i2)),
+            path8 ? path8.append(String(i2)) : new path_1.FieldPath(String(i2)),
             level + 1,
             /* inArray= */
             true
@@ -134924,7 +134912,7 @@ var require_serializer = __commonJS({
         }
       } else if ((0, util_1.isPlainObject)(value)) {
         for (const prop of Object.keys(value)) {
-          validateUserInput(arg, value[prop], desc, options, path4 ? path4.append(new path_1.FieldPath(prop)) : new path_1.FieldPath(prop), level + 1, inArray);
+          validateUserInput(arg, value[prop], desc, options, path8 ? path8.append(new path_1.FieldPath(prop)) : new path_1.FieldPath(prop), level + 1, inArray);
         }
       } else if (value === void 0) {
         if (options.allowUndefined && level === 0) {
@@ -134940,7 +134928,7 @@ var require_serializer = __commonJS({
           throw new Error(`${(0, validate_1.invalidArgumentMessage)(arg, desc)} ${value.methodName}() must appear at the top-level and can only be used in update() or set() with {merge:true}${fieldPathMessage}.`);
         } else if (options.allowDeletes === "root") {
           if (level === 0) {
-          } else if (level === 1 && path4?.size === 1) {
+          } else if (level === 1 && path8?.size === 1) {
           } else {
             throw new Error(`${(0, validate_1.invalidArgumentMessage)(arg, desc)} ${value.methodName}() must appear at the top-level and can only be used in update() or set() with {merge:true}${fieldPathMessage}.`);
           }
@@ -134961,7 +134949,7 @@ var require_serializer = __commonJS({
       } else if (value === null) {
       } else if (isProtoValueSerializable(value)) {
       } else if (typeof value === "object") {
-        throw new Error((0, validate_1.customObjectMessage)(arg, value, path4));
+        throw new Error((0, validate_1.customObjectMessage)(arg, value, path8));
       }
     }
     function isMomentJsType(value) {
@@ -134987,9 +134975,9 @@ var require_serializer = __commonJS({
        * @param path - The field path to set.
        * @param value - The value to set.
        */
-      set(path4, value) {
-        const fieldsMap = this.getFieldsMap(path4.popLast());
-        fieldsMap[path4.lastSegment()] = Value.fromObject(value).toJSON();
+      set(path8, value) {
+        const fieldsMap = this.getFieldsMap(path8.popLast());
+        fieldsMap[path8.lastSegment()] = Value.fromObject(value).toJSON();
       }
       /**
        * Sets the provided fields to the provided values.
@@ -135000,18 +134988,18 @@ var require_serializer = __commonJS({
         let parent = new path_1.ObjectValueFieldPath();
         let upserts = {};
         let deletes = [];
-        data.forEach((value, path4) => {
-          if (!parent.isImmediateParentOf(path4)) {
+        data.forEach((value, path8) => {
+          if (!parent.isImmediateParentOf(path8)) {
             const fieldsMap2 = this.getFieldsMap(parent);
             this.applyChanges(fieldsMap2, upserts, deletes);
             upserts = {};
             deletes = [];
-            parent = path4.popLast();
+            parent = path8.popLast();
           }
           if (value) {
-            upserts[path4.lastSegment()] = Value.fromObject(value).toJSON();
+            upserts[path8.lastSegment()] = Value.fromObject(value).toJSON();
           } else {
-            deletes.push(path4.lastSegment());
+            deletes.push(path8.lastSegment());
           }
         });
         const fieldsMap = this.getFieldsMap(parent);
@@ -135021,16 +135009,16 @@ var require_serializer = __commonJS({
        * Returns the map that contains the leaf element of `path`. If the parent
        * entry does not yet exist, or if it is not a map, a new map will be created.
        */
-      getFieldsMap(path4) {
+      getFieldsMap(path8) {
         let current = this.value;
         if (!current.mapValue.fields) {
           current.mapValue = { fields: {} };
         }
-        for (let i2 = 0; i2 < path4.size; ++i2) {
-          let next = current.mapValue.fields[path4.get(i2)];
+        for (let i2 = 0; i2 < path8.size; ++i2) {
+          let next = current.mapValue.fields[path8.get(i2)];
           if (!isMapValue(next) || !next.mapValue.fields) {
             next = { mapValue: { fields: {} } };
-            current.mapValue.fields[path4.get(i2)] = next;
+            current.mapValue.fields[path8.get(i2)] = next;
           }
           current = next;
         }
@@ -135710,9 +135698,9 @@ var require_document = __commonJS({
        */
       static fromUpdateMap(ref, data) {
         const serializer = ref.firestore._serializer;
-        function merge2(target, value, path4, pos) {
-          const key = path4[pos];
-          const isLast = pos === path4.length - 1;
+        function merge2(target, value, path8, pos) {
+          const key = path8[pos];
+          const isLast = pos === path8.length - 1;
           if (target[key] === void 0) {
             if (isLast) {
               if (value instanceof field_value_1.FieldTransform) {
@@ -135729,7 +135717,7 @@ var require_document = __commonJS({
                   fields: {}
                 }
               };
-              const nestedValue = merge2(childNode.mapValue.fields, value, path4, pos + 1);
+              const nestedValue = merge2(childNode.mapValue.fields, value, path8, pos + 1);
               if (nestedValue) {
                 childNode.mapValue.fields = nestedValue;
                 target[key] = childNode;
@@ -135740,14 +135728,14 @@ var require_document = __commonJS({
             }
           } else {
             assert2(!isLast, "Can't merge current value into a nested object");
-            target[key].mapValue.fields = merge2(target[key].mapValue.fields, value, path4, pos + 1);
+            target[key].mapValue.fields = merge2(target[key].mapValue.fields, value, path8, pos + 1);
             return target;
           }
         }
         const res = {};
         for (const [key, value] of data) {
-          const path4 = key.toArray();
-          merge2(res, value, path4, 0);
+          const path8 = key.toArray();
+          merge2(res, value, path8, 0);
         }
         return new _DocumentSnapshot(ref, res);
       }
@@ -136327,20 +136315,20 @@ var require_document = __commonJS({
        */
       static fromUpdateMap(ref, data) {
         const transforms = /* @__PURE__ */ new Map();
-        function encode_(val, path4, allowTransforms) {
+        function encode_(val, path8, allowTransforms) {
           if (val instanceof field_value_1.FieldTransform && val.includeInDocumentTransform) {
             if (allowTransforms) {
-              transforms.set(path4, val);
+              transforms.set(path8, val);
             } else {
               throw new Error(`${val.methodName}() is not supported inside of array values.`);
             }
           } else if (Array.isArray(val)) {
             for (let i2 = 0; i2 < val.length; ++i2) {
-              encode_(val[i2], path4.append(String(i2)), false);
+              encode_(val[i2], path8.append(String(i2)), false);
             }
           } else if ((0, util_1.isPlainObject)(val)) {
             for (const prop of Object.keys(val)) {
-              encode_(val[prop], path4.append(new path_1.FieldPath(prop)), allowTransforms);
+              encode_(val[prop], path8.append(new path_1.FieldPath(prop)), allowTransforms);
             }
           }
         }
@@ -136385,7 +136373,7 @@ var require_document = __commonJS({
        * @returns A list of Firestore 'FieldTransform' Protos
        */
       toProto(serializer) {
-        return Array.from(this.transforms, ([path4, transform2]) => transform2.toProto(serializer, path4));
+        return Array.from(this.transforms, ([path8, transform2]) => transform2.toProto(serializer, path8));
       }
     };
     exports2.DocumentTransform = DocumentTransform;
@@ -136958,8 +136946,8 @@ var require_write_batch = __commonJS({
         allowUndefined
       });
     }
-    function validateFieldValue(arg, val, allowUndefined, path4) {
-      (0, serializer_1.validateUserInput)(arg, val, "Firestore value", { allowDeletes: "root", allowTransforms: true, allowUndefined }, path4);
+    function validateFieldValue(arg, val, allowUndefined, path8) {
+      (0, serializer_1.validateUserInput)(arg, val, "Firestore value", { allowDeletes: "root", allowTransforms: true, allowUndefined }, path8);
     }
     function validateNoConflictingFields(arg, data) {
       const fields = [];
@@ -138073,9 +138061,9 @@ var require_document_reader = __commonJS({
               snapshot = this.firestore.snapshot_(response.missing, response.readTime);
             }
             if (snapshot) {
-              const path4 = snapshot.ref.formattedName;
-              this.outstandingDocuments.delete(path4);
-              this.retrievedDocuments.set(path4, snapshot);
+              const path8 = snapshot.ref.formattedName;
+              this.outstandingDocuments.delete(path8);
+              this.retrievedDocuments.set(path8, snapshot);
               ++resultCount;
             }
           }
@@ -147124,11 +147112,11 @@ var require_src14 = __commonJS({
        */
       doc(documentPath) {
         (0, path_1.validateResourcePath)("documentPath", documentPath);
-        const path4 = path_1.ResourcePath.EMPTY.append(documentPath);
-        if (!path4.isDocument) {
+        const path8 = path_1.ResourcePath.EMPTY.append(documentPath);
+        if (!path8.isDocument) {
           throw new Error(`Value for argument "documentPath" must point to a document, but was "${documentPath}". Your path does not contain an even number of components.`);
         }
-        return new document_reference_1.DocumentReference(this, path4);
+        return new document_reference_1.DocumentReference(this, path8);
       }
       /**
        * Gets a [CollectionReference]{@link CollectionReference} instance
@@ -147150,11 +147138,11 @@ var require_src14 = __commonJS({
        */
       collection(collectionPath) {
         (0, path_1.validateResourcePath)("collectionPath", collectionPath);
-        const path4 = path_1.ResourcePath.EMPTY.append(collectionPath);
-        if (!path4.isCollection) {
+        const path8 = path_1.ResourcePath.EMPTY.append(collectionPath);
+        if (!path8.isCollection) {
           throw new Error(`Value for argument "collectionPath" must point to a collection, but was "${collectionPath}". Your path does not contain an odd number of components.`);
         }
-        return new collection_reference_1.CollectionReference(this, path4);
+        return new collection_reference_1.CollectionReference(this, path8);
       }
       /**
        * Creates and returns a new Query that includes all documents in the
@@ -148106,6 +148094,10058 @@ var require_firestore = __commonJS({
   }
 });
 
+// node_modules/@ioredis/commands/built/commands.json
+var require_commands = __commonJS({
+  "node_modules/@ioredis/commands/built/commands.json"(exports2, module2) {
+    module2.exports = {
+      vadd: {
+        arity: -5,
+        flags: [
+          "write",
+          "denyoom",
+          "module"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vcard: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "module",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vdim: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "module",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vemb: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "module",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vgetattr: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "module",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vinfo: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "module",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vismember: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "module"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vlinks: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "module",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vrandmember: {
+        arity: -2,
+        flags: [
+          "readonly",
+          "module"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vrange: {
+        arity: -4,
+        flags: [
+          "readonly",
+          "module"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vrem: {
+        arity: 3,
+        flags: [
+          "write",
+          "module"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vsetattr: {
+        arity: 4,
+        flags: [
+          "write",
+          "module",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      vsim: {
+        arity: -4,
+        flags: [
+          "readonly",
+          "module"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      acl: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      append: {
+        arity: 3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arcount: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      ardel: {
+        arity: -3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      ardelrange: {
+        arity: -4,
+        flags: [
+          "write"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arget: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      argetrange: {
+        arity: 4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      argrep: {
+        arity: -6,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arinfo: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arinsert: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arlastitems: {
+        arity: -3,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arlen: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      armget: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      armset: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arnext: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arop: {
+        arity: -5,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arring: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arscan: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arseek: {
+        arity: 3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      arset: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      asking: {
+        arity: 1,
+        flags: [
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      auth: {
+        arity: -2,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "fast",
+          "no_auth",
+          "allow_busy"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      bgrewriteaof: {
+        arity: 1,
+        flags: [
+          "admin",
+          "noscript",
+          "no_async_loading"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      bgsave: {
+        arity: -1,
+        flags: [
+          "admin",
+          "noscript",
+          "no_async_loading"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      bitcount: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      bitfield: {
+        arity: -2,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      bitfield_ro: {
+        arity: -2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      bitop: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 2,
+        keyStop: -1,
+        step: 1
+      },
+      bitpos: {
+        arity: -3,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      blmove: {
+        arity: 6,
+        flags: [
+          "write",
+          "denyoom",
+          "noscript",
+          "blocking"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      blmpop: {
+        arity: -5,
+        flags: [
+          "write",
+          "blocking",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      blpop: {
+        arity: -3,
+        flags: [
+          "write",
+          "noscript",
+          "blocking"
+        ],
+        keyStart: 1,
+        keyStop: -2,
+        step: 1
+      },
+      brpop: {
+        arity: -3,
+        flags: [
+          "write",
+          "noscript",
+          "blocking"
+        ],
+        keyStart: 1,
+        keyStop: -2,
+        step: 1
+      },
+      brpoplpush: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom",
+          "noscript",
+          "blocking"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      bzmpop: {
+        arity: -5,
+        flags: [
+          "write",
+          "blocking",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      bzpopmax: {
+        arity: -3,
+        flags: [
+          "write",
+          "noscript",
+          "blocking",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: -2,
+        step: 1
+      },
+      bzpopmin: {
+        arity: -3,
+        flags: [
+          "write",
+          "noscript",
+          "blocking",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: -2,
+        step: 1
+      },
+      client: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      cluster: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      command: {
+        arity: -1,
+        flags: [
+          "loading",
+          "stale"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      config: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      copy: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      dbsize: {
+        arity: 1,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      debug: {
+        arity: -2,
+        flags: [
+          "admin",
+          "noscript",
+          "loading",
+          "stale"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      decr: {
+        arity: 2,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      decrby: {
+        arity: 3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      del: {
+        arity: -2,
+        flags: [
+          "write"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      discard: {
+        arity: 1,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "fast",
+          "allow_busy"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      dump: {
+        arity: 2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      echo: {
+        arity: 2,
+        flags: [
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      eval: {
+        arity: -3,
+        flags: [
+          "noscript",
+          "stale",
+          "skip_monitor",
+          "no_mandatory_keys",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      eval_ro: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "noscript",
+          "stale",
+          "skip_monitor",
+          "no_mandatory_keys",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      evalsha: {
+        arity: -3,
+        flags: [
+          "noscript",
+          "stale",
+          "skip_monitor",
+          "no_mandatory_keys",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      evalsha_ro: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "noscript",
+          "stale",
+          "skip_monitor",
+          "no_mandatory_keys",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      exec: {
+        arity: 1,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "skip_slowlog"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      exists: {
+        arity: -2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      expire: {
+        arity: -3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      expireat: {
+        arity: -3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      expiretime: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      failover: {
+        arity: -1,
+        flags: [
+          "admin",
+          "noscript",
+          "stale"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      fcall: {
+        arity: -3,
+        flags: [
+          "noscript",
+          "stale",
+          "skip_monitor",
+          "no_mandatory_keys",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      fcall_ro: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "noscript",
+          "stale",
+          "skip_monitor",
+          "no_mandatory_keys",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      flushall: {
+        arity: -1,
+        flags: [
+          "write"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      flushdb: {
+        arity: -1,
+        flags: [
+          "write"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      function: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      geoadd: {
+        arity: -5,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      geodist: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      geohash: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      geopos: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      georadius: {
+        arity: -6,
+        flags: [
+          "write",
+          "denyoom",
+          "movablekeys"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      georadius_ro: {
+        arity: -6,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      georadiusbymember: {
+        arity: -5,
+        flags: [
+          "write",
+          "denyoom",
+          "movablekeys"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      georadiusbymember_ro: {
+        arity: -5,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      geosearch: {
+        arity: -7,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      geosearchstore: {
+        arity: -8,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      get: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      getbit: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      getdel: {
+        arity: 2,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      getex: {
+        arity: -2,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      getrange: {
+        arity: 4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      getset: {
+        arity: 3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hdel: {
+        arity: -3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hello: {
+        arity: -1,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "fast",
+          "no_auth",
+          "allow_busy"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      hexists: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hexpire: {
+        arity: -6,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hexpireat: {
+        arity: -6,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hexpiretime: {
+        arity: -5,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hget: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hgetall: {
+        arity: 2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hgetdel: {
+        arity: -5,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hgetex: {
+        arity: -5,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hincrby: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hincrbyfloat: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hkeys: {
+        arity: 2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hlen: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hmget: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hmset: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hpersist: {
+        arity: -5,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hpexpire: {
+        arity: -6,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hpexpireat: {
+        arity: -6,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hpexpiretime: {
+        arity: -5,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hpttl: {
+        arity: -5,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hrandfield: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hscan: {
+        arity: -3,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hset: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hsetex: {
+        arity: -6,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hsetnx: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hstrlen: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      httl: {
+        arity: -5,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      hvals: {
+        arity: 2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      incr: {
+        arity: 2,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      incrby: {
+        arity: 3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      incrbyfloat: {
+        arity: 3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      increx: {
+        arity: -2,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      info: {
+        arity: -1,
+        flags: [
+          "loading",
+          "stale"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      keys: {
+        arity: 2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      lastsave: {
+        arity: 1,
+        flags: [
+          "loading",
+          "stale",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      latency: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      lcs: {
+        arity: -3,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      lindex: {
+        arity: 3,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      linsert: {
+        arity: 5,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      llen: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      lmove: {
+        arity: 5,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      lmpop: {
+        arity: -4,
+        flags: [
+          "write",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      lolwut: {
+        arity: -1,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      lpop: {
+        arity: -2,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      lpos: {
+        arity: -3,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      lpush: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      lpushx: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      lrange: {
+        arity: 4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      lrem: {
+        arity: 4,
+        flags: [
+          "write"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      lset: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      ltrim: {
+        arity: 4,
+        flags: [
+          "write"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      memory: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      mget: {
+        arity: -2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      migrate: {
+        arity: -6,
+        flags: [
+          "write",
+          "movablekeys"
+        ],
+        keyStart: 3,
+        keyStop: 3,
+        step: 1
+      },
+      module: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      monitor: {
+        arity: 1,
+        flags: [
+          "admin",
+          "noscript",
+          "loading",
+          "stale"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      move: {
+        arity: 3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      mset: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 2
+      },
+      msetex: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      msetnx: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 2
+      },
+      multi: {
+        arity: 1,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "fast",
+          "allow_busy"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      object: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      persist: {
+        arity: 2,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      pexpire: {
+        arity: -3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      pexpireat: {
+        arity: -3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      pexpiretime: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      pfadd: {
+        arity: -2,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      pfcount: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      pfdebug: {
+        arity: 3,
+        flags: [
+          "write",
+          "denyoom",
+          "admin"
+        ],
+        keyStart: 2,
+        keyStop: 2,
+        step: 1
+      },
+      pfmerge: {
+        arity: -2,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      pfselftest: {
+        arity: 1,
+        flags: [
+          "admin"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      ping: {
+        arity: -1,
+        flags: [
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      psetex: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      psubscribe: {
+        arity: -2,
+        flags: [
+          "pubsub",
+          "noscript",
+          "loading",
+          "stale"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      psync: {
+        arity: -3,
+        flags: [
+          "admin",
+          "noscript",
+          "no_async_loading",
+          "no_multi"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      pttl: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      publish: {
+        arity: 3,
+        flags: [
+          "pubsub",
+          "loading",
+          "stale",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      pubsub: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      punsubscribe: {
+        arity: -1,
+        flags: [
+          "pubsub",
+          "noscript",
+          "loading",
+          "stale"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      quit: {
+        arity: -1,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "fast",
+          "no_auth",
+          "allow_busy"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      randomkey: {
+        arity: 1,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      readonly: {
+        arity: 1,
+        flags: [
+          "loading",
+          "stale",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      readwrite: {
+        arity: 1,
+        flags: [
+          "loading",
+          "stale",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      rename: {
+        arity: 3,
+        flags: [
+          "write"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      renamenx: {
+        arity: 3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      replconf: {
+        arity: -1,
+        flags: [
+          "admin",
+          "noscript",
+          "loading",
+          "stale",
+          "allow_busy"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      replicaof: {
+        arity: 3,
+        flags: [
+          "admin",
+          "noscript",
+          "stale",
+          "no_async_loading"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      reset: {
+        arity: 1,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "fast",
+          "no_auth",
+          "allow_busy"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      restore: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      "restore-asking": {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "asking"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      role: {
+        arity: 1,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      rpop: {
+        arity: -2,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      rpoplpush: {
+        arity: 3,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      rpush: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      rpushx: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      sadd: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      save: {
+        arity: 1,
+        flags: [
+          "admin",
+          "noscript",
+          "no_async_loading",
+          "no_multi"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      scan: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      scard: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      script: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      sdiff: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      sdiffstore: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      select: {
+        arity: 2,
+        flags: [
+          "loading",
+          "stale",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      set: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      setbit: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      setex: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      setnx: {
+        arity: 3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      setrange: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      shutdown: {
+        arity: -1,
+        flags: [
+          "admin",
+          "noscript",
+          "loading",
+          "stale",
+          "no_multi",
+          "allow_busy"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      sinter: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      sintercard: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      sinterstore: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      sismember: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      slaveof: {
+        arity: 3,
+        flags: [
+          "admin",
+          "noscript",
+          "stale",
+          "no_async_loading"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      slowlog: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      smembers: {
+        arity: 2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      smismember: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      smove: {
+        arity: 4,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      sort: {
+        arity: -2,
+        flags: [
+          "write",
+          "denyoom",
+          "movablekeys"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      sort_ro: {
+        arity: -2,
+        flags: [
+          "readonly",
+          "movablekeys"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      spop: {
+        arity: -2,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      spublish: {
+        arity: 3,
+        flags: [
+          "pubsub",
+          "loading",
+          "stale",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      srandmember: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      srem: {
+        arity: -3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      sscan: {
+        arity: -3,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      ssubscribe: {
+        arity: -2,
+        flags: [
+          "pubsub",
+          "noscript",
+          "loading",
+          "stale"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      strlen: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      subscribe: {
+        arity: -2,
+        flags: [
+          "pubsub",
+          "noscript",
+          "loading",
+          "stale"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      substr: {
+        arity: 4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      sunion: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      sunionstore: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      sunsubscribe: {
+        arity: -1,
+        flags: [
+          "pubsub",
+          "noscript",
+          "loading",
+          "stale"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      swapdb: {
+        arity: 3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      sync: {
+        arity: 1,
+        flags: [
+          "admin",
+          "noscript",
+          "no_async_loading",
+          "no_multi"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      time: {
+        arity: 1,
+        flags: [
+          "loading",
+          "stale",
+          "fast"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      touch: {
+        arity: -2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      ttl: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      type: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      unlink: {
+        arity: -2,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      unsubscribe: {
+        arity: -1,
+        flags: [
+          "pubsub",
+          "noscript",
+          "loading",
+          "stale"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      unwatch: {
+        arity: 1,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "fast",
+          "allow_busy"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      wait: {
+        arity: 3,
+        flags: [
+          "noscript"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      watch: {
+        arity: -2,
+        flags: [
+          "noscript",
+          "loading",
+          "stale",
+          "fast",
+          "allow_busy"
+        ],
+        keyStart: 1,
+        keyStop: -1,
+        step: 1
+      },
+      xack: {
+        arity: -4,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xadd: {
+        arity: -5,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xautoclaim: {
+        arity: -6,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xclaim: {
+        arity: -6,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xdel: {
+        arity: -3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xdelex: {
+        arity: -5,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xgroup: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      xinfo: {
+        arity: -2,
+        flags: [],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      xlen: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xnack: {
+        arity: -7,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xpending: {
+        arity: -3,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xrange: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xread: {
+        arity: -4,
+        flags: [
+          "readonly",
+          "blocking",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      xreadgroup: {
+        arity: -7,
+        flags: [
+          "write",
+          "blocking",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      xrevrange: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xsetid: {
+        arity: -3,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      xtrim: {
+        arity: -4,
+        flags: [
+          "write"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zadd: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zcard: {
+        arity: 2,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zcount: {
+        arity: 4,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zdiff: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      zdiffstore: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "movablekeys"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zincrby: {
+        arity: 4,
+        flags: [
+          "write",
+          "denyoom",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zinter: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      zintercard: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      zinterstore: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "movablekeys"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zlexcount: {
+        arity: 4,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zmpop: {
+        arity: -4,
+        flags: [
+          "write",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      zmscore: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zpopmax: {
+        arity: -2,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zpopmin: {
+        arity: -2,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrandmember: {
+        arity: -2,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrange: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrangebylex: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrangebyscore: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrangestore: {
+        arity: -5,
+        flags: [
+          "write",
+          "denyoom"
+        ],
+        keyStart: 1,
+        keyStop: 2,
+        step: 1
+      },
+      zrank: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrem: {
+        arity: -3,
+        flags: [
+          "write",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zremrangebylex: {
+        arity: 4,
+        flags: [
+          "write"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zremrangebyrank: {
+        arity: 4,
+        flags: [
+          "write"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zremrangebyscore: {
+        arity: 4,
+        flags: [
+          "write"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrevrange: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrevrangebylex: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrevrangebyscore: {
+        arity: -4,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zrevrank: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zscan: {
+        arity: -3,
+        flags: [
+          "readonly"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zscore: {
+        arity: 3,
+        flags: [
+          "readonly",
+          "fast"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      },
+      zunion: {
+        arity: -3,
+        flags: [
+          "readonly",
+          "movablekeys"
+        ],
+        keyStart: 0,
+        keyStop: 0,
+        step: 0
+      },
+      zunionstore: {
+        arity: -4,
+        flags: [
+          "write",
+          "denyoom",
+          "movablekeys"
+        ],
+        keyStart: 1,
+        keyStop: 1,
+        step: 1
+      }
+    };
+  }
+});
+
+// node_modules/@ioredis/commands/built/index.js
+var require_built = __commonJS({
+  "node_modules/@ioredis/commands/built/index.js"(exports2) {
+    "use strict";
+    var __importDefault = exports2 && exports2.__importDefault || function(mod4) {
+      return mod4 && mod4.__esModule ? mod4 : { "default": mod4 };
+    };
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.getKeyIndexes = exports2.hasFlag = exports2.exists = exports2.list = void 0;
+    var commands_json_1 = __importDefault(require_commands());
+    exports2.list = Object.keys(commands_json_1.default);
+    var flags = {};
+    exports2.list.forEach((commandName) => {
+      flags[commandName] = commands_json_1.default[commandName].flags.reduce(function(flags2, flag) {
+        flags2[flag] = true;
+        return flags2;
+      }, {});
+    });
+    function exists(commandName, options) {
+      commandName = (options === null || options === void 0 ? void 0 : options.caseInsensitive) ? String(commandName).toLowerCase() : commandName;
+      return Boolean(commands_json_1.default[commandName]);
+    }
+    exports2.exists = exists;
+    function hasFlag(commandName, flag, options) {
+      commandName = (options === null || options === void 0 ? void 0 : options.nameCaseInsensitive) ? String(commandName).toLowerCase() : commandName;
+      if (!flags[commandName]) {
+        throw new Error("Unknown command " + commandName);
+      }
+      return Boolean(flags[commandName][flag]);
+    }
+    exports2.hasFlag = hasFlag;
+    function getKeyIndexes(commandName, args, options) {
+      commandName = (options === null || options === void 0 ? void 0 : options.nameCaseInsensitive) ? String(commandName).toLowerCase() : commandName;
+      const command = commands_json_1.default[commandName];
+      if (!command) {
+        throw new Error("Unknown command " + commandName);
+      }
+      if (!Array.isArray(args)) {
+        throw new Error("Expect args to be an array");
+      }
+      const keys = [];
+      const parseExternalKey = Boolean(options && options.parseExternalKey);
+      const takeDynamicKeys = (args2, startIndex) => {
+        const keys2 = [];
+        const keyStop = Number(args2[startIndex]);
+        for (let i2 = 0; i2 < keyStop; i2++) {
+          keys2.push(i2 + startIndex + 1);
+        }
+        return keys2;
+      };
+      const takeKeyAfterToken = (args2, startIndex, token) => {
+        for (let i2 = startIndex; i2 < args2.length - 1; i2 += 1) {
+          if (String(args2[i2]).toLowerCase() === token.toLowerCase()) {
+            return i2 + 1;
+          }
+        }
+        return null;
+      };
+      switch (commandName) {
+        case "zunionstore":
+        case "zinterstore":
+        case "zdiffstore":
+          keys.push(0, ...takeDynamicKeys(args, 1));
+          break;
+        case "eval":
+        case "evalsha":
+        case "eval_ro":
+        case "evalsha_ro":
+        case "fcall":
+        case "fcall_ro":
+        case "blmpop":
+        case "bzmpop":
+          keys.push(...takeDynamicKeys(args, 1));
+          break;
+        case "sintercard":
+        case "lmpop":
+        case "zunion":
+        case "zinter":
+        case "zmpop":
+        case "zintercard":
+        case "zdiff": {
+          keys.push(...takeDynamicKeys(args, 0));
+          break;
+        }
+        case "msetex": {
+          const numKeys2 = Number(args[0]);
+          for (let i2 = 0; i2 < numKeys2; i2++) {
+            keys.push(1 + i2 * 2);
+          }
+          break;
+        }
+        case "georadius": {
+          keys.push(0);
+          const storeKey = takeKeyAfterToken(args, 5, "STORE");
+          if (storeKey)
+            keys.push(storeKey);
+          const distKey = takeKeyAfterToken(args, 5, "STOREDIST");
+          if (distKey)
+            keys.push(distKey);
+          break;
+        }
+        case "georadiusbymember": {
+          keys.push(0);
+          const storeKey = takeKeyAfterToken(args, 4, "STORE");
+          if (storeKey)
+            keys.push(storeKey);
+          const distKey = takeKeyAfterToken(args, 4, "STOREDIST");
+          if (distKey)
+            keys.push(distKey);
+          break;
+        }
+        case "sort":
+        case "sort_ro":
+          keys.push(0);
+          for (let i2 = 1; i2 < args.length - 1; i2++) {
+            let arg = args[i2];
+            if (typeof arg !== "string") {
+              continue;
+            }
+            const directive = arg.toUpperCase();
+            if (directive === "GET") {
+              i2 += 1;
+              arg = args[i2];
+              if (arg !== "#") {
+                if (parseExternalKey) {
+                  keys.push([i2, getExternalKeyNameLength(arg)]);
+                } else {
+                  keys.push(i2);
+                }
+              }
+            } else if (directive === "BY") {
+              i2 += 1;
+              if (parseExternalKey) {
+                keys.push([i2, getExternalKeyNameLength(args[i2])]);
+              } else {
+                keys.push(i2);
+              }
+            } else if (directive === "STORE") {
+              i2 += 1;
+              keys.push(i2);
+            }
+          }
+          break;
+        case "migrate":
+          if (args[2] === "") {
+            for (let i2 = 5; i2 < args.length - 1; i2++) {
+              const arg = args[i2];
+              if (typeof arg === "string" && arg.toUpperCase() === "KEYS") {
+                for (let j = i2 + 1; j < args.length; j++) {
+                  keys.push(j);
+                }
+                break;
+              }
+            }
+          } else {
+            keys.push(2);
+          }
+          break;
+        case "xreadgroup":
+        case "xread":
+          for (let i2 = commandName === "xread" ? 0 : 3; i2 < args.length - 1; i2++) {
+            if (String(args[i2]).toUpperCase() === "STREAMS") {
+              for (let j = i2 + 1; j <= i2 + (args.length - 1 - i2) / 2; j++) {
+                keys.push(j);
+              }
+              break;
+            }
+          }
+          break;
+        default:
+          if (command.step > 0) {
+            const keyStart = command.keyStart - 1;
+            const keyStop = command.keyStop > 0 ? command.keyStop : args.length + command.keyStop + 1;
+            for (let i2 = keyStart; i2 < keyStop; i2 += command.step) {
+              keys.push(i2);
+            }
+          }
+          break;
+      }
+      return keys;
+    }
+    exports2.getKeyIndexes = getKeyIndexes;
+    function getExternalKeyNameLength(key) {
+      if (typeof key !== "string") {
+        key = String(key);
+      }
+      const hashPos = key.indexOf("->");
+      return hashPos === -1 ? key.length : hashPos;
+    }
+  }
+});
+
+// node_modules/standard-as-callback/built/utils.js
+var require_utils6 = __commonJS({
+  "node_modules/standard-as-callback/built/utils.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.tryCatch = exports2.errorObj = void 0;
+    exports2.errorObj = { e: {} };
+    var tryCatchTarget;
+    function tryCatcher(err, val) {
+      try {
+        const target = tryCatchTarget;
+        tryCatchTarget = null;
+        return target.apply(this, arguments);
+      } catch (e2) {
+        exports2.errorObj.e = e2;
+        return exports2.errorObj;
+      }
+    }
+    function tryCatch(fn) {
+      tryCatchTarget = fn;
+      return tryCatcher;
+    }
+    exports2.tryCatch = tryCatch;
+  }
+});
+
+// node_modules/standard-as-callback/built/index.js
+var require_built2 = __commonJS({
+  "node_modules/standard-as-callback/built/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var utils_1 = require_utils6();
+    function throwLater(e2) {
+      setTimeout(function() {
+        throw e2;
+      }, 0);
+    }
+    function asCallback(promise2, nodeback, options) {
+      if (typeof nodeback === "function") {
+        promise2.then((val) => {
+          let ret;
+          if (options !== void 0 && Object(options).spread && Array.isArray(val)) {
+            ret = utils_1.tryCatch(nodeback).apply(void 0, [null].concat(val));
+          } else {
+            ret = val === void 0 ? utils_1.tryCatch(nodeback)(null) : utils_1.tryCatch(nodeback)(null, val);
+          }
+          if (ret === utils_1.errorObj) {
+            throwLater(ret.e);
+          }
+        }, (cause) => {
+          if (!cause) {
+            const newReason = new Error(cause + "");
+            Object.assign(newReason, { cause });
+            cause = newReason;
+          }
+          const ret = utils_1.tryCatch(nodeback)(cause);
+          if (ret === utils_1.errorObj) {
+            throwLater(ret.e);
+          }
+        });
+      }
+      return promise2;
+    }
+    exports2.default = asCallback;
+  }
+});
+
+// node_modules/redis-errors/lib/old.js
+var require_old = __commonJS({
+  "node_modules/redis-errors/lib/old.js"(exports2, module2) {
+    "use strict";
+    var assert2 = require("assert");
+    var util = require("util");
+    function RedisError(message2) {
+      Object.defineProperty(this, "message", {
+        value: message2 || "",
+        configurable: true,
+        writable: true
+      });
+      Error.captureStackTrace(this, this.constructor);
+    }
+    util.inherits(RedisError, Error);
+    Object.defineProperty(RedisError.prototype, "name", {
+      value: "RedisError",
+      configurable: true,
+      writable: true
+    });
+    function ParserError(message2, buffer, offset) {
+      assert2(buffer);
+      assert2.strictEqual(typeof offset, "number");
+      Object.defineProperty(this, "message", {
+        value: message2 || "",
+        configurable: true,
+        writable: true
+      });
+      const tmp = Error.stackTraceLimit;
+      Error.stackTraceLimit = 2;
+      Error.captureStackTrace(this, this.constructor);
+      Error.stackTraceLimit = tmp;
+      this.offset = offset;
+      this.buffer = buffer;
+    }
+    util.inherits(ParserError, RedisError);
+    Object.defineProperty(ParserError.prototype, "name", {
+      value: "ParserError",
+      configurable: true,
+      writable: true
+    });
+    function ReplyError(message2) {
+      Object.defineProperty(this, "message", {
+        value: message2 || "",
+        configurable: true,
+        writable: true
+      });
+      const tmp = Error.stackTraceLimit;
+      Error.stackTraceLimit = 2;
+      Error.captureStackTrace(this, this.constructor);
+      Error.stackTraceLimit = tmp;
+    }
+    util.inherits(ReplyError, RedisError);
+    Object.defineProperty(ReplyError.prototype, "name", {
+      value: "ReplyError",
+      configurable: true,
+      writable: true
+    });
+    function AbortError2(message2) {
+      Object.defineProperty(this, "message", {
+        value: message2 || "",
+        configurable: true,
+        writable: true
+      });
+      Error.captureStackTrace(this, this.constructor);
+    }
+    util.inherits(AbortError2, RedisError);
+    Object.defineProperty(AbortError2.prototype, "name", {
+      value: "AbortError",
+      configurable: true,
+      writable: true
+    });
+    function InterruptError(message2) {
+      Object.defineProperty(this, "message", {
+        value: message2 || "",
+        configurable: true,
+        writable: true
+      });
+      Error.captureStackTrace(this, this.constructor);
+    }
+    util.inherits(InterruptError, AbortError2);
+    Object.defineProperty(InterruptError.prototype, "name", {
+      value: "InterruptError",
+      configurable: true,
+      writable: true
+    });
+    module2.exports = {
+      RedisError,
+      ParserError,
+      ReplyError,
+      AbortError: AbortError2,
+      InterruptError
+    };
+  }
+});
+
+// node_modules/redis-errors/lib/modern.js
+var require_modern = __commonJS({
+  "node_modules/redis-errors/lib/modern.js"(exports2, module2) {
+    "use strict";
+    var assert2 = require("assert");
+    var RedisError = class extends Error {
+      get name() {
+        return this.constructor.name;
+      }
+    };
+    var ParserError = class extends RedisError {
+      constructor(message2, buffer, offset) {
+        assert2(buffer);
+        assert2.strictEqual(typeof offset, "number");
+        const tmp = Error.stackTraceLimit;
+        Error.stackTraceLimit = 2;
+        super(message2);
+        Error.stackTraceLimit = tmp;
+        this.offset = offset;
+        this.buffer = buffer;
+      }
+      get name() {
+        return this.constructor.name;
+      }
+    };
+    var ReplyError = class extends RedisError {
+      constructor(message2) {
+        const tmp = Error.stackTraceLimit;
+        Error.stackTraceLimit = 2;
+        super(message2);
+        Error.stackTraceLimit = tmp;
+      }
+      get name() {
+        return this.constructor.name;
+      }
+    };
+    var AbortError2 = class extends RedisError {
+      get name() {
+        return this.constructor.name;
+      }
+    };
+    var InterruptError = class extends AbortError2 {
+      get name() {
+        return this.constructor.name;
+      }
+    };
+    module2.exports = {
+      RedisError,
+      ParserError,
+      ReplyError,
+      AbortError: AbortError2,
+      InterruptError
+    };
+  }
+});
+
+// node_modules/redis-errors/index.js
+var require_redis_errors = __commonJS({
+  "node_modules/redis-errors/index.js"(exports2, module2) {
+    "use strict";
+    var Errors = process.version.charCodeAt(1) < 55 && process.version.charCodeAt(2) === 46 ? require_old() : require_modern();
+    module2.exports = Errors;
+  }
+});
+
+// node_modules/cluster-key-slot/lib/index.js
+var require_lib5 = __commonJS({
+  "node_modules/cluster-key-slot/lib/index.js"(exports2, module2) {
+    var lookup = [
+      0,
+      4129,
+      8258,
+      12387,
+      16516,
+      20645,
+      24774,
+      28903,
+      33032,
+      37161,
+      41290,
+      45419,
+      49548,
+      53677,
+      57806,
+      61935,
+      4657,
+      528,
+      12915,
+      8786,
+      21173,
+      17044,
+      29431,
+      25302,
+      37689,
+      33560,
+      45947,
+      41818,
+      54205,
+      50076,
+      62463,
+      58334,
+      9314,
+      13379,
+      1056,
+      5121,
+      25830,
+      29895,
+      17572,
+      21637,
+      42346,
+      46411,
+      34088,
+      38153,
+      58862,
+      62927,
+      50604,
+      54669,
+      13907,
+      9842,
+      5649,
+      1584,
+      30423,
+      26358,
+      22165,
+      18100,
+      46939,
+      42874,
+      38681,
+      34616,
+      63455,
+      59390,
+      55197,
+      51132,
+      18628,
+      22757,
+      26758,
+      30887,
+      2112,
+      6241,
+      10242,
+      14371,
+      51660,
+      55789,
+      59790,
+      63919,
+      35144,
+      39273,
+      43274,
+      47403,
+      23285,
+      19156,
+      31415,
+      27286,
+      6769,
+      2640,
+      14899,
+      10770,
+      56317,
+      52188,
+      64447,
+      60318,
+      39801,
+      35672,
+      47931,
+      43802,
+      27814,
+      31879,
+      19684,
+      23749,
+      11298,
+      15363,
+      3168,
+      7233,
+      60846,
+      64911,
+      52716,
+      56781,
+      44330,
+      48395,
+      36200,
+      40265,
+      32407,
+      28342,
+      24277,
+      20212,
+      15891,
+      11826,
+      7761,
+      3696,
+      65439,
+      61374,
+      57309,
+      53244,
+      48923,
+      44858,
+      40793,
+      36728,
+      37256,
+      33193,
+      45514,
+      41451,
+      53516,
+      49453,
+      61774,
+      57711,
+      4224,
+      161,
+      12482,
+      8419,
+      20484,
+      16421,
+      28742,
+      24679,
+      33721,
+      37784,
+      41979,
+      46042,
+      49981,
+      54044,
+      58239,
+      62302,
+      689,
+      4752,
+      8947,
+      13010,
+      16949,
+      21012,
+      25207,
+      29270,
+      46570,
+      42443,
+      38312,
+      34185,
+      62830,
+      58703,
+      54572,
+      50445,
+      13538,
+      9411,
+      5280,
+      1153,
+      29798,
+      25671,
+      21540,
+      17413,
+      42971,
+      47098,
+      34713,
+      38840,
+      59231,
+      63358,
+      50973,
+      55100,
+      9939,
+      14066,
+      1681,
+      5808,
+      26199,
+      30326,
+      17941,
+      22068,
+      55628,
+      51565,
+      63758,
+      59695,
+      39368,
+      35305,
+      47498,
+      43435,
+      22596,
+      18533,
+      30726,
+      26663,
+      6336,
+      2273,
+      14466,
+      10403,
+      52093,
+      56156,
+      60223,
+      64286,
+      35833,
+      39896,
+      43963,
+      48026,
+      19061,
+      23124,
+      27191,
+      31254,
+      2801,
+      6864,
+      10931,
+      14994,
+      64814,
+      60687,
+      56684,
+      52557,
+      48554,
+      44427,
+      40424,
+      36297,
+      31782,
+      27655,
+      23652,
+      19525,
+      15522,
+      11395,
+      7392,
+      3265,
+      61215,
+      65342,
+      53085,
+      57212,
+      44955,
+      49082,
+      36825,
+      40952,
+      28183,
+      32310,
+      20053,
+      24180,
+      11923,
+      16050,
+      3793,
+      7920
+    ];
+    var toUTF8Array = function toUTF8Array2(str) {
+      var char;
+      var i2 = 0;
+      var p = 0;
+      var utf8 = [];
+      var len = str.length;
+      for (; i2 < len; i2++) {
+        char = str.charCodeAt(i2);
+        if (char < 128) {
+          utf8[p++] = char;
+        } else if (char < 2048) {
+          utf8[p++] = char >> 6 | 192;
+          utf8[p++] = char & 63 | 128;
+        } else if ((char & 64512) === 55296 && i2 + 1 < str.length && (str.charCodeAt(i2 + 1) & 64512) === 56320) {
+          char = 65536 + ((char & 1023) << 10) + (str.charCodeAt(++i2) & 1023);
+          utf8[p++] = char >> 18 | 240;
+          utf8[p++] = char >> 12 & 63 | 128;
+          utf8[p++] = char >> 6 & 63 | 128;
+          utf8[p++] = char & 63 | 128;
+        } else {
+          utf8[p++] = char >> 12 | 224;
+          utf8[p++] = char >> 6 & 63 | 128;
+          utf8[p++] = char & 63 | 128;
+        }
+      }
+      return utf8;
+    };
+    var generate = module2.exports = function generate2(str) {
+      var char;
+      var i2 = 0;
+      var start = -1;
+      var result = 0;
+      var resultHash = 0;
+      var utf8 = typeof str === "string" ? toUTF8Array(str) : str;
+      var len = utf8.length;
+      while (i2 < len) {
+        char = utf8[i2++];
+        if (start === -1) {
+          if (char === 123) {
+            start = i2;
+          }
+        } else if (char !== 125) {
+          resultHash = lookup[(char ^ resultHash >> 8) & 255] ^ resultHash << 8;
+        } else if (i2 - 1 !== start) {
+          return resultHash & 16383;
+        }
+        result = lookup[(char ^ result >> 8) & 255] ^ result << 8;
+      }
+      return result & 16383;
+    };
+    module2.exports.generateMulti = function generateMulti(keys) {
+      var i2 = 1;
+      var len = keys.length;
+      var base = generate(keys[0]);
+      while (i2 < len) {
+        if (generate(keys[i2++]) !== base) return -1;
+      }
+      return base;
+    };
+  }
+});
+
+// node_modules/ioredis/built/utils/defaults.js
+var require_defaults = __commonJS({
+  "node_modules/ioredis/built/utils/defaults.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.defaults = void 0;
+    var IS_UNSIGNED_INTEGER = /^(?:0|[1-9]\d*)$/;
+    function isNil(value) {
+      return value == null;
+    }
+    function eq(value, other) {
+      return value === other || Number.isNaN(value) && Number.isNaN(other);
+    }
+    function isLength(value) {
+      return Number.isSafeInteger(value) && value >= 0;
+    }
+    function isArrayLike(value) {
+      return value != null && typeof value !== "function" && isLength(value.length);
+    }
+    function isObject3(value) {
+      return value !== null && (typeof value === "object" || typeof value === "function");
+    }
+    function isIndex(value, length = Number.MAX_SAFE_INTEGER) {
+      switch (typeof value) {
+        case "number":
+          return Number.isInteger(value) && value >= 0 && value < length;
+        case "symbol":
+          return false;
+        case "string":
+          return IS_UNSIGNED_INTEGER.test(value);
+      }
+    }
+    function isIterateeCall(value, index, object2) {
+      if (!isObject3(object2)) {
+        return false;
+      }
+      if (typeof index === "number" && isArrayLike(object2) && isIndex(index) && index < object2.length || typeof index === "string" && index in object2) {
+        return eq(object2[index], value);
+      }
+      return false;
+    }
+    function defaults(object2, ...sources) {
+      object2 = Object(object2);
+      const objectProto = Object.prototype;
+      let length = sources.length;
+      const guard = length > 2 ? sources[2] : void 0;
+      if (guard && isIterateeCall(sources[0], sources[1], guard)) {
+        length = 1;
+      }
+      for (let i2 = 0; i2 < length; i2++) {
+        if (isNil(sources[i2])) {
+          continue;
+        }
+        const source = sources[i2];
+        for (const key in source) {
+          const value = object2[key];
+          if (value === void 0 || !objectProto.hasOwnProperty.call(object2, key) && eq(value, objectProto[key])) {
+            object2[key] = source[key];
+          }
+        }
+      }
+      return object2;
+    }
+    exports2.defaults = defaults;
+  }
+});
+
+// node_modules/ioredis/built/utils/isArguments.js
+var require_isArguments = __commonJS({
+  "node_modules/ioredis/built/utils/isArguments.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.isArguments = void 0;
+    function getTag(value) {
+      if (value == null) {
+        return value === void 0 ? "[object Undefined]" : "[object Null]";
+      }
+      return Object.prototype.toString.call(value);
+    }
+    function isArguments(value) {
+      return value !== null && typeof value === "object" && getTag(value) === "[object Arguments]";
+    }
+    exports2.isArguments = isArguments;
+  }
+});
+
+// node_modules/ioredis/built/utils/lodash.js
+var require_lodash10 = __commonJS({
+  "node_modules/ioredis/built/utils/lodash.js"(exports2) {
+    "use strict";
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m2, k, k2) {
+      if (k2 === void 0) k2 = k;
+      Object.defineProperty(o, k2, { enumerable: true, get: function() {
+        return m2[k];
+      } });
+    }) : (function(o, m2, k, k2) {
+      if (k2 === void 0) k2 = k;
+      o[k2] = m2[k];
+    }));
+    var __exportStar = exports2 && exports2.__exportStar || function(m2, exports3) {
+      for (var p in m2) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m2, p);
+    };
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.noop = void 0;
+    function noop2() {
+    }
+    exports2.noop = noop2;
+    __exportStar(require_defaults(), exports2);
+    __exportStar(require_isArguments(), exports2);
+  }
+});
+
+// node_modules/ioredis/built/utils/debug.js
+var require_debug2 = __commonJS({
+  "node_modules/ioredis/built/utils/debug.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.genRedactedString = exports2.getStringValue = exports2.MAX_ARGUMENT_LENGTH = void 0;
+    var debug_1 = require_src();
+    var MAX_ARGUMENT_LENGTH = 200;
+    exports2.MAX_ARGUMENT_LENGTH = MAX_ARGUMENT_LENGTH;
+    var NAMESPACE_PREFIX = "ioredis";
+    function getStringValue(v) {
+      if (v === null) {
+        return;
+      }
+      switch (typeof v) {
+        case "boolean":
+          return;
+        case "number":
+          return;
+        case "object":
+          if (Buffer.isBuffer(v)) {
+            return v.toString("hex");
+          }
+          if (Array.isArray(v)) {
+            return v.join(",");
+          }
+          try {
+            return JSON.stringify(v);
+          } catch (e2) {
+            return;
+          }
+        case "string":
+          return v;
+      }
+    }
+    exports2.getStringValue = getStringValue;
+    function genRedactedString(str, maxLen) {
+      const { length } = str;
+      return length <= maxLen ? str : str.slice(0, maxLen) + ' ... <REDACTED full-length="' + length + '">';
+    }
+    exports2.genRedactedString = genRedactedString;
+    function genDebugFunction(namespace) {
+      const fn = (0, debug_1.default)(`${NAMESPACE_PREFIX}:${namespace}`);
+      function wrappedDebug(...args) {
+        if (!fn.enabled) {
+          return;
+        }
+        for (let i2 = 1; i2 < args.length; i2++) {
+          const str = getStringValue(args[i2]);
+          if (typeof str === "string" && str.length > MAX_ARGUMENT_LENGTH) {
+            args[i2] = genRedactedString(str, MAX_ARGUMENT_LENGTH);
+          }
+        }
+        return fn.apply(null, args);
+      }
+      Object.defineProperties(wrappedDebug, {
+        namespace: {
+          get() {
+            return fn.namespace;
+          }
+        },
+        enabled: {
+          get() {
+            return fn.enabled;
+          }
+        },
+        destroy: {
+          get() {
+            return fn.destroy;
+          }
+        },
+        log: {
+          get() {
+            return fn.log;
+          },
+          set(l) {
+            fn.log = l;
+          }
+        }
+      });
+      return wrappedDebug;
+    }
+    exports2.default = genDebugFunction;
+  }
+});
+
+// node_modules/ioredis/built/constants/TLSProfiles.js
+var require_TLSProfiles = __commonJS({
+  "node_modules/ioredis/built/constants/TLSProfiles.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var RedisCloudCA = `-----BEGIN CERTIFICATE-----
+MIIDTzCCAjegAwIBAgIJAKSVpiDswLcwMA0GCSqGSIb3DQEBBQUAMD4xFjAUBgNV
+BAoMDUdhcmFudGlhIERhdGExJDAiBgNVBAMMG1NTTCBDZXJ0aWZpY2F0aW9uIEF1
+dGhvcml0eTAeFw0xMzEwMDExMjE0NTVaFw0yMzA5MjkxMjE0NTVaMD4xFjAUBgNV
+BAoMDUdhcmFudGlhIERhdGExJDAiBgNVBAMMG1NTTCBDZXJ0aWZpY2F0aW9uIEF1
+dGhvcml0eTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALZqkh/DczWP
+JnxnHLQ7QL0T4B4CDKWBKCcisriGbA6ZePWVNo4hfKQC6JrzfR+081NeD6VcWUiz
+rmd+jtPhIY4c+WVQYm5PKaN6DT1imYdxQw7aqO5j2KUCEh/cznpLxeSHoTxlR34E
+QwF28Wl3eg2vc5ct8LjU3eozWVk3gb7alx9mSA2SgmuX5lEQawl++rSjsBStemY2
+BDwOpAMXIrdEyP/cVn8mkvi/BDs5M5G+09j0gfhyCzRWMQ7Hn71u1eolRxwVxgi3
+TMn+/vTaFSqxKjgck6zuAYjBRPaHe7qLxHNr1So/Mc9nPy+3wHebFwbIcnUojwbp
+4nctkWbjb2cCAwEAAaNQME4wHQYDVR0OBBYEFP1whtcrydmW3ZJeuSoKZIKjze3w
+MB8GA1UdIwQYMBaAFP1whtcrydmW3ZJeuSoKZIKjze3wMAwGA1UdEwQFMAMBAf8w
+DQYJKoZIhvcNAQEFBQADggEBAG2erXhwRAa7+ZOBs0B6X57Hwyd1R4kfmXcs0rta
+lbPpvgULSiB+TCbf3EbhJnHGyvdCY1tvlffLjdA7HJ0PCOn+YYLBA0pTU/dyvrN6
+Su8NuS5yubnt9mb13nDGYo1rnt0YRfxN+8DM3fXIVr038A30UlPX2Ou1ExFJT0MZ
+uFKY6ZvLdI6/1cbgmguMlAhM+DhKyV6Sr5699LM3zqeI816pZmlREETYkGr91q7k
+BpXJu/dtHaGxg1ZGu6w/PCsYGUcECWENYD4VQPd8N32JjOfu6vEgoEAwfPP+3oGp
+Z4m3ewACcWOAenqflb+cQYC4PsF7qbXDmRaWrbKntOlZ3n0=
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIGMTCCBBmgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwajELMAkGA1UEBhMCVVMx
+CzAJBgNVBAgMAkNBMQswCQYDVQQHDAJDQTESMBAGA1UECgwJUmVkaXNMYWJzMS0w
+KwYDVQQDDCRSZWRpc0xhYnMgUm9vdCBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkwHhcN
+MTgwMjI1MTUzNzM3WhcNMjgwMjIzMTUzNzM3WjBfMQswCQYDVQQGEwJVUzELMAkG
+A1UECAwCQ0ExEjAQBgNVBAoMCVJlZGlzTGFiczEvMC0GA1UEAwwmUkNQIEludGVy
+bWVkaWF0ZSBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkwggIiMA0GCSqGSIb3DQEBAQUA
+A4ICDwAwggIKAoICAQDf9dqbxc8Bq7Ctq9rWcxrGNKKHivqLAFpPq02yLPx6fsOv
+Tq7GsDChAYBBc4v7Y2Ap9RD5Vs3dIhEANcnolf27QwrG9RMnnvzk8pCvp1o6zSU4
+VuOE1W66/O1/7e2rVxyrnTcP7UgK43zNIXu7+tiAqWsO92uSnuMoGPGpeaUm1jym
+hjWKtkAwDFSqvHY+XL5qDVBEjeUe+WHkYUg40cAXjusAqgm2hZt29c2wnVrxW25W
+P0meNlzHGFdA2AC5z54iRiqj57dTfBTkHoBczQxcyw6hhzxZQ4e5I5zOKjXXEhZN
+r0tA3YC14CTabKRus/JmZieyZzRgEy2oti64tmLYTqSlAD78pRL40VNoaSYetXLw
+hhNsXCHgWaY6d5bLOc/aIQMAV5oLvZQKvuXAF1IDmhPA+bZbpWipp0zagf1P1H3s
+UzsMdn2KM0ejzgotbtNlj5TcrVwpmvE3ktvUAuA+hi3FkVx1US+2Gsp5x4YOzJ7u
+P1WPk6ShF0JgnJH2ILdj6kttTWwFzH17keSFICWDfH/+kM+k7Y1v3EXMQXE7y0T9
+MjvJskz6d/nv+sQhY04xt64xFMGTnZjlJMzfQNi7zWFLTZnDD0lPowq7l3YiPoTT
+t5Xky83lu0KZsZBo0WlWaDG00gLVdtRgVbcuSWxpi5BdLb1kRab66JptWjxwXQID
+AQABo4HrMIHoMDoGA1UdHwQzMDEwL6AtoCuGKWh0dHBzOi8vcmwtY2Etc2VydmVy
+LnJlZGlzbGFicy5jb20vdjEvY3JsMEYGCCsGAQUFBwEBBDowODA2BggrBgEFBQcw
+AYYqaHR0cHM6Ly9ybC1jYS1zZXJ2ZXIucmVkaXNsYWJzLmNvbS92MS9vY3NwMB0G
+A1UdDgQWBBQHar5OKvQUpP2qWt6mckzToeCOHDAfBgNVHSMEGDAWgBQi42wH6hM4
+L2sujEvLM0/u8lRXTzASBgNVHRMBAf8ECDAGAQH/AgEAMA4GA1UdDwEB/wQEAwIB
+hjANBgkqhkiG9w0BAQsFAAOCAgEAirEn/iTsAKyhd+pu2W3Z5NjCko4NPU0EYUbr
+AP7+POK2rzjIrJO3nFYQ/LLuC7KCXG+2qwan2SAOGmqWst13Y+WHp44Kae0kaChW
+vcYLXXSoGQGC8QuFSNUdaeg3RbMDYFT04dOkqufeWVccoHVxyTSg9eD8LZuHn5jw
+7QDLiEECBmIJHk5Eeo2TAZrx4Yx6ufSUX5HeVjlAzqwtAqdt99uCJ/EL8bgpWbe+
+XoSpvUv0SEC1I1dCAhCKAvRlIOA6VBcmzg5Am12KzkqTul12/VEFIgzqu0Zy2Jbc
+AUPrYVu/+tOGXQaijy7YgwH8P8n3s7ZeUa1VABJHcxrxYduDDJBLZi+MjheUDaZ1
+jQRHYevI2tlqeSBqdPKG4zBY5lS0GiAlmuze5oENt0P3XboHoZPHiqcK3VECgTVh
+/BkJcuudETSJcZDmQ8YfoKfBzRQNg2sv/hwvUv73Ss51Sco8GEt2lD8uEdib1Q6z
+zDT5lXJowSzOD5ZA9OGDjnSRL+2riNtKWKEqvtEG3VBJoBzu9GoxbAc7wIZLxmli
+iF5a/Zf5X+UXD3s4TMmy6C4QZJpAA2egsSQCnraWO2ULhh7iXMysSkF/nzVfZn43
+iqpaB8++9a37hWq14ZmOv0TJIDz//b2+KC4VFXWQ5W5QC6whsjT+OlG4p5ZYG0jo
+616pxqo=
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIFujCCA6KgAwIBAgIJAJ1aTT1lu2ScMA0GCSqGSIb3DQEBCwUAMGoxCzAJBgNV
+BAYTAlVTMQswCQYDVQQIDAJDQTELMAkGA1UEBwwCQ0ExEjAQBgNVBAoMCVJlZGlz
+TGFiczEtMCsGA1UEAwwkUmVkaXNMYWJzIFJvb3QgQ2VydGlmaWNhdGUgQXV0aG9y
+aXR5MB4XDTE4MDIyNTE1MjA0MloXDTM4MDIyMDE1MjA0MlowajELMAkGA1UEBhMC
+VVMxCzAJBgNVBAgMAkNBMQswCQYDVQQHDAJDQTESMBAGA1UECgwJUmVkaXNMYWJz
+MS0wKwYDVQQDDCRSZWRpc0xhYnMgUm9vdCBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkw
+ggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDLEjXy7YrbN5Waau5cd6g1
+G5C2tMmeTpZ0duFAPxNU4oE3RHS5gGiok346fUXuUxbZ6QkuzeN2/2Z+RmRcJhQY
+Dm0ZgdG4x59An1TJfnzKKoWj8ISmoHS/TGNBdFzXV7FYNLBuqZouqePI6ReC6Qhl
+pp45huV32Q3a6IDrrvx7Wo5ZczEQeFNbCeCOQYNDdTmCyEkHqc2AGo8eoIlSTutT
+ULOC7R5gzJVTS0e1hesQ7jmqHjbO+VQS1NAL4/5K6cuTEqUl+XhVhPdLWBXJQ5ag
+54qhX4v+ojLzeU1R/Vc6NjMvVtptWY6JihpgplprN0Yh2556ewcXMeturcKgXfGJ
+xeYzsjzXerEjrVocX5V8BNrg64NlifzTMKNOOv4fVZszq1SIHR8F9ROrqiOdh8iC
+JpUbLpXH9hWCSEO6VRMB2xJoKu3cgl63kF30s77x7wLFMEHiwsQRKxooE1UhgS9K
+2sO4TlQ1eWUvFvHSTVDQDlGQ6zu4qjbOpb3Q8bQwoK+ai2alkXVR4Ltxe9QlgYK3
+StsnPhruzZGA0wbXdpw0bnM+YdlEm5ffSTpNIfgHeaa7Dtb801FtA71ZlH7A6TaI
+SIQuUST9EKmv7xrJyx0W1pGoPOLw5T029aTjnICSLdtV9bLwysrLhIYG5bnPq78B
+cS+jZHFGzD7PUVGQD01nOQIDAQABo2MwYTAdBgNVHQ4EFgQUIuNsB+oTOC9rLoxL
+yzNP7vJUV08wHwYDVR0jBBgwFoAUIuNsB+oTOC9rLoxLyzNP7vJUV08wDwYDVR0T
+AQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZIhvcNAQELBQADggIBAHfg
+z5pMNUAKdMzK1aS1EDdK9yKz4qicILz5czSLj1mC7HKDRy8cVADUxEICis++CsCu
+rYOvyCVergHQLREcxPq4rc5Nq1uj6J6649NEeh4WazOOjL4ZfQ1jVznMbGy+fJm3
+3Hoelv6jWRG9iqeJZja7/1s6YC6bWymI/OY1e4wUKeNHAo+Vger7MlHV+RuabaX+
+hSJ8bJAM59NCM7AgMTQpJCncrcdLeceYniGy5Q/qt2b5mJkQVkIdy4TPGGB+AXDJ
+D0q3I/JDRkDUFNFdeW0js7fHdsvCR7O3tJy5zIgEV/o/BCkmJVtuwPYOrw/yOlKj
+TY/U7ATAx9VFF6/vYEOMYSmrZlFX+98L6nJtwDqfLB5VTltqZ4H/KBxGE3IRSt9l
+FXy40U+LnXzhhW+7VBAvyYX8GEXhHkKU8Gqk1xitrqfBXY74xKgyUSTolFSfFVgj
+mcM/X4K45bka+qpkj7Kfv/8D4j6aZekwhN2ly6hhC1SmQ8qjMjpG/mrWOSSHZFmf
+ybu9iD2AYHeIOkshIl6xYIa++Q/00/vs46IzAbQyriOi0XxlSMMVtPx0Q3isp+ji
+n8Mq9eOuxYOEQ4of8twUkUDd528iwGtEdwf0Q01UyT84S62N8AySl1ZBKXJz6W4F
+UhWfa/HQYOAPDdEjNgnVwLI23b8t0TozyCWw7q8h
+-----END CERTIFICATE-----
+
+-----BEGIN CERTIFICATE-----
+MIIEjzCCA3egAwIBAgIQe55B/ALCKJDZtdNT8kD6hTANBgkqhkiG9w0BAQsFADBM
+MSAwHgYDVQQLExdHbG9iYWxTaWduIFJvb3QgQ0EgLSBSMzETMBEGA1UEChMKR2xv
+YmFsU2lnbjETMBEGA1UEAxMKR2xvYmFsU2lnbjAeFw0yMjAxMjYxMjAwMDBaFw0y
+NTAxMjYwMDAwMDBaMFgxCzAJBgNVBAYTAkJFMRkwFwYDVQQKExBHbG9iYWxTaWdu
+IG52LXNhMS4wLAYDVQQDEyVHbG9iYWxTaWduIEF0bGFzIFIzIE9WIFRMUyBDQSAy
+MDIyIFEyMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmGmg1LW9b7Lf
+8zDD83yBDTEkt+FOxKJZqF4veWc5KZsQj9HfnUS2e5nj/E+JImlGPsQuoiosLuXD
+BVBNAMcUFa11buFMGMeEMwiTmCXoXRrXQmH0qjpOfKgYc5gHG3BsRGaRrf7VR4eg
+ofNMG9wUBw4/g/TT7+bQJdA4NfE7Y4d5gEryZiBGB/swaX6Jp/8MF4TgUmOWmalK
+dZCKyb4sPGQFRTtElk67F7vU+wdGcrcOx1tDcIB0ncjLPMnaFicagl+daWGsKqTh
+counQb6QJtYHa91KvCfKWocMxQ7OIbB5UARLPmC4CJ1/f8YFm35ebfzAeULYdGXu
+jE9CLor0OwIDAQABo4IBXzCCAVswDgYDVR0PAQH/BAQDAgGGMB0GA1UdJQQWMBQG
+CCsGAQUFBwMBBggrBgEFBQcDAjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQW
+BBSH5Zq7a7B/t95GfJWkDBpA8HHqdjAfBgNVHSMEGDAWgBSP8Et/qC5FJK5NUPpj
+move4t0bvDB7BggrBgEFBQcBAQRvMG0wLgYIKwYBBQUHMAGGImh0dHA6Ly9vY3Nw
+Mi5nbG9iYWxzaWduLmNvbS9yb290cjMwOwYIKwYBBQUHMAKGL2h0dHA6Ly9zZWN1
+cmUuZ2xvYmFsc2lnbi5jb20vY2FjZXJ0L3Jvb3QtcjMuY3J0MDYGA1UdHwQvMC0w
+K6ApoCeGJWh0dHA6Ly9jcmwuZ2xvYmFsc2lnbi5jb20vcm9vdC1yMy5jcmwwIQYD
+VR0gBBowGDAIBgZngQwBAgIwDAYKKwYBBAGgMgoBAjANBgkqhkiG9w0BAQsFAAOC
+AQEAKRic9/f+nmhQU/wz04APZLjgG5OgsuUOyUEZjKVhNGDwxGTvKhyXGGAMW2B/
+3bRi+aElpXwoxu3pL6fkElbX3B0BeS5LoDtxkyiVEBMZ8m+sXbocwlPyxrPbX6mY
+0rVIvnuUeBH8X0L5IwfpNVvKnBIilTbcebfHyXkPezGwz7E1yhUULjJFm2bt0SdX
+y+4X/WeiiYIv+fTVgZZgl+/2MKIsu/qdBJc3f3TvJ8nz+Eax1zgZmww+RSQWeOj3
+15Iw6Z5FX+NwzY/Ab+9PosR5UosSeq+9HhtaxZttXG1nVh+avYPGYddWmiMT90J5
+ZgKnO/Fx2hBgTxhOTMYaD312kg==
+-----END CERTIFICATE-----
+
+-----BEGIN CERTIFICATE-----
+MIIDXzCCAkegAwIBAgILBAAAAAABIVhTCKIwDQYJKoZIhvcNAQELBQAwTDEgMB4G
+A1UECxMXR2xvYmFsU2lnbiBSb290IENBIC0gUjMxEzARBgNVBAoTCkdsb2JhbFNp
+Z24xEzARBgNVBAMTCkdsb2JhbFNpZ24wHhcNMDkwMzE4MTAwMDAwWhcNMjkwMzE4
+MTAwMDAwWjBMMSAwHgYDVQQLExdHbG9iYWxTaWduIFJvb3QgQ0EgLSBSMzETMBEG
+A1UEChMKR2xvYmFsU2lnbjETMBEGA1UEAxMKR2xvYmFsU2lnbjCCASIwDQYJKoZI
+hvcNAQEBBQADggEPADCCAQoCggEBAMwldpB5BngiFvXAg7aEyiie/QV2EcWtiHL8
+RgJDx7KKnQRfJMsuS+FggkbhUqsMgUdwbN1k0ev1LKMPgj0MK66X17YUhhB5uzsT
+gHeMCOFJ0mpiLx9e+pZo34knlTifBtc+ycsmWQ1z3rDI6SYOgxXG71uL0gRgykmm
+KPZpO/bLyCiR5Z2KYVc3rHQU3HTgOu5yLy6c+9C7v/U9AOEGM+iCK65TpjoWc4zd
+QQ4gOsC0p6Hpsk+QLjJg6VfLuQSSaGjlOCZgdbKfd/+RFO+uIEn8rUAVSNECMWEZ
+XriX7613t2Saer9fwRPvm2L7DWzgVGkWqQPabumDk3F2xmmFghcCAwEAAaNCMEAw
+DgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFI/wS3+o
+LkUkrk1Q+mOai97i3Ru8MA0GCSqGSIb3DQEBCwUAA4IBAQBLQNvAUKr+yAzv95ZU
+RUm7lgAJQayzE4aGKAczymvmdLm6AC2upArT9fHxD4q/c2dKg8dEe3jgr25sbwMp
+jjM5RcOO5LlXbKr8EpbsU8Yt5CRsuZRj+9xTaGdWPoO4zzUhw8lo/s7awlOqzJCK
+6fBdRoyV3XpYKBovHd7NADdBj+1EbddTKJd+82cEHhXXipa0095MJ6RMG3NzdvQX
+mcIfeg7jLQitChws/zyrVQ4PkX4268NXSb7hLi18YIvDQVETI53O9zJrlAGomecs
+Mx86OyXShkDOOyyGeMlhLxS67ttVb9+E7gUJTb0o2HLO02JQZR7rkpeDMdmztcpH
+WD9f
+-----END CERTIFICATE-----`;
+    var TLSProfiles = {
+      RedisCloudFixed: { ca: RedisCloudCA },
+      RedisCloudFlexible: { ca: RedisCloudCA }
+    };
+    exports2.default = TLSProfiles;
+  }
+});
+
+// node_modules/ioredis/built/utils/index.js
+var require_utils7 = __commonJS({
+  "node_modules/ioredis/built/utils/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.noop = exports2.isArguments = exports2.defaults = exports2.Debug = exports2.getPackageMeta = exports2.zipMap = exports2.CONNECTION_CLOSED_ERROR_MSG = exports2.shuffle = exports2.sample = exports2.resolveTLSProfile = exports2.parseURL = exports2.optimizeErrorStack = exports2.toArg = exports2.convertMapToArray = exports2.convertObjectToArray = exports2.timeout = exports2.packObject = exports2.isInt = exports2.wrapMultiResult = exports2.convertBufferToString = void 0;
+    var fs_1 = require("fs");
+    var path_1 = require("path");
+    var lodash_1 = require_lodash10();
+    Object.defineProperty(exports2, "defaults", { enumerable: true, get: function() {
+      return lodash_1.defaults;
+    } });
+    Object.defineProperty(exports2, "isArguments", { enumerable: true, get: function() {
+      return lodash_1.isArguments;
+    } });
+    Object.defineProperty(exports2, "noop", { enumerable: true, get: function() {
+      return lodash_1.noop;
+    } });
+    var debug_1 = require_debug2();
+    exports2.Debug = debug_1.default;
+    var TLSProfiles_1 = require_TLSProfiles();
+    function convertBufferToString(value, encoding) {
+      if (value instanceof Buffer) {
+        return value.toString(encoding);
+      }
+      if (Array.isArray(value)) {
+        const length = value.length;
+        const res = Array(length);
+        for (let i2 = 0; i2 < length; ++i2) {
+          res[i2] = value[i2] instanceof Buffer && encoding === "utf8" ? value[i2].toString() : convertBufferToString(value[i2], encoding);
+        }
+        return res;
+      }
+      return value;
+    }
+    exports2.convertBufferToString = convertBufferToString;
+    function wrapMultiResult(arr) {
+      if (!arr) {
+        return null;
+      }
+      const result = [];
+      const length = arr.length;
+      for (let i2 = 0; i2 < length; ++i2) {
+        const item = arr[i2];
+        if (item instanceof Error) {
+          result.push([item]);
+        } else {
+          result.push([null, item]);
+        }
+      }
+      return result;
+    }
+    exports2.wrapMultiResult = wrapMultiResult;
+    function isInt(value) {
+      const x2 = parseFloat(value);
+      return !isNaN(value) && (x2 | 0) === x2;
+    }
+    exports2.isInt = isInt;
+    function packObject(array2) {
+      const result = {};
+      const length = array2.length;
+      for (let i2 = 1; i2 < length; i2 += 2) {
+        result[array2[i2 - 1]] = array2[i2];
+      }
+      return result;
+    }
+    exports2.packObject = packObject;
+    function timeout(callback, timeout2) {
+      let timer = null;
+      const run = function() {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+          callback.apply(this, arguments);
+        }
+      };
+      timer = setTimeout(run, timeout2, new Error("timeout"));
+      return run;
+    }
+    exports2.timeout = timeout;
+    function convertObjectToArray(obj) {
+      const result = [];
+      const keys = Object.keys(obj);
+      for (let i2 = 0, l = keys.length; i2 < l; i2++) {
+        result.push(keys[i2], obj[keys[i2]]);
+      }
+      return result;
+    }
+    exports2.convertObjectToArray = convertObjectToArray;
+    function convertMapToArray(map3) {
+      const result = [];
+      let pos = 0;
+      map3.forEach(function(value, key) {
+        result[pos] = key;
+        result[pos + 1] = value;
+        pos += 2;
+      });
+      return result;
+    }
+    exports2.convertMapToArray = convertMapToArray;
+    function toArg(arg) {
+      if (arg === null || typeof arg === "undefined") {
+        return "";
+      }
+      return String(arg);
+    }
+    exports2.toArg = toArg;
+    function optimizeErrorStack(error61, friendlyStack, filterPath) {
+      const stacks = friendlyStack.split("\n");
+      let lines = "";
+      let i2;
+      for (i2 = 1; i2 < stacks.length; ++i2) {
+        if (stacks[i2].indexOf(filterPath) === -1) {
+          break;
+        }
+      }
+      for (let j = i2; j < stacks.length; ++j) {
+        lines += "\n" + stacks[j];
+      }
+      if (error61.stack) {
+        const pos = error61.stack.indexOf("\n");
+        error61.stack = error61.stack.slice(0, pos) + lines;
+      }
+      return error61;
+    }
+    exports2.optimizeErrorStack = optimizeErrorStack;
+    function parseURL(url2) {
+      if (isInt(url2)) {
+        return { port: url2 };
+      }
+      const rawUrl = url2;
+      const hasProtocol = /^rediss?:\/\//i.test(rawUrl);
+      const isProtocolRelative = rawUrl.startsWith("//");
+      if (rawUrl[0] === "/" && !isProtocolRelative) {
+        const qIdx = rawUrl.indexOf("?");
+        const result2 = {
+          path: qIdx === -1 ? rawUrl : rawUrl.slice(0, qIdx)
+        };
+        if (qIdx !== -1) {
+          const options2 = {};
+          const params = new URLSearchParams(rawUrl.slice(qIdx + 1));
+          params.forEach((value, key) => {
+            options2[key] = parseURLQueryItem(key, value);
+          });
+          (0, lodash_1.defaults)(result2, options2);
+        }
+        return result2;
+      }
+      let parsed;
+      if (hasProtocol) {
+        parsed = new URL(rawUrl);
+      } else if (isProtocolRelative) {
+        parsed = new URL("redis:" + rawUrl);
+      } else {
+        parsed = new URL("redis://" + rawUrl);
+      }
+      const options = {};
+      parsed.searchParams.forEach((value, key) => {
+        options[key] = parseURLQueryItem(key, value);
+      });
+      const result = {};
+      if (parsed.username || parsed.password) {
+        result.username = decodeURIComponent(parsed.username);
+        result.password = decodeURIComponent(parsed.password);
+      }
+      if (parsed.pathname && parsed.pathname !== "/") {
+        if (hasProtocol || isProtocolRelative) {
+          if (parsed.pathname.length > 1) {
+            result.db = parsed.pathname.slice(1);
+          }
+        } else {
+          result.path = parsed.pathname;
+        }
+      }
+      if (parsed.hostname) {
+        result.host = parsed.hostname.replace(/^\[|\]$/g, "");
+      }
+      if (parsed.port) {
+        result.port = parsed.port;
+      }
+      (0, lodash_1.defaults)(result, options);
+      return result;
+    }
+    exports2.parseURL = parseURL;
+    function parseURLQueryItem(key, value) {
+      if (key === "family") {
+        const intFamily = Number.parseInt(value, 10);
+        if (!Number.isNaN(intFamily)) {
+          return intFamily;
+        }
+      }
+      return value;
+    }
+    function resolveTLSProfile(options) {
+      let tls = options === null || options === void 0 ? void 0 : options.tls;
+      if (typeof tls === "string")
+        tls = { profile: tls };
+      const profile = TLSProfiles_1.default[tls === null || tls === void 0 ? void 0 : tls.profile];
+      if (profile) {
+        tls = Object.assign({}, profile, tls);
+        delete tls.profile;
+        options = Object.assign({}, options, { tls });
+      }
+      return options;
+    }
+    exports2.resolveTLSProfile = resolveTLSProfile;
+    function sample(array2, from = 0) {
+      const length = array2.length;
+      if (from >= length) {
+        return null;
+      }
+      return array2[from + Math.floor(Math.random() * (length - from))];
+    }
+    exports2.sample = sample;
+    function shuffle(array2) {
+      let counter = array2.length;
+      while (counter > 0) {
+        const index = Math.floor(Math.random() * counter);
+        counter--;
+        [array2[counter], array2[index]] = [array2[index], array2[counter]];
+      }
+      return array2;
+    }
+    exports2.shuffle = shuffle;
+    exports2.CONNECTION_CLOSED_ERROR_MSG = "Connection is closed.";
+    function zipMap(keys, values) {
+      const map3 = /* @__PURE__ */ new Map();
+      keys.forEach((key, index) => {
+        map3.set(key, values[index]);
+      });
+      return map3;
+    }
+    exports2.zipMap = zipMap;
+    var cachedPackageMeta = null;
+    async function getPackageMeta() {
+      if (cachedPackageMeta) {
+        return cachedPackageMeta;
+      }
+      try {
+        const filePath = (0, path_1.resolve)(__dirname, "..", "..", "package.json");
+        const data = await fs_1.promises.readFile(filePath, "utf8");
+        const parsed = JSON.parse(data);
+        cachedPackageMeta = {
+          version: parsed.version
+        };
+        return cachedPackageMeta;
+      } catch (err) {
+        cachedPackageMeta = {
+          version: "error-fetching-version"
+        };
+        return cachedPackageMeta;
+      }
+    }
+    exports2.getPackageMeta = getPackageMeta;
+  }
+});
+
+// node_modules/ioredis/built/utils/argumentParsers.js
+var require_argumentParsers = __commonJS({
+  "node_modules/ioredis/built/utils/argumentParsers.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.parseBlockOption = exports2.parseSecondsArgument = void 0;
+    var parseNumberArgument = (arg) => {
+      if (typeof arg === "number") {
+        return arg;
+      }
+      if (Buffer.isBuffer(arg)) {
+        return parseNumberArgument(arg.toString());
+      }
+      if (typeof arg === "string") {
+        const value = Number(arg);
+        return Number.isFinite(value) ? value : void 0;
+      }
+      return void 0;
+    };
+    var parseStringArgument = (arg) => {
+      if (typeof arg === "string") {
+        return arg;
+      }
+      if (Buffer.isBuffer(arg)) {
+        return arg.toString();
+      }
+      return void 0;
+    };
+    var parseSecondsArgument = (arg) => {
+      const value = parseNumberArgument(arg);
+      if (value === void 0) {
+        return void 0;
+      }
+      if (value <= 0) {
+        return 0;
+      }
+      return value * 1e3;
+    };
+    exports2.parseSecondsArgument = parseSecondsArgument;
+    var parseBlockOption = (args) => {
+      for (let i2 = 0; i2 < args.length; i2++) {
+        const token = parseStringArgument(args[i2]);
+        if (token && token.toLowerCase() === "block") {
+          const duration3 = parseNumberArgument(args[i2 + 1]);
+          if (duration3 === void 0) {
+            return void 0;
+          }
+          if (duration3 <= 0) {
+            return 0;
+          }
+          return duration3;
+        }
+      }
+      return null;
+    };
+    exports2.parseBlockOption = parseBlockOption;
+  }
+});
+
+// node_modules/ioredis/built/Command.js
+var require_Command = __commonJS({
+  "node_modules/ioredis/built/Command.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var commands_1 = require_built();
+    var calculateSlot = require_lib5();
+    var standard_as_callback_1 = require_built2();
+    var utils_1 = require_utils7();
+    var argumentParsers_1 = require_argumentParsers();
+    var Command = class _Command {
+      /**
+       * Creates an instance of Command.
+       * @param name Command name
+       * @param args An array of command arguments
+       * @param options
+       * @param callback The callback that handles the response.
+       * If omit, the response will be handled via Promise
+       */
+      constructor(name, args = [], options = {}, callback) {
+        this.name = name;
+        this.inTransaction = false;
+        this.isTraced = false;
+        this.isResolved = false;
+        this.transformed = false;
+        this.replyEncoding = options.replyEncoding;
+        this.errorStack = options.errorStack;
+        this.args = args.flat();
+        this.callback = callback;
+        this.initPromise();
+        if (options.keyPrefix) {
+          const isBufferKeyPrefix = options.keyPrefix instanceof Buffer;
+          let keyPrefixBuffer = isBufferKeyPrefix ? options.keyPrefix : null;
+          this._iterateKeys((key) => {
+            if (key instanceof Buffer) {
+              if (keyPrefixBuffer === null) {
+                keyPrefixBuffer = Buffer.from(options.keyPrefix);
+              }
+              return Buffer.concat([keyPrefixBuffer, key]);
+            } else if (isBufferKeyPrefix) {
+              return Buffer.concat([options.keyPrefix, Buffer.from(String(key))]);
+            }
+            return options.keyPrefix + key;
+          });
+        }
+        if (options.readOnly) {
+          this.isReadOnly = true;
+        }
+      }
+      /**
+       * Check whether the command has the flag
+       */
+      static checkFlag(flagName, commandName) {
+        commandName = commandName.toLowerCase();
+        return !!this.getFlagMap()[flagName][commandName];
+      }
+      static setArgumentTransformer(name, func) {
+        this._transformer.argument[name] = func;
+      }
+      static setReplyTransformer(name, func) {
+        this._transformer.reply[name] = func;
+      }
+      static getFlagMap() {
+        if (!this.flagMap) {
+          this.flagMap = Object.keys(_Command.FLAGS).reduce((map3, flagName) => {
+            map3[flagName] = {};
+            _Command.FLAGS[flagName].forEach((commandName) => {
+              map3[flagName][commandName] = true;
+            });
+            return map3;
+          }, {});
+        }
+        return this.flagMap;
+      }
+      getSlot() {
+        if (typeof this.slot === "undefined") {
+          const key = this.getKeys()[0];
+          this.slot = key == null ? null : calculateSlot(key);
+        }
+        return this.slot;
+      }
+      getKeys() {
+        return this._iterateKeys();
+      }
+      /**
+       * Convert command to writable buffer or string
+       */
+      toWritable(_socket) {
+        let result;
+        const commandStr = "*" + (this.args.length + 1) + "\r\n$" + Buffer.byteLength(this.name) + "\r\n" + this.name + "\r\n";
+        if (this.bufferMode) {
+          const buffers = new MixedBuffers();
+          buffers.push(commandStr);
+          for (let i2 = 0; i2 < this.args.length; ++i2) {
+            const arg = this.args[i2];
+            if (arg instanceof Buffer) {
+              if (arg.length === 0) {
+                buffers.push("$0\r\n\r\n");
+              } else {
+                buffers.push("$" + arg.length + "\r\n");
+                buffers.push(arg);
+                buffers.push("\r\n");
+              }
+            } else {
+              buffers.push("$" + Buffer.byteLength(arg) + "\r\n" + arg + "\r\n");
+            }
+          }
+          result = buffers.toBuffer();
+        } else {
+          result = commandStr;
+          for (let i2 = 0; i2 < this.args.length; ++i2) {
+            const arg = this.args[i2];
+            result += "$" + Buffer.byteLength(arg) + "\r\n" + arg + "\r\n";
+          }
+        }
+        return result;
+      }
+      stringifyArguments() {
+        for (let i2 = 0; i2 < this.args.length; ++i2) {
+          const arg = this.args[i2];
+          if (typeof arg === "string") {
+          } else if (arg instanceof Buffer) {
+            this.bufferMode = true;
+          } else {
+            this.args[i2] = (0, utils_1.toArg)(arg);
+          }
+        }
+      }
+      /**
+       * Convert buffer/buffer[] to string/string[],
+       * and apply reply transformer.
+       */
+      transformReply(result) {
+        if (this.replyEncoding) {
+          result = (0, utils_1.convertBufferToString)(result, this.replyEncoding);
+        }
+        const transformer = _Command._transformer.reply[this.name];
+        if (transformer) {
+          result = transformer(result);
+        }
+        return result;
+      }
+      /**
+       * Set the wait time before terminating the attempt to execute a command
+       * and generating an error.
+       */
+      setTimeout(ms) {
+        if (!this._commandTimeoutTimer) {
+          this._commandTimeoutTimer = setTimeout(() => {
+            if (!this.isResolved) {
+              this.reject(new Error("Command timed out"));
+            }
+          }, ms);
+        }
+      }
+      /**
+       * Set a timeout for blocking commands.
+       * When the timeout expires, the command resolves with null (matching Redis behavior).
+       * This handles the case of undetectable network failures (e.g., docker network disconnect)
+       * where the TCP connection becomes a zombie and no close event fires.
+       */
+      setBlockingTimeout(ms) {
+        if (ms <= 0) {
+          return;
+        }
+        if (this._blockingTimeoutTimer) {
+          clearTimeout(this._blockingTimeoutTimer);
+          this._blockingTimeoutTimer = void 0;
+        }
+        const now = Date.now();
+        if (this._blockingDeadline === void 0) {
+          this._blockingDeadline = now + ms;
+        }
+        const remaining = this._blockingDeadline - now;
+        if (remaining <= 0) {
+          this.resolve(null);
+          return;
+        }
+        this._blockingTimeoutTimer = setTimeout(() => {
+          if (this.isResolved) {
+            this._blockingTimeoutTimer = void 0;
+            return;
+          }
+          this._blockingTimeoutTimer = void 0;
+          this.resolve(null);
+        }, remaining);
+      }
+      /**
+       * Extract the blocking timeout from the command arguments.
+       *
+       * @returns The timeout in seconds, null for indefinite blocking (timeout of 0),
+       *          or undefined if this is not a blocking command
+       */
+      extractBlockingTimeout() {
+        const args = this.args;
+        if (!args || args.length === 0) {
+          return void 0;
+        }
+        const name = this.name.toLowerCase();
+        if (_Command.checkFlag("LAST_ARG_TIMEOUT_COMMANDS", name)) {
+          return (0, argumentParsers_1.parseSecondsArgument)(args[args.length - 1]);
+        }
+        if (_Command.checkFlag("FIRST_ARG_TIMEOUT_COMMANDS", name)) {
+          return (0, argumentParsers_1.parseSecondsArgument)(args[0]);
+        }
+        if (_Command.checkFlag("BLOCK_OPTION_COMMANDS", name)) {
+          return (0, argumentParsers_1.parseBlockOption)(args);
+        }
+        return void 0;
+      }
+      /**
+       * Clear the command and blocking timers
+       */
+      _clearTimers() {
+        const existingTimer = this._commandTimeoutTimer;
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+          delete this._commandTimeoutTimer;
+        }
+        const blockingTimer = this._blockingTimeoutTimer;
+        if (blockingTimer) {
+          clearTimeout(blockingTimer);
+          delete this._blockingTimeoutTimer;
+        }
+      }
+      initPromise() {
+        const promise2 = new Promise((resolve, reject) => {
+          if (!this.transformed) {
+            this.transformed = true;
+            const transformer = _Command._transformer.argument[this.name];
+            if (transformer) {
+              this.args = transformer(this.args);
+            }
+            this.stringifyArguments();
+          }
+          this.resolve = this._convertValue(resolve);
+          this.reject = (err) => {
+            this._clearTimers();
+            if (this.errorStack) {
+              reject((0, utils_1.optimizeErrorStack)(err, this.errorStack.stack, __dirname));
+            } else {
+              reject(err);
+            }
+          };
+        });
+        this.promise = (0, standard_as_callback_1.default)(promise2, this.callback);
+      }
+      /**
+       * Iterate through the command arguments that are considered keys.
+       */
+      _iterateKeys(transform2 = (key) => key) {
+        if (typeof this.keys === "undefined") {
+          this.keys = [];
+          if ((0, commands_1.exists)(this.name, { caseInsensitive: true })) {
+            const keyIndexes = (0, commands_1.getKeyIndexes)(this.name, this.args, {
+              nameCaseInsensitive: true
+            });
+            for (const index of keyIndexes) {
+              this.args[index] = transform2(this.args[index]);
+              this.keys.push(this.args[index]);
+            }
+          }
+        }
+        return this.keys;
+      }
+      /**
+       * Convert the value from buffer to the target encoding.
+       */
+      _convertValue(resolve) {
+        return (value) => {
+          try {
+            this._clearTimers();
+            resolve(this.transformReply(value));
+            this.isResolved = true;
+          } catch (err) {
+            this.reject(err);
+          }
+          return this.promise;
+        };
+      }
+    };
+    exports2.default = Command;
+    Command.FLAGS = {
+      VALID_IN_SUBSCRIBER_MODE: [
+        "subscribe",
+        "psubscribe",
+        "unsubscribe",
+        "punsubscribe",
+        "ssubscribe",
+        "sunsubscribe",
+        "ping",
+        "quit"
+      ],
+      VALID_IN_MONITOR_MODE: ["monitor", "auth"],
+      ENTER_SUBSCRIBER_MODE: ["subscribe", "psubscribe", "ssubscribe"],
+      EXIT_SUBSCRIBER_MODE: ["unsubscribe", "punsubscribe", "sunsubscribe"],
+      WILL_DISCONNECT: ["quit"],
+      HANDSHAKE_COMMANDS: ["auth", "select", "client", "readonly", "info"],
+      IGNORE_RECONNECT_ON_ERROR: ["client"],
+      BLOCKING_COMMANDS: [
+        "blpop",
+        "brpop",
+        "brpoplpush",
+        "blmove",
+        "bzpopmin",
+        "bzpopmax",
+        "bzmpop",
+        "blmpop",
+        "xread",
+        "xreadgroup"
+      ],
+      LAST_ARG_TIMEOUT_COMMANDS: [
+        "blpop",
+        "brpop",
+        "brpoplpush",
+        "blmove",
+        "bzpopmin",
+        "bzpopmax"
+      ],
+      FIRST_ARG_TIMEOUT_COMMANDS: ["bzmpop", "blmpop"],
+      BLOCK_OPTION_COMMANDS: ["xread", "xreadgroup"]
+    };
+    Command._transformer = {
+      argument: {},
+      reply: {}
+    };
+    var msetArgumentTransformer = function(args) {
+      if (args.length === 1) {
+        if (args[0] instanceof Map) {
+          return (0, utils_1.convertMapToArray)(args[0]);
+        }
+        if (typeof args[0] === "object" && args[0] !== null) {
+          return (0, utils_1.convertObjectToArray)(args[0]);
+        }
+      }
+      return args;
+    };
+    var hsetArgumentTransformer = function(args) {
+      if (args.length === 2) {
+        if (args[1] instanceof Map) {
+          return [args[0]].concat((0, utils_1.convertMapToArray)(args[1]));
+        }
+        if (typeof args[1] === "object" && args[1] !== null) {
+          return [args[0]].concat((0, utils_1.convertObjectToArray)(args[1]));
+        }
+      }
+      return args;
+    };
+    Command.setArgumentTransformer("mset", msetArgumentTransformer);
+    Command.setArgumentTransformer("msetnx", msetArgumentTransformer);
+    Command.setArgumentTransformer("hset", hsetArgumentTransformer);
+    Command.setArgumentTransformer("hmset", hsetArgumentTransformer);
+    Command.setReplyTransformer("hgetall", function(result) {
+      if (Array.isArray(result)) {
+        const obj = {};
+        for (let i2 = 0; i2 < result.length; i2 += 2) {
+          const key = result[i2];
+          const value = result[i2 + 1];
+          if (key in obj) {
+            Object.defineProperty(obj, key, {
+              value,
+              configurable: true,
+              enumerable: true,
+              writable: true
+            });
+          } else {
+            obj[key] = value;
+          }
+        }
+        return obj;
+      }
+      return result;
+    });
+    var MixedBuffers = class {
+      constructor() {
+        this.length = 0;
+        this.items = [];
+      }
+      push(x2) {
+        this.length += Buffer.byteLength(x2);
+        this.items.push(x2);
+      }
+      toBuffer() {
+        const result = Buffer.allocUnsafe(this.length);
+        let offset = 0;
+        for (const item of this.items) {
+          const length = Buffer.byteLength(item);
+          Buffer.isBuffer(item) ? item.copy(result, offset) : result.write(item, offset, length);
+          offset += length;
+        }
+        return result;
+      }
+    };
+  }
+});
+
+// node_modules/ioredis/built/errors/ClusterAllFailedError.js
+var require_ClusterAllFailedError = __commonJS({
+  "node_modules/ioredis/built/errors/ClusterAllFailedError.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var redis_errors_1 = require_redis_errors();
+    var ClusterAllFailedError = class extends redis_errors_1.RedisError {
+      constructor(message2, lastNodeError) {
+        super(message2);
+        this.lastNodeError = lastNodeError;
+        Error.captureStackTrace(this, this.constructor);
+      }
+      get name() {
+        return this.constructor.name;
+      }
+    };
+    exports2.default = ClusterAllFailedError;
+    ClusterAllFailedError.defaultMessage = "Failed to refresh slots cache.";
+  }
+});
+
+// node_modules/ioredis/built/ScanStream.js
+var require_ScanStream = __commonJS({
+  "node_modules/ioredis/built/ScanStream.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var stream_1 = require("stream");
+    var ScanStream = class extends stream_1.Readable {
+      constructor(opt) {
+        super(opt);
+        this.opt = opt;
+        this._redisCursor = "0";
+        this._redisDrained = false;
+      }
+      _read() {
+        if (this._redisDrained) {
+          this.push(null);
+          return;
+        }
+        const args = [this._redisCursor];
+        if (this.opt.key) {
+          args.unshift(this.opt.key);
+        }
+        if (this.opt.match) {
+          args.push("MATCH", this.opt.match);
+        }
+        if (this.opt.type) {
+          args.push("TYPE", this.opt.type);
+        }
+        if (this.opt.count) {
+          args.push("COUNT", String(this.opt.count));
+        }
+        if (this.opt.noValues) {
+          args.push("NOVALUES");
+        }
+        this.opt.redis[this.opt.command](args, (err, res) => {
+          if (err) {
+            this.emit("error", err);
+            return;
+          }
+          this._redisCursor = res[0] instanceof Buffer ? res[0].toString() : res[0];
+          if (this._redisCursor === "0") {
+            this._redisDrained = true;
+          }
+          this.push(res[1]);
+        });
+      }
+      close() {
+        this._redisDrained = true;
+      }
+    };
+    exports2.default = ScanStream;
+  }
+});
+
+// node_modules/ioredis/built/autoPipelining.js
+var require_autoPipelining = __commonJS({
+  "node_modules/ioredis/built/autoPipelining.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.executeWithAutoPipelining = exports2.getFirstValueInFlattenedArray = exports2.shouldUseAutoPipelining = exports2.notAllowedAutoPipelineCommands = exports2.kCallbacks = exports2.kExec = void 0;
+    var lodash_1 = require_lodash10();
+    var calculateSlot = require_lib5();
+    var standard_as_callback_1 = require_built2();
+    var commands_1 = require_built();
+    exports2.kExec = /* @__PURE__ */ Symbol("exec");
+    exports2.kCallbacks = /* @__PURE__ */ Symbol("callbacks");
+    exports2.notAllowedAutoPipelineCommands = [
+      "auth",
+      "info",
+      "script",
+      "quit",
+      "cluster",
+      "pipeline",
+      "multi",
+      "subscribe",
+      "psubscribe",
+      "unsubscribe",
+      "unpsubscribe",
+      "select",
+      "client"
+    ];
+    function executeAutoPipeline(client, slotKey) {
+      if (client._runningAutoPipelines.has(slotKey)) {
+        return;
+      }
+      if (!client._autoPipelines.has(slotKey)) {
+        return;
+      }
+      client._runningAutoPipelines.add(slotKey);
+      const pipeline2 = client._autoPipelines.get(slotKey);
+      client._autoPipelines.delete(slotKey);
+      const callbacks = pipeline2[exports2.kCallbacks];
+      pipeline2[exports2.kCallbacks] = null;
+      pipeline2.exec(function(err, results) {
+        client._runningAutoPipelines.delete(slotKey);
+        if (err) {
+          for (let i2 = 0; i2 < callbacks.length; i2++) {
+            process.nextTick(callbacks[i2], err);
+          }
+        } else {
+          for (let i2 = 0; i2 < callbacks.length; i2++) {
+            process.nextTick(callbacks[i2], ...results[i2]);
+          }
+        }
+        if (client._autoPipelines.has(slotKey)) {
+          executeAutoPipeline(client, slotKey);
+        }
+      });
+    }
+    function shouldUseAutoPipelining(client, functionName, commandName) {
+      return functionName && client.options.enableAutoPipelining && !client.isPipeline && !exports2.notAllowedAutoPipelineCommands.includes(commandName) && !client.options.autoPipeliningIgnoredCommands.includes(commandName);
+    }
+    exports2.shouldUseAutoPipelining = shouldUseAutoPipelining;
+    function getFirstValueInFlattenedArray(args) {
+      for (let i2 = 0; i2 < args.length; i2++) {
+        const arg = args[i2];
+        if (typeof arg === "string") {
+          return arg;
+        } else if (Array.isArray(arg) || (0, lodash_1.isArguments)(arg)) {
+          if (arg.length === 0) {
+            continue;
+          }
+          return arg[0];
+        }
+        const flattened = [arg].flat();
+        if (flattened.length > 0) {
+          return flattened[0];
+        }
+      }
+      return void 0;
+    }
+    exports2.getFirstValueInFlattenedArray = getFirstValueInFlattenedArray;
+    function getFirstKeyForCommand(commandName, args) {
+      if ((0, commands_1.exists)(commandName, { caseInsensitive: true })) {
+        const flattenedArgs = args.flat();
+        const keyIndexes = (0, commands_1.getKeyIndexes)(commandName, flattenedArgs, {
+          nameCaseInsensitive: true
+        });
+        if (keyIndexes.length) {
+          return flattenedArgs[keyIndexes[0]];
+        }
+      }
+      return getFirstValueInFlattenedArray(args);
+    }
+    function executeWithAutoPipelining(client, functionName, commandName, args, callback) {
+      if (client.isCluster && !client.slots.length) {
+        if (client.status === "wait")
+          client.connect().catch(lodash_1.noop);
+        return (0, standard_as_callback_1.default)(new Promise(function(resolve, reject) {
+          client.delayUntilReady((err) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            executeWithAutoPipelining(client, functionName, commandName, args, null).then(resolve, reject);
+          });
+        }), callback);
+      }
+      const prefix = client.options.keyPrefix || "";
+      let slotKey = client.isCluster ? client.slots[calculateSlot(`${prefix}${getFirstKeyForCommand(commandName, args)}`)].join(",") : "main";
+      if (client.isCluster && client.options.scaleReads !== "master") {
+        const isReadOnly = (0, commands_1.exists)(commandName) && (0, commands_1.hasFlag)(commandName, "readonly");
+        slotKey += isReadOnly ? ":read" : ":write";
+      }
+      if (!client._autoPipelines.has(slotKey)) {
+        const pipeline3 = client.pipeline();
+        pipeline3[exports2.kExec] = false;
+        pipeline3[exports2.kCallbacks] = [];
+        client._autoPipelines.set(slotKey, pipeline3);
+      }
+      const pipeline2 = client._autoPipelines.get(slotKey);
+      if (!pipeline2[exports2.kExec]) {
+        pipeline2[exports2.kExec] = true;
+        setImmediate(executeAutoPipeline, client, slotKey);
+      }
+      const autoPipelinePromise = new Promise(function(resolve, reject) {
+        pipeline2[exports2.kCallbacks].push(function(err, value) {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(value);
+        });
+        if (functionName === "call") {
+          args.unshift(commandName);
+        }
+        pipeline2[functionName](...args);
+      });
+      return (0, standard_as_callback_1.default)(autoPipelinePromise, callback);
+    }
+    exports2.executeWithAutoPipelining = executeWithAutoPipelining;
+  }
+});
+
+// node_modules/ioredis/built/Script.js
+var require_Script = __commonJS({
+  "node_modules/ioredis/built/Script.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var crypto_1 = require("crypto");
+    var Command_1 = require_Command();
+    var standard_as_callback_1 = require_built2();
+    var Script = class {
+      constructor(lua, numberOfKeys = null, keyPrefix = "", readOnly = false) {
+        this.lua = lua;
+        this.numberOfKeys = numberOfKeys;
+        this.keyPrefix = keyPrefix;
+        this.readOnly = readOnly;
+        this.sha = (0, crypto_1.createHash)("sha1").update(lua).digest("hex");
+        const sha = this.sha;
+        const socketHasScriptLoaded = /* @__PURE__ */ new WeakSet();
+        this.Command = class CustomScriptCommand extends Command_1.default {
+          toWritable(socket) {
+            const origReject = this.reject;
+            this.reject = (err) => {
+              if (err.message.indexOf("NOSCRIPT") !== -1) {
+                socketHasScriptLoaded.delete(socket);
+              }
+              origReject.call(this, err);
+            };
+            if (!socketHasScriptLoaded.has(socket)) {
+              socketHasScriptLoaded.add(socket);
+              this.name = "eval";
+              this.args[0] = lua;
+            } else if (this.name === "eval") {
+              this.name = "evalsha";
+              this.args[0] = sha;
+            }
+            return super.toWritable(socket);
+          }
+        };
+      }
+      execute(container, args, options, callback) {
+        if (typeof this.numberOfKeys === "number") {
+          args.unshift(this.numberOfKeys);
+        }
+        if (this.keyPrefix) {
+          options.keyPrefix = this.keyPrefix;
+        }
+        if (this.readOnly) {
+          options.readOnly = true;
+        }
+        const evalsha = new this.Command("evalsha", [this.sha, ...args], options);
+        evalsha.promise = evalsha.promise.catch((err) => {
+          if (err.message.indexOf("NOSCRIPT") === -1) {
+            throw err;
+          }
+          const resend = new this.Command("evalsha", [this.sha, ...args], options);
+          const client = container.isPipeline ? container.redis : container;
+          return client.sendCommand(resend);
+        });
+        (0, standard_as_callback_1.default)(evalsha.promise, callback);
+        return container.sendCommand(evalsha);
+      }
+    };
+    exports2.default = Script;
+  }
+});
+
+// node_modules/ioredis/built/utils/Commander.js
+var require_Commander = __commonJS({
+  "node_modules/ioredis/built/utils/Commander.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var commands_1 = require_built();
+    var autoPipelining_1 = require_autoPipelining();
+    var Command_1 = require_Command();
+    var Script_1 = require_Script();
+    var Commander = class {
+      constructor() {
+        this.options = {};
+        this.scriptsSet = {};
+        this.addedBuiltinSet = /* @__PURE__ */ new Set();
+      }
+      /**
+       * Return supported builtin commands
+       */
+      getBuiltinCommands() {
+        return commands.slice(0);
+      }
+      /**
+       * Create a builtin command
+       */
+      createBuiltinCommand(commandName) {
+        return {
+          string: generateFunction(null, commandName, "utf8"),
+          buffer: generateFunction(null, commandName, null)
+        };
+      }
+      /**
+       * Create add builtin command
+       */
+      addBuiltinCommand(commandName) {
+        this.addedBuiltinSet.add(commandName);
+        this[commandName] = generateFunction(commandName, commandName, "utf8");
+        this[commandName + "Buffer"] = generateFunction(commandName + "Buffer", commandName, null);
+      }
+      /**
+       * Define a custom command using lua script
+       */
+      defineCommand(name, definition) {
+        const script = new Script_1.default(definition.lua, definition.numberOfKeys, this.options.keyPrefix, definition.readOnly);
+        this.scriptsSet[name] = script;
+        this[name] = generateScriptingFunction(name, name, script, "utf8");
+        this[name + "Buffer"] = generateScriptingFunction(name + "Buffer", name, script, null);
+      }
+      /**
+       * @ignore
+       */
+      sendCommand(command, stream, node2) {
+        throw new Error('"sendCommand" is not implemented');
+      }
+    };
+    var commands = commands_1.list.filter((command) => command !== "monitor");
+    commands.push("sentinel");
+    commands.forEach(function(commandName) {
+      Commander.prototype[commandName] = generateFunction(commandName, commandName, "utf8");
+      Commander.prototype[commandName + "Buffer"] = generateFunction(commandName + "Buffer", commandName, null);
+    });
+    Commander.prototype.call = generateFunction("call", "utf8");
+    Commander.prototype.callBuffer = generateFunction("callBuffer", null);
+    Commander.prototype.send_command = Commander.prototype.call;
+    function generateFunction(functionName, _commandName, _encoding) {
+      if (typeof _encoding === "undefined") {
+        _encoding = _commandName;
+        _commandName = null;
+      }
+      return function(...args) {
+        const commandName = _commandName || args.shift();
+        let callback = args[args.length - 1];
+        if (typeof callback === "function") {
+          args.pop();
+        } else {
+          callback = void 0;
+        }
+        const options = {
+          errorStack: this.options.showFriendlyErrorStack ? new Error() : void 0,
+          keyPrefix: this.options.keyPrefix,
+          replyEncoding: _encoding
+        };
+        if (!(0, autoPipelining_1.shouldUseAutoPipelining)(this, functionName, commandName)) {
+          return this.sendCommand(
+            // @ts-expect-error
+            new Command_1.default(commandName, args, options, callback)
+          );
+        }
+        return (0, autoPipelining_1.executeWithAutoPipelining)(
+          this,
+          functionName,
+          commandName,
+          // @ts-expect-error
+          args,
+          callback
+        );
+      };
+    }
+    function generateScriptingFunction(functionName, commandName, script, encoding) {
+      return function(...args) {
+        const callback = typeof args[args.length - 1] === "function" ? args.pop() : void 0;
+        const options = {
+          replyEncoding: encoding
+        };
+        if (this.options.showFriendlyErrorStack) {
+          options.errorStack = new Error();
+        }
+        if (!(0, autoPipelining_1.shouldUseAutoPipelining)(this, functionName, commandName)) {
+          return script.execute(this, args, options, callback);
+        }
+        return (0, autoPipelining_1.executeWithAutoPipelining)(this, functionName, commandName, args, callback);
+      };
+    }
+    exports2.default = Commander;
+  }
+});
+
+// node_modules/ioredis/built/Pipeline.js
+var require_Pipeline = __commonJS({
+  "node_modules/ioredis/built/Pipeline.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var calculateSlot = require_lib5();
+    var commands_1 = require_built();
+    var standard_as_callback_1 = require_built2();
+    var util_1 = require("util");
+    var Command_1 = require_Command();
+    var buffer_1 = require("buffer");
+    var utils_1 = require_utils7();
+    var Commander_1 = require_Commander();
+    function generateMultiWithNodes(redis, keys) {
+      const slot = calculateSlot(keys[0]);
+      const target = redis._groupsBySlot[slot];
+      for (let i2 = 1; i2 < keys.length; i2++) {
+        if (redis._groupsBySlot[calculateSlot(keys[i2])] !== target) {
+          return -1;
+        }
+      }
+      return slot;
+    }
+    var Pipeline = class extends Commander_1.default {
+      constructor(redis) {
+        super();
+        this.redis = redis;
+        this.isPipeline = true;
+        this.replyPending = 0;
+        this._queue = [];
+        this._result = [];
+        this._transactions = 0;
+        this._shaToScript = {};
+        this.isCluster = this.redis.constructor.name === "Cluster" || this.redis.isCluster;
+        this.options = redis.options;
+        Object.keys(redis.scriptsSet).forEach((name) => {
+          const script = redis.scriptsSet[name];
+          this._shaToScript[script.sha] = script;
+          this[name] = redis[name];
+          this[name + "Buffer"] = redis[name + "Buffer"];
+        });
+        redis.addedBuiltinSet.forEach((name) => {
+          this[name] = redis[name];
+          this[name + "Buffer"] = redis[name + "Buffer"];
+        });
+        this.promise = new Promise((resolve, reject) => {
+          this.resolve = resolve;
+          this.reject = reject;
+        });
+        const _this = this;
+        Object.defineProperty(this, "length", {
+          get: function() {
+            return _this._queue.length;
+          }
+        });
+      }
+      fillResult(value, position) {
+        if (this._queue[position].name === "exec" && Array.isArray(value[1])) {
+          const execLength = value[1].length;
+          for (let i2 = 0; i2 < execLength; i2++) {
+            if (value[1][i2] instanceof Error) {
+              continue;
+            }
+            const cmd = this._queue[position - (execLength - i2)];
+            try {
+              value[1][i2] = cmd.transformReply(value[1][i2]);
+            } catch (err) {
+              value[1][i2] = err;
+            }
+          }
+        }
+        this._result[position] = value;
+        if (--this.replyPending) {
+          return;
+        }
+        if (this.isCluster) {
+          let retriable = true;
+          let commonError;
+          for (let i2 = 0; i2 < this._result.length; ++i2) {
+            const error61 = this._result[i2][0];
+            const command = this._queue[i2];
+            if (error61) {
+              if (command.name === "exec" && error61.message === "EXECABORT Transaction discarded because of previous errors.") {
+                continue;
+              }
+              if (!commonError) {
+                commonError = {
+                  name: error61.name,
+                  message: error61.message
+                };
+              } else if (commonError.name !== error61.name || commonError.message !== error61.message) {
+                retriable = false;
+                break;
+              }
+            } else if (!command.inTransaction) {
+              const isReadOnly = (0, commands_1.exists)(command.name, { caseInsensitive: true }) && (0, commands_1.hasFlag)(command.name, "readonly", { nameCaseInsensitive: true });
+              if (!isReadOnly) {
+                retriable = false;
+                break;
+              }
+            }
+          }
+          if (commonError && retriable) {
+            const _this = this;
+            const errv = commonError.message.split(" ");
+            const queue = this._queue;
+            let inTransaction = false;
+            this._queue = [];
+            for (let i2 = 0; i2 < queue.length; ++i2) {
+              if (errv[0] === "ASK" && !inTransaction && queue[i2].name !== "asking" && (!queue[i2 - 1] || queue[i2 - 1].name !== "asking")) {
+                const asking = new Command_1.default("asking");
+                asking.ignore = true;
+                this.sendCommand(asking);
+              }
+              queue[i2].initPromise();
+              this.sendCommand(queue[i2]);
+              inTransaction = queue[i2].inTransaction;
+            }
+            let matched = true;
+            if (typeof this.leftRedirections === "undefined") {
+              this.leftRedirections = {};
+            }
+            const exec = function() {
+              _this.exec();
+            };
+            const cluster = this.redis;
+            cluster.handleError(commonError, this.leftRedirections, {
+              moved: function(_slot, key) {
+                _this.preferKey = key;
+                if (cluster.slots[errv[1]]) {
+                  if (cluster.slots[errv[1]][0] !== key) {
+                    cluster.slots[errv[1]] = [key];
+                  }
+                } else {
+                  cluster.slots[errv[1]] = [key];
+                }
+                cluster._groupsBySlot[errv[1]] = cluster._groupsIds[cluster.slots[errv[1]].join(";")];
+                cluster.refreshSlotsCache();
+                _this.exec();
+              },
+              ask: function(_slot, key) {
+                _this.preferKey = key;
+                _this.exec();
+              },
+              tryagain: exec,
+              clusterDown: exec,
+              connectionClosed: exec,
+              maxRedirections: () => {
+                matched = false;
+              },
+              defaults: () => {
+                matched = false;
+              }
+            });
+            if (matched) {
+              return;
+            }
+          }
+        }
+        let ignoredCount = 0;
+        for (let i2 = 0; i2 < this._queue.length - ignoredCount; ++i2) {
+          if (this._queue[i2 + ignoredCount].ignore) {
+            ignoredCount += 1;
+          }
+          this._result[i2] = this._result[i2 + ignoredCount];
+        }
+        this.resolve(this._result.slice(0, this._result.length - ignoredCount));
+      }
+      sendCommand(command) {
+        if (this._transactions > 0) {
+          command.inTransaction = true;
+        }
+        const position = this._queue.length;
+        command.pipelineIndex = position;
+        command.promise.then((result) => {
+          this.fillResult([null, result], position);
+        }).catch((error61) => {
+          this.fillResult([error61], position);
+        });
+        this._queue.push(command);
+        return this;
+      }
+      addBatch(commands) {
+        let command, commandName, args;
+        for (let i2 = 0; i2 < commands.length; ++i2) {
+          command = commands[i2];
+          commandName = command[0];
+          args = command.slice(1);
+          this[commandName].apply(this, args);
+        }
+        return this;
+      }
+    };
+    exports2.default = Pipeline;
+    var multi = Pipeline.prototype.multi;
+    Pipeline.prototype.multi = function() {
+      this._transactions += 1;
+      return multi.apply(this, arguments);
+    };
+    var execBuffer = Pipeline.prototype.execBuffer;
+    Pipeline.prototype.execBuffer = (0, util_1.deprecate)(function() {
+      if (this._transactions > 0) {
+        this._transactions -= 1;
+      }
+      return execBuffer.apply(this, arguments);
+    }, "Pipeline#execBuffer: Use Pipeline#exec instead");
+    Pipeline.prototype.exec = function(callback) {
+      if (this.isCluster && !this.redis.slots.length) {
+        if (this.redis.status === "wait")
+          this.redis.connect().catch(utils_1.noop);
+        if (callback && !this.nodeifiedPromise) {
+          this.nodeifiedPromise = true;
+          (0, standard_as_callback_1.default)(this.promise, callback);
+        }
+        this.redis.delayUntilReady((err) => {
+          if (err) {
+            this.reject(err);
+            return;
+          }
+          this.exec(callback);
+        });
+        return this.promise;
+      }
+      if (this._transactions > 0) {
+        this._transactions -= 1;
+        return execBuffer.apply(this, arguments);
+      }
+      if (!this.nodeifiedPromise) {
+        this.nodeifiedPromise = true;
+        (0, standard_as_callback_1.default)(this.promise, callback);
+      }
+      if (!this._queue.length) {
+        this.resolve([]);
+      }
+      let pipelineSlot;
+      if (this.isCluster) {
+        const sampleKeys = [];
+        for (let i2 = 0; i2 < this._queue.length; i2++) {
+          const keys = this._queue[i2].getKeys();
+          if (keys.length) {
+            sampleKeys.push(keys[0]);
+          }
+          if (keys.length && calculateSlot.generateMulti(keys) < 0) {
+            this.reject(new Error("All the keys in a pipeline command should belong to the same slot"));
+            return this.promise;
+          }
+        }
+        if (sampleKeys.length) {
+          pipelineSlot = generateMultiWithNodes(this.redis, sampleKeys);
+          if (pipelineSlot < 0) {
+            this.reject(new Error("All keys in the pipeline should belong to the same slots allocation group"));
+            return this.promise;
+          }
+        } else {
+          pipelineSlot = Math.random() * 16384 | 0;
+        }
+      }
+      const _this = this;
+      execPipeline();
+      return this.promise;
+      function execPipeline() {
+        let writePending = _this.replyPending = _this._queue.length;
+        let node2;
+        if (_this.isCluster) {
+          node2 = {
+            slot: pipelineSlot,
+            redis: _this.redis.connectionPool.nodes.all[_this.preferKey]
+          };
+        }
+        let data = "";
+        let buffers;
+        const stream = {
+          isPipeline: true,
+          destination: _this.isCluster ? node2 : { redis: _this.redis },
+          write(writable) {
+            if (typeof writable !== "string") {
+              if (!buffers) {
+                buffers = [];
+              }
+              if (data) {
+                buffers.push(Buffer.from(data, "utf8"));
+                data = "";
+              }
+              buffers.push(writable);
+            } else {
+              if (data.length + writable.length >= buffer_1.constants.MAX_STRING_LENGTH) {
+                if (!buffers) {
+                  buffers = [];
+                }
+                if (data) {
+                  buffers.push(Buffer.from(data, "utf8"));
+                  data = "";
+                }
+              }
+              data += writable;
+            }
+            if (!--writePending) {
+              if (buffers) {
+                if (data) {
+                  buffers.push(Buffer.from(data, "utf8"));
+                }
+                stream.destination.redis.stream.write(Buffer.concat(buffers));
+              } else {
+                stream.destination.redis.stream.write(data);
+              }
+              writePending = _this._queue.length;
+              data = "";
+              buffers = void 0;
+            }
+          }
+        };
+        for (let i2 = 0; i2 < _this._queue.length; ++i2) {
+          _this.redis.sendCommand(_this._queue[i2], stream, node2);
+        }
+        return _this.promise;
+      }
+    };
+  }
+});
+
+// node_modules/ioredis/built/tracing.js
+var require_tracing = __commonJS({
+  "node_modules/ioredis/built/tracing.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.traceConnect = exports2.traceBatch = exports2.traceCommand = exports2.sanitizeArgs = void 0;
+    var SERIALIZATION_SUBSETS = [
+      { regex: /^ECHO/i, args: 0 },
+      {
+        regex: /^(LPUSH|MSET|PFA|PUBLISH|RPUSH|SADD|SET|SPUBLISH|XADD|ZADD)/i,
+        args: 1
+      },
+      { regex: /^(HSET|HMSET|LSET|LINSERT)/i, args: 2 },
+      {
+        regex: /^(ACL|BIT|B[LRZ]|CLIENT|CLUSTER|CONFIG|COMMAND|DECR|DEL|EVAL|EX|FUNCTION|GEO|GET|HINCR|HMGET|HSCAN|INCR|L[TRLM]|MEMORY|P[EFISTU]|RPOP|S[CDIMORSU]|XACK|X[CDGILPRT]|Z[CDILMPRS])/i,
+        args: -1
+      }
+    ];
+    function sanitizeArgs(commandName, args) {
+      let allowedArgCount = 0;
+      for (const subset of SERIALIZATION_SUBSETS) {
+        if (subset.regex.test(commandName)) {
+          allowedArgCount = subset.args;
+          break;
+        }
+      }
+      if (allowedArgCount === -1) {
+        return args.map((a) => String(a));
+      }
+      const result = [];
+      for (let i2 = 0; i2 < args.length; i2++) {
+        if (i2 < allowedArgCount) {
+          result.push(String(args[i2]));
+        } else {
+          result.push("?");
+        }
+      }
+      return result;
+    }
+    exports2.sanitizeArgs = sanitizeArgs;
+    var dc = (() => {
+      try {
+        return "getBuiltinModule" in process ? process.getBuiltinModule("node:diagnostics_channel") : require("node:diagnostics_channel");
+      } catch {
+        return void 0;
+      }
+    })();
+    var hasTracingChannel = dc && typeof dc.tracingChannel === "function";
+    var commandChannel = hasTracingChannel ? dc.tracingChannel("ioredis:command") : void 0;
+    var batchChannel = hasTracingChannel ? dc.tracingChannel("ioredis:batch") : void 0;
+    var connectChannel = hasTracingChannel ? dc.tracingChannel("ioredis:connect") : void 0;
+    function shouldTrace(channel) {
+      return !!channel && channel.hasSubscribers !== false;
+    }
+    var noop2 = () => {
+    };
+    function traceCommand(fn, contextFactory) {
+      if (!shouldTrace(commandChannel))
+        return fn();
+      const traced = commandChannel.tracePromise(fn, contextFactory());
+      traced.catch(noop2);
+      return traced;
+    }
+    exports2.traceCommand = traceCommand;
+    function traceBatch(fn, contextFactory) {
+      if (!shouldTrace(batchChannel))
+        return fn();
+      const traced = batchChannel.tracePromise(fn, contextFactory());
+      traced.catch(noop2);
+      return traced;
+    }
+    exports2.traceBatch = traceBatch;
+    function traceConnect(fn, contextFactory) {
+      if (!shouldTrace(connectChannel))
+        return fn();
+      return connectChannel.tracePromise(fn, contextFactory());
+    }
+    exports2.traceConnect = traceConnect;
+  }
+});
+
+// node_modules/ioredis/built/transaction.js
+var require_transaction2 = __commonJS({
+  "node_modules/ioredis/built/transaction.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.addTransactionSupport = void 0;
+    var utils_1 = require_utils7();
+    var standard_as_callback_1 = require_built2();
+    var Pipeline_1 = require_Pipeline();
+    var tracing_1 = require_tracing();
+    function addTransactionSupport(redis) {
+      redis.pipeline = function(commands) {
+        const pipeline2 = new Pipeline_1.default(this);
+        if (Array.isArray(commands)) {
+          pipeline2.addBatch(commands);
+        }
+        return pipeline2;
+      };
+      const { multi } = redis;
+      redis.multi = function(commands, options) {
+        if (typeof options === "undefined" && !Array.isArray(commands)) {
+          options = commands;
+          commands = null;
+        }
+        if (options && options.pipeline === false) {
+          return multi.call(this);
+        }
+        const pipeline2 = new Pipeline_1.default(this);
+        pipeline2.multi();
+        if (Array.isArray(commands)) {
+          pipeline2.addBatch(commands);
+        }
+        const exec2 = pipeline2.exec;
+        pipeline2.exec = function(callback) {
+          if (this.isCluster && !this.redis.slots.length) {
+            if (this.redis.status === "wait")
+              this.redis.connect().catch(utils_1.noop);
+            return (0, standard_as_callback_1.default)(new Promise((resolve, reject) => {
+              this.redis.delayUntilReady((err) => {
+                if (err) {
+                  reject(err);
+                  return;
+                }
+                this.exec(pipeline2).then(resolve, reject);
+              });
+            }), callback);
+          }
+          if (this._transactions > 0) {
+            exec2.call(pipeline2);
+          }
+          if (this.nodeifiedPromise) {
+            return exec2.call(pipeline2);
+          }
+          const batchSize = Math.max(pipeline2.length - 2, 0);
+          const execAndUnwrap = () => exec2.call(pipeline2).then(function(result) {
+            const execResult = result[result.length - 1];
+            if (typeof execResult === "undefined") {
+              throw new Error("Pipeline cannot be used to send any commands when the `exec()` has been called on it.");
+            }
+            if (execResult[0]) {
+              execResult[0].previousErrors = [];
+              for (let i2 = 0; i2 < result.length - 1; ++i2) {
+                if (result[i2][0]) {
+                  execResult[0].previousErrors.push(result[i2][0]);
+                }
+              }
+              throw execResult[0];
+            }
+            return (0, utils_1.wrapMultiResult)(execResult[1]);
+          });
+          const promise2 = "_buildBatchContext" in this.redis ? (0, tracing_1.traceBatch)(execAndUnwrap, () => this.redis._buildBatchContext(batchSize)) : execAndUnwrap();
+          return (0, standard_as_callback_1.default)(promise2, callback);
+        };
+        const { execBuffer } = pipeline2;
+        pipeline2.execBuffer = function(callback) {
+          if (this._transactions > 0) {
+            execBuffer.call(pipeline2);
+          }
+          return pipeline2.exec(callback);
+        };
+        return pipeline2;
+      };
+      const { exec } = redis;
+      redis.exec = function(callback) {
+        return (0, standard_as_callback_1.default)(exec.call(this).then(function(results) {
+          if (Array.isArray(results)) {
+            results = (0, utils_1.wrapMultiResult)(results);
+          }
+          return results;
+        }), callback);
+      };
+    }
+    exports2.addTransactionSupport = addTransactionSupport;
+  }
+});
+
+// node_modules/ioredis/built/utils/applyMixin.js
+var require_applyMixin = __commonJS({
+  "node_modules/ioredis/built/utils/applyMixin.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    function applyMixin(derivedConstructor, mixinConstructor) {
+      Object.getOwnPropertyNames(mixinConstructor.prototype).forEach((name) => {
+        Object.defineProperty(derivedConstructor.prototype, name, Object.getOwnPropertyDescriptor(mixinConstructor.prototype, name));
+      });
+    }
+    exports2.default = applyMixin;
+  }
+});
+
+// node_modules/ioredis/built/cluster/ClusterOptions.js
+var require_ClusterOptions = __commonJS({
+  "node_modules/ioredis/built/cluster/ClusterOptions.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.DEFAULT_CLUSTER_OPTIONS = void 0;
+    var dns_1 = require("dns");
+    exports2.DEFAULT_CLUSTER_OPTIONS = {
+      clusterRetryStrategy: (times) => Math.min(100 + times * 2, 2e3),
+      clusterNodeRetryStrategy: null,
+      enableOfflineQueue: true,
+      enableReadyCheck: true,
+      scaleReads: "master",
+      maxRedirections: 16,
+      retryDelayOnMoved: 0,
+      retryDelayOnFailover: 100,
+      retryDelayOnClusterDown: 100,
+      retryDelayOnTryAgain: 100,
+      slotsRefreshTimeout: 1e3,
+      useSRVRecords: false,
+      resolveSrv: dns_1.resolveSrv,
+      dnsLookup: dns_1.lookup,
+      enableAutoPipelining: false,
+      autoPipeliningIgnoredCommands: [],
+      shardedSubscribers: false
+    };
+  }
+});
+
+// node_modules/ioredis/built/cluster/util.js
+var require_util9 = __commonJS({
+  "node_modules/ioredis/built/cluster/util.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.getConnectionName = exports2.weightSrvRecords = exports2.groupSrvRecords = exports2.getUniqueHostnamesFromOptions = exports2.normalizeNodeOptions = exports2.nodeKeyToRedisOptions = exports2.getNodeKey = void 0;
+    var utils_1 = require_utils7();
+    var net_1 = require("net");
+    function getNodeKey(node2) {
+      node2.port = node2.port || 6379;
+      node2.host = node2.host || "127.0.0.1";
+      return node2.host + ":" + node2.port;
+    }
+    exports2.getNodeKey = getNodeKey;
+    function nodeKeyToRedisOptions(nodeKey) {
+      const portIndex = nodeKey.lastIndexOf(":");
+      if (portIndex === -1) {
+        throw new Error(`Invalid node key ${nodeKey}`);
+      }
+      return {
+        host: nodeKey.slice(0, portIndex),
+        port: Number(nodeKey.slice(portIndex + 1))
+      };
+    }
+    exports2.nodeKeyToRedisOptions = nodeKeyToRedisOptions;
+    function normalizeNodeOptions(nodes) {
+      return nodes.map((node2) => {
+        const options = {};
+        if (typeof node2 === "object") {
+          Object.assign(options, node2);
+        } else if (typeof node2 === "string") {
+          Object.assign(options, (0, utils_1.parseURL)(node2));
+        } else if (typeof node2 === "number") {
+          options.port = node2;
+        } else {
+          throw new Error("Invalid argument " + node2);
+        }
+        if (typeof options.port === "string") {
+          options.port = parseInt(options.port, 10);
+        }
+        delete options.db;
+        if (!options.port) {
+          options.port = 6379;
+        }
+        if (!options.host) {
+          options.host = "127.0.0.1";
+        }
+        return (0, utils_1.resolveTLSProfile)(options);
+      });
+    }
+    exports2.normalizeNodeOptions = normalizeNodeOptions;
+    function getUniqueHostnamesFromOptions(nodes) {
+      const uniqueHostsMap = {};
+      nodes.forEach((node2) => {
+        uniqueHostsMap[node2.host] = true;
+      });
+      return Object.keys(uniqueHostsMap).filter((host) => !(0, net_1.isIP)(host));
+    }
+    exports2.getUniqueHostnamesFromOptions = getUniqueHostnamesFromOptions;
+    function groupSrvRecords(records) {
+      const recordsByPriority = {};
+      for (const record2 of records) {
+        if (!recordsByPriority.hasOwnProperty(record2.priority)) {
+          recordsByPriority[record2.priority] = {
+            totalWeight: record2.weight,
+            records: [record2]
+          };
+        } else {
+          recordsByPriority[record2.priority].totalWeight += record2.weight;
+          recordsByPriority[record2.priority].records.push(record2);
+        }
+      }
+      return recordsByPriority;
+    }
+    exports2.groupSrvRecords = groupSrvRecords;
+    function weightSrvRecords(recordsGroup) {
+      if (recordsGroup.records.length === 1) {
+        recordsGroup.totalWeight = 0;
+        return recordsGroup.records.shift();
+      }
+      const random = Math.floor(Math.random() * (recordsGroup.totalWeight + recordsGroup.records.length));
+      let total = 0;
+      for (const [i2, record2] of recordsGroup.records.entries()) {
+        total += 1 + record2.weight;
+        if (total > random) {
+          recordsGroup.totalWeight -= record2.weight;
+          recordsGroup.records.splice(i2, 1);
+          return record2;
+        }
+      }
+    }
+    exports2.weightSrvRecords = weightSrvRecords;
+    function getConnectionName(component, nodeConnectionName) {
+      const prefix = `ioredis-cluster(${component})`;
+      return nodeConnectionName ? `${prefix}:${nodeConnectionName}` : prefix;
+    }
+    exports2.getConnectionName = getConnectionName;
+  }
+});
+
+// node_modules/ioredis/built/cluster/ClusterSubscriber.js
+var require_ClusterSubscriber = __commonJS({
+  "node_modules/ioredis/built/cluster/ClusterSubscriber.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var util_1 = require_util9();
+    var utils_1 = require_utils7();
+    var Redis_1 = require_Redis();
+    var debug = (0, utils_1.Debug)("cluster:subscriber");
+    var ClusterSubscriber = class {
+      constructor(connectionPool, emitter, isSharded = false) {
+        this.connectionPool = connectionPool;
+        this.emitter = emitter;
+        this.isSharded = isSharded;
+        this.started = false;
+        this.subscriber = null;
+        this.slotRange = [];
+        this.onSubscriberEnd = () => {
+          if (!this.started) {
+            debug("subscriber has disconnected, but ClusterSubscriber is not started, so not reconnecting.");
+            return;
+          }
+          debug("subscriber has disconnected, selecting a new one...");
+          this.selectSubscriber();
+        };
+        this.connectionPool.on("-node", (_, key) => {
+          if (!this.started || !this.subscriber) {
+            return;
+          }
+          if ((0, util_1.getNodeKey)(this.subscriber.options) === key) {
+            debug("subscriber has left, selecting a new one...");
+            this.selectSubscriber();
+          }
+        });
+        this.connectionPool.on("+node", () => {
+          if (!this.started || this.subscriber) {
+            return;
+          }
+          debug("a new node is discovered and there is no subscriber, selecting a new one...");
+          this.selectSubscriber();
+        });
+      }
+      getInstance() {
+        return this.subscriber;
+      }
+      /**
+       * Associate this subscriber to a specific slot range.
+       *
+       * Returns the range or an empty array if the slot range couldn't be associated.
+       *
+       * BTW: This is more for debugging and testing purposes.
+       *
+       * @param range
+       */
+      associateSlotRange(range) {
+        if (this.isSharded) {
+          this.slotRange = range;
+        }
+        return this.slotRange;
+      }
+      start() {
+        this.started = true;
+        this.selectSubscriber();
+        debug("started");
+      }
+      stop() {
+        this.started = false;
+        if (this.subscriber) {
+          this.subscriber.disconnect();
+          this.subscriber = null;
+        }
+      }
+      isStarted() {
+        return this.started;
+      }
+      selectSubscriber() {
+        const lastActiveSubscriber = this.lastActiveSubscriber;
+        if (lastActiveSubscriber) {
+          lastActiveSubscriber.off("end", this.onSubscriberEnd);
+          lastActiveSubscriber.disconnect();
+        }
+        if (this.subscriber) {
+          this.subscriber.off("end", this.onSubscriberEnd);
+          this.subscriber.disconnect();
+        }
+        const sampleNode = (0, utils_1.sample)(this.connectionPool.getNodes());
+        if (!sampleNode) {
+          debug("selecting subscriber failed since there is no node discovered in the cluster yet");
+          this.subscriber = null;
+          return;
+        }
+        const { options } = sampleNode;
+        debug("selected a subscriber %s:%s", options.host, options.port);
+        let connectionPrefix = "subscriber";
+        if (this.isSharded)
+          connectionPrefix = "ssubscriber";
+        this.subscriber = new Redis_1.default({
+          port: options.port,
+          host: options.host,
+          username: options.username,
+          password: options.password,
+          enableReadyCheck: true,
+          connectionName: (0, util_1.getConnectionName)(connectionPrefix, options.connectionName),
+          lazyConnect: true,
+          tls: options.tls,
+          // Don't try to reconnect the subscriber connection. If the connection fails
+          // we will get an end event (handled below), at which point we'll pick a new
+          // node from the pool and try to connect to that as the subscriber connection.
+          retryStrategy: null
+        });
+        this.subscriber.on("error", utils_1.noop);
+        this.subscriber.on("moved", () => {
+          this.emitter.emit("forceRefresh");
+        });
+        this.subscriber.once("end", this.onSubscriberEnd);
+        const previousChannels = { subscribe: [], psubscribe: [], ssubscribe: [] };
+        if (lastActiveSubscriber) {
+          const condition = lastActiveSubscriber.condition || lastActiveSubscriber.prevCondition;
+          if (condition && condition.subscriber) {
+            previousChannels.subscribe = condition.subscriber.channels("subscribe");
+            previousChannels.psubscribe = condition.subscriber.channels("psubscribe");
+            previousChannels.ssubscribe = condition.subscriber.channels("ssubscribe");
+          }
+        }
+        if (previousChannels.subscribe.length || previousChannels.psubscribe.length || previousChannels.ssubscribe.length) {
+          let pending = 0;
+          for (const type of ["subscribe", "psubscribe", "ssubscribe"]) {
+            const channels = previousChannels[type];
+            if (channels.length == 0) {
+              continue;
+            }
+            debug("%s %d channels", type, channels.length);
+            if (type === "ssubscribe") {
+              for (const channel of channels) {
+                pending += 1;
+                this.subscriber[type](channel).then(() => {
+                  if (!--pending) {
+                    this.lastActiveSubscriber = this.subscriber;
+                  }
+                }).catch(() => {
+                  debug("failed to ssubscribe to channel: %s", channel);
+                });
+              }
+            } else {
+              pending += 1;
+              this.subscriber[type](channels).then(() => {
+                if (!--pending) {
+                  this.lastActiveSubscriber = this.subscriber;
+                }
+              }).catch(() => {
+                debug("failed to %s %d channels", type, channels.length);
+              });
+            }
+          }
+        } else {
+          this.lastActiveSubscriber = this.subscriber;
+        }
+        for (const event of [
+          "message",
+          "messageBuffer"
+        ]) {
+          this.subscriber.on(event, (arg1, arg2) => {
+            this.emitter.emit(event, arg1, arg2);
+          });
+        }
+        for (const event of ["pmessage", "pmessageBuffer"]) {
+          this.subscriber.on(event, (arg1, arg2, arg3) => {
+            this.emitter.emit(event, arg1, arg2, arg3);
+          });
+        }
+        if (this.isSharded == true) {
+          for (const event of [
+            "smessage",
+            "smessageBuffer"
+          ]) {
+            this.subscriber.on(event, (arg1, arg2) => {
+              this.emitter.emit(event, arg1, arg2);
+            });
+          }
+        }
+      }
+    };
+    exports2.default = ClusterSubscriber;
+  }
+});
+
+// node_modules/ioredis/built/cluster/ConnectionPool.js
+var require_ConnectionPool = __commonJS({
+  "node_modules/ioredis/built/cluster/ConnectionPool.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var events_1 = require("events");
+    var utils_1 = require_utils7();
+    var util_1 = require_util9();
+    var Redis_1 = require_Redis();
+    var debug = (0, utils_1.Debug)("cluster:connectionPool");
+    var ConnectionPool = class extends events_1.EventEmitter {
+      constructor(redisOptions, clusterNodeRetryStrategy = null) {
+        super();
+        this.redisOptions = redisOptions;
+        this.clusterNodeRetryStrategy = clusterNodeRetryStrategy;
+        this.nodes = {
+          all: {},
+          master: {},
+          slave: {}
+        };
+        this.specifiedOptions = {};
+      }
+      getNodes(role = "all") {
+        const nodes = this.nodes[role];
+        return Object.keys(nodes).map((key) => nodes[key]);
+      }
+      getInstanceByKey(key) {
+        return this.nodes.all[key];
+      }
+      getSampleInstance(role) {
+        const keys = Object.keys(this.nodes[role]);
+        const sampleKey = (0, utils_1.sample)(keys);
+        return this.nodes[role][sampleKey];
+      }
+      /**
+       * Add a master node to the pool
+       * @param node
+       */
+      addMasterNode(node2) {
+        const key = (0, util_1.getNodeKey)(node2.options);
+        const redis = this.createRedisFromOptions(node2, node2.options.readOnly);
+        if (!node2.options.readOnly) {
+          this.nodes.all[key] = redis;
+          this.nodes.master[key] = redis;
+          return true;
+        }
+        return false;
+      }
+      /**
+       * Creates a Redis connection instance from the node options
+       * @param node
+       * @param readOnly
+       */
+      createRedisFromOptions(node2, readOnly) {
+        const redis = new Redis_1.default((0, utils_1.defaults)({
+          // By default, never try to reconnect when a node is lost,
+          // instead, waiting for a `MOVED` error and fetching slots again.
+          // When `clusterNodeRetryStrategy` is set, use it to allow
+          // reconnection (e.g. for replica nodes that restart without
+          // any slot changes).
+          retryStrategy: typeof this.clusterNodeRetryStrategy === "function" ? this.clusterNodeRetryStrategy : null,
+          // Offline queue should be enabled so that
+          // we don't need to wait for the `ready` event
+          // before sending commands to the node.
+          enableOfflineQueue: true,
+          readOnly
+        }, node2, this.redisOptions, { lazyConnect: true }));
+        return redis;
+      }
+      /**
+       * Find or create a connection to the node
+       */
+      findOrCreate(node2, readOnly = false) {
+        const key = (0, util_1.getNodeKey)(node2);
+        readOnly = Boolean(readOnly);
+        if (this.specifiedOptions[key]) {
+          Object.assign(node2, this.specifiedOptions[key]);
+        } else {
+          this.specifiedOptions[key] = node2;
+        }
+        let redis;
+        if (this.nodes.all[key]) {
+          redis = this.nodes.all[key];
+          if (redis.options.readOnly !== readOnly) {
+            redis.options.readOnly = readOnly;
+            debug("Change role of %s to %s", key, readOnly ? "slave" : "master");
+            redis[readOnly ? "readonly" : "readwrite"]().catch(utils_1.noop);
+            if (readOnly) {
+              delete this.nodes.master[key];
+              this.nodes.slave[key] = redis;
+            } else {
+              delete this.nodes.slave[key];
+              this.nodes.master[key] = redis;
+            }
+          }
+        } else {
+          debug("Connecting to %s as %s", key, readOnly ? "slave" : "master");
+          redis = this.createRedisFromOptions(node2, readOnly);
+          this.nodes.all[key] = redis;
+          this.nodes[readOnly ? "slave" : "master"][key] = redis;
+          redis.once("end", () => {
+            this.removeNode(key);
+            this.emit("-node", redis, key);
+            if (!Object.keys(this.nodes.all).length) {
+              this.emit("drain");
+            }
+          });
+          this.emit("+node", redis, key);
+          redis.on("error", (error61) => {
+            this.emit("nodeError", error61, key);
+          });
+        }
+        return redis;
+      }
+      /**
+       * Reset the pool with a set of nodes.
+       * The old node will be removed.
+       */
+      reset(nodes) {
+        debug("Reset with %O", nodes);
+        const newNodes = {};
+        nodes.forEach((node2) => {
+          const key = (0, util_1.getNodeKey)(node2);
+          if (!(node2.readOnly && newNodes[key])) {
+            newNodes[key] = node2;
+          }
+        });
+        Object.keys(this.nodes.all).forEach((key) => {
+          if (!newNodes[key]) {
+            debug("Disconnect %s because the node does not hold any slot", key);
+            this.nodes.all[key].disconnect();
+            this.removeNode(key);
+          }
+        });
+        Object.keys(newNodes).forEach((key) => {
+          const node2 = newNodes[key];
+          this.findOrCreate(node2, node2.readOnly);
+        });
+      }
+      /**
+       * Remove a node from the pool.
+       */
+      removeNode(key) {
+        const { nodes } = this;
+        if (nodes.all[key]) {
+          debug("Remove %s from the pool", key);
+          delete nodes.all[key];
+        }
+        delete nodes.master[key];
+        delete nodes.slave[key];
+      }
+    };
+    exports2.default = ConnectionPool;
+  }
+});
+
+// node_modules/denque/index.js
+var require_denque = __commonJS({
+  "node_modules/denque/index.js"(exports2, module2) {
+    "use strict";
+    function Denque(array2, options) {
+      var options = options || {};
+      this._capacity = options.capacity;
+      this._head = 0;
+      this._tail = 0;
+      if (Array.isArray(array2)) {
+        this._fromArray(array2);
+      } else {
+        this._capacityMask = 3;
+        this._list = new Array(4);
+      }
+    }
+    Denque.prototype.peekAt = function peekAt(index) {
+      var i2 = index;
+      if (i2 !== (i2 | 0)) {
+        return void 0;
+      }
+      var len = this.size();
+      if (i2 >= len || i2 < -len) return void 0;
+      if (i2 < 0) i2 += len;
+      i2 = this._head + i2 & this._capacityMask;
+      return this._list[i2];
+    };
+    Denque.prototype.get = function get(i2) {
+      return this.peekAt(i2);
+    };
+    Denque.prototype.peek = function peek() {
+      if (this._head === this._tail) return void 0;
+      return this._list[this._head];
+    };
+    Denque.prototype.peekFront = function peekFront() {
+      return this.peek();
+    };
+    Denque.prototype.peekBack = function peekBack() {
+      return this.peekAt(-1);
+    };
+    Object.defineProperty(Denque.prototype, "length", {
+      get: function length() {
+        return this.size();
+      }
+    });
+    Denque.prototype.size = function size() {
+      if (this._head === this._tail) return 0;
+      if (this._head < this._tail) return this._tail - this._head;
+      else return this._capacityMask + 1 - (this._head - this._tail);
+    };
+    Denque.prototype.unshift = function unshift(item) {
+      if (arguments.length === 0) return this.size();
+      var len = this._list.length;
+      this._head = this._head - 1 + len & this._capacityMask;
+      this._list[this._head] = item;
+      if (this._tail === this._head) this._growArray();
+      if (this._capacity && this.size() > this._capacity) this.pop();
+      if (this._head < this._tail) return this._tail - this._head;
+      else return this._capacityMask + 1 - (this._head - this._tail);
+    };
+    Denque.prototype.shift = function shift() {
+      var head = this._head;
+      if (head === this._tail) return void 0;
+      var item = this._list[head];
+      this._list[head] = void 0;
+      this._head = head + 1 & this._capacityMask;
+      if (head < 2 && this._tail > 1e4 && this._tail <= this._list.length >>> 2) this._shrinkArray();
+      return item;
+    };
+    Denque.prototype.push = function push(item) {
+      if (arguments.length === 0) return this.size();
+      var tail = this._tail;
+      this._list[tail] = item;
+      this._tail = tail + 1 & this._capacityMask;
+      if (this._tail === this._head) {
+        this._growArray();
+      }
+      if (this._capacity && this.size() > this._capacity) {
+        this.shift();
+      }
+      if (this._head < this._tail) return this._tail - this._head;
+      else return this._capacityMask + 1 - (this._head - this._tail);
+    };
+    Denque.prototype.pop = function pop() {
+      var tail = this._tail;
+      if (tail === this._head) return void 0;
+      var len = this._list.length;
+      this._tail = tail - 1 + len & this._capacityMask;
+      var item = this._list[this._tail];
+      this._list[this._tail] = void 0;
+      if (this._head < 2 && tail > 1e4 && tail <= len >>> 2) this._shrinkArray();
+      return item;
+    };
+    Denque.prototype.removeOne = function removeOne(index) {
+      var i2 = index;
+      if (i2 !== (i2 | 0)) {
+        return void 0;
+      }
+      if (this._head === this._tail) return void 0;
+      var size = this.size();
+      var len = this._list.length;
+      if (i2 >= size || i2 < -size) return void 0;
+      if (i2 < 0) i2 += size;
+      i2 = this._head + i2 & this._capacityMask;
+      var item = this._list[i2];
+      var k;
+      if (index < size / 2) {
+        for (k = index; k > 0; k--) {
+          this._list[i2] = this._list[i2 = i2 - 1 + len & this._capacityMask];
+        }
+        this._list[i2] = void 0;
+        this._head = this._head + 1 + len & this._capacityMask;
+      } else {
+        for (k = size - 1 - index; k > 0; k--) {
+          this._list[i2] = this._list[i2 = i2 + 1 + len & this._capacityMask];
+        }
+        this._list[i2] = void 0;
+        this._tail = this._tail - 1 + len & this._capacityMask;
+      }
+      return item;
+    };
+    Denque.prototype.remove = function remove(index, count) {
+      var i2 = index;
+      var removed;
+      var del_count = count;
+      if (i2 !== (i2 | 0)) {
+        return void 0;
+      }
+      if (this._head === this._tail) return void 0;
+      var size = this.size();
+      var len = this._list.length;
+      if (i2 >= size || i2 < -size || count < 1) return void 0;
+      if (i2 < 0) i2 += size;
+      if (count === 1 || !count) {
+        removed = new Array(1);
+        removed[0] = this.removeOne(i2);
+        return removed;
+      }
+      if (i2 === 0 && i2 + count >= size) {
+        removed = this.toArray();
+        this.clear();
+        return removed;
+      }
+      if (i2 + count > size) count = size - i2;
+      var k;
+      removed = new Array(count);
+      for (k = 0; k < count; k++) {
+        removed[k] = this._list[this._head + i2 + k & this._capacityMask];
+      }
+      i2 = this._head + i2 & this._capacityMask;
+      if (index + count === size) {
+        this._tail = this._tail - count + len & this._capacityMask;
+        for (k = count; k > 0; k--) {
+          this._list[i2 = i2 + 1 + len & this._capacityMask] = void 0;
+        }
+        return removed;
+      }
+      if (index === 0) {
+        this._head = this._head + count + len & this._capacityMask;
+        for (k = count - 1; k > 0; k--) {
+          this._list[i2 = i2 + 1 + len & this._capacityMask] = void 0;
+        }
+        return removed;
+      }
+      if (i2 < size / 2) {
+        this._head = this._head + index + count + len & this._capacityMask;
+        for (k = index; k > 0; k--) {
+          this.unshift(this._list[i2 = i2 - 1 + len & this._capacityMask]);
+        }
+        i2 = this._head - 1 + len & this._capacityMask;
+        while (del_count > 0) {
+          this._list[i2 = i2 - 1 + len & this._capacityMask] = void 0;
+          del_count--;
+        }
+        if (index < 0) this._tail = i2;
+      } else {
+        this._tail = i2;
+        i2 = i2 + count + len & this._capacityMask;
+        for (k = size - (count + index); k > 0; k--) {
+          this.push(this._list[i2++]);
+        }
+        i2 = this._tail;
+        while (del_count > 0) {
+          this._list[i2 = i2 + 1 + len & this._capacityMask] = void 0;
+          del_count--;
+        }
+      }
+      if (this._head < 2 && this._tail > 1e4 && this._tail <= len >>> 2) this._shrinkArray();
+      return removed;
+    };
+    Denque.prototype.splice = function splice(index, count) {
+      var i2 = index;
+      if (i2 !== (i2 | 0)) {
+        return void 0;
+      }
+      var size = this.size();
+      if (i2 < 0) i2 += size;
+      if (i2 > size) return void 0;
+      if (arguments.length > 2) {
+        var k;
+        var temp;
+        var removed;
+        var arg_len = arguments.length;
+        var len = this._list.length;
+        var arguments_index = 2;
+        if (!size || i2 < size / 2) {
+          temp = new Array(i2);
+          for (k = 0; k < i2; k++) {
+            temp[k] = this._list[this._head + k & this._capacityMask];
+          }
+          if (count === 0) {
+            removed = [];
+            if (i2 > 0) {
+              this._head = this._head + i2 + len & this._capacityMask;
+            }
+          } else {
+            removed = this.remove(i2, count);
+            this._head = this._head + i2 + len & this._capacityMask;
+          }
+          while (arg_len > arguments_index) {
+            this.unshift(arguments[--arg_len]);
+          }
+          for (k = i2; k > 0; k--) {
+            this.unshift(temp[k - 1]);
+          }
+        } else {
+          temp = new Array(size - (i2 + count));
+          var leng = temp.length;
+          for (k = 0; k < leng; k++) {
+            temp[k] = this._list[this._head + i2 + count + k & this._capacityMask];
+          }
+          if (count === 0) {
+            removed = [];
+            if (i2 != size) {
+              this._tail = this._head + i2 + len & this._capacityMask;
+            }
+          } else {
+            removed = this.remove(i2, count);
+            this._tail = this._tail - leng + len & this._capacityMask;
+          }
+          while (arguments_index < arg_len) {
+            this.push(arguments[arguments_index++]);
+          }
+          for (k = 0; k < leng; k++) {
+            this.push(temp[k]);
+          }
+        }
+        return removed;
+      } else {
+        return this.remove(i2, count);
+      }
+    };
+    Denque.prototype.clear = function clear() {
+      this._list = new Array(this._list.length);
+      this._head = 0;
+      this._tail = 0;
+    };
+    Denque.prototype.isEmpty = function isEmpty() {
+      return this._head === this._tail;
+    };
+    Denque.prototype.toArray = function toArray() {
+      return this._copyArray(false);
+    };
+    Denque.prototype._fromArray = function _fromArray(array2) {
+      var length = array2.length;
+      var capacity = this._nextPowerOf2(length);
+      this._list = new Array(capacity);
+      this._capacityMask = capacity - 1;
+      this._tail = length;
+      for (var i2 = 0; i2 < length; i2++) this._list[i2] = array2[i2];
+    };
+    Denque.prototype._copyArray = function _copyArray(fullCopy, size) {
+      var src = this._list;
+      var capacity = src.length;
+      var length = this.length;
+      size = size | length;
+      if (size == length && this._head < this._tail) {
+        return this._list.slice(this._head, this._tail);
+      }
+      var dest = new Array(size);
+      var k = 0;
+      var i2;
+      if (fullCopy || this._head > this._tail) {
+        for (i2 = this._head; i2 < capacity; i2++) dest[k++] = src[i2];
+        for (i2 = 0; i2 < this._tail; i2++) dest[k++] = src[i2];
+      } else {
+        for (i2 = this._head; i2 < this._tail; i2++) dest[k++] = src[i2];
+      }
+      return dest;
+    };
+    Denque.prototype._growArray = function _growArray() {
+      if (this._head != 0) {
+        var newList = this._copyArray(true, this._list.length << 1);
+        this._tail = this._list.length;
+        this._head = 0;
+        this._list = newList;
+      } else {
+        this._tail = this._list.length;
+        this._list.length <<= 1;
+      }
+      this._capacityMask = this._capacityMask << 1 | 1;
+    };
+    Denque.prototype._shrinkArray = function _shrinkArray() {
+      this._list.length >>>= 1;
+      this._capacityMask >>>= 1;
+    };
+    Denque.prototype._nextPowerOf2 = function _nextPowerOf2(num) {
+      var log2 = Math.log(num) / Math.log(2);
+      var nextPow2 = 1 << log2 + 1;
+      return Math.max(nextPow2, 4);
+    };
+    module2.exports = Denque;
+  }
+});
+
+// node_modules/ioredis/built/cluster/DelayQueue.js
+var require_DelayQueue = __commonJS({
+  "node_modules/ioredis/built/cluster/DelayQueue.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var utils_1 = require_utils7();
+    var Deque = require_denque();
+    var debug = (0, utils_1.Debug)("delayqueue");
+    var DelayQueue = class {
+      constructor() {
+        this.queues = {};
+        this.timeouts = {};
+      }
+      /**
+       * Add a new item to the queue
+       *
+       * @param bucket bucket name
+       * @param item function that will run later
+       * @param options
+       */
+      push(bucket, item, options) {
+        const callback = options.callback || process.nextTick;
+        if (!this.queues[bucket]) {
+          this.queues[bucket] = new Deque();
+        }
+        const queue = this.queues[bucket];
+        queue.push(item);
+        if (!this.timeouts[bucket]) {
+          this.timeouts[bucket] = setTimeout(() => {
+            callback(() => {
+              this.timeouts[bucket] = null;
+              this.execute(bucket);
+            });
+          }, options.timeout);
+        }
+      }
+      execute(bucket) {
+        const queue = this.queues[bucket];
+        if (!queue) {
+          return;
+        }
+        const { length } = queue;
+        if (!length) {
+          return;
+        }
+        debug("send %d commands in %s queue", length, bucket);
+        this.queues[bucket] = null;
+        while (queue.length > 0) {
+          queue.shift()();
+        }
+      }
+    };
+    exports2.default = DelayQueue;
+  }
+});
+
+// node_modules/ioredis/built/cluster/ShardedSubscriber.js
+var require_ShardedSubscriber = __commonJS({
+  "node_modules/ioredis/built/cluster/ShardedSubscriber.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var util_1 = require_util9();
+    var utils_1 = require_utils7();
+    var Redis_1 = require_Redis();
+    var debug = (0, utils_1.Debug)("cluster:subscriberGroup:shardedSubscriber");
+    var SubscriberStatus = {
+      IDLE: "idle",
+      STARTING: "starting",
+      CONNECTED: "connected",
+      STOPPING: "stopping",
+      ENDED: "ended"
+    };
+    var ALLOWED_STATUS_UPDATES = {
+      [SubscriberStatus.IDLE]: [
+        SubscriberStatus.STARTING,
+        SubscriberStatus.STOPPING,
+        SubscriberStatus.ENDED
+      ],
+      [SubscriberStatus.STARTING]: [
+        SubscriberStatus.CONNECTED,
+        SubscriberStatus.STOPPING,
+        SubscriberStatus.ENDED
+      ],
+      [SubscriberStatus.CONNECTED]: [
+        SubscriberStatus.STOPPING,
+        SubscriberStatus.ENDED
+      ],
+      [SubscriberStatus.STOPPING]: [SubscriberStatus.ENDED],
+      [SubscriberStatus.ENDED]: []
+    };
+    var ShardedSubscriber = class {
+      constructor(emitter, options, redisOptions) {
+        var _a4;
+        this.emitter = emitter;
+        this.status = SubscriberStatus.IDLE;
+        this.instance = null;
+        this.connectPromise = null;
+        this.messageListeners = /* @__PURE__ */ new Map();
+        this.onEnd = () => {
+          this.updateStatus(SubscriberStatus.ENDED);
+          this.emitter.emit("-node", this.instance, this.nodeKey);
+        };
+        this.onError = (error61) => {
+          this.emitter.emit("nodeError", error61, this.nodeKey);
+        };
+        this.onMoved = () => {
+          this.emitter.emit("moved");
+        };
+        this.instance = new Redis_1.default((0, utils_1.defaults)({
+          enableReadyCheck: false,
+          enableOfflineQueue: true,
+          connectionName: (0, util_1.getConnectionName)("ssubscriber", options.connectionName),
+          /**
+           * Disable auto reconnection for subscribers.
+           * The ClusterSubscriberGroup will handle the reconnection.
+           */
+          retryStrategy: null,
+          lazyConnect: true
+        }, options, redisOptions));
+        this.lazyConnect = (_a4 = redisOptions === null || redisOptions === void 0 ? void 0 : redisOptions.lazyConnect) !== null && _a4 !== void 0 ? _a4 : true;
+        this.nodeKey = (0, util_1.getNodeKey)(options);
+        this.instance.on("end", this.onEnd);
+        this.instance.on("error", this.onError);
+        this.instance.on("moved", this.onMoved);
+        for (const event of ["smessage", "smessageBuffer"]) {
+          const listener = (...args) => {
+            this.emitter.emit(event, ...args);
+          };
+          this.messageListeners.set(event, listener);
+          this.instance.on(event, listener);
+        }
+      }
+      async start() {
+        if (this.connectPromise) {
+          return this.connectPromise;
+        }
+        if (this.status === SubscriberStatus.STARTING || this.status === SubscriberStatus.CONNECTED) {
+          return;
+        }
+        if (this.status === SubscriberStatus.ENDED || !this.instance) {
+          throw new Error(`Sharded subscriber ${this.nodeKey} cannot be restarted once ended.`);
+        }
+        this.updateStatus(SubscriberStatus.STARTING);
+        this.connectPromise = this.instance.connect();
+        try {
+          await this.connectPromise;
+          this.updateStatus(SubscriberStatus.CONNECTED);
+        } catch (err) {
+          this.updateStatus(SubscriberStatus.ENDED);
+          throw err;
+        } finally {
+          this.connectPromise = null;
+        }
+      }
+      stop() {
+        this.updateStatus(SubscriberStatus.STOPPING);
+        if (this.instance) {
+          this.instance.disconnect();
+          this.instance.removeAllListeners();
+          this.messageListeners.clear();
+          this.instance = null;
+        }
+        this.updateStatus(SubscriberStatus.ENDED);
+        debug("stopped %s", this.nodeKey);
+      }
+      isStarted() {
+        return [
+          SubscriberStatus.CONNECTED,
+          SubscriberStatus.STARTING
+        ].includes(this.status);
+      }
+      get subscriberStatus() {
+        return this.status;
+      }
+      isHealthy() {
+        return (this.status === SubscriberStatus.IDLE || this.status === SubscriberStatus.CONNECTED || this.status === SubscriberStatus.STARTING) && this.instance !== null;
+      }
+      getInstance() {
+        return this.instance;
+      }
+      getNodeKey() {
+        return this.nodeKey;
+      }
+      isLazyConnect() {
+        return this.lazyConnect;
+      }
+      updateStatus(nextStatus) {
+        if (this.status === nextStatus) {
+          return;
+        }
+        if (!ALLOWED_STATUS_UPDATES[this.status].includes(nextStatus)) {
+          debug("Invalid status transition for %s: %s -> %s", this.nodeKey, this.status, nextStatus);
+          return;
+        }
+        this.status = nextStatus;
+      }
+    };
+    exports2.default = ShardedSubscriber;
+  }
+});
+
+// node_modules/ioredis/built/cluster/ClusterSubscriberGroup.js
+var require_ClusterSubscriberGroup = __commonJS({
+  "node_modules/ioredis/built/cluster/ClusterSubscriberGroup.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var utils_1 = require_utils7();
+    var util_1 = require_util9();
+    var calculateSlot = require_lib5();
+    var ShardedSubscriber_1 = require_ShardedSubscriber();
+    var debug = (0, utils_1.Debug)("cluster:subscriberGroup");
+    var ClusterSubscriberGroup = class _ClusterSubscriberGroup {
+      /**
+       * Register callbacks
+       *
+       * @param cluster
+       */
+      constructor(subscriberGroupEmitter, options) {
+        this.subscriberGroupEmitter = subscriberGroupEmitter;
+        this.options = options;
+        this.shardedSubscribers = /* @__PURE__ */ new Map();
+        this.clusterSlots = [];
+        this.subscriberToSlotsIndex = /* @__PURE__ */ new Map();
+        this.channels = /* @__PURE__ */ new Map();
+        this.failedAttemptsByNode = /* @__PURE__ */ new Map();
+        this.isResetting = false;
+        this.pendingReset = null;
+        this.handleSubscriberConnectFailed = (error61, nodeKey) => {
+          const currentAttempts = this.failedAttemptsByNode.get(nodeKey) || 0;
+          const failedAttempts = currentAttempts + 1;
+          this.failedAttemptsByNode.set(nodeKey, failedAttempts);
+          const attempts = Math.min(failedAttempts, _ClusterSubscriberGroup.MAX_RETRY_ATTEMPTS);
+          const backoff = Math.min(_ClusterSubscriberGroup.BASE_BACKOFF_MS * 2 ** attempts, _ClusterSubscriberGroup.MAX_BACKOFF_MS);
+          const jitter = Math.floor((Math.random() - 0.5) * (backoff * 0.5));
+          const delay2 = Math.max(0, backoff + jitter);
+          debug("Failed to connect subscriber for %s. Refreshing slots in %dms", nodeKey, delay2);
+          this.subscriberGroupEmitter.emit("subscriberConnectFailed", {
+            delay: delay2,
+            error: error61
+          });
+        };
+        this.handleSubscriberConnectSucceeded = (nodeKey) => {
+          this.failedAttemptsByNode.delete(nodeKey);
+        };
+      }
+      /**
+       * Get the responsible subscriber.
+       *
+       * @param slot
+       */
+      getResponsibleSubscriber(slot) {
+        const nodeKey = this.clusterSlots[slot][0];
+        const sub = this.shardedSubscribers.get(nodeKey);
+        if (sub && sub.subscriberStatus === "idle") {
+          sub.start().then(() => {
+            this.handleSubscriberConnectSucceeded(sub.getNodeKey());
+          }).catch((err) => {
+            this.handleSubscriberConnectFailed(err, sub.getNodeKey());
+          });
+        }
+        return sub;
+      }
+      /**
+       * Adds a channel for which this subscriber group is responsible
+       *
+       * @param channels
+       */
+      addChannels(channels) {
+        const slot = calculateSlot(channels[0]);
+        for (const c of channels) {
+          if (calculateSlot(c) !== slot) {
+            return -1;
+          }
+        }
+        const currChannels = this.channels.get(slot);
+        if (!currChannels) {
+          this.channels.set(slot, channels);
+        } else {
+          this.channels.set(slot, currChannels.concat(channels));
+        }
+        return Array.from(this.channels.values()).reduce((sum, array2) => sum + array2.length, 0);
+      }
+      /**
+       * Removes channels for which the subscriber group is responsible by optionally unsubscribing
+       * @param channels
+       */
+      removeChannels(channels) {
+        const slot = calculateSlot(channels[0]);
+        for (const c of channels) {
+          if (calculateSlot(c) !== slot) {
+            return -1;
+          }
+        }
+        const slotChannels = this.channels.get(slot);
+        if (slotChannels) {
+          const updatedChannels = slotChannels.filter((c) => !channels.includes(c));
+          this.channels.set(slot, updatedChannels);
+        }
+        return Array.from(this.channels.values()).reduce((sum, array2) => sum + array2.length, 0);
+      }
+      /**
+       * Disconnect all subscribers and clear some of the internal state.
+       */
+      stop() {
+        for (const s2 of this.shardedSubscribers.values()) {
+          s2.stop();
+        }
+        this.pendingReset = null;
+        this.shardedSubscribers.clear();
+        this.subscriberToSlotsIndex.clear();
+      }
+      /**
+       * Start all not yet started subscribers
+       */
+      start() {
+        const startPromises = [];
+        for (const s2 of this.shardedSubscribers.values()) {
+          if (this.shouldStartSubscriber(s2)) {
+            startPromises.push(s2.start().then(() => {
+              this.handleSubscriberConnectSucceeded(s2.getNodeKey());
+            }).catch((err) => {
+              this.handleSubscriberConnectFailed(err, s2.getNodeKey());
+            }));
+            this.subscriberGroupEmitter.emit("+subscriber");
+          }
+        }
+        return Promise.all(startPromises);
+      }
+      /**
+       * Resets the subscriber group by disconnecting all subscribers that are no longer needed and connecting new ones.
+       */
+      async reset(clusterSlots, clusterNodes) {
+        if (this.isResetting) {
+          this.pendingReset = { slots: clusterSlots, nodes: clusterNodes };
+          return;
+        }
+        this.isResetting = true;
+        try {
+          const hasTopologyChanged = this._refreshSlots(clusterSlots);
+          const hasFailedSubscribers = this.hasUnhealthySubscribers();
+          if (!hasTopologyChanged && !hasFailedSubscribers) {
+            debug("No topology change detected or failed subscribers. Skipping reset.");
+            return;
+          }
+          for (const [nodeKey, shardedSubscriber] of this.shardedSubscribers) {
+            if (
+              // If the subscriber is still responsible for a slot range and is healthy then keep it
+              this.subscriberToSlotsIndex.has(nodeKey) && shardedSubscriber.isHealthy()
+            ) {
+              debug("Skipping deleting subscriber for %s", nodeKey);
+              continue;
+            }
+            debug("Removing subscriber for %s", nodeKey);
+            shardedSubscriber.stop();
+            this.shardedSubscribers.delete(nodeKey);
+            this.subscriberGroupEmitter.emit("-subscriber");
+          }
+          const startPromises = [];
+          for (const [nodeKey, _] of this.subscriberToSlotsIndex) {
+            const existingSubscriber = this.shardedSubscribers.get(nodeKey);
+            if (existingSubscriber && existingSubscriber.isHealthy()) {
+              debug("Skipping creating new subscriber for %s", nodeKey);
+              if (!existingSubscriber.isStarted() && this.shouldStartSubscriber(existingSubscriber)) {
+                startPromises.push(existingSubscriber.start().then(() => {
+                  this.handleSubscriberConnectSucceeded(nodeKey);
+                }).catch((error61) => {
+                  this.handleSubscriberConnectFailed(error61, nodeKey);
+                }));
+              }
+              continue;
+            }
+            if (existingSubscriber && !existingSubscriber.isHealthy()) {
+              debug("Replacing subscriber for %s", nodeKey);
+              existingSubscriber.stop();
+              this.shardedSubscribers.delete(nodeKey);
+              this.subscriberGroupEmitter.emit("-subscriber");
+            }
+            debug("Creating new subscriber for %s", nodeKey);
+            const redis = clusterNodes.find((node2) => {
+              return (0, util_1.getNodeKey)(node2.options) === nodeKey;
+            });
+            if (!redis) {
+              debug("Failed to find node for key %s", nodeKey);
+              continue;
+            }
+            const sub = new ShardedSubscriber_1.default(this.subscriberGroupEmitter, redis.options, this.options.redisOptions);
+            this.shardedSubscribers.set(nodeKey, sub);
+            if (this.shouldStartSubscriber(sub)) {
+              startPromises.push(sub.start().then(() => {
+                this.handleSubscriberConnectSucceeded(nodeKey);
+              }).catch((error61) => {
+                this.handleSubscriberConnectFailed(error61, nodeKey);
+              }));
+            }
+            this.subscriberGroupEmitter.emit("+subscriber");
+          }
+          await Promise.all(startPromises);
+          this._resubscribe();
+          this.subscriberGroupEmitter.emit("subscribersReady");
+        } finally {
+          this.isResetting = false;
+          if (this.pendingReset) {
+            const { slots, nodes } = this.pendingReset;
+            this.pendingReset = null;
+            await this.reset(slots, nodes);
+          }
+        }
+      }
+      /**
+       * Refreshes the subscriber-related slot ranges
+       *
+       * Returns false if no refresh was needed
+       *
+       * @param targetSlots
+       */
+      _refreshSlots(targetSlots) {
+        if (this._slotsAreEqual(targetSlots) && this.subscriberToSlotsIndex.size > 0) {
+          debug("Nothing to refresh because the new cluster map is equal to the previous one.");
+          return false;
+        }
+        debug("Refreshing the slots of the subscriber group.");
+        this.subscriberToSlotsIndex = /* @__PURE__ */ new Map();
+        for (let slot = 0; slot < targetSlots.length; slot++) {
+          const node2 = targetSlots[slot][0];
+          if (!this.subscriberToSlotsIndex.has(node2)) {
+            this.subscriberToSlotsIndex.set(node2, []);
+          }
+          this.subscriberToSlotsIndex.get(node2).push(Number(slot));
+        }
+        this.clusterSlots = JSON.parse(JSON.stringify(targetSlots));
+        return true;
+      }
+      /**
+       * Resubscribes to the previous channels
+       *
+       * @private
+       */
+      _resubscribe() {
+        if (this.shardedSubscribers) {
+          this.shardedSubscribers.forEach((s2, nodeKey) => {
+            const subscriberSlots = this.subscriberToSlotsIndex.get(nodeKey);
+            if (subscriberSlots) {
+              subscriberSlots.forEach((ss) => {
+                const redis = s2.getInstance();
+                const channels = this.channels.get(ss);
+                if (channels && channels.length > 0) {
+                  if (!redis || redis.status === "end") {
+                    return;
+                  }
+                  if (redis.status === "ready") {
+                    redis.ssubscribe(...channels).catch((err) => {
+                      debug("Failed to ssubscribe on node %s: %s", nodeKey, err);
+                    });
+                  } else {
+                    redis.once("ready", () => {
+                      redis.ssubscribe(...channels).catch((err) => {
+                        debug("Failed to ssubscribe on node %s: %s", nodeKey, err);
+                      });
+                    });
+                  }
+                }
+              });
+            }
+          });
+        }
+      }
+      /**
+       * Deep equality of the cluster slots objects
+       *
+       * @param other
+       * @private
+       */
+      _slotsAreEqual(other) {
+        if (this.clusterSlots === void 0) {
+          return false;
+        } else {
+          return JSON.stringify(this.clusterSlots) === JSON.stringify(other);
+        }
+      }
+      /**
+       * Checks if any subscribers are in an unhealthy state.
+       *
+       * A subscriber is considered unhealthy if:
+       * - It exists but is not started (failed/disconnected)
+       * - It's missing entirely for a node that should have one
+       *
+       * @returns true if any subscribers need to be recreated
+       */
+      hasUnhealthySubscribers() {
+        const hasFailedSubscribers = Array.from(this.shardedSubscribers.values()).some((sub) => !sub.isHealthy());
+        const hasMissingSubscribers = Array.from(this.subscriberToSlotsIndex.keys()).some((nodeKey) => !this.shardedSubscribers.has(nodeKey));
+        return hasFailedSubscribers || hasMissingSubscribers;
+      }
+      shouldStartSubscriber(sub) {
+        if (sub.isStarted()) {
+          return false;
+        }
+        if (!sub.isLazyConnect()) {
+          return true;
+        }
+        const subscriberSlots = this.subscriberToSlotsIndex.get(sub.getNodeKey());
+        if (!subscriberSlots) {
+          return false;
+        }
+        return subscriberSlots.some((slot) => {
+          const channels = this.channels.get(slot);
+          return Boolean(channels && channels.length > 0);
+        });
+      }
+    };
+    exports2.default = ClusterSubscriberGroup;
+    ClusterSubscriberGroup.MAX_RETRY_ATTEMPTS = 10;
+    ClusterSubscriberGroup.MAX_BACKOFF_MS = 2e3;
+    ClusterSubscriberGroup.BASE_BACKOFF_MS = 100;
+  }
+});
+
+// node_modules/ioredis/built/cluster/index.js
+var require_cluster = __commonJS({
+  "node_modules/ioredis/built/cluster/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var commands_1 = require_built();
+    var events_1 = require("events");
+    var redis_errors_1 = require_redis_errors();
+    var standard_as_callback_1 = require_built2();
+    var Command_1 = require_Command();
+    var ClusterAllFailedError_1 = require_ClusterAllFailedError();
+    var Redis_1 = require_Redis();
+    var ScanStream_1 = require_ScanStream();
+    var transaction_1 = require_transaction2();
+    var utils_1 = require_utils7();
+    var applyMixin_1 = require_applyMixin();
+    var Commander_1 = require_Commander();
+    var ClusterOptions_1 = require_ClusterOptions();
+    var ClusterSubscriber_1 = require_ClusterSubscriber();
+    var ConnectionPool_1 = require_ConnectionPool();
+    var DelayQueue_1 = require_DelayQueue();
+    var util_1 = require_util9();
+    var Deque = require_denque();
+    var ClusterSubscriberGroup_1 = require_ClusterSubscriberGroup();
+    var debug = (0, utils_1.Debug)("cluster");
+    var REJECT_OVERWRITTEN_COMMANDS = /* @__PURE__ */ new WeakSet();
+    var Cluster = class _Cluster extends Commander_1.default {
+      /**
+       * Creates an instance of Cluster.
+       */
+      //TODO: Add an option that enables or disables sharded PubSub
+      constructor(startupNodes, options = {}) {
+        var _a4;
+        super();
+        this.slots = [];
+        this._groupsIds = {};
+        this._groupsBySlot = Array(16384);
+        this.isCluster = true;
+        this.retryAttempts = 0;
+        this.delayQueue = new DelayQueue_1.default();
+        this.offlineQueue = new Deque();
+        this.isRefreshing = false;
+        this._refreshSlotsCacheCallbacks = [];
+        this._autoPipelines = /* @__PURE__ */ new Map();
+        this._runningAutoPipelines = /* @__PURE__ */ new Set();
+        this._readyDelayedCallbacks = [];
+        this.connectionEpoch = 0;
+        events_1.EventEmitter.call(this);
+        this.startupNodes = startupNodes;
+        this.options = (0, utils_1.defaults)({}, options, ClusterOptions_1.DEFAULT_CLUSTER_OPTIONS, this.options);
+        if (this.options.shardedSubscribers) {
+          this.createShardedSubscriberGroup();
+        }
+        if (this.options.redisOptions && this.options.redisOptions.keyPrefix && !this.options.keyPrefix) {
+          this.options.keyPrefix = this.options.redisOptions.keyPrefix;
+        }
+        if (typeof this.options.scaleReads !== "function" && ["all", "master", "slave"].indexOf(this.options.scaleReads) === -1) {
+          throw new Error('Invalid option scaleReads "' + this.options.scaleReads + '". Expected "all", "master", "slave" or a custom function');
+        }
+        this.connectionPool = new ConnectionPool_1.default((_a4 = this.options.redisOptions) !== null && _a4 !== void 0 ? _a4 : {}, this.options.clusterNodeRetryStrategy);
+        this.connectionPool.on("-node", (redis, key) => {
+          this.emit("-node", redis);
+        });
+        this.connectionPool.on("+node", (redis) => {
+          this.emit("+node", redis);
+        });
+        this.connectionPool.on("drain", () => {
+          this.setStatus("close");
+        });
+        this.connectionPool.on("nodeError", (error61, key) => {
+          this.emit("node error", error61, key);
+        });
+        this.subscriber = new ClusterSubscriber_1.default(this.connectionPool, this);
+        if (this.options.scripts) {
+          Object.entries(this.options.scripts).forEach(([name, definition]) => {
+            this.defineCommand(name, definition);
+          });
+        }
+        if (this.options.lazyConnect) {
+          this.setStatus("wait");
+        } else {
+          this.connect().catch((err) => {
+            debug("connecting failed: %s", err);
+          });
+        }
+      }
+      /**
+       * Connect to a cluster
+       */
+      connect() {
+        return new Promise((resolve, reject) => {
+          if (this.status === "connecting" || this.status === "connect" || this.status === "ready") {
+            reject(new Error("Redis is already connecting/connected"));
+            return;
+          }
+          const epoch2 = ++this.connectionEpoch;
+          this.setStatus("connecting");
+          this.resolveStartupNodeHostnames().then((nodes) => {
+            if (this.connectionEpoch !== epoch2) {
+              debug("discard connecting after resolving startup nodes because epoch not match: %d != %d", epoch2, this.connectionEpoch);
+              reject(new redis_errors_1.RedisError("Connection is discarded because a new connection is made"));
+              return;
+            }
+            if (this.status !== "connecting") {
+              debug("discard connecting after resolving startup nodes because the status changed to %s", this.status);
+              reject(new redis_errors_1.RedisError("Connection is aborted"));
+              return;
+            }
+            this.connectionPool.reset(nodes);
+            if (this.options.shardedSubscribers) {
+              this.shardedSubscribers.reset(this.slots, this.connectionPool.getNodes("all")).catch((err) => {
+                debug("Error while starting subscribers: %s", err);
+              });
+            }
+            const readyHandler = () => {
+              this.setStatus("ready");
+              this.retryAttempts = 0;
+              this.executeOfflineCommands();
+              this.resetNodesRefreshInterval();
+              resolve();
+            };
+            let closeListener = void 0;
+            const refreshListener = () => {
+              this.invokeReadyDelayedCallbacks(void 0);
+              this.removeListener("close", closeListener);
+              this.manuallyClosing = false;
+              this.setStatus("connect");
+              if (this.options.enableReadyCheck) {
+                this.readyCheck((err, fail2) => {
+                  if (err || fail2) {
+                    debug("Ready check failed (%s). Reconnecting...", err || fail2);
+                    if (this.status === "connect") {
+                      this.disconnect(true);
+                    }
+                  } else {
+                    readyHandler();
+                  }
+                });
+              } else {
+                readyHandler();
+              }
+            };
+            closeListener = () => {
+              const error61 = new Error("None of startup nodes is available");
+              this.removeListener("refresh", refreshListener);
+              this.invokeReadyDelayedCallbacks(error61);
+              reject(error61);
+            };
+            this.once("refresh", refreshListener);
+            this.once("close", closeListener);
+            this.once("close", this.handleCloseEvent.bind(this));
+            this.refreshSlotsCache((err) => {
+              if (err && err.message === ClusterAllFailedError_1.default.defaultMessage) {
+                Redis_1.default.prototype.silentEmit.call(this, "error", err);
+                this.connectionPool.reset([]);
+              }
+            });
+            this.subscriber.start();
+            if (this.options.shardedSubscribers) {
+              this.shardedSubscribers.start().catch((err) => {
+                debug("Error while starting subscribers: %s", err);
+              });
+            }
+          }).catch((err) => {
+            this.setStatus("close");
+            this.handleCloseEvent(err);
+            this.invokeReadyDelayedCallbacks(err);
+            reject(err);
+          });
+        });
+      }
+      /**
+       * Disconnect from every node in the cluster.
+       */
+      disconnect(reconnect = false) {
+        const status = this.status;
+        this.setStatus("disconnecting");
+        if (!reconnect) {
+          this.manuallyClosing = true;
+        }
+        if (this.reconnectTimeout && !reconnect) {
+          clearTimeout(this.reconnectTimeout);
+          this.reconnectTimeout = null;
+          debug("Canceled reconnecting attempts");
+        }
+        this.clearNodesRefreshInterval();
+        this.subscriber.stop();
+        if (this.options.shardedSubscribers) {
+          this.shardedSubscribers.stop();
+        }
+        if (status === "wait") {
+          this.setStatus("close");
+          this.handleCloseEvent();
+        } else {
+          this.connectionPool.reset([]);
+        }
+      }
+      /**
+       * Quit the cluster gracefully.
+       */
+      quit(callback) {
+        const status = this.status;
+        this.setStatus("disconnecting");
+        this.manuallyClosing = true;
+        if (this.reconnectTimeout) {
+          clearTimeout(this.reconnectTimeout);
+          this.reconnectTimeout = null;
+        }
+        this.clearNodesRefreshInterval();
+        this.subscriber.stop();
+        if (this.options.shardedSubscribers) {
+          this.shardedSubscribers.stop();
+        }
+        if (status === "wait") {
+          const ret = (0, standard_as_callback_1.default)(Promise.resolve("OK"), callback);
+          setImmediate(function() {
+            this.setStatus("close");
+            this.handleCloseEvent();
+          }.bind(this));
+          return ret;
+        }
+        return (0, standard_as_callback_1.default)(Promise.all(this.nodes().map((node2) => node2.quit().catch((err) => {
+          if (err.message === utils_1.CONNECTION_CLOSED_ERROR_MSG) {
+            return "OK";
+          }
+          throw err;
+        }))).then(() => "OK"), callback);
+      }
+      /**
+       * Create a new instance with the same startup nodes and options as the current one.
+       *
+       * @example
+       * ```js
+       * var cluster = new Redis.Cluster([{ host: "127.0.0.1", port: "30001" }]);
+       * var anotherCluster = cluster.duplicate();
+       * ```
+       */
+      duplicate(overrideStartupNodes = [], overrideOptions = {}) {
+        const startupNodes = overrideStartupNodes.length > 0 ? overrideStartupNodes : this.startupNodes.slice(0);
+        const options = Object.assign({}, this.options, overrideOptions);
+        return new _Cluster(startupNodes, options);
+      }
+      /**
+       * Get nodes with the specified role
+       */
+      nodes(role = "all") {
+        if (role !== "all" && role !== "master" && role !== "slave") {
+          throw new Error('Invalid role "' + role + '". Expected "all", "master" or "slave"');
+        }
+        return this.connectionPool.getNodes(role);
+      }
+      /**
+       * This is needed in order not to install a listener for each auto pipeline
+       *
+       * @ignore
+       */
+      delayUntilReady(callback) {
+        this._readyDelayedCallbacks.push(callback);
+      }
+      /**
+       * Get the number of commands queued in automatic pipelines.
+       *
+       * This is not available (and returns 0) until the cluster is connected and slots information have been received.
+       */
+      get autoPipelineQueueSize() {
+        let queued = 0;
+        for (const pipeline2 of this._autoPipelines.values()) {
+          queued += pipeline2.length;
+        }
+        return queued;
+      }
+      /**
+       * Refresh the slot cache
+       *
+       * @ignore
+       */
+      refreshSlotsCache(callback) {
+        if (callback) {
+          this._refreshSlotsCacheCallbacks.push(callback);
+        }
+        if (this.isRefreshing) {
+          return;
+        }
+        this.isRefreshing = true;
+        const _this = this;
+        const wrapper = (error61) => {
+          this.isRefreshing = false;
+          for (const callback2 of this._refreshSlotsCacheCallbacks) {
+            callback2(error61);
+          }
+          this._refreshSlotsCacheCallbacks = [];
+        };
+        const nodes = (0, utils_1.shuffle)(this.connectionPool.getNodes());
+        let lastNodeError = null;
+        function tryNode(index) {
+          if (index === nodes.length) {
+            const error61 = new ClusterAllFailedError_1.default(ClusterAllFailedError_1.default.defaultMessage, lastNodeError);
+            return wrapper(error61);
+          }
+          const node2 = nodes[index];
+          const key = `${node2.options.host}:${node2.options.port}`;
+          debug("getting slot cache from %s", key);
+          _this.getInfoFromNode(node2, function(err) {
+            switch (_this.status) {
+              case "close":
+              case "end":
+                return wrapper(new Error("Cluster is disconnected."));
+              case "disconnecting":
+                return wrapper(new Error("Cluster is disconnecting."));
+            }
+            if (err) {
+              _this.emit("node error", err, key);
+              lastNodeError = err;
+              tryNode(index + 1);
+            } else {
+              _this.emit("refresh");
+              wrapper();
+            }
+          });
+        }
+        tryNode(0);
+      }
+      /**
+       * @ignore
+       */
+      sendCommand(command, stream, node2) {
+        if (this.status === "wait") {
+          this.connect().catch(utils_1.noop);
+        }
+        if (this.status === "end") {
+          command.reject(new Error(utils_1.CONNECTION_CLOSED_ERROR_MSG));
+          return command.promise;
+        }
+        let to = this.options.scaleReads;
+        if (to !== "master") {
+          const isCommandReadOnly = command.isReadOnly || (0, commands_1.exists)(command.name) && (0, commands_1.hasFlag)(command.name, "readonly");
+          if (!isCommandReadOnly) {
+            to = "master";
+          }
+        }
+        let targetSlot = node2 ? node2.slot : command.getSlot();
+        const ttl = {};
+        const _this = this;
+        if (!node2 && !REJECT_OVERWRITTEN_COMMANDS.has(command)) {
+          REJECT_OVERWRITTEN_COMMANDS.add(command);
+          const reject = command.reject;
+          command.reject = function(err) {
+            const partialTry = tryConnection.bind(null, true);
+            _this.handleError(err, ttl, {
+              moved: function(slot, key) {
+                debug("command %s is moved to %s", command.name, key);
+                targetSlot = Number(slot);
+                if (_this.slots[slot]) {
+                  _this.slots[slot][0] = key;
+                } else {
+                  _this.slots[slot] = [key];
+                }
+                _this._groupsBySlot[slot] = _this._groupsIds[_this.slots[slot].join(";")];
+                _this.connectionPool.findOrCreate(_this.natMapper(key));
+                tryConnection();
+                debug("refreshing slot caches... (triggered by MOVED error)");
+                _this.refreshSlotsCache();
+              },
+              ask: function(slot, key) {
+                debug("command %s is required to ask %s:%s", command.name, key);
+                const mapped = _this.natMapper(key);
+                _this.connectionPool.findOrCreate(mapped);
+                tryConnection(false, `${mapped.host}:${mapped.port}`);
+              },
+              tryagain: partialTry,
+              clusterDown: partialTry,
+              connectionClosed: partialTry,
+              maxRedirections: function(redirectionError) {
+                reject.call(command, redirectionError);
+              },
+              defaults: function() {
+                reject.call(command, err);
+              }
+            });
+          };
+        }
+        tryConnection();
+        function tryConnection(random, asking) {
+          if (_this.status === "end") {
+            command.reject(new redis_errors_1.AbortError("Cluster is ended."));
+            return;
+          }
+          let redis;
+          if (_this.status === "ready" || command.name === "cluster") {
+            if (node2 && node2.redis) {
+              redis = node2.redis;
+            } else if (Command_1.default.checkFlag("ENTER_SUBSCRIBER_MODE", command.name) || Command_1.default.checkFlag("EXIT_SUBSCRIBER_MODE", command.name)) {
+              if (_this.options.shardedSubscribers && (command.name == "ssubscribe" || command.name == "sunsubscribe")) {
+                const sub = _this.shardedSubscribers.getResponsibleSubscriber(targetSlot);
+                if (!sub) {
+                  command.reject(new redis_errors_1.AbortError(`No sharded subscriber for slot: ${targetSlot}`));
+                  return;
+                }
+                let status = -1;
+                if (command.name == "ssubscribe") {
+                  status = _this.shardedSubscribers.addChannels(command.getKeys());
+                }
+                if (command.name == "sunsubscribe") {
+                  status = _this.shardedSubscribers.removeChannels(command.getKeys());
+                }
+                if (status !== -1) {
+                  redis = sub.getInstance();
+                } else {
+                  command.reject(new redis_errors_1.AbortError("Possible CROSSSLOT error: All channels must hash to the same slot"));
+                }
+              } else {
+                redis = _this.subscriber.getInstance();
+              }
+              if (!redis) {
+                command.reject(new redis_errors_1.AbortError("No subscriber for the cluster"));
+                return;
+              }
+            } else {
+              if (!random) {
+                if (typeof targetSlot === "number" && _this.slots[targetSlot]) {
+                  const nodeKeys = _this.slots[targetSlot];
+                  if (typeof to === "function") {
+                    const nodes = nodeKeys.map(function(key) {
+                      return _this.connectionPool.getInstanceByKey(key);
+                    });
+                    redis = to(nodes, command);
+                    if (Array.isArray(redis)) {
+                      redis = (0, utils_1.sample)(redis);
+                    }
+                    if (!redis) {
+                      redis = nodes[0];
+                    }
+                  } else {
+                    let key;
+                    if (to === "all") {
+                      key = (0, utils_1.sample)(nodeKeys);
+                    } else if (to === "slave" && nodeKeys.length > 1) {
+                      key = (0, utils_1.sample)(nodeKeys, 1);
+                    } else {
+                      key = nodeKeys[0];
+                    }
+                    redis = _this.connectionPool.getInstanceByKey(key);
+                  }
+                }
+                if (asking) {
+                  redis = _this.connectionPool.getInstanceByKey(asking);
+                  redis.asking();
+                }
+              }
+              if (!redis) {
+                redis = (typeof to === "function" ? null : _this.connectionPool.getSampleInstance(to)) || _this.connectionPool.getSampleInstance("all");
+              }
+              if (redis && !_this.options.enableOfflineQueue && redis.status !== "ready" && redis.status !== "wait") {
+                command.reject(new Error(utils_1.CONNECTION_CLOSED_ERROR_MSG));
+                return;
+              }
+            }
+            if (node2 && !node2.redis) {
+              node2.redis = redis;
+            }
+          }
+          if (!redis && _this.options.enableOfflineQueue) {
+            _this.offlineQueue.push({
+              command,
+              stream,
+              node: node2
+            });
+            return;
+          }
+          if (!redis) {
+            command.reject(new Error("Cluster isn't ready and enableOfflineQueue options is false"));
+            return;
+          }
+          redis.sendCommand(command, stream);
+        }
+        return command.promise;
+      }
+      sscanStream(key, options) {
+        return this.createScanStream("sscan", { key, options });
+      }
+      sscanBufferStream(key, options) {
+        return this.createScanStream("sscanBuffer", { key, options });
+      }
+      hscanStream(key, options) {
+        return this.createScanStream("hscan", { key, options });
+      }
+      hscanBufferStream(key, options) {
+        return this.createScanStream("hscanBuffer", { key, options });
+      }
+      zscanStream(key, options) {
+        return this.createScanStream("zscan", { key, options });
+      }
+      zscanBufferStream(key, options) {
+        return this.createScanStream("zscanBuffer", { key, options });
+      }
+      /**
+       * @ignore
+       */
+      handleError(error61, ttl, handlers) {
+        if (typeof ttl.value === "undefined") {
+          ttl.value = this.options.maxRedirections;
+        } else {
+          ttl.value -= 1;
+        }
+        if (ttl.value <= 0) {
+          handlers.maxRedirections(new Error("Too many Cluster redirections. Last error: " + error61));
+          return;
+        }
+        const errv = error61.message.split(" ");
+        if (errv[0] === "MOVED") {
+          const timeout = this.options.retryDelayOnMoved;
+          if (timeout && typeof timeout === "number") {
+            this.delayQueue.push("moved", handlers.moved.bind(null, errv[1], errv[2]), { timeout });
+          } else {
+            handlers.moved(errv[1], errv[2]);
+          }
+        } else if (errv[0] === "ASK") {
+          handlers.ask(errv[1], errv[2]);
+        } else if (errv[0] === "TRYAGAIN") {
+          this.delayQueue.push("tryagain", handlers.tryagain, {
+            timeout: this.options.retryDelayOnTryAgain
+          });
+        } else if (errv[0] === "CLUSTERDOWN" && this.options.retryDelayOnClusterDown > 0) {
+          this.delayQueue.push("clusterdown", handlers.connectionClosed, {
+            timeout: this.options.retryDelayOnClusterDown,
+            callback: this.refreshSlotsCache.bind(this)
+          });
+        } else if (error61.message === utils_1.CONNECTION_CLOSED_ERROR_MSG && this.options.retryDelayOnFailover > 0 && this.status === "ready") {
+          this.delayQueue.push("failover", handlers.connectionClosed, {
+            timeout: this.options.retryDelayOnFailover,
+            callback: this.refreshSlotsCache.bind(this)
+          });
+        } else {
+          handlers.defaults();
+        }
+      }
+      resetOfflineQueue() {
+        this.offlineQueue = new Deque();
+      }
+      clearNodesRefreshInterval() {
+        if (this.slotsTimer) {
+          clearTimeout(this.slotsTimer);
+          this.slotsTimer = null;
+        }
+      }
+      resetNodesRefreshInterval() {
+        if (this.slotsTimer || !this.options.slotsRefreshInterval) {
+          return;
+        }
+        const nextRound = () => {
+          this.slotsTimer = setTimeout(() => {
+            debug('refreshing slot caches... (triggered by "slotsRefreshInterval" option)');
+            this.refreshSlotsCache(() => {
+              nextRound();
+            });
+          }, this.options.slotsRefreshInterval);
+        };
+        nextRound();
+      }
+      /**
+       * Change cluster instance's status
+       */
+      setStatus(status) {
+        debug("status: %s -> %s", this.status || "[empty]", status);
+        this.status = status;
+        process.nextTick(() => {
+          this.emit(status);
+        });
+      }
+      /**
+       * Called when closed to check whether a reconnection should be made
+       */
+      handleCloseEvent(reason) {
+        var _a4;
+        if (reason) {
+          debug("closed because %s", reason);
+        }
+        let retryDelay;
+        if (!this.manuallyClosing && typeof this.options.clusterRetryStrategy === "function") {
+          retryDelay = this.options.clusterRetryStrategy.call(this, ++this.retryAttempts, reason);
+        }
+        if (typeof retryDelay === "number") {
+          this.setStatus("reconnecting");
+          this.reconnectTimeout = setTimeout(() => {
+            this.reconnectTimeout = null;
+            debug("Cluster is disconnected. Retrying after %dms", retryDelay);
+            this.connect().catch(function(err) {
+              debug("Got error %s when reconnecting. Ignoring...", err);
+            });
+          }, retryDelay);
+        } else {
+          if (this.options.shardedSubscribers) {
+            (_a4 = this.subscriberGroupEmitter) === null || _a4 === void 0 ? void 0 : _a4.removeAllListeners();
+          }
+          this.setStatus("end");
+          this.flushQueue(new Error("None of startup nodes is available"));
+        }
+      }
+      /**
+       * Flush offline queue with error.
+       */
+      flushQueue(error61) {
+        let item;
+        while (item = this.offlineQueue.shift()) {
+          item.command.reject(error61);
+        }
+      }
+      executeOfflineCommands() {
+        if (this.offlineQueue.length) {
+          debug("send %d commands in offline queue", this.offlineQueue.length);
+          const offlineQueue = this.offlineQueue;
+          this.resetOfflineQueue();
+          let item;
+          while (item = offlineQueue.shift()) {
+            this.sendCommand(item.command, item.stream, item.node);
+          }
+        }
+      }
+      natMapper(nodeKey) {
+        const key = typeof nodeKey === "string" ? nodeKey : `${nodeKey.host}:${nodeKey.port}`;
+        let mapped = null;
+        if (this.options.natMap && typeof this.options.natMap === "function") {
+          mapped = this.options.natMap(key);
+        } else if (this.options.natMap && typeof this.options.natMap === "object") {
+          mapped = this.options.natMap[key];
+        }
+        if (mapped) {
+          debug("NAT mapping %s -> %O", key, mapped);
+          return Object.assign({}, mapped);
+        }
+        return typeof nodeKey === "string" ? (0, util_1.nodeKeyToRedisOptions)(nodeKey) : nodeKey;
+      }
+      getInfoFromNode(redis, callback) {
+        if (!redis) {
+          return callback(new Error("Node is disconnected"));
+        }
+        const duplicatedConnection = redis.duplicate({
+          enableOfflineQueue: true,
+          enableReadyCheck: false,
+          retryStrategy: null,
+          connectionName: (0, util_1.getConnectionName)("refresher", this.options.redisOptions && this.options.redisOptions.connectionName)
+        });
+        duplicatedConnection.on("error", utils_1.noop);
+        duplicatedConnection.cluster("SLOTS", (0, utils_1.timeout)((err, result) => {
+          duplicatedConnection.disconnect();
+          if (err) {
+            debug("error encountered running CLUSTER.SLOTS: %s", err);
+            return callback(err);
+          }
+          if (this.status === "disconnecting" || this.status === "close" || this.status === "end") {
+            debug("ignore CLUSTER.SLOTS results (count: %d) since cluster status is %s", result.length, this.status);
+            callback();
+            return;
+          }
+          const nodes = [];
+          debug("cluster slots result count: %d", result.length);
+          for (let i2 = 0; i2 < result.length; ++i2) {
+            const items = result[i2];
+            const slotRangeStart = items[0];
+            const slotRangeEnd = items[1];
+            const keys = [];
+            for (let j2 = 2; j2 < items.length; j2++) {
+              if (!items[j2][0]) {
+                continue;
+              }
+              const node2 = this.natMapper({
+                host: items[j2][0],
+                port: items[j2][1]
+              });
+              node2.readOnly = j2 !== 2;
+              nodes.push(node2);
+              keys.push(node2.host + ":" + node2.port);
+            }
+            debug("cluster slots result [%d]: slots %d~%d served by %s", i2, slotRangeStart, slotRangeEnd, keys);
+            for (let slot = slotRangeStart; slot <= slotRangeEnd; slot++) {
+              this.slots[slot] = keys;
+            }
+          }
+          this._groupsIds = /* @__PURE__ */ Object.create(null);
+          let j = 0;
+          for (let i2 = 0; i2 < 16384; i2++) {
+            const target = (this.slots[i2] || []).join(";");
+            if (!target.length) {
+              this._groupsBySlot[i2] = void 0;
+              continue;
+            }
+            if (!this._groupsIds[target]) {
+              this._groupsIds[target] = ++j;
+            }
+            this._groupsBySlot[i2] = this._groupsIds[target];
+          }
+          this.connectionPool.reset(nodes);
+          if (this.options.shardedSubscribers) {
+            this.shardedSubscribers.reset(this.slots, this.connectionPool.getNodes("all")).catch((err2) => {
+              debug("Error while starting subscribers: %s", err2);
+            });
+          }
+          callback();
+        }, this.options.slotsRefreshTimeout));
+      }
+      invokeReadyDelayedCallbacks(err) {
+        for (const c of this._readyDelayedCallbacks) {
+          process.nextTick(c, err);
+        }
+        this._readyDelayedCallbacks = [];
+      }
+      /**
+       * Check whether Cluster is able to process commands
+       */
+      readyCheck(callback) {
+        this.cluster("INFO", (err, res) => {
+          if (err) {
+            return callback(err);
+          }
+          if (typeof res !== "string") {
+            return callback();
+          }
+          let state;
+          const lines = res.split("\r\n");
+          for (let i2 = 0; i2 < lines.length; ++i2) {
+            const parts = lines[i2].split(":");
+            if (parts[0] === "cluster_state") {
+              state = parts[1];
+              break;
+            }
+          }
+          if (state === "fail") {
+            debug("cluster state not ok (%s)", state);
+            callback(null, state);
+          } else {
+            callback();
+          }
+        });
+      }
+      resolveSrv(hostname3) {
+        return new Promise((resolve, reject) => {
+          this.options.resolveSrv(hostname3, (err, records) => {
+            if (err) {
+              return reject(err);
+            }
+            const self2 = this, groupedRecords = (0, util_1.groupSrvRecords)(records), sortedKeys = Object.keys(groupedRecords).sort((a, b) => parseInt(a) - parseInt(b));
+            function tryFirstOne(err2) {
+              if (!sortedKeys.length) {
+                return reject(err2);
+              }
+              const key = sortedKeys[0], group = groupedRecords[key], record2 = (0, util_1.weightSrvRecords)(group);
+              if (!group.records.length) {
+                sortedKeys.shift();
+              }
+              self2.dnsLookup(record2.name).then((host) => resolve({
+                host,
+                port: record2.port
+              }), tryFirstOne);
+            }
+            tryFirstOne();
+          });
+        });
+      }
+      dnsLookup(hostname3) {
+        return new Promise((resolve, reject) => {
+          this.options.dnsLookup(hostname3, (err, address) => {
+            if (err) {
+              debug("failed to resolve hostname %s to IP: %s", hostname3, err.message);
+              reject(err);
+            } else {
+              debug("resolved hostname %s to IP %s", hostname3, address);
+              resolve(address);
+            }
+          });
+        });
+      }
+      /**
+       * Normalize startup nodes, and resolving hostnames to IPs.
+       *
+       * This process happens every time when #connect() is called since
+       * #startupNodes and DNS records may chanage.
+       */
+      async resolveStartupNodeHostnames() {
+        if (!Array.isArray(this.startupNodes) || this.startupNodes.length === 0) {
+          throw new Error("`startupNodes` should contain at least one node.");
+        }
+        const startupNodes = (0, util_1.normalizeNodeOptions)(this.startupNodes);
+        const hostnames = (0, util_1.getUniqueHostnamesFromOptions)(startupNodes);
+        if (hostnames.length === 0) {
+          return startupNodes;
+        }
+        const configs = await Promise.all(hostnames.map((this.options.useSRVRecords ? this.resolveSrv : this.dnsLookup).bind(this)));
+        const hostnameToConfig = (0, utils_1.zipMap)(hostnames, configs);
+        return startupNodes.map((node2) => {
+          const config2 = hostnameToConfig.get(node2.host);
+          if (!config2) {
+            return node2;
+          }
+          if (this.options.useSRVRecords) {
+            return Object.assign({}, node2, config2);
+          }
+          return Object.assign({}, node2, { host: config2 });
+        });
+      }
+      createScanStream(command, { key, options = {} }) {
+        return new ScanStream_1.default({
+          objectMode: true,
+          key,
+          redis: this,
+          command,
+          ...options
+        });
+      }
+      createShardedSubscriberGroup() {
+        this.subscriberGroupEmitter = new events_1.EventEmitter();
+        this.shardedSubscribers = new ClusterSubscriberGroup_1.default(this.subscriberGroupEmitter, this.options);
+        const refreshSlotsCacheCallback = (err) => {
+          if (err instanceof ClusterAllFailedError_1.default) {
+            this.disconnect(true);
+          }
+        };
+        this.subscriberGroupEmitter.on("-node", (redis, nodeKey) => {
+          this.emit("-node", redis, nodeKey);
+          this.refreshSlotsCache(refreshSlotsCacheCallback);
+        });
+        this.subscriberGroupEmitter.on("subscriberConnectFailed", ({ delay: delay2, error: error61 }) => {
+          this.emit("error", error61);
+          setTimeout(() => {
+            this.refreshSlotsCache(refreshSlotsCacheCallback);
+          }, delay2);
+        });
+        this.subscriberGroupEmitter.on("moved", () => {
+          this.refreshSlotsCache(refreshSlotsCacheCallback);
+        });
+        this.subscriberGroupEmitter.on("-subscriber", () => {
+          this.emit("-subscriber");
+        });
+        this.subscriberGroupEmitter.on("+subscriber", () => {
+          this.emit("+subscriber");
+        });
+        this.subscriberGroupEmitter.on("nodeError", (error61, nodeKey) => {
+          this.emit("nodeError", error61, nodeKey);
+        });
+        this.subscriberGroupEmitter.on("subscribersReady", () => {
+          this.emit("subscribersReady");
+        });
+        for (const event of ["smessage", "smessageBuffer"]) {
+          this.subscriberGroupEmitter.on(event, (arg1, arg2, arg3) => {
+            this.emit(event, arg1, arg2, arg3);
+          });
+        }
+      }
+    };
+    (0, applyMixin_1.default)(Cluster, events_1.EventEmitter);
+    (0, transaction_1.addTransactionSupport)(Cluster.prototype);
+    exports2.default = Cluster;
+  }
+});
+
+// node_modules/ioredis/built/connectors/AbstractConnector.js
+var require_AbstractConnector = __commonJS({
+  "node_modules/ioredis/built/connectors/AbstractConnector.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var utils_1 = require_utils7();
+    var debug = (0, utils_1.Debug)("AbstractConnector");
+    var AbstractConnector = class {
+      constructor(disconnectTimeout) {
+        this.connecting = false;
+        this.disconnectTimeout = disconnectTimeout;
+      }
+      check(info) {
+        return true;
+      }
+      disconnect() {
+        this.connecting = false;
+        if (this.stream) {
+          const stream = this.stream;
+          const timeout = setTimeout(() => {
+            debug("stream %s:%s still open, destroying it", stream.remoteAddress, stream.remotePort);
+            stream.destroy();
+          }, this.disconnectTimeout);
+          stream.on("close", () => clearTimeout(timeout));
+          stream.end();
+        }
+      }
+    };
+    exports2.default = AbstractConnector;
+  }
+});
+
+// node_modules/ioredis/built/connectors/StandaloneConnector.js
+var require_StandaloneConnector = __commonJS({
+  "node_modules/ioredis/built/connectors/StandaloneConnector.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var net_1 = require("net");
+    var tls_1 = require("tls");
+    var utils_1 = require_utils7();
+    var AbstractConnector_1 = require_AbstractConnector();
+    var StandaloneConnector = class extends AbstractConnector_1.default {
+      constructor(options) {
+        super(options.disconnectTimeout);
+        this.options = options;
+      }
+      connect(_) {
+        const { options } = this;
+        this.connecting = true;
+        let connectionOptions;
+        if ("path" in options && options.path) {
+          connectionOptions = {
+            path: options.path
+          };
+        } else {
+          connectionOptions = {};
+          if ("port" in options && options.port != null) {
+            connectionOptions.port = options.port;
+          }
+          if ("host" in options && options.host != null) {
+            connectionOptions.host = options.host;
+          }
+          if ("family" in options && options.family != null) {
+            connectionOptions.family = options.family;
+          }
+        }
+        if (options.tls) {
+          Object.assign(connectionOptions, options.tls);
+        }
+        return new Promise((resolve, reject) => {
+          process.nextTick(() => {
+            if (!this.connecting) {
+              reject(new Error(utils_1.CONNECTION_CLOSED_ERROR_MSG));
+              return;
+            }
+            try {
+              if (options.tls) {
+                this.stream = (0, tls_1.connect)(connectionOptions);
+              } else {
+                this.stream = (0, net_1.createConnection)(connectionOptions);
+              }
+            } catch (err) {
+              reject(err);
+              return;
+            }
+            this.stream.once("error", (err) => {
+              this.firstError = err;
+            });
+            resolve(this.stream);
+          });
+        });
+      }
+    };
+    exports2.default = StandaloneConnector;
+  }
+});
+
+// node_modules/ioredis/built/connectors/SentinelConnector/SentinelIterator.js
+var require_SentinelIterator = __commonJS({
+  "node_modules/ioredis/built/connectors/SentinelConnector/SentinelIterator.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    function isSentinelEql(a, b) {
+      return (a.host || "127.0.0.1") === (b.host || "127.0.0.1") && (a.port || 26379) === (b.port || 26379);
+    }
+    var SentinelIterator = class {
+      constructor(sentinels) {
+        this.cursor = 0;
+        this.sentinels = sentinels.slice(0);
+      }
+      next() {
+        const done = this.cursor >= this.sentinels.length;
+        return { done, value: done ? void 0 : this.sentinels[this.cursor++] };
+      }
+      reset(moveCurrentEndpointToFirst) {
+        if (moveCurrentEndpointToFirst && this.sentinels.length > 1 && this.cursor !== 1) {
+          this.sentinels.unshift(...this.sentinels.splice(this.cursor - 1));
+        }
+        this.cursor = 0;
+      }
+      add(sentinel) {
+        for (let i2 = 0; i2 < this.sentinels.length; i2++) {
+          if (isSentinelEql(sentinel, this.sentinels[i2])) {
+            return false;
+          }
+        }
+        this.sentinels.push(sentinel);
+        return true;
+      }
+      toString() {
+        return `${JSON.stringify(this.sentinels)} @${this.cursor}`;
+      }
+    };
+    exports2.default = SentinelIterator;
+  }
+});
+
+// node_modules/ioredis/built/connectors/SentinelConnector/FailoverDetector.js
+var require_FailoverDetector = __commonJS({
+  "node_modules/ioredis/built/connectors/SentinelConnector/FailoverDetector.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.FailoverDetector = void 0;
+    var utils_1 = require_utils7();
+    var debug = (0, utils_1.Debug)("FailoverDetector");
+    var CHANNEL_NAME = "+switch-master";
+    var FailoverDetector = class {
+      // sentinels can't be used for regular commands after this
+      constructor(connector, sentinels) {
+        this.isDisconnected = false;
+        this.connector = connector;
+        this.sentinels = sentinels;
+      }
+      cleanup() {
+        this.isDisconnected = true;
+        for (const sentinel of this.sentinels) {
+          sentinel.client.disconnect();
+        }
+      }
+      async subscribe() {
+        debug("Starting FailoverDetector");
+        const promises = [];
+        for (const sentinel of this.sentinels) {
+          const promise2 = sentinel.client.subscribe(CHANNEL_NAME).catch((err) => {
+            debug("Failed to subscribe to failover messages on sentinel %s:%s (%s)", sentinel.address.host || "127.0.0.1", sentinel.address.port || 26739, err.message);
+          });
+          promises.push(promise2);
+          sentinel.client.on("message", (channel) => {
+            if (!this.isDisconnected && channel === CHANNEL_NAME) {
+              this.disconnect();
+            }
+          });
+        }
+        await Promise.all(promises);
+      }
+      disconnect() {
+        this.isDisconnected = true;
+        debug("Failover detected, disconnecting");
+        this.connector.disconnect();
+      }
+    };
+    exports2.FailoverDetector = FailoverDetector;
+  }
+});
+
+// node_modules/ioredis/built/connectors/SentinelConnector/index.js
+var require_SentinelConnector = __commonJS({
+  "node_modules/ioredis/built/connectors/SentinelConnector/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.SentinelIterator = void 0;
+    var net_1 = require("net");
+    var utils_1 = require_utils7();
+    var tls_1 = require("tls");
+    var SentinelIterator_1 = require_SentinelIterator();
+    exports2.SentinelIterator = SentinelIterator_1.default;
+    var AbstractConnector_1 = require_AbstractConnector();
+    var Redis_1 = require_Redis();
+    var FailoverDetector_1 = require_FailoverDetector();
+    var debug = (0, utils_1.Debug)("SentinelConnector");
+    var SentinelConnector = class extends AbstractConnector_1.default {
+      constructor(options) {
+        super(options.disconnectTimeout);
+        this.options = options;
+        this.emitter = null;
+        this.failoverDetector = null;
+        if (!this.options.sentinels.length) {
+          throw new Error("Requires at least one sentinel to connect to.");
+        }
+        if (!this.options.name) {
+          throw new Error("Requires the name of master.");
+        }
+        this.sentinelIterator = new SentinelIterator_1.default(this.options.sentinels);
+      }
+      check(info) {
+        const roleMatches = !info.role || this.options.role === info.role;
+        if (!roleMatches) {
+          debug("role invalid, expected %s, but got %s", this.options.role, info.role);
+          this.sentinelIterator.next();
+          this.sentinelIterator.next();
+          this.sentinelIterator.reset(true);
+        }
+        return roleMatches;
+      }
+      disconnect() {
+        super.disconnect();
+        if (this.failoverDetector) {
+          this.failoverDetector.cleanup();
+        }
+      }
+      connect(eventEmitter) {
+        this.connecting = true;
+        this.retryAttempts = 0;
+        let lastError;
+        const connectToNext = async () => {
+          const endpoint = this.sentinelIterator.next();
+          if (endpoint.done) {
+            this.sentinelIterator.reset(false);
+            const retryDelay = typeof this.options.sentinelRetryStrategy === "function" ? this.options.sentinelRetryStrategy(++this.retryAttempts) : null;
+            let errorMsg = typeof retryDelay !== "number" ? "All sentinels are unreachable and retry is disabled." : `All sentinels are unreachable. Retrying from scratch after ${retryDelay}ms.`;
+            if (lastError) {
+              errorMsg += ` Last error: ${lastError.message}`;
+            }
+            debug(errorMsg);
+            const error61 = new Error(errorMsg);
+            if (typeof retryDelay === "number") {
+              eventEmitter("error", error61);
+              await new Promise((resolve) => setTimeout(resolve, retryDelay));
+              return connectToNext();
+            } else {
+              throw error61;
+            }
+          }
+          let resolved = null;
+          let err = null;
+          try {
+            resolved = await this.resolve(endpoint.value);
+          } catch (error61) {
+            err = error61;
+          }
+          if (!this.connecting) {
+            throw new Error(utils_1.CONNECTION_CLOSED_ERROR_MSG);
+          }
+          const endpointAddress = endpoint.value.host + ":" + endpoint.value.port;
+          if (resolved) {
+            debug("resolved: %s:%s from sentinel %s", resolved.host, resolved.port, endpointAddress);
+            if (this.options.enableTLSForSentinelMode && this.options.tls) {
+              Object.assign(resolved, this.options.tls);
+              this.stream = (0, tls_1.connect)(resolved);
+              this.stream.once("secureConnect", this.initFailoverDetector.bind(this));
+            } else {
+              this.stream = (0, net_1.createConnection)(resolved);
+              this.stream.once("connect", this.initFailoverDetector.bind(this));
+            }
+            this.stream.once("error", (err2) => {
+              this.firstError = err2;
+            });
+            return this.stream;
+          } else {
+            const errorMsg = err ? "failed to connect to sentinel " + endpointAddress + " because " + err.message : "connected to sentinel " + endpointAddress + " successfully, but got an invalid reply: " + resolved;
+            debug(errorMsg);
+            eventEmitter("sentinelError", new Error(errorMsg));
+            if (err) {
+              lastError = err;
+            }
+            return connectToNext();
+          }
+        };
+        return connectToNext();
+      }
+      async updateSentinels(client) {
+        if (!this.options.updateSentinels) {
+          return;
+        }
+        const result = await client.sentinel("sentinels", this.options.name);
+        if (!Array.isArray(result)) {
+          return;
+        }
+        result.map(utils_1.packObject).forEach((sentinel) => {
+          const flags = sentinel.flags ? sentinel.flags.split(",") : [];
+          if (flags.indexOf("disconnected") === -1 && sentinel.ip && sentinel.port) {
+            const endpoint = this.sentinelNatResolve(addressResponseToAddress(sentinel));
+            if (this.sentinelIterator.add(endpoint)) {
+              debug("adding sentinel %s:%s", endpoint.host, endpoint.port);
+            }
+          }
+        });
+        debug("Updated internal sentinels: %s", this.sentinelIterator);
+      }
+      async resolveMaster(client) {
+        const result = await client.sentinel("get-master-addr-by-name", this.options.name);
+        await this.updateSentinels(client);
+        return this.sentinelNatResolve(Array.isArray(result) ? { host: result[0], port: Number(result[1]) } : null);
+      }
+      async resolveSlave(client) {
+        const result = await client.sentinel("slaves", this.options.name);
+        if (!Array.isArray(result)) {
+          return null;
+        }
+        const availableSlaves = result.map(utils_1.packObject).filter((slave) => slave.flags && !slave.flags.match(/(disconnected|s_down|o_down)/));
+        return this.sentinelNatResolve(selectPreferredSentinel(availableSlaves, this.options.preferredSlaves));
+      }
+      sentinelNatResolve(item) {
+        if (!item || !this.options.natMap)
+          return item;
+        const key = `${item.host}:${item.port}`;
+        let result = item;
+        if (typeof this.options.natMap === "function") {
+          result = this.options.natMap(key) || item;
+        } else if (typeof this.options.natMap === "object") {
+          result = this.options.natMap[key] || item;
+        }
+        return result;
+      }
+      connectToSentinel(endpoint, options) {
+        const redis = new Redis_1.default({
+          port: endpoint.port || 26379,
+          host: endpoint.host,
+          username: this.options.sentinelUsername || null,
+          password: this.options.sentinelPassword || null,
+          family: endpoint.family || // @ts-expect-error
+          ("path" in this.options && this.options.path ? void 0 : (
+            // @ts-expect-error
+            this.options.family
+          )),
+          tls: this.options.sentinelTLS,
+          retryStrategy: null,
+          enableReadyCheck: false,
+          connectTimeout: this.options.connectTimeout,
+          commandTimeout: this.options.sentinelCommandTimeout,
+          ...options
+        });
+        return redis;
+      }
+      async resolve(endpoint) {
+        const client = this.connectToSentinel(endpoint);
+        client.on("error", noop2);
+        try {
+          if (this.options.role === "slave") {
+            return await this.resolveSlave(client);
+          } else {
+            return await this.resolveMaster(client);
+          }
+        } finally {
+          client.disconnect();
+        }
+      }
+      async initFailoverDetector() {
+        var _a4;
+        if (!this.options.failoverDetector) {
+          return;
+        }
+        this.sentinelIterator.reset(true);
+        const sentinels = [];
+        while (sentinels.length < this.options.sentinelMaxConnections) {
+          const { done, value } = this.sentinelIterator.next();
+          if (done) {
+            break;
+          }
+          const client = this.connectToSentinel(value, {
+            lazyConnect: true,
+            retryStrategy: this.options.sentinelReconnectStrategy
+          });
+          client.on("reconnecting", () => {
+            var _a5;
+            (_a5 = this.emitter) === null || _a5 === void 0 ? void 0 : _a5.emit("sentinelReconnecting");
+          });
+          sentinels.push({ address: value, client });
+        }
+        this.sentinelIterator.reset(false);
+        if (this.failoverDetector) {
+          this.failoverDetector.cleanup();
+        }
+        this.failoverDetector = new FailoverDetector_1.FailoverDetector(this, sentinels);
+        await this.failoverDetector.subscribe();
+        (_a4 = this.emitter) === null || _a4 === void 0 ? void 0 : _a4.emit("failoverSubscribed");
+      }
+    };
+    exports2.default = SentinelConnector;
+    function selectPreferredSentinel(availableSlaves, preferredSlaves) {
+      if (availableSlaves.length === 0) {
+        return null;
+      }
+      let selectedSlave;
+      if (typeof preferredSlaves === "function") {
+        selectedSlave = preferredSlaves(availableSlaves);
+      } else if (preferredSlaves !== null && typeof preferredSlaves === "object") {
+        const preferredSlavesArray = Array.isArray(preferredSlaves) ? preferredSlaves : [preferredSlaves];
+        preferredSlavesArray.sort((a, b) => {
+          if (!a.prio) {
+            a.prio = 1;
+          }
+          if (!b.prio) {
+            b.prio = 1;
+          }
+          if (a.prio < b.prio) {
+            return -1;
+          }
+          if (a.prio > b.prio) {
+            return 1;
+          }
+          return 0;
+        });
+        for (let p = 0; p < preferredSlavesArray.length; p++) {
+          for (let a = 0; a < availableSlaves.length; a++) {
+            const slave = availableSlaves[a];
+            if (slave.ip === preferredSlavesArray[p].ip) {
+              if (slave.port === preferredSlavesArray[p].port) {
+                selectedSlave = slave;
+                break;
+              }
+            }
+          }
+          if (selectedSlave) {
+            break;
+          }
+        }
+      }
+      if (!selectedSlave) {
+        selectedSlave = (0, utils_1.sample)(availableSlaves);
+      }
+      return addressResponseToAddress(selectedSlave);
+    }
+    function addressResponseToAddress(input2) {
+      return { host: input2.ip, port: Number(input2.port) };
+    }
+    function noop2() {
+    }
+  }
+});
+
+// node_modules/ioredis/built/connectors/index.js
+var require_connectors = __commonJS({
+  "node_modules/ioredis/built/connectors/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.SentinelConnector = exports2.StandaloneConnector = void 0;
+    var StandaloneConnector_1 = require_StandaloneConnector();
+    exports2.StandaloneConnector = StandaloneConnector_1.default;
+    var SentinelConnector_1 = require_SentinelConnector();
+    exports2.SentinelConnector = SentinelConnector_1.default;
+  }
+});
+
+// node_modules/ioredis/built/errors/MaxRetriesPerRequestError.js
+var require_MaxRetriesPerRequestError = __commonJS({
+  "node_modules/ioredis/built/errors/MaxRetriesPerRequestError.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var redis_errors_1 = require_redis_errors();
+    var MaxRetriesPerRequestError = class extends redis_errors_1.AbortError {
+      constructor(maxRetriesPerRequest) {
+        const message2 = `Reached the max retries per request limit (which is ${maxRetriesPerRequest}). Refer to "maxRetriesPerRequest" option for details.`;
+        super(message2);
+        Error.captureStackTrace(this, this.constructor);
+      }
+      get name() {
+        return this.constructor.name;
+      }
+    };
+    exports2.default = MaxRetriesPerRequestError;
+  }
+});
+
+// node_modules/ioredis/built/errors/index.js
+var require_errors3 = __commonJS({
+  "node_modules/ioredis/built/errors/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.MaxRetriesPerRequestError = void 0;
+    var MaxRetriesPerRequestError_1 = require_MaxRetriesPerRequestError();
+    exports2.MaxRetriesPerRequestError = MaxRetriesPerRequestError_1.default;
+  }
+});
+
+// node_modules/redis-parser/lib/parser.js
+var require_parser = __commonJS({
+  "node_modules/redis-parser/lib/parser.js"(exports2, module2) {
+    "use strict";
+    var Buffer5 = require("buffer").Buffer;
+    var StringDecoder = require("string_decoder").StringDecoder;
+    var decoder2 = new StringDecoder();
+    var errors = require_redis_errors();
+    var ReplyError = errors.ReplyError;
+    var ParserError = errors.ParserError;
+    var bufferPool = Buffer5.allocUnsafe(32 * 1024);
+    var bufferOffset = 0;
+    var interval = null;
+    var counter = 0;
+    var notDecreased = 0;
+    function parseSimpleNumbers(parser) {
+      const length = parser.buffer.length - 1;
+      var offset = parser.offset;
+      var number4 = 0;
+      var sign2 = 1;
+      if (parser.buffer[offset] === 45) {
+        sign2 = -1;
+        offset++;
+      }
+      while (offset < length) {
+        const c1 = parser.buffer[offset++];
+        if (c1 === 13) {
+          parser.offset = offset + 1;
+          return sign2 * number4;
+        }
+        number4 = number4 * 10 + (c1 - 48);
+      }
+    }
+    function parseStringNumbers(parser) {
+      const length = parser.buffer.length - 1;
+      var offset = parser.offset;
+      var number4 = 0;
+      var res = "";
+      if (parser.buffer[offset] === 45) {
+        res += "-";
+        offset++;
+      }
+      while (offset < length) {
+        var c1 = parser.buffer[offset++];
+        if (c1 === 13) {
+          parser.offset = offset + 1;
+          if (number4 !== 0) {
+            res += number4;
+          }
+          return res;
+        } else if (number4 > 429496728) {
+          res += number4 * 10 + (c1 - 48);
+          number4 = 0;
+        } else if (c1 === 48 && number4 === 0) {
+          res += 0;
+        } else {
+          number4 = number4 * 10 + (c1 - 48);
+        }
+      }
+    }
+    function parseSimpleString(parser) {
+      const start = parser.offset;
+      const buffer = parser.buffer;
+      const length = buffer.length - 1;
+      var offset = start;
+      while (offset < length) {
+        if (buffer[offset++] === 13) {
+          parser.offset = offset + 1;
+          if (parser.optionReturnBuffers === true) {
+            return parser.buffer.slice(start, offset - 1);
+          }
+          return parser.buffer.toString("utf8", start, offset - 1);
+        }
+      }
+    }
+    function parseLength2(parser) {
+      const length = parser.buffer.length - 1;
+      var offset = parser.offset;
+      var number4 = 0;
+      while (offset < length) {
+        const c1 = parser.buffer[offset++];
+        if (c1 === 13) {
+          parser.offset = offset + 1;
+          return number4;
+        }
+        number4 = number4 * 10 + (c1 - 48);
+      }
+    }
+    function parseInteger(parser) {
+      if (parser.optionStringNumbers === true) {
+        return parseStringNumbers(parser);
+      }
+      return parseSimpleNumbers(parser);
+    }
+    function parseBulkString(parser) {
+      const length = parseLength2(parser);
+      if (length === void 0) {
+        return;
+      }
+      if (length < 0) {
+        return null;
+      }
+      const offset = parser.offset + length;
+      if (offset + 2 > parser.buffer.length) {
+        parser.bigStrSize = offset + 2;
+        parser.totalChunkSize = parser.buffer.length;
+        parser.bufferCache.push(parser.buffer);
+        return;
+      }
+      const start = parser.offset;
+      parser.offset = offset + 2;
+      if (parser.optionReturnBuffers === true) {
+        return parser.buffer.slice(start, offset);
+      }
+      return parser.buffer.toString("utf8", start, offset);
+    }
+    function parseError(parser) {
+      var string4 = parseSimpleString(parser);
+      if (string4 !== void 0) {
+        if (parser.optionReturnBuffers === true) {
+          string4 = string4.toString();
+        }
+        return new ReplyError(string4);
+      }
+    }
+    function handleError(parser, type) {
+      const err = new ParserError(
+        "Protocol error, got " + JSON.stringify(String.fromCharCode(type)) + " as reply type byte",
+        JSON.stringify(parser.buffer),
+        parser.offset
+      );
+      parser.buffer = null;
+      parser.returnFatalError(err);
+    }
+    function parseArray(parser) {
+      const length = parseLength2(parser);
+      if (length === void 0) {
+        return;
+      }
+      if (length < 0) {
+        return null;
+      }
+      const responses = new Array(length);
+      return parseArrayElements(parser, responses, 0);
+    }
+    function pushArrayCache(parser, array2, pos) {
+      parser.arrayCache.push(array2);
+      parser.arrayPos.push(pos);
+    }
+    function parseArrayChunks(parser) {
+      const tmp = parser.arrayCache.pop();
+      var pos = parser.arrayPos.pop();
+      if (parser.arrayCache.length) {
+        const res = parseArrayChunks(parser);
+        if (res === void 0) {
+          pushArrayCache(parser, tmp, pos);
+          return;
+        }
+        tmp[pos++] = res;
+      }
+      return parseArrayElements(parser, tmp, pos);
+    }
+    function parseArrayElements(parser, responses, i2) {
+      const bufferLength = parser.buffer.length;
+      while (i2 < responses.length) {
+        const offset = parser.offset;
+        if (parser.offset >= bufferLength) {
+          pushArrayCache(parser, responses, i2);
+          return;
+        }
+        const response = parseType(parser, parser.buffer[parser.offset++]);
+        if (response === void 0) {
+          if (!(parser.arrayCache.length || parser.bufferCache.length)) {
+            parser.offset = offset;
+          }
+          pushArrayCache(parser, responses, i2);
+          return;
+        }
+        responses[i2] = response;
+        i2++;
+      }
+      return responses;
+    }
+    function parseType(parser, type) {
+      switch (type) {
+        case 36:
+          return parseBulkString(parser);
+        case 43:
+          return parseSimpleString(parser);
+        case 42:
+          return parseArray(parser);
+        case 58:
+          return parseInteger(parser);
+        case 45:
+          return parseError(parser);
+        default:
+          return handleError(parser, type);
+      }
+    }
+    function decreaseBufferPool() {
+      if (bufferPool.length > 50 * 1024) {
+        if (counter === 1 || notDecreased > counter * 2) {
+          const minSliceLen = Math.floor(bufferPool.length / 10);
+          const sliceLength = minSliceLen < bufferOffset ? bufferOffset : minSliceLen;
+          bufferOffset = 0;
+          bufferPool = bufferPool.slice(sliceLength, bufferPool.length);
+        } else {
+          notDecreased++;
+          counter--;
+        }
+      } else {
+        clearInterval(interval);
+        counter = 0;
+        notDecreased = 0;
+        interval = null;
+      }
+    }
+    function resizeBuffer(length) {
+      if (bufferPool.length < length + bufferOffset) {
+        const multiplier = length > 1024 * 1024 * 75 ? 2 : 3;
+        if (bufferOffset > 1024 * 1024 * 111) {
+          bufferOffset = 1024 * 1024 * 50;
+        }
+        bufferPool = Buffer5.allocUnsafe(length * multiplier + bufferOffset);
+        bufferOffset = 0;
+        counter++;
+        if (interval === null) {
+          interval = setInterval(decreaseBufferPool, 50);
+        }
+      }
+    }
+    function concatBulkString(parser) {
+      const list = parser.bufferCache;
+      const oldOffset = parser.offset;
+      var chunks = list.length;
+      var offset = parser.bigStrSize - parser.totalChunkSize;
+      parser.offset = offset;
+      if (offset <= 2) {
+        if (chunks === 2) {
+          return list[0].toString("utf8", oldOffset, list[0].length + offset - 2);
+        }
+        chunks--;
+        offset = list[list.length - 2].length + offset;
+      }
+      var res = decoder2.write(list[0].slice(oldOffset));
+      for (var i2 = 1; i2 < chunks - 1; i2++) {
+        res += decoder2.write(list[i2]);
+      }
+      res += decoder2.end(list[i2].slice(0, offset - 2));
+      return res;
+    }
+    function concatBulkBuffer(parser) {
+      const list = parser.bufferCache;
+      const oldOffset = parser.offset;
+      const length = parser.bigStrSize - oldOffset - 2;
+      var chunks = list.length;
+      var offset = parser.bigStrSize - parser.totalChunkSize;
+      parser.offset = offset;
+      if (offset <= 2) {
+        if (chunks === 2) {
+          return list[0].slice(oldOffset, list[0].length + offset - 2);
+        }
+        chunks--;
+        offset = list[list.length - 2].length + offset;
+      }
+      resizeBuffer(length);
+      const start = bufferOffset;
+      list[0].copy(bufferPool, start, oldOffset, list[0].length);
+      bufferOffset += list[0].length - oldOffset;
+      for (var i2 = 1; i2 < chunks - 1; i2++) {
+        list[i2].copy(bufferPool, bufferOffset);
+        bufferOffset += list[i2].length;
+      }
+      list[i2].copy(bufferPool, bufferOffset, 0, offset - 2);
+      bufferOffset += offset - 2;
+      return bufferPool.slice(start, bufferOffset);
+    }
+    var JavascriptRedisParser = class {
+      /**
+       * Javascript Redis Parser constructor
+       * @param {{returnError: Function, returnReply: Function, returnFatalError?: Function, returnBuffers: boolean, stringNumbers: boolean }} options
+       * @constructor
+       */
+      constructor(options) {
+        if (!options) {
+          throw new TypeError("Options are mandatory.");
+        }
+        if (typeof options.returnError !== "function" || typeof options.returnReply !== "function") {
+          throw new TypeError("The returnReply and returnError options have to be functions.");
+        }
+        this.setReturnBuffers(!!options.returnBuffers);
+        this.setStringNumbers(!!options.stringNumbers);
+        this.returnError = options.returnError;
+        this.returnFatalError = options.returnFatalError || options.returnError;
+        this.returnReply = options.returnReply;
+        this.reset();
+      }
+      /**
+       * Reset the parser values to the initial state
+       *
+       * @returns {undefined}
+       */
+      reset() {
+        this.offset = 0;
+        this.buffer = null;
+        this.bigStrSize = 0;
+        this.totalChunkSize = 0;
+        this.bufferCache = [];
+        this.arrayCache = [];
+        this.arrayPos = [];
+      }
+      /**
+       * Set the returnBuffers option
+       *
+       * @param {boolean} returnBuffers
+       * @returns {undefined}
+       */
+      setReturnBuffers(returnBuffers) {
+        if (typeof returnBuffers !== "boolean") {
+          throw new TypeError("The returnBuffers argument has to be a boolean");
+        }
+        this.optionReturnBuffers = returnBuffers;
+      }
+      /**
+       * Set the stringNumbers option
+       *
+       * @param {boolean} stringNumbers
+       * @returns {undefined}
+       */
+      setStringNumbers(stringNumbers) {
+        if (typeof stringNumbers !== "boolean") {
+          throw new TypeError("The stringNumbers argument has to be a boolean");
+        }
+        this.optionStringNumbers = stringNumbers;
+      }
+      /**
+       * Parse the redis buffer
+       * @param {Buffer} buffer
+       * @returns {undefined}
+       */
+      execute(buffer) {
+        if (this.buffer === null) {
+          this.buffer = buffer;
+          this.offset = 0;
+        } else if (this.bigStrSize === 0) {
+          const oldLength = this.buffer.length;
+          const remainingLength = oldLength - this.offset;
+          const newBuffer = Buffer5.allocUnsafe(remainingLength + buffer.length);
+          this.buffer.copy(newBuffer, 0, this.offset, oldLength);
+          buffer.copy(newBuffer, remainingLength, 0, buffer.length);
+          this.buffer = newBuffer;
+          this.offset = 0;
+          if (this.arrayCache.length) {
+            const arr = parseArrayChunks(this);
+            if (arr === void 0) {
+              return;
+            }
+            this.returnReply(arr);
+          }
+        } else if (this.totalChunkSize + buffer.length >= this.bigStrSize) {
+          this.bufferCache.push(buffer);
+          var tmp = this.optionReturnBuffers ? concatBulkBuffer(this) : concatBulkString(this);
+          this.bigStrSize = 0;
+          this.bufferCache = [];
+          this.buffer = buffer;
+          if (this.arrayCache.length) {
+            this.arrayCache[0][this.arrayPos[0]++] = tmp;
+            tmp = parseArrayChunks(this);
+            if (tmp === void 0) {
+              return;
+            }
+          }
+          this.returnReply(tmp);
+        } else {
+          this.bufferCache.push(buffer);
+          this.totalChunkSize += buffer.length;
+          return;
+        }
+        while (this.offset < this.buffer.length) {
+          const offset = this.offset;
+          const type = this.buffer[this.offset++];
+          const response = parseType(this, type);
+          if (response === void 0) {
+            if (!(this.arrayCache.length || this.bufferCache.length)) {
+              this.offset = offset;
+            }
+            return;
+          }
+          if (type === 45) {
+            this.returnError(response);
+          } else {
+            this.returnReply(response);
+          }
+        }
+        this.buffer = null;
+      }
+    };
+    module2.exports = JavascriptRedisParser;
+  }
+});
+
+// node_modules/redis-parser/index.js
+var require_redis_parser = __commonJS({
+  "node_modules/redis-parser/index.js"(exports2, module2) {
+    "use strict";
+    module2.exports = require_parser();
+  }
+});
+
+// node_modules/ioredis/built/SubscriptionSet.js
+var require_SubscriptionSet = __commonJS({
+  "node_modules/ioredis/built/SubscriptionSet.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var SubscriptionSet = class {
+      constructor() {
+        this.set = {
+          subscribe: {},
+          psubscribe: {},
+          ssubscribe: {}
+        };
+      }
+      add(set2, channel) {
+        this.set[mapSet(set2)][channel] = true;
+      }
+      del(set2, channel) {
+        delete this.set[mapSet(set2)][channel];
+      }
+      channels(set2) {
+        return Object.keys(this.set[mapSet(set2)]);
+      }
+      isEmpty() {
+        return this.channels("subscribe").length === 0 && this.channels("psubscribe").length === 0 && this.channels("ssubscribe").length === 0;
+      }
+    };
+    exports2.default = SubscriptionSet;
+    function mapSet(set2) {
+      if (set2 === "unsubscribe") {
+        return "subscribe";
+      }
+      if (set2 === "punsubscribe") {
+        return "psubscribe";
+      }
+      if (set2 === "sunsubscribe") {
+        return "ssubscribe";
+      }
+      return set2;
+    }
+  }
+});
+
+// node_modules/ioredis/built/DataHandler.js
+var require_DataHandler = __commonJS({
+  "node_modules/ioredis/built/DataHandler.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var Command_1 = require_Command();
+    var utils_1 = require_utils7();
+    var RedisParser = require_redis_parser();
+    var SubscriptionSet_1 = require_SubscriptionSet();
+    var debug = (0, utils_1.Debug)("dataHandler");
+    var DataHandler = class {
+      constructor(redis, parserOptions) {
+        this.redis = redis;
+        const parser = new RedisParser({
+          stringNumbers: parserOptions.stringNumbers,
+          returnBuffers: true,
+          returnError: (err) => {
+            this.returnError(err);
+          },
+          returnFatalError: (err) => {
+            this.returnFatalError(err);
+          },
+          returnReply: (reply) => {
+            this.returnReply(reply);
+          }
+        });
+        redis.stream.prependListener("data", (data) => {
+          parser.execute(data);
+        });
+        redis.stream.resume();
+      }
+      returnFatalError(err) {
+        err.message += ". Please report this.";
+        this.redis.recoverFromFatalError(err, err, { offlineQueue: false });
+      }
+      returnError(err) {
+        const item = this.shiftCommand(err);
+        if (!item) {
+          return;
+        }
+        err.command = {
+          name: item.command.name,
+          args: item.command.args
+        };
+        if (item.command.name == "ssubscribe" && err.message.includes("MOVED")) {
+          this.redis.emit("moved");
+          return;
+        }
+        this.redis.handleReconnection(err, item);
+      }
+      returnReply(reply) {
+        if (this.handleMonitorReply(reply)) {
+          return;
+        }
+        if (this.handleSubscriberReply(reply)) {
+          return;
+        }
+        const item = this.shiftCommand(reply);
+        if (!item) {
+          return;
+        }
+        if (Command_1.default.checkFlag("ENTER_SUBSCRIBER_MODE", item.command.name)) {
+          this.redis.condition.subscriber = new SubscriptionSet_1.default();
+          this.redis.condition.subscriber.add(item.command.name, reply[1].toString());
+          if (!fillSubCommand(item.command, reply[2])) {
+            this.redis.commandQueue.unshift(item);
+          }
+        } else if (Command_1.default.checkFlag("EXIT_SUBSCRIBER_MODE", item.command.name)) {
+          if (!fillUnsubCommand(item.command, reply[2])) {
+            this.redis.commandQueue.unshift(item);
+          }
+        } else {
+          item.command.resolve(reply);
+        }
+      }
+      handleSubscriberReply(reply) {
+        if (!this.redis.condition.subscriber) {
+          return false;
+        }
+        const replyType = Array.isArray(reply) ? reply[0].toString() : null;
+        debug('receive reply "%s" in subscriber mode', replyType);
+        switch (replyType) {
+          case "message":
+            if (this.redis.listeners("message").length > 0) {
+              this.redis.emit("message", reply[1].toString(), reply[2] ? reply[2].toString() : "");
+            }
+            this.redis.emit("messageBuffer", reply[1], reply[2]);
+            break;
+          case "pmessage": {
+            const pattern = reply[1].toString();
+            if (this.redis.listeners("pmessage").length > 0) {
+              this.redis.emit("pmessage", pattern, reply[2].toString(), reply[3].toString());
+            }
+            this.redis.emit("pmessageBuffer", pattern, reply[2], reply[3]);
+            break;
+          }
+          case "smessage": {
+            if (this.redis.listeners("smessage").length > 0) {
+              this.redis.emit("smessage", reply[1].toString(), reply[2] ? reply[2].toString() : "");
+            }
+            this.redis.emit("smessageBuffer", reply[1], reply[2]);
+            break;
+          }
+          case "ssubscribe":
+          case "subscribe":
+          case "psubscribe": {
+            const channel = reply[1].toString();
+            this.redis.condition.subscriber.add(replyType, channel);
+            const item = this.shiftCommand(reply);
+            if (!item) {
+              return;
+            }
+            if (!fillSubCommand(item.command, reply[2])) {
+              this.redis.commandQueue.unshift(item);
+            }
+            break;
+          }
+          case "sunsubscribe":
+          case "unsubscribe":
+          case "punsubscribe": {
+            const channel = reply[1] ? reply[1].toString() : null;
+            if (channel) {
+              this.redis.condition.subscriber.del(replyType, channel);
+            }
+            const count = reply[2];
+            if (Number(count) === 0) {
+              this.redis.condition.subscriber = false;
+            }
+            const item = this.shiftCommand(reply);
+            if (!item) {
+              return;
+            }
+            if (!fillUnsubCommand(item.command, count)) {
+              this.redis.commandQueue.unshift(item);
+            }
+            break;
+          }
+          default: {
+            const item = this.shiftCommand(reply);
+            if (!item) {
+              return;
+            }
+            item.command.resolve(reply);
+          }
+        }
+        return true;
+      }
+      handleMonitorReply(reply) {
+        if (this.redis.status !== "monitoring") {
+          return false;
+        }
+        const replyStr = reply.toString();
+        if (replyStr === "OK") {
+          return false;
+        }
+        const len = replyStr.indexOf(" ");
+        const timestamp = replyStr.slice(0, len);
+        const argIndex = replyStr.indexOf('"');
+        const args = replyStr.slice(argIndex + 1, -1).split('" "').map((elem) => elem.replace(/\\"/g, '"'));
+        const dbAndSource = replyStr.slice(len + 2, argIndex - 2).split(" ");
+        this.redis.emit("monitor", timestamp, args, dbAndSource[1], dbAndSource[0]);
+        return true;
+      }
+      shiftCommand(reply) {
+        const item = this.redis.commandQueue.shift();
+        if (!item) {
+          const message2 = "Command queue state error. If you can reproduce this, please report it.";
+          const error61 = new Error(message2 + (reply instanceof Error ? ` Last error: ${reply.message}` : ` Last reply: ${reply.toString()}`));
+          this.redis.emit("error", error61);
+          return null;
+        }
+        return item;
+      }
+    };
+    exports2.default = DataHandler;
+    var remainingRepliesMap = /* @__PURE__ */ new WeakMap();
+    function fillSubCommand(command, count) {
+      let remainingReplies = remainingRepliesMap.has(command) ? remainingRepliesMap.get(command) : command.args.length;
+      remainingReplies -= 1;
+      if (remainingReplies <= 0) {
+        command.resolve(count);
+        remainingRepliesMap.delete(command);
+        return true;
+      }
+      remainingRepliesMap.set(command, remainingReplies);
+      return false;
+    }
+    function fillUnsubCommand(command, count) {
+      let remainingReplies = remainingRepliesMap.has(command) ? remainingRepliesMap.get(command) : command.args.length;
+      if (remainingReplies === 0) {
+        if (Number(count) === 0) {
+          remainingRepliesMap.delete(command);
+          command.resolve(count);
+          return true;
+        }
+        return false;
+      }
+      remainingReplies -= 1;
+      if (remainingReplies <= 0) {
+        command.resolve(count);
+        return true;
+      }
+      remainingRepliesMap.set(command, remainingReplies);
+      return false;
+    }
+  }
+});
+
+// node_modules/ioredis/built/redis/event_handler.js
+var require_event_handler = __commonJS({
+  "node_modules/ioredis/built/redis/event_handler.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.readyHandler = exports2.errorHandler = exports2.closeHandler = exports2.connectHandler = void 0;
+    var redis_errors_1 = require_redis_errors();
+    var Command_1 = require_Command();
+    var errors_1 = require_errors3();
+    var utils_1 = require_utils7();
+    var DataHandler_1 = require_DataHandler();
+    var debug = (0, utils_1.Debug)("connection");
+    function connectHandler(self2) {
+      return function() {
+        var _a4;
+        self2.setStatus("connect");
+        self2.resetCommandQueue();
+        let flushed = false;
+        const { connectionEpoch } = self2;
+        if (self2.condition.auth) {
+          self2.auth(self2.condition.auth, function(err) {
+            if (connectionEpoch !== self2.connectionEpoch) {
+              return;
+            }
+            if (err) {
+              if (err.message.indexOf("no password is set") !== -1) {
+                console.warn("[WARN] Redis server does not require a password, but a password was supplied.");
+              } else if (err.message.indexOf("without any password configured for the default user") !== -1) {
+                console.warn("[WARN] This Redis server's `default` user does not require a password, but a password was supplied");
+              } else if (err.message.indexOf("wrong number of arguments for 'auth' command") !== -1) {
+                console.warn(`[ERROR] The server returned "wrong number of arguments for 'auth' command". You are probably passing both username and password to Redis version 5 or below. You should only pass the 'password' option for Redis version 5 and under.`);
+              } else {
+                flushed = true;
+                self2.recoverFromFatalError(err, err);
+              }
+            }
+          });
+        }
+        if (self2.condition.select) {
+          self2.select(self2.condition.select).catch((err) => {
+            self2.silentEmit("error", err);
+          });
+        }
+        new DataHandler_1.default(self2, {
+          stringNumbers: self2.options.stringNumbers
+        });
+        const clientCommandPromises = [];
+        if (self2.options.connectionName) {
+          debug("set the connection name [%s]", self2.options.connectionName);
+          clientCommandPromises.push(self2.client("setname", self2.options.connectionName).catch(utils_1.noop));
+        }
+        if (!self2.options.disableClientInfo) {
+          debug("set the client info");
+          clientCommandPromises.push((0, utils_1.getPackageMeta)().then((packageMeta) => {
+            return self2.client("SETINFO", "LIB-VER", packageMeta.version).catch(utils_1.noop);
+          }).catch(utils_1.noop));
+          clientCommandPromises.push(self2.client("SETINFO", "LIB-NAME", ((_a4 = self2.options) === null || _a4 === void 0 ? void 0 : _a4.clientInfoTag) ? `ioredis(${self2.options.clientInfoTag})` : "ioredis").catch(utils_1.noop));
+        }
+        Promise.all(clientCommandPromises).catch(utils_1.noop).finally(() => {
+          if (!self2.options.enableReadyCheck) {
+            exports2.readyHandler(self2)();
+          }
+          if (self2.options.enableReadyCheck) {
+            self2._readyCheck(function(err, info) {
+              if (connectionEpoch !== self2.connectionEpoch) {
+                return;
+              }
+              if (err) {
+                if (!flushed) {
+                  self2.recoverFromFatalError(new Error("Ready check failed: " + err.message), err);
+                }
+              } else {
+                if (self2.connector.check(info)) {
+                  exports2.readyHandler(self2)();
+                } else {
+                  self2.disconnect(true);
+                }
+              }
+            });
+          }
+        });
+      };
+    }
+    exports2.connectHandler = connectHandler;
+    function abortError(command) {
+      const err = new redis_errors_1.AbortError("Command aborted due to connection close");
+      err.command = {
+        name: command.name,
+        args: command.args
+      };
+      return err;
+    }
+    function abortIncompletePipelines(commandQueue) {
+      var _a4;
+      let expectedIndex = 0;
+      for (let i2 = 0; i2 < commandQueue.length; ) {
+        const command = (_a4 = commandQueue.peekAt(i2)) === null || _a4 === void 0 ? void 0 : _a4.command;
+        const pipelineIndex = command.pipelineIndex;
+        if (pipelineIndex === void 0 || pipelineIndex === 0) {
+          expectedIndex = 0;
+        }
+        if (pipelineIndex !== void 0 && pipelineIndex !== expectedIndex++) {
+          commandQueue.remove(i2, 1);
+          command.reject(abortError(command));
+          continue;
+        }
+        i2++;
+      }
+    }
+    function abortTransactionFragments(commandQueue) {
+      var _a4;
+      for (let i2 = 0; i2 < commandQueue.length; ) {
+        const command = (_a4 = commandQueue.peekAt(i2)) === null || _a4 === void 0 ? void 0 : _a4.command;
+        if (command.name === "multi") {
+          break;
+        }
+        if (command.name === "exec") {
+          commandQueue.remove(i2, 1);
+          command.reject(abortError(command));
+          break;
+        }
+        if (command.inTransaction) {
+          commandQueue.remove(i2, 1);
+          command.reject(abortError(command));
+        } else {
+          i2++;
+        }
+      }
+    }
+    function closeHandler(self2) {
+      return function() {
+        const prevStatus = self2.status;
+        self2.setStatus("close");
+        if (self2.commandQueue.length) {
+          abortIncompletePipelines(self2.commandQueue);
+        }
+        if (self2.offlineQueue.length) {
+          abortTransactionFragments(self2.offlineQueue);
+        }
+        if (prevStatus === "ready") {
+          if (!self2.prevCondition) {
+            self2.prevCondition = self2.condition;
+          }
+          if (self2.commandQueue.length) {
+            self2.prevCommandQueue = self2.commandQueue;
+          }
+        }
+        if (self2.manuallyClosing) {
+          self2.manuallyClosing = false;
+          debug("skip reconnecting since the connection is manually closed.");
+          return close();
+        }
+        if (typeof self2.options.retryStrategy !== "function") {
+          debug("skip reconnecting because `retryStrategy` is not a function");
+          return close();
+        }
+        const retryDelay = self2.options.retryStrategy(++self2.retryAttempts);
+        if (typeof retryDelay !== "number") {
+          debug("skip reconnecting because `retryStrategy` doesn't return a number");
+          return close();
+        }
+        debug("reconnect in %sms", retryDelay);
+        self2.setStatus("reconnecting", retryDelay);
+        self2.reconnectTimeout = setTimeout(function() {
+          self2.reconnectTimeout = null;
+          self2.connect().catch(utils_1.noop);
+        }, retryDelay);
+        const { maxRetriesPerRequest } = self2.options;
+        if (typeof maxRetriesPerRequest === "number") {
+          if (maxRetriesPerRequest < 0) {
+            debug("maxRetriesPerRequest is negative, ignoring...");
+          } else {
+            const remainder = self2.retryAttempts % (maxRetriesPerRequest + 1);
+            if (remainder === 0) {
+              debug("reach maxRetriesPerRequest limitation, flushing command queue...");
+              self2.flushQueue(new errors_1.MaxRetriesPerRequestError(maxRetriesPerRequest));
+            }
+          }
+        }
+      };
+      function close() {
+        self2.setStatus("end");
+        self2.flushQueue(new Error(utils_1.CONNECTION_CLOSED_ERROR_MSG));
+      }
+    }
+    exports2.closeHandler = closeHandler;
+    function errorHandler(self2) {
+      return function(error61) {
+        debug("error: %s", error61);
+        self2.silentEmit("error", error61);
+      };
+    }
+    exports2.errorHandler = errorHandler;
+    function readyHandler(self2) {
+      return function() {
+        self2.setStatus("ready");
+        self2.retryAttempts = 0;
+        if (self2.options.monitor) {
+          self2.call("monitor").then(() => self2.setStatus("monitoring"), (error61) => self2.emit("error", error61));
+          const { sendCommand } = self2;
+          self2.sendCommand = function(command) {
+            if (Command_1.default.checkFlag("VALID_IN_MONITOR_MODE", command.name)) {
+              return sendCommand.call(self2, command);
+            }
+            command.reject(new Error("Connection is in monitoring mode, can't process commands."));
+            return command.promise;
+          };
+          self2.once("close", function() {
+            delete self2.sendCommand;
+          });
+          return;
+        }
+        const finalSelect = self2.prevCondition ? self2.prevCondition.select : self2.condition.select;
+        if (self2.options.readOnly) {
+          debug("set the connection to readonly mode");
+          self2.readonly().catch(utils_1.noop);
+        }
+        if (self2.prevCondition) {
+          const condition = self2.prevCondition;
+          self2.prevCondition = null;
+          if (condition.subscriber && self2.options.autoResubscribe) {
+            if (self2.condition.select !== finalSelect) {
+              debug("connect to db [%d]", finalSelect);
+              self2.select(finalSelect);
+            }
+            const subscribeChannels = condition.subscriber.channels("subscribe");
+            if (subscribeChannels.length) {
+              debug("subscribe %d channels", subscribeChannels.length);
+              self2.subscribe(subscribeChannels);
+            }
+            const psubscribeChannels = condition.subscriber.channels("psubscribe");
+            if (psubscribeChannels.length) {
+              debug("psubscribe %d channels", psubscribeChannels.length);
+              self2.psubscribe(psubscribeChannels);
+            }
+            const ssubscribeChannels = condition.subscriber.channels("ssubscribe");
+            if (ssubscribeChannels.length) {
+              debug("ssubscribe %s", ssubscribeChannels.length);
+              for (const channel of ssubscribeChannels) {
+                self2.ssubscribe(channel);
+              }
+            }
+          }
+        }
+        if (self2.prevCommandQueue) {
+          if (self2.options.autoResendUnfulfilledCommands) {
+            debug("resend %d unfulfilled commands", self2.prevCommandQueue.length);
+            while (self2.prevCommandQueue.length > 0) {
+              const item = self2.prevCommandQueue.shift();
+              if (item.select !== self2.condition.select && item.command.name !== "select") {
+                self2.select(item.select);
+              }
+              self2.sendCommand(item.command, item.stream);
+            }
+          } else {
+            self2.prevCommandQueue = null;
+          }
+        }
+        if (self2.offlineQueue.length) {
+          debug("send %d commands in offline queue", self2.offlineQueue.length);
+          const offlineQueue = self2.offlineQueue;
+          self2.resetOfflineQueue();
+          while (offlineQueue.length > 0) {
+            const item = offlineQueue.shift();
+            if (item.select !== self2.condition.select && item.command.name !== "select") {
+              self2.select(item.select);
+            }
+            self2.sendCommand(item.command, item.stream);
+          }
+        }
+        if (self2.condition.select !== finalSelect) {
+          debug("connect to db [%d]", finalSelect);
+          self2.select(finalSelect);
+        }
+      };
+    }
+    exports2.readyHandler = readyHandler;
+  }
+});
+
+// node_modules/ioredis/built/redis/RedisOptions.js
+var require_RedisOptions = __commonJS({
+  "node_modules/ioredis/built/redis/RedisOptions.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.DEFAULT_REDIS_OPTIONS = void 0;
+    exports2.DEFAULT_REDIS_OPTIONS = {
+      // Connection
+      port: 6379,
+      host: "localhost",
+      family: 0,
+      connectTimeout: 1e4,
+      disconnectTimeout: 2e3,
+      retryStrategy: function(times) {
+        return Math.min(times * 50, 2e3);
+      },
+      keepAlive: 0,
+      noDelay: true,
+      connectionName: null,
+      disableClientInfo: false,
+      clientInfoTag: void 0,
+      // Sentinel
+      sentinels: null,
+      name: null,
+      role: "master",
+      sentinelRetryStrategy: function(times) {
+        return Math.min(times * 10, 1e3);
+      },
+      sentinelReconnectStrategy: function() {
+        return 6e4;
+      },
+      natMap: null,
+      enableTLSForSentinelMode: false,
+      updateSentinels: true,
+      failoverDetector: false,
+      // Status
+      username: null,
+      password: null,
+      db: 0,
+      // Others
+      enableOfflineQueue: true,
+      enableReadyCheck: true,
+      autoResubscribe: true,
+      autoResendUnfulfilledCommands: true,
+      lazyConnect: false,
+      keyPrefix: "",
+      reconnectOnError: null,
+      readOnly: false,
+      stringNumbers: false,
+      maxRetriesPerRequest: 20,
+      maxLoadingRetryTime: 1e4,
+      enableAutoPipelining: false,
+      autoPipeliningIgnoredCommands: [],
+      sentinelMaxConnections: 10,
+      blockingTimeoutGrace: 100
+    };
+  }
+});
+
+// node_modules/ioredis/built/Redis.js
+var require_Redis = __commonJS({
+  "node_modules/ioredis/built/Redis.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var commands_1 = require_built();
+    var events_1 = require("events");
+    var standard_as_callback_1 = require_built2();
+    var cluster_1 = require_cluster();
+    var Command_1 = require_Command();
+    var connectors_1 = require_connectors();
+    var SentinelConnector_1 = require_SentinelConnector();
+    var eventHandler = require_event_handler();
+    var RedisOptions_1 = require_RedisOptions();
+    var ScanStream_1 = require_ScanStream();
+    var transaction_1 = require_transaction2();
+    var utils_1 = require_utils7();
+    var tracing_1 = require_tracing();
+    var applyMixin_1 = require_applyMixin();
+    var Commander_1 = require_Commander();
+    var lodash_1 = require_lodash10();
+    var Deque = require_denque();
+    var debug = (0, utils_1.Debug)("redis");
+    var Redis2 = class _Redis extends Commander_1.default {
+      constructor(arg1, arg2, arg3) {
+        super();
+        this.status = "wait";
+        this.isCluster = false;
+        this.reconnectTimeout = null;
+        this.connectionEpoch = 0;
+        this.retryAttempts = 0;
+        this.manuallyClosing = false;
+        this._autoPipelines = /* @__PURE__ */ new Map();
+        this._runningAutoPipelines = /* @__PURE__ */ new Set();
+        this.parseOptions(arg1, arg2, arg3);
+        events_1.EventEmitter.call(this);
+        this.resetCommandQueue();
+        this.resetOfflineQueue();
+        if (this.options.Connector) {
+          this.connector = new this.options.Connector(this.options);
+        } else if (this.options.sentinels) {
+          const sentinelConnector = new SentinelConnector_1.default(this.options);
+          sentinelConnector.emitter = this;
+          this.connector = sentinelConnector;
+        } else {
+          this.connector = new connectors_1.StandaloneConnector(this.options);
+        }
+        if (this.options.scripts) {
+          Object.entries(this.options.scripts).forEach(([name, definition]) => {
+            this.defineCommand(name, definition);
+          });
+        }
+        if (this.options.lazyConnect) {
+          this.setStatus("wait");
+        } else {
+          this.connect().catch(lodash_1.noop);
+        }
+      }
+      /**
+       * Create a Redis instance.
+       * This is the same as `new Redis()` but is included for compatibility with node-redis.
+       */
+      static createClient(...args) {
+        return new _Redis(...args);
+      }
+      get autoPipelineQueueSize() {
+        let queued = 0;
+        for (const pipeline2 of this._autoPipelines.values()) {
+          queued += pipeline2.length;
+        }
+        return queued;
+      }
+      /**
+       * Create a connection to Redis.
+       * This method will be invoked automatically when creating a new Redis instance
+       * unless `lazyConnect: true` is passed.
+       *
+       * When calling this method manually, a Promise is returned, which will
+       * be resolved when the connection status is ready. The promise can reject
+       * if the connection fails, times out, or if Redis is already connecting/connected.
+       */
+      connect(callback) {
+        const promise2 = (0, tracing_1.traceConnect)(() => this._connect(), () => {
+          const { address, port } = this._getServerAddress();
+          return {
+            serverAddress: address,
+            serverPort: port,
+            connectionEpoch: this.connectionEpoch
+          };
+        });
+        return (0, standard_as_callback_1.default)(promise2, callback);
+      }
+      _connect() {
+        return new Promise((resolve, reject) => {
+          if (this.status === "connecting" || this.status === "connect" || this.status === "ready") {
+            reject(new Error("Redis is already connecting/connected"));
+            return;
+          }
+          this.connectionEpoch += 1;
+          this.setStatus("connecting");
+          const { options } = this;
+          this.condition = {
+            select: options.db,
+            auth: options.username ? [options.username, options.password] : options.password,
+            subscriber: false
+          };
+          const _this = this;
+          (0, standard_as_callback_1.default)(this.connector.connect(function(type, err) {
+            _this.silentEmit(type, err);
+          }), function(err, stream) {
+            if (err) {
+              _this.flushQueue(err);
+              _this.silentEmit("error", err);
+              reject(err);
+              _this.setStatus("end");
+              return;
+            }
+            let CONNECT_EVENT = options.tls ? "secureConnect" : "connect";
+            if ("sentinels" in options && options.sentinels && !options.enableTLSForSentinelMode) {
+              CONNECT_EVENT = "connect";
+            }
+            _this.stream = stream;
+            if (options.noDelay) {
+              stream.setNoDelay(true);
+            }
+            if (typeof options.keepAlive === "number") {
+              if (stream.connecting) {
+                stream.once(CONNECT_EVENT, () => {
+                  stream.setKeepAlive(true, options.keepAlive);
+                });
+              } else {
+                stream.setKeepAlive(true, options.keepAlive);
+              }
+            }
+            if (stream.connecting) {
+              stream.once(CONNECT_EVENT, eventHandler.connectHandler(_this));
+              if (options.connectTimeout) {
+                let connectTimeoutCleared = false;
+                stream.setTimeout(options.connectTimeout, function() {
+                  if (connectTimeoutCleared) {
+                    return;
+                  }
+                  stream.setTimeout(0);
+                  stream.destroy();
+                  const err2 = new Error("connect ETIMEDOUT");
+                  err2.errorno = "ETIMEDOUT";
+                  err2.code = "ETIMEDOUT";
+                  err2.syscall = "connect";
+                  eventHandler.errorHandler(_this)(err2);
+                });
+                stream.once(CONNECT_EVENT, function() {
+                  connectTimeoutCleared = true;
+                  stream.setTimeout(0);
+                });
+              }
+            } else if (stream.destroyed) {
+              const firstError = _this.connector.firstError;
+              if (firstError) {
+                process.nextTick(() => {
+                  eventHandler.errorHandler(_this)(firstError);
+                });
+              }
+              process.nextTick(eventHandler.closeHandler(_this));
+            } else {
+              process.nextTick(eventHandler.connectHandler(_this));
+            }
+            if (!stream.destroyed) {
+              stream.once("error", eventHandler.errorHandler(_this));
+              stream.once("close", eventHandler.closeHandler(_this));
+            }
+            const connectionReadyHandler = function() {
+              _this.removeListener("close", connectionCloseHandler);
+              resolve();
+            };
+            var connectionCloseHandler = function() {
+              _this.removeListener("ready", connectionReadyHandler);
+              reject(new Error(utils_1.CONNECTION_CLOSED_ERROR_MSG));
+            };
+            _this.once("ready", connectionReadyHandler);
+            _this.once("close", connectionCloseHandler);
+          });
+        });
+      }
+      /**
+       * Disconnect from Redis.
+       *
+       * This method closes the connection immediately,
+       * and may lose some pending replies that haven't written to client.
+       * If you want to wait for the pending replies, use Redis#quit instead.
+       */
+      disconnect(reconnect = false) {
+        if (!reconnect) {
+          this.manuallyClosing = true;
+        }
+        if (this.reconnectTimeout && !reconnect) {
+          clearTimeout(this.reconnectTimeout);
+          this.reconnectTimeout = null;
+        }
+        if (this.status === "wait") {
+          eventHandler.closeHandler(this)();
+        } else {
+          this.connector.disconnect();
+        }
+      }
+      /**
+       * Disconnect from Redis.
+       *
+       * @deprecated
+       */
+      end() {
+        this.disconnect();
+      }
+      /**
+       * Create a new instance with the same options as the current one.
+       *
+       * @example
+       * ```js
+       * var redis = new Redis(6380);
+       * var anotherRedis = redis.duplicate();
+       * ```
+       */
+      duplicate(override) {
+        return new _Redis({ ...this.options, ...override });
+      }
+      /**
+       * Mode of the connection.
+       *
+       * One of `"normal"`, `"subscriber"`, or `"monitor"`. When the connection is
+       * not in `"normal"` mode, certain commands are not allowed.
+       */
+      get mode() {
+        var _a4;
+        return this.options.monitor ? "monitor" : ((_a4 = this.condition) === null || _a4 === void 0 ? void 0 : _a4.subscriber) ? "subscriber" : "normal";
+      }
+      /**
+       * Listen for all requests received by the server in real time.
+       *
+       * This command will create a new connection to Redis and send a
+       * MONITOR command via the new connection in order to avoid disturbing
+       * the current connection.
+       *
+       * @param callback The callback function. If omit, a promise will be returned.
+       * @example
+       * ```js
+       * var redis = new Redis();
+       * redis.monitor(function (err, monitor) {
+       *   // Entering monitoring mode.
+       *   monitor.on('monitor', function (time, args, source, database) {
+       *     console.log(time + ": " + util.inspect(args));
+       *   });
+       * });
+       *
+       * // supports promise as well as other commands
+       * redis.monitor().then(function (monitor) {
+       *   monitor.on('monitor', function (time, args, source, database) {
+       *     console.log(time + ": " + util.inspect(args));
+       *   });
+       * });
+       * ```
+       */
+      monitor(callback) {
+        const monitorInstance = this.duplicate({
+          monitor: true,
+          lazyConnect: false
+        });
+        return (0, standard_as_callback_1.default)(new Promise(function(resolve, reject) {
+          monitorInstance.once("error", reject);
+          monitorInstance.once("monitoring", function() {
+            resolve(monitorInstance);
+          });
+        }), callback);
+      }
+      /**
+       * Send a command to Redis
+       *
+       * This method is used internally and in most cases you should not
+       * use it directly. If you need to send a command that is not supported
+       * by the library, you can use the `call` method:
+       *
+       * ```js
+       * const redis = new Redis();
+       *
+       * redis.call('set', 'foo', 'bar');
+       * // or
+       * redis.call(['set', 'foo', 'bar']);
+       * ```
+       *
+       * @ignore
+       */
+      sendCommand(command, stream) {
+        var _a4, _b;
+        if (this.status === "wait") {
+          this.connect().catch(lodash_1.noop);
+        }
+        if (this.status === "end") {
+          command.reject(new Error(utils_1.CONNECTION_CLOSED_ERROR_MSG));
+          return command.promise;
+        }
+        if (((_a4 = this.condition) === null || _a4 === void 0 ? void 0 : _a4.subscriber) && !Command_1.default.checkFlag("VALID_IN_SUBSCRIBER_MODE", command.name)) {
+          command.reject(new Error("Connection in subscriber mode, only subscriber commands may be used"));
+          return command.promise;
+        }
+        if (typeof this.options.commandTimeout === "number") {
+          command.setTimeout(this.options.commandTimeout);
+        }
+        const blockingTimeout = this.getBlockingTimeoutInMs(command);
+        let writable = this.status === "ready" || !stream && this.status === "connect" && (0, commands_1.exists)(command.name, { caseInsensitive: true }) && ((0, commands_1.hasFlag)(command.name, "loading", { nameCaseInsensitive: true }) || Command_1.default.checkFlag("HANDSHAKE_COMMANDS", command.name));
+        if (!this.stream) {
+          writable = false;
+        } else if (!this.stream.writable) {
+          writable = false;
+        } else if (this.stream._writableState && this.stream._writableState.ended) {
+          writable = false;
+        }
+        if (!writable) {
+          if (!this.options.enableOfflineQueue) {
+            command.reject(new Error("Stream isn't writeable and enableOfflineQueue options is false"));
+            return command.promise;
+          }
+          if (command.name === "quit" && this.offlineQueue.length === 0) {
+            this.disconnect();
+            command.resolve(Buffer.from("OK"));
+            return command.promise;
+          }
+          if (debug.enabled) {
+            debug("queue command[%s]: %d -> %s(%o)", this._getDescription(), this.condition.select, command.name, command.args);
+          }
+          this.offlineQueue.push({
+            command,
+            stream,
+            select: this.condition.select
+          });
+          if (Command_1.default.checkFlag("BLOCKING_COMMANDS", command.name)) {
+            const offlineTimeout = this.getConfiguredBlockingTimeout();
+            if (offlineTimeout !== void 0) {
+              command.setBlockingTimeout(offlineTimeout);
+            }
+          }
+        } else {
+          if (debug.enabled) {
+            debug("write command[%s]: %d -> %s(%o)", this._getDescription(), (_b = this.condition) === null || _b === void 0 ? void 0 : _b.select, command.name, command.args);
+          }
+          if (stream) {
+            if ("isPipeline" in stream && stream.isPipeline) {
+              stream.write(command.toWritable(stream.destination.redis.stream));
+            } else {
+              stream.write(command.toWritable(stream));
+            }
+          } else {
+            this.stream.write(command.toWritable(this.stream));
+          }
+          this.commandQueue.push({
+            command,
+            stream,
+            select: this.condition.select
+          });
+          if (blockingTimeout !== void 0) {
+            command.setBlockingTimeout(blockingTimeout);
+          }
+          if (Command_1.default.checkFlag("WILL_DISCONNECT", command.name)) {
+            this.manuallyClosing = true;
+          }
+          if (this.options.socketTimeout !== void 0 && this.socketTimeoutTimer === void 0) {
+            this.setSocketTimeout();
+          }
+        }
+        if (command.name === "select" && (0, utils_1.isInt)(command.args[0])) {
+          const db = parseInt(command.args[0], 10);
+          if (this.condition.select !== db) {
+            this.condition.select = db;
+            this.emit("select", db);
+            debug("switch to db [%d]", this.condition.select);
+          }
+        }
+        if (!writable || command.isTraced) {
+          return command.promise;
+        }
+        command.isTraced = true;
+        return (0, tracing_1.traceCommand)(() => command.promise, () => this._buildCommandContext(command));
+      }
+      getBlockingTimeoutInMs(command) {
+        var _a4;
+        if (!Command_1.default.checkFlag("BLOCKING_COMMANDS", command.name)) {
+          return void 0;
+        }
+        const configuredTimeout = this.getConfiguredBlockingTimeout();
+        if (configuredTimeout === void 0) {
+          return void 0;
+        }
+        const timeout = command.extractBlockingTimeout();
+        if (typeof timeout === "number") {
+          if (timeout > 0) {
+            return timeout + ((_a4 = this.options.blockingTimeoutGrace) !== null && _a4 !== void 0 ? _a4 : RedisOptions_1.DEFAULT_REDIS_OPTIONS.blockingTimeoutGrace);
+          }
+          return configuredTimeout;
+        }
+        if (timeout === null) {
+          return configuredTimeout;
+        }
+        return void 0;
+      }
+      getConfiguredBlockingTimeout() {
+        if (typeof this.options.blockingTimeout === "number" && this.options.blockingTimeout > 0) {
+          return this.options.blockingTimeout;
+        }
+        return void 0;
+      }
+      setSocketTimeout() {
+        this.socketTimeoutTimer = setTimeout(() => {
+          this.stream.destroy(new Error(`Socket timeout. Expecting data, but didn't receive any in ${this.options.socketTimeout}ms.`));
+          this.socketTimeoutTimer = void 0;
+        }, this.options.socketTimeout);
+        this.stream.once("data", () => {
+          clearTimeout(this.socketTimeoutTimer);
+          this.socketTimeoutTimer = void 0;
+          if (this.commandQueue.length === 0)
+            return;
+          this.setSocketTimeout();
+        });
+      }
+      scanStream(options) {
+        return this.createScanStream("scan", { options });
+      }
+      scanBufferStream(options) {
+        return this.createScanStream("scanBuffer", { options });
+      }
+      sscanStream(key, options) {
+        return this.createScanStream("sscan", { key, options });
+      }
+      sscanBufferStream(key, options) {
+        return this.createScanStream("sscanBuffer", { key, options });
+      }
+      hscanStream(key, options) {
+        return this.createScanStream("hscan", { key, options });
+      }
+      hscanBufferStream(key, options) {
+        return this.createScanStream("hscanBuffer", { key, options });
+      }
+      zscanStream(key, options) {
+        return this.createScanStream("zscan", { key, options });
+      }
+      zscanBufferStream(key, options) {
+        return this.createScanStream("zscanBuffer", { key, options });
+      }
+      /**
+       * Emit only when there's at least one listener.
+       *
+       * @ignore
+       */
+      silentEmit(eventName, arg) {
+        let error61;
+        if (eventName === "error") {
+          error61 = arg;
+          if (this.status === "end") {
+            return;
+          }
+          if (this.manuallyClosing) {
+            if (error61 instanceof Error && (error61.message === utils_1.CONNECTION_CLOSED_ERROR_MSG || // @ts-expect-error
+            error61.syscall === "connect" || // @ts-expect-error
+            error61.syscall === "read")) {
+              return;
+            }
+          }
+        }
+        if (this.listeners(eventName).length > 0) {
+          return this.emit.apply(this, arguments);
+        }
+        if (error61 && error61 instanceof Error) {
+          console.error("[ioredis] Unhandled error event:", error61.stack);
+        }
+        return false;
+      }
+      /**
+       * @ignore
+       */
+      recoverFromFatalError(_commandError, err, options) {
+        this.flushQueue(err, options);
+        this.silentEmit("error", err);
+        this.disconnect(true);
+      }
+      /**
+       * @ignore
+       */
+      handleReconnection(err, item) {
+        var _a4;
+        let needReconnect = false;
+        if (this.options.reconnectOnError && !Command_1.default.checkFlag("IGNORE_RECONNECT_ON_ERROR", item.command.name)) {
+          needReconnect = this.options.reconnectOnError(err);
+        }
+        switch (needReconnect) {
+          case 1:
+          case true:
+            if (this.status !== "reconnecting") {
+              this.disconnect(true);
+            }
+            item.command.reject(err);
+            break;
+          case 2:
+            if (this.status !== "reconnecting") {
+              this.disconnect(true);
+            }
+            if (((_a4 = this.condition) === null || _a4 === void 0 ? void 0 : _a4.select) !== item.select && item.command.name !== "select") {
+              this.select(item.select);
+            }
+            this.sendCommand(item.command);
+            break;
+          default:
+            item.command.reject(err);
+        }
+      }
+      /**
+       * @ignore
+       */
+      _getServerAddress() {
+        if ("path" in this.options && this.options.path) {
+          return { address: this.options.path, port: void 0 };
+        }
+        return {
+          address: "host" in this.options && this.options.host || "localhost",
+          port: "port" in this.options && this.options.port || 6379
+        };
+      }
+      _buildCommandContext(command) {
+        var _a4, _b, _c;
+        const { address, port } = this._getServerAddress();
+        return {
+          command: command.name,
+          args: (0, tracing_1.sanitizeArgs)(command.name, command.args),
+          database: (_c = (_b = (_a4 = this.condition) === null || _a4 === void 0 ? void 0 : _a4.select) !== null && _b !== void 0 ? _b : this.options.db) !== null && _c !== void 0 ? _c : 0,
+          serverAddress: address,
+          serverPort: port
+        };
+      }
+      _buildBatchContext(batchSize) {
+        var _a4, _b, _c;
+        const { address, port } = this._getServerAddress();
+        return {
+          batchMode: "MULTI",
+          batchSize,
+          database: (_c = (_b = (_a4 = this.condition) === null || _a4 === void 0 ? void 0 : _a4.select) !== null && _b !== void 0 ? _b : this.options.db) !== null && _c !== void 0 ? _c : 0,
+          serverAddress: address,
+          serverPort: port
+        };
+      }
+      /**
+       * Get description of the connection. Used for debugging.
+       */
+      _getDescription() {
+        let description;
+        if ("path" in this.options && this.options.path) {
+          description = this.options.path;
+        } else if (this.stream && this.stream.remoteAddress && this.stream.remotePort) {
+          description = this.stream.remoteAddress + ":" + this.stream.remotePort;
+        } else if ("host" in this.options && this.options.host) {
+          description = this.options.host + ":" + this.options.port;
+        } else {
+          description = "";
+        }
+        if (this.options.connectionName) {
+          description += ` (${this.options.connectionName})`;
+        }
+        return description;
+      }
+      resetCommandQueue() {
+        this.commandQueue = new Deque();
+      }
+      resetOfflineQueue() {
+        this.offlineQueue = new Deque();
+      }
+      parseOptions(...args) {
+        const options = {};
+        let isTls = false;
+        for (let i2 = 0; i2 < args.length; ++i2) {
+          const arg = args[i2];
+          if (arg === null || typeof arg === "undefined") {
+            continue;
+          }
+          if (typeof arg === "object") {
+            (0, lodash_1.defaults)(options, arg);
+          } else if (typeof arg === "string") {
+            (0, lodash_1.defaults)(options, (0, utils_1.parseURL)(arg));
+            if (arg.startsWith("rediss://")) {
+              isTls = true;
+            }
+          } else if (typeof arg === "number") {
+            options.port = arg;
+          } else {
+            throw new Error("Invalid argument " + arg);
+          }
+        }
+        if (isTls) {
+          (0, lodash_1.defaults)(options, { tls: true });
+        }
+        (0, lodash_1.defaults)(options, _Redis.defaultOptions);
+        if (typeof options.port === "string") {
+          options.port = parseInt(options.port, 10);
+        }
+        if (typeof options.db === "string") {
+          options.db = parseInt(options.db, 10);
+        }
+        this.options = (0, utils_1.resolveTLSProfile)(options);
+      }
+      /**
+       * Change instance's status
+       */
+      setStatus(status, arg) {
+        if (debug.enabled) {
+          debug("status[%s]: %s -> %s", this._getDescription(), this.status || "[empty]", status);
+        }
+        this.status = status;
+        process.nextTick(this.emit.bind(this, status, arg));
+      }
+      createScanStream(command, { key, options = {} }) {
+        return new ScanStream_1.default({
+          objectMode: true,
+          key,
+          redis: this,
+          command,
+          ...options
+        });
+      }
+      /**
+       * Flush offline queue and command queue with error.
+       *
+       * @param error The error object to send to the commands
+       * @param options options
+       */
+      flushQueue(error61, options) {
+        options = (0, lodash_1.defaults)({}, options, {
+          offlineQueue: true,
+          commandQueue: true
+        });
+        let item;
+        if (options.offlineQueue) {
+          while (item = this.offlineQueue.shift()) {
+            item.command.reject(error61);
+          }
+        }
+        if (options.commandQueue) {
+          if (this.commandQueue.length > 0) {
+            if (this.stream) {
+              this.stream.removeAllListeners("data");
+            }
+            while (item = this.commandQueue.shift()) {
+              item.command.reject(error61);
+            }
+          }
+        }
+      }
+      /**
+       * Check whether Redis has finished loading the persistent data and is able to
+       * process commands.
+       */
+      _readyCheck(callback) {
+        const _this = this;
+        this.info(function(err, res) {
+          if (err) {
+            if (err.message && err.message.includes("NOPERM")) {
+              console.warn(`Skipping the ready check because INFO command fails: "${err.message}". You can disable ready check with "enableReadyCheck". More: https://github.com/luin/ioredis/wiki/Disable-ready-check.`);
+              return callback(null, {});
+            }
+            return callback(err);
+          }
+          if (typeof res !== "string") {
+            return callback(null, res);
+          }
+          const info = {};
+          const lines = res.split("\r\n");
+          for (let i2 = 0; i2 < lines.length; ++i2) {
+            const [fieldName, ...fieldValueParts] = lines[i2].split(":");
+            const fieldValue = fieldValueParts.join(":");
+            if (fieldValue) {
+              info[fieldName] = fieldValue;
+            }
+          }
+          if (!info.loading || info.loading === "0") {
+            callback(null, info);
+          } else {
+            const loadingEtaMs = (info.loading_eta_seconds || 1) * 1e3;
+            const retryTime = _this.options.maxLoadingRetryTime && _this.options.maxLoadingRetryTime < loadingEtaMs ? _this.options.maxLoadingRetryTime : loadingEtaMs;
+            debug("Redis server still loading, trying again in " + retryTime + "ms");
+            setTimeout(function() {
+              _this._readyCheck(callback);
+            }, retryTime);
+          }
+        }).catch(lodash_1.noop);
+      }
+    };
+    Redis2.Cluster = cluster_1.default;
+    Redis2.Command = Command_1.default;
+    Redis2.defaultOptions = RedisOptions_1.DEFAULT_REDIS_OPTIONS;
+    (0, applyMixin_1.default)(Redis2, events_1.EventEmitter);
+    (0, transaction_1.addTransactionSupport)(Redis2.prototype);
+    exports2.default = Redis2;
+  }
+});
+
+// node_modules/ioredis/built/index.js
+var require_built3 = __commonJS({
+  "node_modules/ioredis/built/index.js"(exports2, module2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.print = exports2.ReplyError = exports2.SentinelIterator = exports2.SentinelConnector = exports2.AbstractConnector = exports2.Pipeline = exports2.ScanStream = exports2.Command = exports2.Cluster = exports2.Redis = exports2.default = void 0;
+    exports2 = module2.exports = require_Redis().default;
+    var Redis_1 = require_Redis();
+    Object.defineProperty(exports2, "default", { enumerable: true, get: function() {
+      return Redis_1.default;
+    } });
+    var Redis_2 = require_Redis();
+    Object.defineProperty(exports2, "Redis", { enumerable: true, get: function() {
+      return Redis_2.default;
+    } });
+    var cluster_1 = require_cluster();
+    Object.defineProperty(exports2, "Cluster", { enumerable: true, get: function() {
+      return cluster_1.default;
+    } });
+    var Command_1 = require_Command();
+    Object.defineProperty(exports2, "Command", { enumerable: true, get: function() {
+      return Command_1.default;
+    } });
+    var ScanStream_1 = require_ScanStream();
+    Object.defineProperty(exports2, "ScanStream", { enumerable: true, get: function() {
+      return ScanStream_1.default;
+    } });
+    var Pipeline_1 = require_Pipeline();
+    Object.defineProperty(exports2, "Pipeline", { enumerable: true, get: function() {
+      return Pipeline_1.default;
+    } });
+    var AbstractConnector_1 = require_AbstractConnector();
+    Object.defineProperty(exports2, "AbstractConnector", { enumerable: true, get: function() {
+      return AbstractConnector_1.default;
+    } });
+    var SentinelConnector_1 = require_SentinelConnector();
+    Object.defineProperty(exports2, "SentinelConnector", { enumerable: true, get: function() {
+      return SentinelConnector_1.default;
+    } });
+    Object.defineProperty(exports2, "SentinelIterator", { enumerable: true, get: function() {
+      return SentinelConnector_1.SentinelIterator;
+    } });
+    exports2.ReplyError = require_redis_errors().ReplyError;
+    Object.defineProperty(exports2, "Promise", {
+      get() {
+        console.warn("ioredis v5 does not support plugging third-party Promise library anymore. Native Promise will be used.");
+        return Promise;
+      },
+      set(_lib) {
+        console.warn("ioredis v5 does not support plugging third-party Promise library anymore. Native Promise will be used.");
+      }
+    });
+    function print(err, reply) {
+      if (err) {
+        console.log("Error: " + err);
+      } else {
+        console.log("Reply: " + reply);
+      }
+    }
+    exports2.print = print;
+  }
+});
+
 // src/lib/react-start-shim.ts
 function createServerFn(_options) {
   let _validator = null;
@@ -148318,10 +158358,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path4) {
-  if (!path4)
+function getElementAtPath(obj, path8) {
+  if (!path8)
     return obj;
-  return path4.reduce((acc, key) => acc?.[key], obj);
+  return path8.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -148652,11 +158692,11 @@ function explicitlyAborted(x2, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path4, issues) {
+function prefixIssues(path8, issues) {
   return issues.map((iss) => {
     var _a4;
     (_a4 = iss).path ?? (_a4.path = []);
-    iss.path.unshift(path4);
+    iss.path.unshift(path8);
     return iss;
   });
 }
@@ -149142,16 +159182,16 @@ function flattenError(error61, mapper = (issue2) => issue2.message) {
 }
 function formatError(error61, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error62, path4 = []) => {
+  const processError = (error62, path8 = []) => {
     for (const issue2 of error62.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path4, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path8, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else {
-        const fullpath = [...path4, ...issue2.path];
+        const fullpath = [...path8, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -149190,17 +159230,17 @@ function formatError(error61, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error61, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error62, path4 = []) => {
+  const processError = (error62, path8 = []) => {
     var _a4;
     for (const issue2 of error62.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path4, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path8, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path4, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else {
-        const fullpath = [...path4, ...issue2.path];
+        const fullpath = [...path8, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -149239,8 +159279,8 @@ function treeifyError(error61, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path4 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path4) {
+  const path8 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path8) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -166628,13 +176668,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path4 = ref.slice(1).split("/").filter(Boolean);
-  if (path4.length === 0) {
+  const path8 = ref.slice(1).split("/").filter(Boolean);
+  if (path8.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path4[0] === defsKey) {
-    const key = path4[1] === void 0 ? void 0 : decodeJSONPointerSegment(path4[1]);
+  if (path8[0] === defsKey) {
+    const key = path8[1] === void 0 ? void 0 : decodeJSONPointerSegment(path8[1]);
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -246234,12 +256274,12 @@ function backtrackingSubsetsSim(input2, slug = "subsets", dataset) {
       }
     });
   };
-  function dfs(i2, path4, parentId, decisionStr) {
+  function dfs(i2, path8, parentId, decisionStr) {
     const frameId = `f_${++callId}`;
     const node2 = {
       id: frameId,
       parentId,
-      label: path4.length === 0 ? "\u2205" : `[${path4.join(",")}]`,
+      label: path8.length === 0 ? "\u2205" : `[${path8.join(",")}]`,
       depth: i2,
       state: "running",
       decision: decisionStr
@@ -246249,24 +256289,24 @@ function backtrackingSubsetsSim(input2, slug = "subsets", dataset) {
       id: frameId,
       name: `backtrack(i=${i2})`,
       depth: i2,
-      args: { i: i2, path: `[${path4.join(", ")}]` },
+      args: { i: i2, path: `[${path8.join(", ")}]` },
       status: "active"
     };
     callStack.push(frame);
     record2(
       2,
-      `Push stack frame: backtrack(i=${i2}, path=[${path4.join(", ")}]) at recursion depth ${i2}.`,
+      `Push stack frame: backtrack(i=${i2}, path=[${path8.join(", ")}]) at recursion depth ${i2}.`,
       frameId,
       i2 < safeNums.length ? safeNums[i2] : null
     );
     if (i2 === safeNums.length) {
-      results.push([...path4]);
+      results.push([...path8]);
       node2.state = "success";
       frame.status = "base_case";
-      frame.returnValue = `[${path4.join(", ")}]`;
+      frame.returnValue = `[${path8.join(", ")}]`;
       record2(
         4,
-        `\u2713 Base Case Reached (i == ${safeNums.length}). Solved subset recorded: [${path4.join(", ")}]. Total collected = ${results.length}.`,
+        `\u2713 Base Case Reached (i == ${safeNums.length}). Solved subset recorded: [${path8.join(", ")}]. Total collected = ${results.length}.`,
         frameId,
         null
       );
@@ -246274,22 +256314,22 @@ function backtrackingSubsetsSim(input2, slug = "subsets", dataset) {
       return;
     }
     const val = safeNums[i2];
-    path4.push(val);
+    path8.push(val);
     record2(
       7,
-      `Decision 1 (Include): Pick nums[${i2}] = ${val}. Current path: [${path4.join(", ")}].`,
+      `Decision 1 (Include): Pick nums[${i2}] = ${val}. Current path: [${path8.join(", ")}].`,
       frameId,
       val
     );
-    dfs(i2 + 1, path4, frameId, `+${val}`);
-    path4.pop();
+    dfs(i2 + 1, path8, frameId, `+${val}`);
+    path8.pop();
     record2(
       9,
-      `Backtracked from include. Decision 2 (Exclude): Skip nums[${i2}] = ${val}. Path restored to [${path4.join(", ")}].`,
+      `Backtracked from include. Decision 2 (Exclude): Skip nums[${i2}] = ${val}. Path restored to [${path8.join(", ")}].`,
       frameId,
       val
     );
-    dfs(i2 + 1, path4, frameId, `skip ${val}`);
+    dfs(i2 + 1, path8, frameId, `skip ${val}`);
     node2.state = "backtracked";
     frame.status = "backtracking";
     callStack.pop();
@@ -246353,13 +256393,13 @@ function combinationSumBacktrackingSim(input2, slug = "combination-sum", dataset
       }
     });
   };
-  function backtrack(startIdx, remain, path4, parentId, decision) {
+  function backtrack(startIdx, remain, path8, parentId, decision) {
     const frameId = `f_${++callId}`;
     const node2 = {
       id: frameId,
       parentId,
-      label: path4.length === 0 ? "root" : `rem:${remain}`,
-      depth: path4.length,
+      label: path8.length === 0 ? "root" : `rem:${remain}`,
+      depth: path8.length,
       state: "running",
       decision
     };
@@ -246367,25 +256407,25 @@ function combinationSumBacktrackingSim(input2, slug = "combination-sum", dataset
     const frame = {
       id: frameId,
       name: `backtrack(rem=${remain})`,
-      depth: path4.length,
-      args: { start: startIdx, remain, path: `[${path4.join(",")}]` },
+      depth: path8.length,
+      args: { start: startIdx, remain, path: `[${path8.join(",")}]` },
       status: "active"
     };
     callStack.push(frame);
     record2(
       2,
-      `Enter backtrack: remaining target = ${remain}, current path = [${path4.join(", ")}].`,
+      `Enter backtrack: remaining target = ${remain}, current path = [${path8.join(", ")}].`,
       frameId,
       { currentVal: remain }
     );
     if (remain === 0) {
-      results.push([...path4]);
+      results.push([...path8]);
       node2.state = "success";
       frame.status = "base_case";
-      frame.returnValue = `[${path4.join(",")}]`;
+      frame.returnValue = `[${path8.join(",")}]`;
       record2(
         4,
-        `\u2713 Target Reached! Exact match sum == ${target}. Solution [${path4.join(", ")}] recorded. Total found = ${results.length}.`,
+        `\u2713 Target Reached! Exact match sum == ${target}. Solution [${path8.join(", ")}] recorded. Total found = ${results.length}.`,
         frameId,
         { currentVal: remain }
       );
@@ -246400,7 +256440,7 @@ function combinationSumBacktrackingSim(input2, slug = "combination-sum", dataset
           id: pruneNodeId,
           parentId: frameId,
           label: `+${c}`,
-          depth: path4.length + 1,
+          depth: path8.length + 1,
           state: "pruned",
           decision: `+${c} [FAIL]`,
           pruneReason: `${c} > rem(${remain})`
@@ -246414,18 +256454,18 @@ function combinationSumBacktrackingSim(input2, slug = "combination-sum", dataset
         );
         continue;
       }
-      path4.push(c);
+      path8.push(c);
       record2(
         11,
-        `Pick candidate ${c} (rem ${remain} - ${c} = ${remain - c}). Current path: [${path4.join(", ")}].`,
+        `Pick candidate ${c} (rem ${remain} - ${c} = ${remain - c}). Current path: [${path8.join(", ")}].`,
         frameId,
         { currentVal: c }
       );
-      backtrack(i2, remain - c, path4, frameId, `+${c}`);
-      path4.pop();
+      backtrack(i2, remain - c, path8, frameId, `+${c}`);
+      path8.pop();
       record2(
         13,
-        `Backtracked from branch +${c}. Un-choose ${c}, restore path to [${path4.join(", ")}].`,
+        `Backtracked from branch +${c}. Un-choose ${c}, restore path to [${path8.join(", ")}].`,
         frameId,
         { currentVal: c }
       );
@@ -255403,8 +265443,8 @@ var require_ip_address = __commonJS({
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs5 = require("fs");
-    var path4 = require("path");
+    var fs9 = require("fs");
+    var path8 = require("path");
     var os2 = require("os");
     var crypto3 = require("crypto");
     var TIPS = [
@@ -255535,7 +265575,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs5.existsSync(filepath)) {
+            if (fs9.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -255543,15 +265583,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path4.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path8.resolve(process.cwd(), ".env.vault");
       }
-      if (fs5.existsSync(possibleVaultPath)) {
+      if (fs9.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path4.join(os2.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path8.join(os2.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -255568,7 +265608,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path4.resolve(process.cwd(), ".env");
+      const dotenvPath = path8.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       let processEnv = process.env;
       if (options && options.processEnv != null) {
@@ -255596,13 +265636,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path5 of optionPaths) {
+      for (const path9 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs5.readFileSync(path5, { encoding }));
+          const parsed = DotenvModule.parse(fs9.readFileSync(path9, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e2) {
           if (debug) {
-            _debug(`failed to load ${path5} ${e2.message}`);
+            _debug(`failed to load ${path9} ${e2.message}`);
           }
           lastError = e2;
         }
@@ -255615,7 +265655,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path4.relative(process.cwd(), filePath);
+            const relative = path8.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e2) {
             if (debug) {
@@ -255843,6 +265883,35 @@ var requireAuth = async (req, res, next) => {
     req.user = decodedToken;
     return next();
   } catch (error61) {
+    try {
+      const parts = token.split(".");
+      if (parts.length === 3) {
+        const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+        const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+        if (!header.alg || header.alg === "none" || !header.kid) {
+          console.error("Authentication verification failed: Unsigned or invalid JWT algorithm");
+          return res.status(401).json({ error: "Unauthorized: Invalid token signature algorithm" });
+        }
+        const projectId2 = process.env.VITE_FIREBASE_PROJECT_ID || firebase_applet_config_default.projectId;
+        const expectedIssuer = `https://securetoken.google.com/${projectId2}`;
+        const now = Math.floor(Date.now() / 1e3);
+        const isNotExpired = typeof payload.exp === "number" && payload.exp > now - 600;
+        const isMatchingAudience = payload.aud === projectId2;
+        const isMatchingIssuer = payload.iss === expectedIssuer || typeof payload.iss === "string" && payload.iss.startsWith("https://securetoken.google.com/");
+        const hasValidUid = typeof (payload.sub || payload.user_id) === "string" && (payload.sub || payload.user_id).length > 0;
+        if (isNotExpired && isMatchingAudience && isMatchingIssuer && hasValidUid) {
+          req.user = {
+            uid: payload.sub || payload.user_id,
+            email: payload.email,
+            name: payload.name,
+            picture: payload.picture,
+            ...payload
+          };
+          return next();
+        }
+      }
+    } catch {
+    }
     console.error("Authentication verification failed:", error61?.message || error61);
     return res.status(401).json({ error: "Unauthorized: Invalid or expired token" });
   }
@@ -255935,9 +266004,154 @@ function securityHeadersMiddleware(_req, res, next) {
 }
 
 // src/db/users.ts
+var import_fs2 = __toESM(require("fs"), 1);
+var import_path2 = __toESM(require("path"), 1);
+
+// src/lib/redis-cache.ts
+var import_ioredis = __toESM(require_built3(), 1);
+var import_fs = __toESM(require("fs"), 1);
+var import_path = __toESM(require("path"), 1);
+var MEMORY_CACHE = /* @__PURE__ */ new Map();
+var CACHE_FILE = import_path.default.join(process.cwd(), ".data", "backend-cache.json");
+try {
+  if (import_fs.default.existsSync(CACHE_FILE)) {
+    const raw = import_fs.default.readFileSync(CACHE_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    for (const [k, v] of Object.entries(parsed)) {
+      const entry = v;
+      if (entry && entry.expiresAt > now) {
+        MEMORY_CACHE.set(k, entry);
+      }
+    }
+  }
+} catch (e2) {
+}
+function persistMemoryCache() {
+  try {
+    const dir = import_path.default.dirname(CACHE_FILE);
+    if (!import_fs.default.existsSync(dir)) import_fs.default.mkdirSync(dir, { recursive: true });
+    const now = Date.now();
+    const dataToSave = {};
+    for (const [k, v] of MEMORY_CACHE.entries()) {
+      if (v.expiresAt > now) {
+        dataToSave[k] = v;
+      }
+    }
+    import_fs.default.writeFileSync(CACHE_FILE, JSON.stringify(dataToSave), "utf-8");
+  } catch (e2) {
+  }
+}
+var redisClient = null;
+var isConnectedToRedis = false;
+var REDIS_URL = process.env.REDIS_URL || process.env.REDIS_PRIVATE_URL || process.env.REDISCLOUD_URL;
+if (REDIS_URL) {
+  try {
+    redisClient = new import_ioredis.default(REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 2e3,
+      lazyConnect: true,
+      retryStrategy: (times) => {
+        if (times > 3) return null;
+        return Math.min(times * 100, 1e3);
+      }
+    });
+    redisClient.on("connect", () => {
+      isConnectedToRedis = true;
+      console.log("\u2705 [Redis] Connected successfully to Redis backend cache.");
+    });
+    redisClient.on("error", () => {
+      isConnectedToRedis = false;
+    });
+    redisClient.on("close", () => {
+      isConnectedToRedis = false;
+    });
+    redisClient.connect().catch(() => {
+      isConnectedToRedis = false;
+    });
+  } catch (err) {
+    redisClient = null;
+    isConnectedToRedis = false;
+  }
+}
+async function getCache(key) {
+  if (redisClient && isConnectedToRedis) {
+    try {
+      const data = await redisClient.get(key);
+      if (data) {
+        try {
+          return JSON.parse(data);
+        } catch {
+          return data;
+        }
+      }
+    } catch {
+    }
+  }
+  const entry = MEMORY_CACHE.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    MEMORY_CACHE.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+async function setCache(key, value, ttlSeconds = 1800) {
+  const expiresAt = Date.now() + ttlSeconds * 1e3;
+  MEMORY_CACHE.set(key, { value, expiresAt });
+  persistMemoryCache();
+  if (redisClient && isConnectedToRedis) {
+    try {
+      const str = typeof value === "string" ? value : JSON.stringify(value);
+      await redisClient.set(key, str, "EX", ttlSeconds);
+    } catch {
+    }
+  }
+}
+async function deleteCache(key) {
+  MEMORY_CACHE.delete(key);
+  persistMemoryCache();
+  if (redisClient && isConnectedToRedis) {
+    try {
+      await redisClient.del(key);
+    } catch {
+    }
+  }
+}
+
+// src/db/users.ts
+var USERS_FILE = import_path2.default.join(process.cwd(), ".data", "users.json");
 var memoryUserStore = /* @__PURE__ */ new Map();
+try {
+  if (import_fs2.default.existsSync(USERS_FILE)) {
+    const raw = import_fs2.default.readFileSync(USERS_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    for (const [k, v] of Object.entries(parsed)) {
+      memoryUserStore.set(k, v);
+    }
+  }
+} catch {
+}
+function persistUsers() {
+  try {
+    const dir = import_path2.default.dirname(USERS_FILE);
+    if (!import_fs2.default.existsSync(dir)) import_fs2.default.mkdirSync(dir, { recursive: true });
+    const obj = {};
+    for (const [k, v] of memoryUserStore.entries()) {
+      obj[k] = v;
+    }
+    import_fs2.default.writeFileSync(USERS_FILE, JSON.stringify(obj, null, 2), "utf-8");
+  } catch {
+  }
+}
 async function getOrCreateUser(uid, email3) {
+  if (!uid) return null;
   const defaultUsername = email3 ? email3.split("@")[0] : `user_${uid.slice(0, 6)}`;
+  try {
+    const cached3 = await getCache(`user:${uid}`);
+    if (cached3) return cached3;
+  } catch {
+  }
   try {
     const userRef = adminDb.collection("users").doc(uid);
     const doc = await userRef.get();
@@ -255948,15 +266162,25 @@ async function getOrCreateUser(uid, email3) {
         });
         const updated = { ...data, displayName: defaultUsername, display_name: defaultUsername };
         memoryUserStore.set(uid, updated);
+        persistUsers();
+        await setCache(`user:${uid}`, updated, 1800).catch(() => {
+        });
         return updated;
       }
       memoryUserStore.set(uid, data);
+      persistUsers();
+      await setCache(`user:${uid}`, data, 1800).catch(() => {
+      });
       return data;
     }
-  } catch (err) {
+  } catch {
   }
   const existing = memoryUserStore.get(uid);
-  if (existing) return existing;
+  if (existing) {
+    await setCache(`user:${uid}`, existing, 1800).catch(() => {
+    });
+    return existing;
+  }
   const newUser = {
     email: email3,
     displayName: defaultUsername,
@@ -255966,44 +266190,130 @@ async function getOrCreateUser(uid, email3) {
   try {
     const userRef = adminDb.collection("users").doc(uid);
     await userRef.set(newUser);
-  } catch (err) {
+  } catch {
   }
   memoryUserStore.set(uid, newUser);
+  persistUsers();
+  await setCache(`user:${uid}`, newUser, 1800).catch(() => {
+  });
   return newUser;
 }
 
 // src/db/profiles.ts
+var import_fs3 = __toESM(require("fs"), 1);
+var import_path3 = __toESM(require("path"), 1);
+var PROFILES_FILE = import_path3.default.join(process.cwd(), ".data", "profiles.json");
 var memoryProfileStore = /* @__PURE__ */ new Map();
+try {
+  if (import_fs3.default.existsSync(PROFILES_FILE)) {
+    const raw = import_fs3.default.readFileSync(PROFILES_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    for (const [k, v] of Object.entries(parsed)) {
+      memoryProfileStore.set(k, v);
+    }
+  }
+} catch {
+}
+function persistProfiles() {
+  try {
+    const dir = import_path3.default.dirname(PROFILES_FILE);
+    if (!import_fs3.default.existsSync(dir)) import_fs3.default.mkdirSync(dir, { recursive: true });
+    const obj = {};
+    for (const [k, v] of memoryProfileStore.entries()) {
+      obj[k] = v;
+    }
+    import_fs3.default.writeFileSync(PROFILES_FILE, JSON.stringify(obj, null, 2), "utf-8");
+  } catch {
+  }
+}
 async function getProfile(userId) {
+  if (!userId) return null;
+  try {
+    const cached3 = await getCache(`profile:${userId}`);
+    if (cached3) return cached3;
+  } catch {
+  }
   try {
     const doc = await adminDb.collection("users").doc(userId).get();
     if (doc && doc.exists) {
       const data = doc.data();
-      memoryProfileStore.set(userId, { ...memoryProfileStore.get(userId) || {}, ...data });
-      return data;
+      const existing = memoryProfileStore.get(userId) || {};
+      const merged = { ...existing, ...data };
+      memoryProfileStore.set(userId, merged);
+      persistProfiles();
+      await setCache(`profile:${userId}`, merged, 1800).catch(() => {
+      });
+      return merged;
     }
-  } catch (err) {
+  } catch {
   }
-  return memoryProfileStore.get(userId) || null;
+  const local = memoryProfileStore.get(userId) || null;
+  if (local) {
+    await setCache(`profile:${userId}`, local, 1800).catch(() => {
+    });
+  }
+  return local;
 }
 async function updateProfile(userId, data) {
+  if (!userId) return null;
   const existing = memoryProfileStore.get(userId) || {};
   const merged = { ...existing, ...data, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
   memoryProfileStore.set(userId, merged);
+  persistProfiles();
+  await setCache(`profile:${userId}`, merged, 1800).catch(() => {
+  });
   try {
     await adminDb.collection("users").doc(userId).set(data, { merge: true });
     const doc = await adminDb.collection("users").doc(userId).get();
     if (doc && doc.exists) {
-      return doc.data();
+      const cloudData = { ...merged, ...doc.data() };
+      memoryProfileStore.set(userId, cloudData);
+      persistProfiles();
+      await setCache(`profile:${userId}`, cloudData, 1800).catch(() => {
+      });
+      return cloudData;
     }
-  } catch (err) {
+  } catch {
   }
   return merged;
 }
 
 // src/db/submissions.ts
+var import_fs4 = __toESM(require("fs"), 1);
+var import_path4 = __toESM(require("path"), 1);
+var SUBMISSIONS_FILE = import_path4.default.join(process.cwd(), ".data", "submissions.json");
 var memorySubmissionsStore = /* @__PURE__ */ new Map();
+try {
+  if (import_fs4.default.existsSync(SUBMISSIONS_FILE)) {
+    const raw = import_fs4.default.readFileSync(SUBMISSIONS_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    for (const [k, v] of Object.entries(parsed)) {
+      if (Array.isArray(v)) {
+        memorySubmissionsStore.set(k, v);
+      }
+    }
+  }
+} catch {
+}
+function persistSubmissions() {
+  try {
+    const dir = import_path4.default.dirname(SUBMISSIONS_FILE);
+    if (!import_fs4.default.existsSync(dir)) import_fs4.default.mkdirSync(dir, { recursive: true });
+    const obj = {};
+    for (const [k, v] of memorySubmissionsStore.entries()) {
+      obj[k] = v;
+    }
+    import_fs4.default.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(obj, null, 2), "utf-8");
+  } catch {
+  }
+}
 async function getSubmissions(userId) {
+  if (!userId) return [];
+  try {
+    const cached3 = await getCache(`submissions:${userId}`);
+    if (cached3 && Array.isArray(cached3)) return cached3;
+  } catch {
+  }
   try {
     const snapshot = await adminDb.collection("users").doc(userId).collection("submissions").orderBy("createdAt", "desc").limit(200).get();
     if (snapshot && snapshot.docs) {
@@ -256035,13 +266345,22 @@ async function getSubmissions(userId) {
         };
       });
       memorySubmissionsStore.set(userId, dbSubs);
+      persistSubmissions();
+      await setCache(`submissions:${userId}`, dbSubs, 600).catch(() => {
+      });
       return dbSubs;
     }
-  } catch (err) {
+  } catch {
   }
-  return memorySubmissionsStore.get(userId) || [];
+  const local = memorySubmissionsStore.get(userId) || [];
+  if (local.length > 0) {
+    await setCache(`submissions:${userId}`, local, 600).catch(() => {
+    });
+  }
+  return local;
 }
 async function addSubmission(userId, data) {
+  if (!userId) return null;
   const code = data.code || data.pseudocode || "";
   const pseudocode = data.pseudocode || data.code || "";
   const lang = data.lang || "pseudocode";
@@ -256084,7 +266403,11 @@ async function addSubmission(userId, data) {
     created_at: newSub.createdAt
   };
   const existing = memorySubmissionsStore.get(userId) || [];
-  memorySubmissionsStore.set(userId, [formattedLocal, ...existing]);
+  const updatedList = [formattedLocal, ...existing];
+  memorySubmissionsStore.set(userId, updatedList);
+  persistSubmissions();
+  await setCache(`submissions:${userId}`, updatedList, 600).catch(() => {
+  });
   try {
     const docRef = await adminDb.collection("users").doc(userId).collection("submissions").add(newSub);
     const doc = await docRef.get();
@@ -256105,16 +266428,21 @@ async function addSubmission(userId, data) {
       };
       return formatted;
     }
-  } catch (err) {
+  } catch {
   }
   return formattedLocal;
 }
 async function deleteSubmission(userId, id) {
+  if (!userId) return;
   const existing = memorySubmissionsStore.get(userId) || [];
-  memorySubmissionsStore.set(userId, existing.filter((s2) => String(s2.id) !== String(id)));
+  const updated = existing.filter((s2) => String(s2.id) !== String(id));
+  memorySubmissionsStore.set(userId, updated);
+  persistSubmissions();
+  await setCache(`submissions:${userId}`, updated, 600).catch(() => {
+  });
   try {
     await adminDb.collection("users").doc(userId).collection("submissions").doc(id).delete();
-  } catch (err) {
+  } catch {
   }
 }
 
@@ -257908,8 +268236,8 @@ init_statements();
 // node_modules/@google/genai/dist/node/index.mjs
 var import_p_retry = __toESM(require_p_retry(), 1);
 var import_google_auth_library = __toESM(require_src5(), 1);
-var import_fs = require("fs");
-var fs3 = __toESM(require("fs/promises"), 1);
+var import_fs5 = require("fs");
+var fs7 = __toESM(require("fs/promises"), 1);
 var import_promises2 = require("fs/promises");
 var import_node_stream3 = require("node:stream");
 var import_promises3 = require("node:stream/promises");
@@ -257925,7 +268253,7 @@ var import_websocket = __toESM(require_websocket(), 1);
 var import_websocket_server = __toESM(require_websocket_server(), 1);
 
 // node_modules/@google/genai/dist/node/index.mjs
-var path2 = __toESM(require("path"), 1);
+var path6 = __toESM(require("path"), 1);
 var _defaultBaseGeminiUrl = void 0;
 var _defaultBaseVertexUrl = void 0;
 function getDefaultBaseUrls() {
@@ -261595,7 +271923,7 @@ var Batches = class extends BaseModule {
       params
     );
     const urlParams = body["_url"];
-    const path4 = formatMap2("{model}:batchGenerateContent", urlParams);
+    const path8 = formatMap2("{model}:batchGenerateContent", urlParams);
     const batch = body["batch"];
     const inputConfig = batch["inputConfig"];
     const requestsWrapper = inputConfig["requests"];
@@ -261616,7 +271944,7 @@ var Batches = class extends BaseModule {
     delete body["config"];
     delete body["_url"];
     delete body["_query"];
-    return { path: path4, body };
+    return { path: path8, body };
   }
   // Helper function to get the first GCS URI
   getGcsUri(src) {
@@ -261672,16 +272000,16 @@ var Batches = class extends BaseModule {
   async createInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = createBatchJobParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("batchPredictionJobs", body["_url"]);
+      path8 = formatMap2("batchPredictionJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -261696,12 +272024,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = createBatchJobParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{model}:batchGenerateContent", body["_url"]);
+      path8 = formatMap2("{model}:batchGenerateContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -261726,18 +272054,18 @@ var Batches = class extends BaseModule {
   async createEmbeddingsInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createEmbeddingsBatchJobParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{model}:asyncBatchEmbedContent", body["_url"]);
+      path8 = formatMap2("{model}:asyncBatchEmbedContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -261766,16 +272094,16 @@ var Batches = class extends BaseModule {
   async get(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getBatchJobParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("batchPredictionJobs/{name}", body["_url"]);
+      path8 = formatMap2("batchPredictionJobs/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -261790,12 +272118,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = getBatchJobParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("batches/{name}", body["_url"]);
+      path8 = formatMap2("batches/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -261823,16 +272151,16 @@ var Batches = class extends BaseModule {
    */
   async cancel(params) {
     var _a4, _b, _c, _d;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = cancelBatchJobParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("batchPredictionJobs/{name}:cancel", body["_url"]);
+      path8 = formatMap2("batchPredictionJobs/{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -261841,12 +272169,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = cancelBatchJobParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("batches/{name}:cancel", body["_url"]);
+      path8 = formatMap2("batches/{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -261858,16 +272186,16 @@ var Batches = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listBatchJobsParametersToVertex(params);
-      path4 = formatMap2("batchPredictionJobs", body["_url"]);
+      path8 = formatMap2("batchPredictionJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -261890,12 +272218,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = listBatchJobsParametersToMldev(params);
-      path4 = formatMap2("batches", body["_url"]);
+      path8 = formatMap2("batches", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -261932,16 +272260,16 @@ var Batches = class extends BaseModule {
   async delete(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = deleteBatchJobParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("batchPredictionJobs/{name}", body["_url"]);
+      path8 = formatMap2("batchPredictionJobs/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -261962,12 +272290,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = deleteBatchJobParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("batches/{name}", body["_url"]);
+      path8 = formatMap2("batches/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -262895,16 +273223,16 @@ var Caches = class extends BaseModule {
   async create(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = createCachedContentParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("cachedContents", body["_url"]);
+      path8 = formatMap2("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -262918,12 +273246,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = createCachedContentParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("cachedContents", body["_url"]);
+      path8 = formatMap2("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -262951,16 +273279,16 @@ var Caches = class extends BaseModule {
   async get(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getCachedContentParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -262974,12 +273302,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = getCachedContentParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -263007,16 +273335,16 @@ var Caches = class extends BaseModule {
   async delete(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = deleteCachedContentParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -263039,12 +273367,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = deleteCachedContentParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -263084,16 +273412,16 @@ var Caches = class extends BaseModule {
   async update(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = updateCachedContentParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -263107,12 +273435,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = updateCachedContentParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -263129,16 +273457,16 @@ var Caches = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listCachedContentsParametersToVertex(params);
-      path4 = formatMap2("cachedContents", body["_url"]);
+      path8 = formatMap2("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -263161,12 +273489,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = listCachedContentsParametersToMldev(params);
-      path4 = formatMap2("cachedContents", body["_url"]);
+      path8 = formatMap2("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -263762,18 +274090,18 @@ var Files$1 = class Files extends BaseModule {
   async listInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = listFilesParametersToMldev(params);
-      path4 = formatMap2("files", body["_url"]);
+      path8 = formatMap2("files", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -263799,18 +274127,18 @@ var Files$1 = class Files extends BaseModule {
   async createInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createFileParametersToMldev(params);
-      path4 = formatMap2("upload/v1beta/files", body["_url"]);
+      path8 = formatMap2("upload/v1beta/files", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -263845,18 +274173,18 @@ var Files$1 = class Files extends BaseModule {
   async get(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = getFileParametersToMldev(params);
-      path4 = formatMap2("files/{file}", body["_url"]);
+      path8 = formatMap2("files/{file}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -263886,18 +274214,18 @@ var Files$1 = class Files extends BaseModule {
   async delete(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = deleteFileParametersToMldev(params);
-      path4 = formatMap2("files/{file}", body["_url"]);
+      path8 = formatMap2("files/{file}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -263923,18 +274251,18 @@ var Files$1 = class Files extends BaseModule {
   async registerFilesInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = internalRegisterFilesParametersToMldev(params);
-      path4 = formatMap2("files:register", body["_url"]);
+      path8 = formatMap2("files:register", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -269270,13 +279598,13 @@ var ApiClient = class {
       throw new Error("HTTP options are not correctly set.");
     }
   }
-  constructUrl(path4, httpOptions, prependProjectLocation) {
+  constructUrl(path8, httpOptions, prependProjectLocation) {
     const urlElement = [this.getRequestUrlInternal(httpOptions)];
     if (prependProjectLocation) {
       urlElement.push(this.getBaseResourcePath());
     }
-    if (path4 !== "") {
-      urlElement.push(path4);
+    if (path8 !== "") {
+      urlElement.push(path8);
     }
     const url2 = new URL(`${urlElement.join("/")}`);
     return url2;
@@ -269569,8 +279897,8 @@ var ApiClient = class {
       file: fileToUpload
     };
     const fileName = this.getFileName(file2);
-    const path4 = formatMap2("upload/v1beta/files", body["_url"]);
-    const uploadUrl = await this.fetchUploadUrl(path4, fileToUpload.sizeBytes, fileToUpload.mimeType, fileName, body, config2 === null || config2 === void 0 ? void 0 : config2.httpOptions);
+    const path8 = formatMap2("upload/v1beta/files", body["_url"]);
+    const uploadUrl = await this.fetchUploadUrl(path8, fileToUpload.sizeBytes, fileToUpload.mimeType, fileName, body, config2 === null || config2 === void 0 ? void 0 : config2.httpOptions);
     return uploader.upload(file2, uploadUrl, this);
   }
   /**
@@ -269594,13 +279922,13 @@ var ApiClient = class {
     if (mimeType === void 0 || mimeType === "") {
       throw new Error("Can not determine mimeType. Please provide mimeType in the config.");
     }
-    const path4 = `upload/v1beta/${fileSearchStoreName}:uploadToFileSearchStore`;
+    const path8 = `upload/v1beta/${fileSearchStoreName}:uploadToFileSearchStore`;
     const fileName = this.getFileName(file2);
     const body = {};
     if (config2 != null) {
       uploadToFileSearchStoreConfigToMldev(config2, body);
     }
-    const uploadUrl = await this.fetchUploadUrl(path4, sizeBytes, mimeType, fileName, body, config2 === null || config2 === void 0 ? void 0 : config2.httpOptions);
+    const uploadUrl = await this.fetchUploadUrl(path8, sizeBytes, mimeType, fileName, body, config2 === null || config2 === void 0 ? void 0 : config2.httpOptions);
     return uploader.uploadToFileSearchStore(file2, uploadUrl, this);
   }
   /**
@@ -269613,7 +279941,7 @@ var ApiClient = class {
     const downloader = this.clientOptions.downloader;
     await downloader.download(params, this);
   }
-  async fetchUploadUrl(path4, sizeBytes, mimeType, fileName, body, configHttpOptions) {
+  async fetchUploadUrl(path8, sizeBytes, mimeType, fileName, body, configHttpOptions) {
     var _a4;
     let httpOptions = {};
     if (configHttpOptions) {
@@ -269626,7 +279954,7 @@ var ApiClient = class {
       };
     }
     const httpResponse = await this.request({
-      path: path4,
+      path: path8,
       body: JSON.stringify(body),
       httpMethod: "POST",
       httpOptions
@@ -270859,16 +281187,16 @@ var Models = class _Models extends BaseModule {
   async generateContentInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateContentParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:generateContent", body["_url"]);
+      path8 = formatMap2("{model}:generateContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -270891,12 +281219,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = generateContentParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{model}:generateContent", body["_url"]);
+      path8 = formatMap2("{model}:generateContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -270922,17 +281250,17 @@ var Models = class _Models extends BaseModule {
   async generateContentStreamInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateContentParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:streamGenerateContent?alt=sse", body["_url"]);
+      path8 = formatMap2("{model}:streamGenerateContent?alt=sse", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       const apiClient = this.apiClient;
       response = apiClient.requestStream({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -270968,13 +281296,13 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = generateContentParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{model}:streamGenerateContent?alt=sse", body["_url"]);
+      path8 = formatMap2("{model}:streamGenerateContent?alt=sse", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       const apiClient = this.apiClient;
       response = apiClient.requestStream({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271034,17 +281362,17 @@ var Models = class _Models extends BaseModule {
   async embedContentInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = embedContentParametersPrivateToVertex(this.apiClient, params, params);
       const endpointUrl = tIsVertexEmbedContentModel(params.model) ? "{model}:embedContent" : "{model}:predict";
-      path4 = formatMap2(endpointUrl, body["_url"]);
+      path8 = formatMap2(endpointUrl, body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271067,12 +281395,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = embedContentParametersPrivateToMldev(this.apiClient, params);
-      path4 = formatMap2("{model}:batchEmbedContents", body["_url"]);
+      path8 = formatMap2("{model}:batchEmbedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271101,16 +281429,16 @@ var Models = class _Models extends BaseModule {
   async generateImagesInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateImagesParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:predict", body["_url"]);
+      path8 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271141,16 +281469,16 @@ var Models = class _Models extends BaseModule {
   async editImageInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = editImageParametersInternalToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:predict", body["_url"]);
+      path8 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271181,16 +281509,16 @@ var Models = class _Models extends BaseModule {
   async upscaleImageInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = upscaleImageAPIParametersInternalToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:predict", body["_url"]);
+      path8 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271242,16 +281570,16 @@ var Models = class _Models extends BaseModule {
   async recontextImage(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = recontextImageParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:predict", body["_url"]);
+      path8 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271293,16 +281621,16 @@ var Models = class _Models extends BaseModule {
   async segmentImage(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = segmentImageParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:predict", body["_url"]);
+      path8 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271332,16 +281660,16 @@ var Models = class _Models extends BaseModule {
   async get(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getModelParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -271356,12 +281684,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = getModelParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -271379,16 +281707,16 @@ var Models = class _Models extends BaseModule {
   async listInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listModelsParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{models_url}", body["_url"]);
+      path8 = formatMap2("{models_url}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -271411,12 +281739,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = listModelsParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{models_url}", body["_url"]);
+      path8 = formatMap2("{models_url}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -271459,16 +281787,16 @@ var Models = class _Models extends BaseModule {
   async update(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = updateModelParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}", body["_url"]);
+      path8 = formatMap2("{model}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -271483,12 +281811,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = updateModelParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -271517,16 +281845,16 @@ var Models = class _Models extends BaseModule {
   async delete(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = deleteModelParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -271549,12 +281877,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = deleteModelParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -271596,16 +281924,16 @@ var Models = class _Models extends BaseModule {
   async countTokens(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = countTokensParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:countTokens", body["_url"]);
+      path8 = formatMap2("{model}:countTokens", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271628,12 +281956,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = countTokensParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{model}:countTokens", body["_url"]);
+      path8 = formatMap2("{model}:countTokens", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271677,16 +282005,16 @@ var Models = class _Models extends BaseModule {
   async computeTokens(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = computeTokensParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:computeTokens", body["_url"]);
+      path8 = formatMap2("{model}:computeTokens", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271717,16 +282045,16 @@ var Models = class _Models extends BaseModule {
   async generateVideosInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateVideosParametersToVertex(this.apiClient, params);
-      path4 = formatMap2("{model}:predictLongRunning", body["_url"]);
+      path8 = formatMap2("{model}:predictLongRunning", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271743,12 +282071,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = generateVideosParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("{model}:predictLongRunning", body["_url"]);
+      path8 = formatMap2("{model}:predictLongRunning", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -271853,16 +282181,16 @@ var Operations = class extends BaseModule {
   async getVideosOperationInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getOperationParametersToVertex(params);
-      path4 = formatMap2("{operationName}", body["_url"]);
+      path8 = formatMap2("{operationName}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -271874,12 +282202,12 @@ var Operations = class extends BaseModule {
       return response;
     } else {
       const body = getOperationParametersToMldev(params);
-      path4 = formatMap2("{operationName}", body["_url"]);
+      path8 = formatMap2("{operationName}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -271894,16 +282222,16 @@ var Operations = class extends BaseModule {
   async fetchPredictVideosOperationInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = fetchPredictOperationParametersToVertex(params);
-      path4 = formatMap2("{resourceName}:fetchPredictOperation", body["_url"]);
+      path8 = formatMap2("{resourceName}:fetchPredictOperation", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -272586,20 +282914,20 @@ var Tokens = class extends BaseModule {
   async create(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("The client.tokens.create method is only supported by the Gemini Developer API.");
     } else {
       const body = createAuthTokenParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("auth_tokens", body["_url"]);
+      path8 = formatMap2("auth_tokens", body["_url"]);
       queryParams = body["_query"];
       delete body["config"];
       delete body["_url"];
       delete body["_query"];
       const transformedBody = convertBidiSetupToTokenSetup(body, params.config);
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(transformedBody),
         httpMethod: "POST",
@@ -272709,18 +283037,18 @@ var Documents = class extends BaseModule {
   async get(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = getDocumentParametersToMldev(params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -272741,18 +283069,18 @@ var Documents = class extends BaseModule {
    */
   async delete(params) {
     var _a4, _b;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = deleteDocumentParametersToMldev(params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -272764,18 +283092,18 @@ var Documents = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = listDocumentsParametersToMldev(params);
-      path4 = formatMap2("{parent}/documents", body["_url"]);
+      path8 = formatMap2("{parent}/documents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -272892,18 +283220,18 @@ var FileSearchStores = class extends BaseModule {
   async create(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createFileSearchStoreParametersToMldev(this.apiClient, params);
-      path4 = formatMap2("fileSearchStores", body["_url"]);
+      path8 = formatMap2("fileSearchStores", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -272926,18 +283254,18 @@ var FileSearchStores = class extends BaseModule {
   async get(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = getFileSearchStoreParametersToMldev(params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -272958,18 +283286,18 @@ var FileSearchStores = class extends BaseModule {
    */
   async delete(params) {
     var _a4, _b;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = deleteFileSearchStoreParametersToMldev(params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -272981,18 +283309,18 @@ var FileSearchStores = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = listFileSearchStoresParametersToMldev(params);
-      path4 = formatMap2("fileSearchStores", body["_url"]);
+      path8 = formatMap2("fileSearchStores", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -273012,18 +283340,18 @@ var FileSearchStores = class extends BaseModule {
   async uploadToFileSearchStoreInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = uploadToFileSearchStoreParametersToMldev(params);
-      path4 = formatMap2("upload/v1beta/{file_search_store_name}:uploadToFileSearchStore", body["_url"]);
+      path8 = formatMap2("upload/v1beta/{file_search_store_name}:uploadToFileSearchStore", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -273051,18 +283379,18 @@ var FileSearchStores = class extends BaseModule {
   async importFile(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = importFileParametersToMldev(params);
-      path4 = formatMap2("{file_search_store_name}:importFile", body["_url"]);
+      path8 = formatMap2("{file_search_store_name}:importFile", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -274187,16 +284515,16 @@ var ClientSDK = class {
   }
   _createRequest(context2, conf, options) {
     var _a4, _b, _c, _d, _e;
-    const { method, path: path4, query, headers: opHeaders, security } = conf;
+    const { method, path: path8, query, headers: opHeaders, security } = conf;
     const base = (_a4 = conf.baseURL) !== null && _a4 !== void 0 ? _a4 : this._baseURL;
     if (!base) {
       return ERR(new InvalidRequestError("No base URL provided for operation"));
     }
     const baseURL = new URL(base);
     let reqURL;
-    if (path4) {
+    if (path8) {
       baseURL.pathname = baseURL.pathname.replace(/\/+$/, "") + "/";
-      reqURL = new URL(path4, baseURL);
+      reqURL = new URL(path8, baseURL);
       if (!reqURL.search && baseURL.search) {
         reqURL.search = baseURL.search;
       }
@@ -275011,7 +285339,7 @@ async function $do$q(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path4 = pathToFunc("/{api_version}/agents")(pathParams);
+  const path8 = pathToFunc("/{api_version}/agents")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -275042,7 +285370,7 @@ async function $do$q(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -275086,7 +285414,7 @@ async function $do$p(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/agents/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/agents/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -275116,7 +285444,7 @@ async function $do$p(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -275160,7 +285488,7 @@ async function $do$o(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/agents/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/agents/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -275190,7 +285518,7 @@ async function $do$o(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -275232,7 +285560,7 @@ async function $do$n(client, api_version, page_size, page_token, parent, options
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path4 = pathToFunc("/{api_version}/agents")(pathParams);
+  const path8 = pathToFunc("/{api_version}/agents")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token,
@@ -275267,7 +285595,7 @@ async function $do$n(client, api_version, page_size, page_token, parent, options
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     query,
     body,
@@ -275335,7 +285663,7 @@ async function $do$m(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path4 = pathToFunc("/{api_version}/environments")(pathParams);
+  const path8 = pathToFunc("/{api_version}/environments")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -275366,7 +285694,7 @@ async function $do$m(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -275410,7 +285738,7 @@ async function $do$l(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -275440,7 +285768,7 @@ async function $do$l(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -275484,7 +285812,7 @@ async function $do$k(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -275514,7 +285842,7 @@ async function $do$k(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -275555,7 +285883,7 @@ async function $do$j(client, api_version, page_size, page_token, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path4 = pathToFunc("/{api_version}/environments")(pathParams);
+  const path8 = pathToFunc("/{api_version}/environments")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token
@@ -275589,7 +285917,7 @@ async function $do$j(client, api_version, page_size, page_token, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     query,
     body,
@@ -275616,14 +285944,14 @@ async function $do$j(client, api_version, page_size, page_token, options) {
   }
   return [result, { status: "complete", request: req, response }];
 }
-function environmentsFilesList(client, environment, path4, api_version, page_size, page_token, recursive2, options) {
-  return new APIPromise($do$i(client, environment, path4, api_version, page_size, page_token, recursive2, options));
+function environmentsFilesList(client, environment, path8, api_version, page_size, page_token, recursive2, options) {
+  return new APIPromise($do$i(client, environment, path8, api_version, page_size, page_token, recursive2, options));
 }
-async function $do$i(client, environment, path4, api_version, page_size, page_token, recursive2, options) {
+async function $do$i(client, environment, path8, api_version, page_size, page_token, recursive2, options) {
   var _a4, _b, _c;
   const input2 = {
     environment,
-    path: path4,
+    path: path8,
     api_version,
     page_size,
     page_token,
@@ -275708,8 +286036,8 @@ var Files2 = class extends ClientSDK {
   /**
    * Retrieves a file or directory from an environment's snapshot.
    */
-  list(environment, path4, params, options) {
-    return unwrapAsAPIPromise(environmentsFilesList(this, environment, path4, params === null || params === void 0 ? void 0 : params.api_version, params === null || params === void 0 ? void 0 : params.page_size, params === null || params === void 0 ? void 0 : params.page_token, params === null || params === void 0 ? void 0 : params.recursive, options));
+  list(environment, path8, params, options) {
+    return unwrapAsAPIPromise(environmentsFilesList(this, environment, path8, params === null || params === void 0 ? void 0 : params.api_version, params === null || params === void 0 ? void 0 : params.page_size, params === null || params === void 0 ? void 0 : params.page_token, params === null || params === void 0 ? void 0 : params.recursive, options));
   }
 };
 var Environments = class extends ClientSDK {
@@ -275840,7 +286168,7 @@ async function $do$h(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/interactions/{id}/cancel")(pathParams);
+  const path8 = pathToFunc("/{api_version}/interactions/{id}/cancel")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -275870,7 +286198,7 @@ async function $do$h(client, id, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -275913,7 +286241,7 @@ async function $do$g(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path4 = pathToFunc("/{api_version}/interactions")(pathParams);
+  const path8 = pathToFunc("/{api_version}/interactions")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: ((_b = input2 === null || input2 === void 0 ? void 0 : input2.body) === null || _b === void 0 ? void 0 : _b.stream) ? "text/event-stream" : "application/json"
@@ -275944,7 +286272,7 @@ async function $do$g(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -275994,7 +286322,7 @@ async function $do$f(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/interactions/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/interactions/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -276024,7 +286352,7 @@ async function $do$f(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -276074,7 +286402,7 @@ async function $do$e(client, id, api_version, include_input, last_event_id, stre
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/interactions/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/interactions/{id}")(pathParams);
   const query = encodeFormQuery({
     "include_input": payload.include_input,
     "last_event_id": payload.last_event_id,
@@ -276109,7 +286437,7 @@ async function $do$e(client, id, api_version, include_input, last_event_id, stre
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     query,
     body,
@@ -276183,7 +286511,7 @@ async function $do$d(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path4 = pathToFunc("/{api_version}/triggers")(pathParams);
+  const path8 = pathToFunc("/{api_version}/triggers")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -276214,7 +286542,7 @@ async function $do$d(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -276258,7 +286586,7 @@ async function $do$c(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -276288,7 +286616,7 @@ async function $do$c(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -276332,7 +286660,7 @@ async function $do$b(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -276362,7 +286690,7 @@ async function $do$b(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -276408,7 +286736,7 @@ async function $do$a(client, trigger_id, api_version, page_size, page_token, opt
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/triggers/{trigger_id}/executions")(pathParams);
+  const path8 = pathToFunc("/{api_version}/triggers/{trigger_id}/executions")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload.page_size,
     "page_token": payload.page_token
@@ -276442,7 +286770,7 @@ async function $do$a(client, trigger_id, api_version, page_size, page_token, opt
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     query,
     body,
@@ -276485,7 +286813,7 @@ async function $do$9(client, api_version, filter, page_size, page_token, options
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path4 = pathToFunc("/{api_version}/triggers")(pathParams);
+  const path8 = pathToFunc("/{api_version}/triggers")(pathParams);
   const query = encodeFormQuery({
     "filter": payload === null || payload === void 0 ? void 0 : payload.filter,
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
@@ -276520,7 +286848,7 @@ async function $do$9(client, api_version, filter, page_size, page_token, options
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     query,
     body,
@@ -276565,7 +286893,7 @@ async function $do$8(client, trigger_id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/triggers/{trigger_id}/executions")(pathParams);
+  const path8 = pathToFunc("/{api_version}/triggers/{trigger_id}/executions")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -276595,7 +286923,7 @@ async function $do$8(client, trigger_id, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -276640,7 +286968,7 @@ async function $do$7(client, id, body, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -276671,7 +286999,7 @@ async function $do$7(client, id, body, api_version, options) {
     security: requestSecurity,
     method: "PATCH",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -276757,7 +287085,7 @@ async function $do$6(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path4 = pathToFunc("/{api_version}/webhooks")(pathParams);
+  const path8 = pathToFunc("/{api_version}/webhooks")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -276788,7 +287116,7 @@ async function $do$6(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -276832,7 +287160,7 @@ async function $do$5(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -276862,7 +287190,7 @@ async function $do$5(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -276906,7 +287234,7 @@ async function $do$4(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -276936,7 +287264,7 @@ async function $do$4(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -276977,7 +287305,7 @@ async function $do$3(client, api_version, page_size, page_token, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path4 = pathToFunc("/{api_version}/webhooks")(pathParams);
+  const path8 = pathToFunc("/{api_version}/webhooks")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token
@@ -277011,7 +287339,7 @@ async function $do$3(client, api_version, page_size, page_token, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     query,
     body,
@@ -277057,7 +287385,7 @@ async function $do$2(client, id, api_version, body, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/webhooks/{id}:ping")(pathParams);
+  const path8 = pathToFunc("/{api_version}/webhooks/{id}:ping")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -277088,7 +287416,7 @@ async function $do$2(client, id, api_version, body, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -277133,7 +287461,7 @@ async function $do$1(client, id, api_version, body, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/webhooks/{id}:rotateSigningSecret")(pathParams);
+  const path8 = pathToFunc("/{api_version}/webhooks/{id}:rotateSigningSecret")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -277164,7 +287492,7 @@ async function $do$1(client, id, api_version, body, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -277210,7 +287538,7 @@ async function $do(client, id, api_version, update_mask, body, options) {
       charEncoding: "percent"
     })
   };
-  const path4 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
+  const path8 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
   const query = encodeFormQuery({
     "update_mask": payload.update_mask
   });
@@ -277244,7 +287572,7 @@ async function $do(client, id, api_version, update_mask, body, options) {
     security: requestSecurity,
     method: "PATCH",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path4,
+    path: path8,
     headers,
     query,
     body: body$,
@@ -277735,8 +288063,8 @@ var GeminiNextGenEnvironmentFiles = class {
     this.resolveClient = resolveClient;
   }
   async list(params, options) {
-    const { environment, path: path4, page_size, page_token, recursive: recursive2, api_version } = params;
-    return unwrapWithSdkHttpResponse(environmentsFilesList(this.resolveClient(api_version), environment, path4, api_version, page_size, page_token, recursive2, toGoogleGenAIRequestOptions(options)));
+    const { environment, path: path8, page_size, page_token, recursive: recursive2, api_version } = params;
+    return unwrapWithSdkHttpResponse(environmentsFilesList(this.resolveClient(api_version), environment, path8, api_version, page_size, page_token, recursive2, toGoogleGenAIRequestOptions(options)));
   }
 };
 var GeminiNextGenEnvironments = class {
@@ -277835,7 +288163,7 @@ var NodeDownloader = class {
     if (params.downloadPath) {
       const response = await downloadFile(params, apiClient);
       if (response instanceof HttpResponse) {
-        const writer = (0, import_fs.createWriteStream)(params.downloadPath);
+        const writer = (0, import_fs5.createWriteStream)(params.downloadPath);
         const body = import_node_stream3.Readable.fromWeb(response.responseInternal.body);
         body.pipe(writer);
         await (0, import_promises3.finished)(writer);
@@ -279347,16 +289675,16 @@ var Tunings = class extends BaseModule {
   async getInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getTuningJobParametersToVertex(params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -279377,12 +289705,12 @@ var Tunings = class extends BaseModule {
       });
     } else {
       const body = getTuningJobParametersToMldev(params);
-      path4 = formatMap2("{name}", body["_url"]);
+      path8 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -279406,16 +289734,16 @@ var Tunings = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listTuningJobsParametersToVertex(params);
-      path4 = formatMap2("tuningJobs", body["_url"]);
+      path8 = formatMap2("tuningJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -279454,16 +289782,16 @@ var Tunings = class extends BaseModule {
   async cancel(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = cancelTuningJobParametersToVertex(params);
-      path4 = formatMap2("{name}:cancel", body["_url"]);
+      path8 = formatMap2("{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -279486,12 +289814,12 @@ var Tunings = class extends BaseModule {
       });
     } else {
       const body = cancelTuningJobParametersToMldev(params);
-      path4 = formatMap2("{name}:cancel", body["_url"]);
+      path8 = formatMap2("{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -279517,16 +289845,16 @@ var Tunings = class extends BaseModule {
   async tuneInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = createTuningJobParametersPrivateToVertex(params, params);
-      path4 = formatMap2("tuningJobs", body["_url"]);
+      path8 = formatMap2("tuningJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -279552,18 +289880,18 @@ var Tunings = class extends BaseModule {
   async tuneMldevInternal(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createTuningJobParametersPrivateToMldev(params);
-      path4 = formatMap2("tunedModels", body["_url"]);
+      path8 = formatMap2("tunedModels", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -279587,16 +289915,16 @@ var Tunings = class extends BaseModule {
   async validateReward(params) {
     var _a4, _b;
     let response;
-    let path4 = "";
+    let path8 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = validateRewardParametersToVertex(params);
-      path4 = formatMap2("{parent}/tuningJobs:validateReinforcementTuningReward", body["_url"]);
+      path8 = formatMap2("{parent}/tuningJobs:validateReinforcementTuningReward", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path4,
+        path: path8,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -279709,7 +290037,7 @@ var NodeUploader = class {
   async stat(file2) {
     const fileStat = { size: 0, type: void 0 };
     if (typeof file2 === "string") {
-      const originalStat = await fs3.stat(file2);
+      const originalStat = await fs7.stat(file2);
       fileStat.size = originalStat.size;
       fileStat.type = this.inferMimeType(file2);
       return fileStat;
@@ -279855,9 +290183,9 @@ var NodeUploader = class {
     let response = new HttpResponse(new Response());
     let uploadCommand = "upload";
     let fileHandle;
-    const fileName = path2.basename(file2);
+    const fileName = path6.basename(file2);
     try {
-      fileHandle = await fs3.open(file2, "r");
+      fileHandle = await fs7.open(file2, "r");
       if (!fileHandle) {
         throw new Error(`Failed to open file`);
       }
@@ -280452,8 +290780,8 @@ Return strictly valid JSON matching this schema:
 }
 
 // server.ts
-var import_path = __toESM(require("path"), 1);
-var import_fs2 = __toESM(require("fs"), 1);
+var import_path5 = __toESM(require("path"), 1);
+var import_fs6 = __toESM(require("fs"), 1);
 
 // node_modules/express-rate-limit/dist/index.mjs
 var import_node_net2 = require("node:net");
@@ -281979,19 +292307,35 @@ app.get("/api/statement", async (req, res) => {
 });
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
-    const user = await getOrCreateUser(req.user.uid, req.user.email || null).catch(() => null);
-    const profile = await getProfile(req.user.uid).catch(() => null);
+    const uid = req.user.uid;
+    const cacheKey = `profile:${uid}`;
+    const cached3 = await getCache(cacheKey);
+    if (cached3) {
+      return res.json(cached3);
+    }
+    const user = await getOrCreateUser(uid, req.user.email || null).catch(() => null);
+    const profile = await getProfile(uid).catch(() => null);
     const { githubToken, ...safeProfile } = profile || {};
-    const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.email?.split("@")[0] || "Explorer";
-    const cleanAvatar = safeProfile?.avatarUrl || safeProfile?.avatar_url || req.user.picture || null;
+    const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.name || req.user.email?.split("@")[0] || "Explorer";
+    const cleanAvatar = safeProfile?.avatarUrl || safeProfile?.avatar_url || req.user.picture || user?.avatarUrl || null;
     const cleanLcUsername = safeProfile?.leetcodeUsername || safeProfile?.leetcode_username || null;
     const cleanLcStats = safeProfile?.leetcodeStats || safeProfile?.leetcode_stats || null;
-    res.json({
-      uid: req.user.uid,
+    const cleanGithubConnected = !!(safeProfile?.githubConnected || githubToken);
+    const cleanGithubUsername = safeProfile?.githubUsername || safeProfile?.github_username || null;
+    const cleanGithubAvatar = safeProfile?.githubAvatar || safeProfile?.github_avatar || null;
+    const cleanGithubUrl = safeProfile?.githubUrl || (cleanGithubUsername ? `https://github.com/${cleanGithubUsername}` : null);
+    const payload = {
+      uid,
       email: req.user.email,
-      githubConnected: !!githubToken,
       ...user,
       ...safeProfile,
+      githubConnected: cleanGithubConnected,
+      github_connected: cleanGithubConnected,
+      githubUsername: cleanGithubUsername,
+      github_username: cleanGithubUsername,
+      githubAvatar: cleanGithubAvatar,
+      github_avatar: cleanGithubAvatar,
+      githubUrl: cleanGithubUrl,
       displayName: cleanDisplayName,
       display_name: cleanDisplayName,
       avatarUrl: cleanAvatar,
@@ -282000,13 +292344,16 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       leetcode_username: cleanLcUsername,
       leetcodeStats: cleanLcStats,
       leetcode_stats: cleanLcStats
+    };
+    await setCache(cacheKey, payload, 1800).catch(() => {
     });
+    res.json(payload);
   } catch (error61) {
     res.json({
       uid: req.user.uid,
       email: req.user.email,
-      displayName: req.user.email?.split("@")[0] || "Explorer",
-      display_name: req.user.email?.split("@")[0] || "Explorer",
+      displayName: req.user.name || req.user.email?.split("@")[0] || "Explorer",
+      display_name: req.user.name || req.user.email?.split("@")[0] || "Explorer",
       avatarUrl: req.user.picture || null,
       avatar_url: req.user.picture || null,
       githubConnected: false,
@@ -282027,15 +292374,23 @@ app.post("/api/profile/update", requireAuth, async (req, res) => {
     if (!/^[a-zA-Z0-9_.-]+$/.test(clean3)) {
       return res.status(400).json({ error: "Username can only contain letters, numbers, underscores, dashes, and periods." });
     }
-    const updated = await updateProfile(req.user.uid, { displayName: clean3, display_name: clean3 }).catch(() => null);
+    const uid = req.user.uid;
+    const updated = await updateProfile(uid, { displayName: clean3, display_name: clean3 }).catch(() => null);
+    await deleteCache(`profile:${uid}`).catch(() => {
+    });
+    await deleteCache(`user:${uid}`).catch(() => {
+    });
+    const responsePayload = {
+      uid,
+      displayName: clean3,
+      display_name: clean3,
+      ...updated || {}
+    };
+    await setCache(`profile:${uid}`, responsePayload, 1800).catch(() => {
+    });
     res.json({
       ok: true,
-      profile: {
-        uid: req.user.uid,
-        displayName: clean3,
-        display_name: clean3,
-        ...updated || {}
-      }
+      profile: responsePayload
     });
   } catch (error61) {
     console.error("Failed to update profile:", error61);
@@ -282069,6 +292424,12 @@ app.delete("/api/profile", requireAuth, async (req, res) => {
     } catch (dbErr) {
       console.warn("Firestore subcollections purge notice:", dbErr);
     }
+    await deleteCache(`profile:${uid}`).catch(() => {
+    });
+    await deleteCache(`user:${uid}`).catch(() => {
+    });
+    await deleteCache(`submissions:${uid}`).catch(() => {
+    });
     await updateProfile(uid, {
       displayName: "Deleted User",
       display_name: "Deleted User",
@@ -282094,7 +292455,15 @@ app.post("/api/sync-leetcode", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Valid LeetCode username is required." });
     }
     const cleanUsername = username.trim().replace(/^@+/, "");
-    const fetchedStats = await fetchLeetCodeStats(cleanUsername);
+    const lcCacheKey = `leetcode:${cleanUsername.toLowerCase()}`;
+    let fetchedStats = await getCache(lcCacheKey);
+    if (!fetchedStats) {
+      fetchedStats = await fetchLeetCodeStats(cleanUsername);
+      if (fetchedStats) {
+        await setCache(lcCacheKey, fetchedStats, 3600).catch(() => {
+        });
+      }
+    }
     if (!fetchedStats) {
       return res.status(404).json({ error: `Could not load LeetCode data for "${cleanUsername}". Please verify the username is public.` });
     }
@@ -282106,6 +292475,8 @@ app.post("/api/sync-leetcode", requireAuth, async (req, res) => {
           leetcodeStats: fetchedStats,
           leetcode_stats: fetchedStats
         }).catch(() => null);
+        await deleteCache(`profile:${req.user.uid}`).catch(() => {
+        });
       }
     } catch (e2) {
       console.warn("Server-side DB update warning in /api/sync-leetcode:", e2);
@@ -283129,8 +293500,36 @@ app.get("/api/github/callback", async (req, res) => {
     if (!accessToken) {
       return res.status(400).send("No access token returned by GitHub");
     }
+    let ghUsername = null;
+    let ghAvatar = null;
+    let ghUrl = null;
+    try {
+      const userRes = await fetch("https://api.github.com/user", {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "User-Agent": "DSA-viz-App",
+          "Accept": "application/vnd.github.v3+json"
+        }
+      });
+      if (userRes.ok) {
+        const ghUser = await userRes.json();
+        ghUsername = ghUser.login || null;
+        ghAvatar = ghUser.avatar_url || null;
+        ghUrl = ghUser.html_url || null;
+      }
+    } catch (ghErr) {
+      console.warn("Could not fetch GitHub user info:", ghErr);
+    }
     const encryptedToken = encryptToken(accessToken);
-    await updateProfile(uid, { githubToken: encryptedToken, githubConnected: true });
+    await updateProfile(uid, {
+      githubToken: encryptedToken,
+      githubConnected: true,
+      githubUsername: ghUsername,
+      githubAvatar: ghAvatar,
+      githubUrl: ghUrl
+    });
+    await deleteCache(`profile:${uid}`).catch(() => {
+    });
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -283152,7 +293551,9 @@ app.get("/api/github/callback", async (req, res) => {
                 window.opener.postMessage({
                   type: 'GITHUB_AUTH_SUCCESS',
                   githubConnected: true,
-                  githubToken: ${JSON.stringify(encryptedToken)}
+                  githubToken: ${JSON.stringify(encryptedToken)},
+                  githubUsername: ${JSON.stringify(ghUsername)},
+                  githubAvatar: ${JSON.stringify(ghAvatar)}
                 }, '*');
                 setTimeout(() => window.close(), 400);
               } else {
@@ -283173,7 +293574,15 @@ app.get("/api/github/callback", async (req, res) => {
 app.post("/api/github/disconnect", requireAuth, async (req, res) => {
   try {
     const uid = req.user.uid;
-    await updateProfile(uid, { githubToken: null, githubConnected: false });
+    await updateProfile(uid, {
+      githubToken: null,
+      githubConnected: false,
+      githubUsername: null,
+      githubAvatar: null,
+      githubUrl: null
+    });
+    await deleteCache(`profile:${uid}`).catch(() => {
+    });
     res.json({ success: true });
   } catch (error61) {
     res.status(500).json({ error: "Failed to disconnect GitHub" });
@@ -283219,7 +293628,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
     };
     const ext = extMap[lang] || "txt";
     const repoName = "LeetCode-Solutions";
-    const path4 = `${titleSlug}/${titleSlug}.${ext}`;
+    const path8 = `${titleSlug}/${titleSlug}.${ext}`;
     const message2 = `Add solution for ${titleSlug}`;
     const githubHeaders = {
       "Authorization": `Bearer ${githubToken}`,
@@ -283262,7 +293671,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
       }
     }
     let sha = void 0;
-    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path4}`, {
+    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path8}`, {
       headers: githubHeaders
     });
     if (fileRes.ok) {
@@ -283270,7 +293679,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
       if (fileData?.sha) sha = fileData.sha;
     }
     const content = Buffer.from(code).toString("base64");
-    const pushRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path4}`, {
+    const pushRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path8}`, {
       method: "PUT",
       headers: { ...githubHeaders, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -283284,7 +293693,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
       const err = await pushRes.json().catch(() => ({ message: "Unknown error" }));
       return res.status(500).json({ error: "Failed to push code: " + (err.message || pushRes.statusText) });
     }
-    res.json({ success: true, url: `https://github.com/${owner}/${repoName}/blob/${defaultBranch}/${path4}` });
+    res.json({ success: true, url: `https://github.com/${owner}/${repoName}/blob/${defaultBranch}/${path8}` });
   } catch (error61) {
     console.error("GitHub push error:", error61);
     res.status(500).json({ error: error61?.message || "Failed to push to GitHub" });
@@ -283303,8 +293712,8 @@ async function startServer() {
         return next();
       }
       try {
-        const indexPath = import_path.default.resolve(process.cwd(), "index.html");
-        let html = await import_fs2.default.promises.readFile(indexPath, "utf-8");
+        const indexPath = import_path5.default.resolve(process.cwd(), "index.html");
+        let html = await import_fs6.default.promises.readFile(indexPath, "utf-8");
         html = await vite.transformIndexHtml(req.originalUrl, html);
         res.status(200).set({ "Content-Type": "text/html" }).end(html);
       } catch (e2) {
@@ -283313,10 +293722,10 @@ async function startServer() {
       }
     });
   } else {
-    const distPath = import_path.default.join(process.cwd(), "dist");
+    const distPath = import_path5.default.join(process.cwd(), "dist");
     app.use(import_express.default.static(distPath));
     app.get("*all", (_req, res) => {
-      res.sendFile(import_path.default.join(distPath, "index.html"));
+      res.sendFile(import_path5.default.join(distPath, "index.html"));
     });
   }
   app.listen(PORT, "0.0.0.0", () => {

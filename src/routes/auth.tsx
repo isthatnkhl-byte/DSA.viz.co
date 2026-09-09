@@ -48,11 +48,16 @@ function AuthPage() {
   const isUnauthorizedDomain =
     Boolean(error && (error.includes("unauthorized-domain") || error.includes("Authorized Domains") || error.includes("Authorized Domain")));
 
+  const redirectTarget = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("redirect") || "/dashboard"
+    : "/dashboard";
+  const safeRedirect = redirectTarget.startsWith("/") && !redirectTarget.startsWith("//") ? redirectTarget : "/dashboard";
+
   useEffect(() => {
     if (user) {
-      navigate({ to: "/dashboard", replace: true });
+      navigate({ to: safeRedirect as any, replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, safeRedirect]);
 
   async function handleGoogleSignIn() {
     setBusy(true);
@@ -61,7 +66,7 @@ function AuthPage() {
       await signInWithGoogle();
       if (!isConfigured) {
         toast.success("Signed in with Google Developer profile");
-        navigate({ to: "/dashboard", replace: true });
+        navigate({ to: safeRedirect as any, replace: true });
       }
     } catch (err: any) {
       console.warn("Google sign-in caught:", err);

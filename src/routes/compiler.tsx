@@ -1076,7 +1076,7 @@ function CppCompilerPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setActiveCode((prev) => prev + (prev.endsWith("\n") ? "" : "\n") + tip.code);
+                          setActiveCode(activeCode + (activeCode.endsWith("\n") ? "" : "\n") + tip.code);
                           toast.success(`Inserted "${tip.title}" snippet into editor`);
                         }}
                         className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-bold text-primary bg-primary/15 hover:bg-primary hover:text-primary-foreground border border-primary/30 transition-all cursor-pointer"

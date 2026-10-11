@@ -49,12 +49,14 @@ const CALIBRATION_SWATCHES: Array<{
 interface LandingHeroProps {
   introPhase?: HeroIntroPhase;
   introProgress?: number;
+  isLogoDetached?: boolean;
   onJumpToIntroProgress?: (targetProgress: number) => void;
 }
 
 export function LandingHero({
   introPhase = "complete",
   introProgress = 1,
+  isLogoDetached = false,
   onJumpToIntroProgress = () => {},
 }: LandingHeroProps) {
   const { theme, setTheme } = useThemeColor();
@@ -72,11 +74,10 @@ export function LandingHero({
         initial={false}
         animate={{
           opacity: isHeroVisible ? 1 : 0,
-          y: isHeroVisible ? 0 : -14,
-          filter: isHeroVisible ? "blur(0px)" : "blur(5px)",
+          y: isHeroVisible ? 0 : -12,
         }}
-        transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-        className={`relative w-full mb-10 sm:mb-14 ${
+        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+        className={`relative w-full mb-10 sm:mb-14 will-change-transform ${
           isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
         }`}
       >
@@ -194,11 +195,10 @@ export function LandingHero({
           initial={false}
           animate={{
             opacity: isHeroVisible ? 1 : 0,
-            y: isHeroVisible ? 0 : 14,
-            filter: isHeroVisible ? "blur(0px)" : "blur(6px)",
+            y: isHeroVisible ? 0 : 12,
           }}
-          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-          className={`text-4xl sm:text-6xl md:text-[4.5rem] lg:text-[4.85rem] font-sans font-extrabold tracking-[-0.035em] text-foreground leading-[1.08] max-w-4xl mx-auto flex flex-col items-center text-center transition-colors duration-300 ${
+          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          className={`text-4xl sm:text-6xl md:text-[4.5rem] lg:text-[4.85rem] font-sans font-extrabold tracking-[-0.035em] text-foreground leading-[1.08] max-w-4xl mx-auto flex flex-col items-center text-center transition-colors duration-300 will-change-transform ${
             isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >
@@ -220,36 +220,31 @@ export function LandingHero({
 
         {/* Interactive DSAVIZCO + (algorithms • visualizer • compiler) Brand Title (Middle) */}
         <div className="relative z-50 w-full flex flex-col items-center">
-          <div
-            id="hero-brand-resting-anchor"
-            className="w-full h-0 pointer-events-none"
-            aria-hidden="true"
+          <HeroBrandTitle
+            introPhase={introPhase}
+            brandVerticalOffset={brandVerticalOffset}
+            isLogoDetached={isLogoDetached}
           />
+
+          {/* 1-Liner Highlight Banner (Active during DSA / VIZ / CO phases) */}
           <motion.div
             initial={false}
-            animate={{
-              y: brandVerticalOffset,
+            animate={{ y: brandVerticalOffset }}
+            transition={{
+              type: "spring",
+              stiffness: 210,
+              damping: 27,
+              mass: 0.55,
             }}
-            transition={{ duration: 0.46, ease: [0.22, 1, 0.36, 1] }}
-            className="relative w-full flex flex-col items-center"
+            className={`absolute top-full left-0 right-0 pt-0.5 will-change-transform ${
+              isHeroVisible ? "pointer-events-none" : "pointer-events-auto"
+            }`}
           >
-            <HeroBrandTitle
-              introPhase={introPhase}
-              brandVerticalOffset={brandVerticalOffset}
+            <HeroSlideshowDeck
+              phase={introPhase}
+              progress={introProgress}
+              onJumpToProgress={onJumpToIntroProgress}
             />
-
-            {/* 1-Liner Highlight Banner (Active during DSA / VIZ / CO phases) */}
-            <div
-              className={`absolute top-full left-0 right-0 pt-0.5 ${
-                isHeroVisible ? "pointer-events-none" : "pointer-events-auto"
-              }`}
-            >
-              <HeroSlideshowDeck
-                phase={introPhase}
-                progress={introProgress}
-                onJumpToProgress={onJumpToIntroProgress}
-              />
-            </div>
           </motion.div>
         </div>
 
@@ -258,11 +253,10 @@ export function LandingHero({
           initial={false}
           animate={{
             opacity: isHeroVisible ? 1 : 0,
-            y: isHeroVisible ? 0 : 14,
-            filter: isHeroVisible ? "blur(0px)" : "blur(6px)",
+            y: isHeroVisible ? 0 : 12,
           }}
-          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-          className={`text-base sm:text-xl md:text-[1.32rem] text-muted-foreground font-sans font-normal leading-[1.6] max-w-3xl mx-auto text-center transition-colors duration-300 ${
+          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          className={`text-base sm:text-xl md:text-[1.32rem] text-muted-foreground font-sans font-normal leading-[1.6] max-w-3xl mx-auto text-center transition-colors duration-300 will-change-transform ${
             isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >
@@ -274,11 +268,10 @@ export function LandingHero({
           initial={false}
           animate={{
             opacity: isHeroVisible ? 1 : 0,
-            y: isHeroVisible ? 0 : 16,
-            filter: isHeroVisible ? "blur(0px)" : "blur(6px)",
+            y: isHeroVisible ? 0 : 14,
           }}
-          transition={{ duration: 0.44, ease: [0.22, 1, 0.36, 1] }}
-          className={`pt-2 sm:pt-3 flex flex-wrap items-center justify-center gap-4 sm:gap-5 ${
+          transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+          className={`pt-2 sm:pt-3 flex flex-wrap items-center justify-center gap-4 sm:gap-5 will-change-transform ${
             isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >
@@ -302,11 +295,10 @@ export function LandingHero({
           initial={false}
           animate={{
             opacity: isHeroVisible ? 1 : 0,
-            y: isHeroVisible ? 0 : 20,
-            filter: isHeroVisible ? "blur(0px)" : "blur(6px)",
+            y: isHeroVisible ? 0 : 16,
           }}
-          transition={{ duration: 0.46, ease: [0.22, 1, 0.36, 1] }}
-          className={`pt-6 sm:pt-8 w-full text-left ${
+          transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+          className={`pt-6 sm:pt-8 w-full text-left will-change-transform ${
             isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >

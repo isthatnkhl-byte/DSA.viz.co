@@ -1,6 +1,6 @@
 import React, { useState, useRef, useLayoutEffect, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
-import { motion } from "motion/react";
+import { motion, useAnimate } from "motion/react";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { DsavizcoLogo } from "@/components/brand/DsavizcoLogo";
 
@@ -37,6 +37,7 @@ const PILLARS: Array<{
 interface HeroBrandTitleProps {
   introPhase?: HeroIntroPhase;
   brandVerticalOffset?: number;
+  isLogoDetached?: boolean;
 }
 
 interface LogoCoords {
@@ -50,6 +51,7 @@ interface LogoCoords {
 export function HeroBrandTitle({
   introPhase = "complete",
   brandVerticalOffset = 0,
+  isLogoDetached = false,
 }: HeroBrandTitleProps) {
   const { theme } = useThemeColor();
   const [hoveredCharIdx, setHoveredCharIdx] = useState<number | null>(null);
@@ -62,7 +64,8 @@ export function HeroBrandTitle({
   const logoPerchRef = useRef<HTMLDivElement | null>(null);
   const titleRowRef = useRef<HTMLDivElement | null>(null);
   const charRefs = useRef<Array<HTMLSpanElement | null>>([]);
-  const restingPerchCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const prevPhaseRef = useRef<HeroIntroPhase>(introPhase);
+  const [jumpScope, animateJump] = useAnimate();
 
   const [coords, setCoords] = useState<LogoCoords>({
     navX: -380,
@@ -72,22 +75,8 @@ export function HeroBrandTitle({
     coX: 165,
   });
 
-  const [showTravellingLogo, setShowTravellingLogo] = useState<boolean>(false);
-
   const isSpotlightPhase =
     introPhase === "dsa" || introPhase === "viz" || introPhase === "co";
-
-  // Keep the travelling logo visible throughout the spotlight phases AND during its return flight to the navbar
-  useEffect(() => {
-    if (isSpotlightPhase) {
-      setShowTravellingLogo(true);
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setShowTravellingLogo(false);
-    }, 460);
-    return () => window.clearTimeout(timer);
-  }, [isSpotlightPhase]);
 
   useLayoutEffect(() => {
     const measureCoords = () => {
@@ -112,25 +101,19 @@ export function HeroBrandTitle({
       const vizX = getSegmentCenterX(3, 5, 0.06);
       const coX = getSegmentCenterX(6, 7, 0.37);
 
-      const anchorEl = document.getElementById("hero-brand-resting-anchor");
+      // logoPerchRef is never transformed by brandVerticalOffset, so its bounding rect is 100% invariant
       const perchRect = perchEl.getBoundingClientRect();
-      const restingX = anchorEl
-        ? anchorEl.getBoundingClientRect().left + anchorEl.getBoundingClientRect().width / 2
-        : perchRect.left + perchRect.width / 2;
-      const restingY = anchorEl
-        ? anchorEl.getBoundingClientRect().top + perchRect.height / 2
-        : perchRect.top - brandVerticalOffset + perchRect.height / 2;
-
-      restingPerchCenterRef.current = { x: restingX, y: restingY };
+      const perchCenterX = perchRect.left + perchRect.width / 2;
+      const perchCenterY = perchRect.top + perchRect.height / 2;
 
       let navX = -380;
       let navY = -310;
-      if (navEl && restingPerchCenterRef.current) {
+      if (navEl) {
         const navRect = navEl.getBoundingClientRect();
         const navCenterX = navRect.left + navRect.width / 2;
         const navCenterY = navRect.top + navRect.height / 2;
-        navX = navCenterX - restingPerchCenterRef.current.x;
-        navY = navCenterY - restingPerchCenterRef.current.y;
+        navX = navCenterX - perchCenterX;
+        navY = navCenterY - perchCenterY;
       }
 
       setCoords({ navX, navY, dsaX, vizX, coX });
@@ -139,7 +122,52 @@ export function HeroBrandTitle({
     measureCoords();
     window.addEventListener("resize", measureCoords);
     return () => window.removeEventListener("resize", measureCoords);
-  }, [brandVerticalOffset, introPhase]);
+  }, []);
+
+  // Trigger a hardware-accelerated 60fps parabolic hop arc without ever remounting the SVG logo
+  useEffect(() => {
+    const prevPhase = prevPhaseRef.current;
+    prevPhaseRef.current = introPhase;
+    if (prevPhase === introPhase || !jumpScope.current) return;
+
+    if (
+      (prevPhase === "dsa" && introPhase === "viz") ||
+      (prevPhase === "viz" && introPhase === "co") ||
+      (prevPhase === "co" && introPhase === "viz") ||
+      (prevPhase === "viz" && introPhase === "dsa")
+    ) {
+      const dir =
+        (prevPhase === "dsa" && introPhase === "viz") ||
+        (prevPhase === "viz" && introPhase === "co")
+          ? 1
+          : -1;
+      void animateJump(
+        jumpScope.current,
+        {
+          y: [0, -44, 0],
+          scaleX: [1, 0.94, 1.06, 1],
+          scaleY: [1, 1.08, 0.92, 1],
+          rotate: [0, dir * 7, dir * -3, 0],
+        },
+        {
+          duration: 0.4,
+          ease: [0.22, 1, 0.36, 1],
+        },
+      );
+    } else if (introPhase === "dsa" && prevPhase === "hero-initial") {
+      void animateJump(
+        jumpScope.current,
+        {
+          y: [0, -22, 0],
+          scale: [1, 1.08, 1],
+        },
+        {
+          duration: 0.42,
+          ease: [0.22, 1, 0.36, 1],
+        },
+      );
+    }
+  }, [introPhase, animateJump, jumpScope]);
 
   const forcedPillar: PillarKey | null =
     introPhase === "dsa"
@@ -188,11 +216,11 @@ export function HeroBrandTitle({
 
   const logoTarget =
     introPhase === "dsa"
-      ? { x: coords.dsaX, y: 4, scale: 1 }
+      ? { x: coords.dsaX, y: brandVerticalOffset + 6, scale: 1 }
       : introPhase === "viz"
-        ? { x: coords.vizX, y: 4, scale: 1 }
+        ? { x: coords.vizX, y: brandVerticalOffset + 6, scale: 1 }
         : introPhase === "co"
-          ? { x: coords.coX, y: 4, scale: 1 }
+          ? { x: coords.coX, y: brandVerticalOffset + 6, scale: 1 }
           : { x: coords.navX, y: coords.navY, scale: 0.56 };
 
   return (
@@ -207,7 +235,7 @@ export function HeroBrandTitle({
       }}
       className="relative flex flex-col items-center justify-center text-center select-none w-full mx-auto"
     >
-      {/* Travelling Top-Left Navbar Logo Perch (Leaps from top-left navbar -> DSA -> VIZ -> CO -> back to top-left navbar) */}
+      {/* Untransformed Static Perch Origin for 60fps Single-Transform Logo Trajectory */}
       <div
         ref={logoPerchRef}
         className="relative w-full h-12 sm:h-14 flex items-center justify-center pointer-events-none z-50"
@@ -218,69 +246,51 @@ export function HeroBrandTitle({
             x: logoTarget.x,
             y: logoTarget.y,
             scale: logoTarget.scale,
-            opacity: isSpotlightPhase || showTravellingLogo ? 1 : 0,
           }}
           transition={{
-            duration: 0.46,
-            ease: [0.22, 1, 0.36, 1],
+            type: "spring",
+            stiffness: 230,
+            damping: 26,
+            mass: 0.52,
           }}
-          className="relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 text-primary"
+          className={`relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 text-primary will-change-transform ${
+            isLogoDetached ? "opacity-100" : "opacity-0"
+          }`}
         >
-          {/* Parabolic Jump Arc Keyframe Wrapper when hopping onto DSA, VIZ, or CO */}
-          <motion.div
-            key={introPhase}
-            initial={
-              isSpotlightPhase
-                ? { y: 0, scale: 0.95, rotate: -6 }
-                : false
-            }
-            animate={
-              isSpotlightPhase
-                ? {
-                    y: [0, -38, 0],
-                    scale: [1, 1.16, 0.94, 1],
-                    rotate: [0, 8, -4, 0],
-                  }
-                : { y: 0, scale: 1, rotate: 0 }
-            }
-            transition={{
-              duration: 0.46,
-              ease: "easeOut",
-            }}
-            className="w-full h-full flex items-center justify-center drop-shadow-[0_6px_18px_color-mix(in_oklch,var(--primary)_55%,transparent)]"
+          <div
+            ref={jumpScope}
+            className="w-full h-full flex items-center justify-center will-change-transform"
           >
             <DsavizcoLogo
               className="w-full h-full text-primary"
-              interactive={isSpotlightPhase}
+              interactive={false}
               showShadow={true}
             />
-          </motion.div>
-
-          {/* Subtle glowing landing pad directly under the logo when perched over DSA / VIZ / CO */}
-          {isSpotlightPhase && (
-            <motion.span
-              key={`pad-${introPhase}`}
-              initial={{ opacity: 0, scaleX: 0.4 }}
-              animate={{ opacity: 1, scaleX: 1 }}
-              transition={{ delay: 0.18, duration: 0.28 }}
-              className="absolute -bottom-1 w-10 h-1.5 rounded-full bg-complement/70 blur-[2px]"
-              aria-hidden="true"
-            />
-          )}
+          </div>
         </motion.div>
       </div>
 
-      {/* Brand Title Text Container with Pixel Typography & Dynamic Theme Luminescence */}
-      <div className="dsavizco-title-container group/brand relative inline-flex flex-col items-center justify-center py-1.5 px-4 mx-auto transition-opacity duration-500">
+      {/* Brand Title Text Container — Vertically centered during DSA/VIZ/CO spotlight */}
+      <motion.div
+        initial={false}
+        animate={{ y: brandVerticalOffset }}
+        transition={{
+          type: "spring",
+          stiffness: 210,
+          damping: 27,
+          mass: 0.55,
+        }}
+        className="dsavizco-title-container group/brand relative inline-flex flex-col items-center justify-center py-1.5 px-4 mx-auto will-change-transform"
+      >
         {/* Soft ambient glow behind characters of DSAVIZCO — shifts to active pillar during scroll intro */}
         <span
-          className="dsavizco-purplish-bg-glow transition-all duration-500 group-hover/brand:scale-105 group-hover/brand:opacity-100"
+          className="dsavizco-purplish-bg-glow transition-all duration-300 group-hover/brand:scale-105 group-hover/brand:opacity-100"
           style={segmentGlowStyle}
           aria-hidden="true"
         />
 
         {/* Interactive cursor-following theme spotlight aura */}
-        {pointerPos && (
+        {pointerPos && !isSpotlightPhase && (
           <span
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 -z-10 rounded-full blur-xl transition-opacity duration-300"
@@ -290,7 +300,7 @@ export function HeroBrandTitle({
           />
         )}
 
-        {/* Foreground Pixel Title: DSAVIZCO with interactive per-character & scroll-segment physics */}
+        {/* Foreground Pixel Title: DSAVIZCO with 60fps pure transform + opacity transitions */}
         <div
           ref={titleRowRef}
           role="button"
@@ -329,15 +339,8 @@ export function HeroBrandTitle({
                 : isForcedLit
                   ? 1
                   : isPreviouslyLitAndNowDimmed
-                    ? 0.2
+                    ? 0.18
                     : 0;
-
-            const charFilter =
-              forcedPillar !== null && !isForcedLit
-                ? isPreviouslyLitAndNowDimmed
-                  ? "blur(0px) brightness(0.45) saturate(0.35)"
-                  : "blur(4px) brightness(0.2)"
-                : "blur(0px) brightness(1)";
 
             return (
               <motion.span
@@ -351,7 +354,6 @@ export function HeroBrandTitle({
                 initial={waveTrigger > 0 ? { y: 0, scale: 1 } : false}
                 animate={{
                   opacity: charOpacity,
-                  filter: charFilter,
                   y: isHighlighted
                     ? -4
                     : isNeighbor
@@ -360,9 +362,9 @@ export function HeroBrandTitle({
                         ? [0, -9, 0]
                         : 0,
                   scale: isHighlighted
-                    ? 1.05
+                    ? 1.04
                     : forcedPillar !== null && !isForcedLit
-                      ? 0.96
+                      ? 0.97
                       : isNeighbor
                         ? 1.03
                         : waveTrigger > 0
@@ -372,22 +374,16 @@ export function HeroBrandTitle({
                 transition={
                   waveTrigger > 0 && !isHighlighted && !isNeighbor
                     ? {
-                        duration: 0.42,
+                        duration: 0.38,
                         delay: idx * 0.04,
                         ease: "easeOut",
                       }
-                    : isSpotlightPhase
-                      ? {
-                          duration: 0.36,
-                          ease: [0.22, 1, 0.36, 1],
-                        }
-                      : {
-                          type: "spring",
-                          stiffness: 340,
-                          damping: 26,
-                        }
+                    : {
+                        duration: 0.28,
+                        ease: [0.22, 1, 0.36, 1],
+                      }
                 }
-                className="dsavizco-pixel-char px-[0.015em]"
+                className="dsavizco-pixel-char px-[0.015em] will-change-transform"
               >
                 {item.char}
               </motion.span>
@@ -398,7 +394,7 @@ export function HeroBrandTitle({
         {/* Subtitle in clean monospace font matching reference screenshot, with interactive theme-aware pillar links */}
         <div className="font-mono text-xs sm:text-sm md:text-[15px] tracking-[0.08em] text-primary font-semibold mt-2 sm:mt-2.5 relative z-10 inline-flex flex-wrap items-center justify-center gap-x-2 transition-colors duration-300">
           <span
-            className={`transition-opacity duration-300 ${
+            className={`transition-opacity duration-200 ${
               forcedPillar !== null ? "opacity-30" : "opacity-85"
             }`}
           >
@@ -422,7 +418,7 @@ export function HeroBrandTitle({
                     setHoveredCharIdx(null);
                   }}
                   onMouseLeave={() => setHoveredPillar(null)}
-                  className={`relative inline-block transition-all duration-300 cursor-pointer ${
+                  className={`relative inline-block transition-all duration-200 cursor-pointer ${
                     isActive
                       ? "text-complement -translate-y-[1px] underline decoration-complement decoration-dashed underline-offset-4 font-bold opacity-100"
                       : isPreviouslyLitSubtitle
@@ -436,7 +432,7 @@ export function HeroBrandTitle({
                 </Link>
                 {index < PILLARS.length - 1 && (
                   <span
-                    className={`transition-all duration-300 ${
+                    className={`transition-opacity duration-200 ${
                       forcedPillar !== null
                         ? isPreviouslyLitSubtitle
                           ? "text-primary/20 opacity-100"
@@ -454,14 +450,14 @@ export function HeroBrandTitle({
             );
           })}
           <span
-            className={`transition-opacity duration-300 ${
+            className={`transition-opacity duration-200 ${
               forcedPillar !== null ? "opacity-30" : "opacity-85"
             }`}
           >
             )
           </span>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

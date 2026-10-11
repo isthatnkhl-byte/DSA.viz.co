@@ -64,7 +64,6 @@ export function LandingPage() {
   const [introPhase, setIntroPhase] = useState<HeroIntroPhase>("hero-initial");
   const [introProgress, setIntroProgress] = useState<number>(0);
   const [scrollUnlocked, setScrollUnlocked] = useState<boolean>(false);
-  const [navbarLogoDetached, setNavbarLogoDetached] = useState<boolean>(false);
   const touchStartYRef = useRef<number | null>(null);
 
   useMotionValueEvent(smoothProgress, "change", (latest) => {
@@ -73,21 +72,6 @@ export function LandingPage() {
     const nextPhase = mapProgressToHeroIntroPhase(clamped);
     setIntroPhase((prev) => (prev === nextPhase ? prev : nextPhase));
   });
-
-  // Synchronize top-left navbar logo slot detachment with the travelling logo flight
-  useEffect(() => {
-    if (introPhase === "dsa" || introPhase === "viz" || introPhase === "co") {
-      setNavbarLogoDetached(true);
-      return;
-    }
-    const timer = window.setTimeout(
-      () => {
-        setNavbarLogoDetached(false);
-      },
-      introPhase === "complete" ? 420 : 120,
-    );
-    return () => window.clearTimeout(timer);
-  }, [introPhase]);
 
   // Unlock document scrolling smoothly as soon as the logo docks back on the top-left and the website appears
   useEffect(() => {
@@ -217,6 +201,7 @@ export function LandingPage() {
   const isNavbarAndHeroVisible =
     introPhase === "hero-initial" || introPhase === "complete";
   const isFullWebsiteVisible = introPhase === "complete";
+  const isLogoDetached = introPhase !== "hero-initial" && !scrollUnlocked;
 
   return (
     <div
@@ -229,20 +214,20 @@ export function LandingPage() {
         initial={false}
         animate={{
           opacity: isNavbarAndHeroVisible ? 1 : 0,
-          y: isNavbarAndHeroVisible ? 0 : -14,
+          y: isNavbarAndHeroVisible ? 0 : -12,
         }}
         transition={{
-          duration: 0.42,
-          delay: isNavbarAndHeroVisible ? 0 : 0.08,
+          duration: 0.34,
+          delay: isNavbarAndHeroVisible ? 0 : 0.06,
           ease: [0.22, 1, 0.36, 1],
         }}
-        className={`sticky top-0 w-full ${
+        className={`sticky top-0 w-full will-change-transform ${
           scrollUnlocked ? "z-40" : "z-30"
         } ${
           isNavbarAndHeroVisible ? "pointer-events-auto" : "pointer-events-none"
         }`}
       >
-        <SiteHeader hideBrandLogo={navbarLogoDetached} />
+        <SiteHeader hideBrandLogo={isLogoDetached} />
       </motion.div>
 
       <main id="main-content" className="flex-1">
@@ -250,6 +235,7 @@ export function LandingPage() {
         <LandingHero
           introPhase={introPhase}
           introProgress={introProgress}
+          isLogoDetached={isLogoDetached}
           onJumpToIntroProgress={handleJumpToIntroProgress}
         />
 

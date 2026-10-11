@@ -42,20 +42,20 @@ export function HeroSlideshowDeck({ phase }: HeroSlideshowDeckProps) {
         <motion.div
           key="hero-intro-oneliner-deck"
           data-allow-guest="true"
-          initial={{ opacity: 0, y: 8, filter: "blur(5px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          exit={{ opacity: 0, y: -8, filter: "blur(5px)" }}
-          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          className="relative w-full max-w-2xl mx-auto px-3 sm:px-4 mt-2.5 sm:mt-3.5 select-none z-30"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+          className="relative w-full max-w-2xl mx-auto px-3 sm:px-4 mt-2.5 sm:mt-3.5 select-none z-30 will-change-transform"
         >
           <AnimatePresence mode="wait">
             <motion.div
               key={`intro-oneliner-${activeKey}`}
-              initial={{ opacity: 0, y: 10, scale: 0.98, filter: "blur(4px)" }}
-              animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -8, scale: 0.98, filter: "blur(4px)" }}
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className="w-full border-2 border-foreground/85 bg-card/95 backdrop-blur-md px-4 py-2.5 sm:px-5 sm:py-3 shadow-[4px_4px_0px_var(--complement)] flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3.5 text-center sm:text-left"
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.985 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full border-2 border-foreground/85 bg-card px-4 py-2.5 sm:px-5 sm:py-3 shadow-[4px_4px_0px_var(--complement)] flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3.5 text-center sm:text-left will-change-transform"
             >
               {/* High-Contrast Pillar Tag */}
               <div className="inline-flex items-center gap-2 shrink-0">

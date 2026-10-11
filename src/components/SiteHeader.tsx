@@ -87,15 +87,11 @@ export function SiteHeader({ hideBrandLogo = false }: SiteHeaderProps = {}) {
             >
               <div
                 id="navbar-brand-logo-slot"
-                className={`relative flex size-8 sm:size-9 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105 text-primary ${
-                  hideBrandLogo
-                    ? "border border-dashed border-primary/40 bg-primary/5"
-                    : ""
-                }`}
+                className="relative flex size-8 sm:size-9 shrink-0 items-center justify-center transition-transform duration-200 group-hover:scale-105 text-primary"
               >
                 <div
-                  className={`w-full h-full transition-all duration-200 ${
-                    hideBrandLogo ? "opacity-0 scale-75" : "opacity-100 scale-100"
+                  className={`w-full h-full ${
+                    hideBrandLogo ? "opacity-0 pointer-events-none" : "opacity-100"
                   }`}
                 >
                   <DsavizcoLogo className="w-full h-full text-primary" showShadow={true} interactive={false} />

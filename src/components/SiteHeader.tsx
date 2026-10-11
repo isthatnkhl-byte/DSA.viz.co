@@ -25,7 +25,11 @@ import { QuickSearchModal } from "@/components/QuickSearchModal";
 import { DsavizcoLogo } from "@/components/brand/DsavizcoLogo";
 import { ApiKeyVaultButton } from "@/components/ApiKeyVaultModal";
 
-export function SiteHeader() {
+interface SiteHeaderProps {
+  hideBrandLogo?: boolean;
+}
+
+export function SiteHeader({ hideBrandLogo = false }: SiteHeaderProps = {}) {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const [navDrawerOpen, setNavDrawerOpen] = useState(false);
@@ -81,8 +85,21 @@ export function SiteHeader() {
               className="group flex items-center gap-2.5 shrink-0 select-none min-h-[44px]"
               onClick={() => setNavDrawerOpen(false)}
             >
-              <div className="relative flex size-8 sm:size-9 shrink-0 items-center justify-center transition-all duration-200 group-hover:scale-105 text-primary">
-                <DsavizcoLogo className="w-full h-full text-primary" showShadow={true} interactive={false} />
+              <div
+                id="navbar-brand-logo-slot"
+                className={`relative flex size-8 sm:size-9 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105 text-primary ${
+                  hideBrandLogo
+                    ? "border border-dashed border-primary/40 bg-primary/5"
+                    : ""
+                }`}
+              >
+                <div
+                  className={`w-full h-full transition-all duration-200 ${
+                    hideBrandLogo ? "opacity-0 scale-75" : "opacity-100 scale-100"
+                  }`}
+                >
+                  <DsavizcoLogo className="w-full h-full text-primary" showShadow={true} interactive={false} />
+                </div>
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">

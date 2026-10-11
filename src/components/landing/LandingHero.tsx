@@ -61,23 +61,23 @@ export function LandingHero({
   const activeThemeOption =
     THEME_OPTIONS.find((t) => t.id === theme) ?? THEME_OPTIONS[0]!;
 
-  const isComplete = introPhase === "complete";
-  const brandVerticalOffset =
-    isComplete || introPhase === "full-title" ? 0 : -48;
+  const isHeroVisible =
+    introPhase === "hero-initial" || introPhase === "complete";
+  const brandVerticalOffset = isHeroVisible ? 0 : -175;
 
   return (
-    <section className="relative overflow-x-clip pt-6 pb-14 md:pt-10 md:pb-20 px-4 sm:px-8 lg:px-12 max-w-6xl mx-auto w-full text-left select-none transition-colors duration-300">
+    <section className="relative pt-6 pb-14 md:pt-10 md:pb-20 px-4 sm:px-8 lg:px-12 max-w-6xl mx-auto w-full text-left select-none transition-colors duration-300">
       {/* ================= 1. TOP TECHNICAL HEADER & INTERACTIVE CALIBRATION STRIP ================= */}
       <motion.div
         initial={false}
         animate={{
-          opacity: isComplete ? 1 : 0,
-          y: isComplete ? 0 : -14,
-          filter: isComplete ? "blur(0px)" : "blur(5px)",
+          opacity: isHeroVisible ? 1 : 0,
+          y: isHeroVisible ? 0 : -14,
+          filter: isHeroVisible ? "blur(0px)" : "blur(5px)",
         }}
-        transition={{ duration: 0.48, delay: isComplete ? 0.02 : 0, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
         className={`relative w-full mb-10 sm:mb-14 ${
-          isComplete ? "pointer-events-auto" : "pointer-events-none"
+          isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
         }`}
       >
         {/* Left & Right Trim Crosshair Marks */}
@@ -193,13 +193,13 @@ export function LandingHero({
         <motion.h1
           initial={false}
           animate={{
-            opacity: isComplete ? 1 : 0,
-            y: isComplete ? 0 : 14,
-            filter: isComplete ? "blur(0px)" : "blur(6px)",
+            opacity: isHeroVisible ? 1 : 0,
+            y: isHeroVisible ? 0 : 14,
+            filter: isHeroVisible ? "blur(0px)" : "blur(6px)",
           }}
-          transition={{ duration: 0.5, delay: isComplete ? 0.04 : 0, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
           className={`text-4xl sm:text-6xl md:text-[4.5rem] lg:text-[4.85rem] font-sans font-extrabold tracking-[-0.035em] text-foreground leading-[1.08] max-w-4xl mx-auto flex flex-col items-center text-center transition-colors duration-300 ${
-            isComplete ? "pointer-events-auto" : "pointer-events-none"
+            isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >
           <span className="block">Master algorithms</span>
@@ -219,41 +219,51 @@ export function LandingHero({
         </motion.h1>
 
         {/* Interactive DSAVIZCO + (algorithms • visualizer • compiler) Brand Title (Middle) */}
-        <motion.div
-          initial={false}
-          animate={{
-            y: brandVerticalOffset,
-          }}
-          transition={{ duration: 0.52, ease: [0.22, 1, 0.36, 1] }}
-          className="relative z-30 w-full flex flex-col items-center"
-        >
-          <HeroBrandTitle introPhase={introPhase} />
-
-          {/* 1-Liner Highlight Banner (Smoothly cross-fades out when isComplete becomes true) */}
+        <div className="relative z-50 w-full flex flex-col items-center">
           <div
-            className={`absolute top-full left-0 right-0 pt-1 ${
-              isComplete ? "pointer-events-none" : "pointer-events-auto"
-            }`}
+            id="hero-brand-resting-anchor"
+            className="w-full h-0 pointer-events-none"
+            aria-hidden="true"
+          />
+          <motion.div
+            initial={false}
+            animate={{
+              y: brandVerticalOffset,
+            }}
+            transition={{ duration: 0.46, ease: [0.22, 1, 0.36, 1] }}
+            className="relative w-full flex flex-col items-center"
           >
-            <HeroSlideshowDeck
-              phase={introPhase}
-              progress={introProgress}
-              onJumpToProgress={onJumpToIntroProgress}
+            <HeroBrandTitle
+              introPhase={introPhase}
+              brandVerticalOffset={brandVerticalOffset}
             />
-          </div>
-        </motion.div>
+
+            {/* 1-Liner Highlight Banner (Active during DSA / VIZ / CO phases) */}
+            <div
+              className={`absolute top-full left-0 right-0 pt-0.5 ${
+                isHeroVisible ? "pointer-events-none" : "pointer-events-auto"
+              }`}
+            >
+              <HeroSlideshowDeck
+                phase={introPhase}
+                progress={introProgress}
+                onJumpToProgress={onJumpToIntroProgress}
+              />
+            </div>
+          </motion.div>
+        </div>
 
         {/* Lead Paragraph (Below DSAVIZCO) */}
         <motion.p
           initial={false}
           animate={{
-            opacity: isComplete ? 1 : 0,
-            y: isComplete ? 0 : 14,
-            filter: isComplete ? "blur(0px)" : "blur(6px)",
+            opacity: isHeroVisible ? 1 : 0,
+            y: isHeroVisible ? 0 : 14,
+            filter: isHeroVisible ? "blur(0px)" : "blur(6px)",
           }}
-          transition={{ duration: 0.5, delay: isComplete ? 0.08 : 0, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
           className={`text-base sm:text-xl md:text-[1.32rem] text-muted-foreground font-sans font-normal leading-[1.6] max-w-3xl mx-auto text-center transition-colors duration-300 ${
-            isComplete ? "pointer-events-auto" : "pointer-events-none"
+            isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >
           Step through 1,500+ interview problems frame by frame, inspect live pointer mutations and recursion stacks, and validate your invariants with Socratic AI feedback and sandboxed C++20 execution.
@@ -263,13 +273,13 @@ export function LandingHero({
         <motion.div
           initial={false}
           animate={{
-            opacity: isComplete ? 1 : 0,
-            y: isComplete ? 0 : 16,
-            filter: isComplete ? "blur(0px)" : "blur(6px)",
+            opacity: isHeroVisible ? 1 : 0,
+            y: isHeroVisible ? 0 : 16,
+            filter: isHeroVisible ? "blur(0px)" : "blur(6px)",
           }}
-          transition={{ duration: 0.52, delay: isComplete ? 0.13 : 0, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.44, ease: [0.22, 1, 0.36, 1] }}
           className={`pt-2 sm:pt-3 flex flex-wrap items-center justify-center gap-4 sm:gap-5 ${
-            isComplete ? "pointer-events-auto" : "pointer-events-none"
+            isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >
           <Link
@@ -291,13 +301,13 @@ export function LandingHero({
         <motion.div
           initial={false}
           animate={{
-            opacity: isComplete ? 1 : 0,
-            y: isComplete ? 0 : 20,
-            filter: isComplete ? "blur(0px)" : "blur(6px)",
+            opacity: isHeroVisible ? 1 : 0,
+            y: isHeroVisible ? 0 : 20,
+            filter: isHeroVisible ? "blur(0px)" : "blur(6px)",
           }}
-          transition={{ duration: 0.55, delay: isComplete ? 0.18 : 0, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.46, ease: [0.22, 1, 0.36, 1] }}
           className={`pt-6 sm:pt-8 w-full text-left ${
-            isComplete ? "pointer-events-auto" : "pointer-events-none"
+            isHeroVisible ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >
           <div className="relative border border-border bg-card/90 p-3 sm:p-4 shadow-[0_2px_0_var(--border)] transition-colors duration-300">

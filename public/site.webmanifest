@@ -1,0 +1,33 @@
+{
+  "name": "DSA.viz.co — Interactive Algorithm Visualizer, DSA Sheets & C++20 Compiler",
+  "short_name": "DSA.viz.co",
+  "description": "Step through 1,500+ LeetCode and DSA interview problems frame by frame with live pointer animations, curated DSA sheets (Striver, Blind 75, NeetCode 150), Socratic AI coaching, and sandboxed C++20/Java/Python execution.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF8F5",
+  "theme_color": "#7C3AED",
+  "categories": ["education", "developer", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

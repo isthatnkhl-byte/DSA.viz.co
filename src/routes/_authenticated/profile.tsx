@@ -127,7 +127,134 @@ function formatShortRelativeTime(ts?: string | number | null): string {
 }
 
 function getProfileSnapshotStorageKey(uid: string): string {
-  return `dsaviz_profile_snapshot_v2_${uid}`;
+  return `dsaviz_profile_snapshot_v3_${uid}`;
+}
+
+function hasMeaningfulSyncData(snapshot: any): boolean {
+  if (!snapshot || !snapshot.profile) return false;
+  if (snapshot.explicitlyResynced) return true;
+  const p = snapshot.profile;
+  return Boolean(
+    p.leetcodeUsername ||
+      p.leetcode_username ||
+      p.leetcodeStats ||
+      p.leetcode_stats ||
+      p.githubConnected ||
+      p.github_connected ||
+      p.githubUsername ||
+      p.github_username ||
+      p.githubToken ||
+      (Array.isArray(snapshot.submissions) && snapshot.submissions.length > 0) ||
+      (Array.isArray(snapshot.aiReports) && snapshot.aiReports.length > 0) ||
+      (snapshot.keyVaultStatus && Number(snapshot.keyVaultStatus.totalConfigured || 0) > 0)
+  );
+}
+
+function readLegacyNonNullSnapshotFields(uid?: string | null): {
+  leetcodeUsername: string | null;
+  leetcodeStats: any | null;
+  githubUsername: string | null;
+  githubAvatar: string | null;
+  githubToken: string | null;
+  submissions: any[];
+  aiReports: any[];
+} {
+  const empty = {
+    leetcodeUsername: null,
+    leetcodeStats: null,
+    githubUsername: null,
+    githubAvatar: null,
+    githubToken: null,
+    submissions: [],
+    aiReports: [],
+  };
+  try {
+    if (!uid || typeof window === "undefined") return empty;
+    const v2Raw = window.localStorage.getItem(`dsaviz_profile_snapshot_v2_${uid}`);
+    const v1Raw = window.localStorage.getItem(`dsaviz_profile_snapshot_${uid}`);
+    const authV1Raw = window.localStorage.getItem(`dsa_viz_auth_profile_${uid}`);
+    const authV3Raw = window.localStorage.getItem(`dsa_viz_auth_profile_v3_${uid}`);
+    const v2 = v2Raw ? JSON.parse(v2Raw) : null;
+    const v1 = v1Raw ? JSON.parse(v1Raw) : null;
+    const authV1 = authV1Raw ? JSON.parse(authV1Raw) : null;
+    const authV3 = authV3Raw ? JSON.parse(authV3Raw) : null;
+
+    const lcUsername =
+      window.localStorage.getItem(`dsa_viz_leetcode_username_${uid}`) ||
+      authV3?.leetcodeUsername ||
+      authV3?.leetcode_username ||
+      v2?.profile?.leetcodeUsername ||
+      v2?.profile?.leetcode_username ||
+      v1?.profile?.leetcodeUsername ||
+      v1?.profile?.leetcode_username ||
+      authV1?.leetcodeUsername ||
+      authV1?.leetcode_username ||
+      null;
+
+    let lcStats =
+      authV3?.leetcodeStats ||
+      authV3?.leetcode_stats ||
+      v2?.profile?.leetcodeStats ||
+      v2?.profile?.leetcode_stats ||
+      v1?.profile?.leetcodeStats ||
+      v1?.profile?.leetcode_stats ||
+      authV1?.leetcodeStats ||
+      authV1?.leetcode_stats ||
+      null;
+    if (!lcStats) {
+      const rawStats = window.localStorage.getItem(`dsa_viz_leetcode_stats_${uid}`);
+      if (rawStats) {
+        try {
+          lcStats = JSON.parse(rawStats);
+        } catch {}
+      }
+    }
+
+    const ghUsername =
+      window.localStorage.getItem(`dsa_viz_github_username_${uid}`) ||
+      v2?.profile?.githubUsername ||
+      v2?.profile?.github_username ||
+      v1?.profile?.githubUsername ||
+      null;
+    const ghAvatar =
+      window.localStorage.getItem(`dsa_viz_github_avatar_${uid}`) ||
+      v2?.profile?.githubAvatar ||
+      v2?.profile?.github_avatar ||
+      v1?.profile?.githubAvatar ||
+      null;
+    const ghToken =
+      window.localStorage.getItem(`dsa_viz_github_token_${uid}`) ||
+      authV3?.githubToken ||
+      v2?.profile?.githubToken ||
+      v1?.profile?.githubToken ||
+      authV1?.githubToken ||
+      null;
+
+    const submissions =
+      Array.isArray(v2?.submissions) && v2.submissions.length > 0
+        ? v2.submissions
+        : Array.isArray(v1?.submissions) && v1.submissions.length > 0
+        ? v1.submissions
+        : [];
+    const aiReports =
+      Array.isArray(v2?.aiReports) && v2.aiReports.length > 0
+        ? v2.aiReports
+        : Array.isArray(v1?.aiReports) && v1.aiReports.length > 0
+        ? v1.aiReports
+        : [];
+
+    return {
+      leetcodeUsername: lcUsername,
+      leetcodeStats: lcStats,
+      githubUsername: ghUsername,
+      githubAvatar: ghAvatar,
+      githubToken: ghToken,
+      submissions,
+      aiReports,
+    };
+  } catch {
+    return empty;
+  }
 }
 
 function readCachedProfileSnapshot(uid?: string | null): any | null {
@@ -136,7 +263,17 @@ function readCachedProfileSnapshot(uid?: string | null): any | null {
     const raw = window.localStorage.getItem(getProfileSnapshotStorageKey(uid));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" && parsed.profile ? parsed : null;
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !parsed.profile ||
+      parsed.source === "instant" ||
+      !parsed.isVerifiedSync ||
+      !hasMeaningfulSyncData(parsed)
+    ) {
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -144,7 +281,16 @@ function readCachedProfileSnapshot(uid?: string | null): any | null {
 
 function writeCachedProfileSnapshot(uid: string | undefined | null, snapshot: any): void {
   try {
-    if (!uid || !snapshot || typeof window === "undefined") return;
+    if (
+      !uid ||
+      !snapshot ||
+      !snapshot.profile ||
+      snapshot.source === "instant" ||
+      !snapshot.isVerifiedSync ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
     window.localStorage.setItem(getProfileSnapshotStorageKey(uid), JSON.stringify(snapshot));
   } catch {
     // Ignore storage quota errors
@@ -153,6 +299,7 @@ function writeCachedProfileSnapshot(uid: string | undefined | null, snapshot: an
 
 function applyLocalOverridesToSnapshot(snapshot: any, uid?: string | null, hashGithub?: any): any {
   if (!snapshot || !snapshot.profile) return snapshot;
+  const legacy = readLegacyNonNullSnapshotFields(uid);
   const savedDisplayName =
     typeof window !== "undefined" && uid
       ? localStorage.getItem(`dsa_viz_display_name_${uid}`) ||
@@ -162,25 +309,21 @@ function applyLocalOverridesToSnapshot(snapshot: any, uid?: string | null, hashG
     typeof window !== "undefined" && uid
       ? localStorage.getItem(`dsa_viz_github_connected_${uid}`) === "true"
       : false;
-  const localGhToken =
-    typeof window !== "undefined" && uid
-      ? localStorage.getItem(`dsa_viz_github_token_${uid}`)
-      : null;
-  const localGhUsername =
-    typeof window !== "undefined" && uid
-      ? localStorage.getItem(`dsa_viz_github_username_${uid}`)
-      : null;
-  const localGhAvatar =
-    typeof window !== "undefined" && uid
-      ? localStorage.getItem(`dsa_viz_github_avatar_${uid}`)
-      : null;
 
   const ghUsername =
-    hashGithub?.githubUsername || snapshot.profile.githubUsername || localGhUsername || null;
+    hashGithub?.githubUsername ||
+    snapshot.profile.githubUsername ||
+    snapshot.profile.github_username ||
+    legacy.githubUsername ||
+    null;
   const ghAvatar =
-    hashGithub?.githubAvatar || snapshot.profile.githubAvatar || localGhAvatar || null;
+    hashGithub?.githubAvatar ||
+    snapshot.profile.githubAvatar ||
+    snapshot.profile.github_avatar ||
+    legacy.githubAvatar ||
+    null;
   const ghToken =
-    hashGithub?.githubToken || snapshot.profile.githubToken || localGhToken || null;
+    hashGithub?.githubToken || snapshot.profile.githubToken || legacy.githubToken || null;
   const ghConnected =
     Boolean(hashGithub?.githubConnected) ||
     Boolean(snapshot.profile.githubConnected) ||
@@ -193,6 +336,16 @@ function applyLocalOverridesToSnapshot(snapshot: any, uid?: string | null, hashG
     (ghUsername ? `https://github.com/${ghUsername}` : null);
   const displayName =
     savedDisplayName || snapshot.profile.displayName || snapshot.profile.display_name;
+  const lcUsername =
+    snapshot.profile.leetcodeUsername ||
+    snapshot.profile.leetcode_username ||
+    legacy.leetcodeUsername ||
+    null;
+  const lcStats =
+    snapshot.profile.leetcodeStats ||
+    snapshot.profile.leetcode_stats ||
+    legacy.leetcodeStats ||
+    null;
 
   return {
     ...snapshot,
@@ -200,6 +353,10 @@ function applyLocalOverridesToSnapshot(snapshot: any, uid?: string | null, hashG
       ...snapshot.profile,
       displayName,
       display_name: displayName,
+      leetcodeUsername: lcUsername,
+      leetcode_username: lcUsername,
+      leetcodeStats: lcStats,
+      leetcode_stats: lcStats,
       githubConnected: ghConnected,
       github_connected: ghConnected,
       githubToken: ghToken,
@@ -219,6 +376,7 @@ function buildInstantFallbackSnapshot(firebaseUser: any, authProfile: any): any 
     return applyLocalOverridesToSnapshot(cached, uid);
   }
 
+  const legacy = readLegacyNonNullSnapshotFields(uid);
   const savedDisplayName =
     typeof window !== "undefined" && uid
       ? localStorage.getItem(`dsa_viz_display_name_${uid}`) ||
@@ -233,22 +391,15 @@ function buildInstantFallbackSnapshot(firebaseUser: any, authProfile: any): any 
   const avatarUrl =
     authProfile?.avatarUrl || authProfile?.avatar_url || firebaseUser?.photoURL || null;
   const leetcodeUsername =
-    authProfile?.leetcodeUsername || authProfile?.leetcode_username || null;
-  const leetcodeStats = authProfile?.leetcodeStats || authProfile?.leetcode_stats || null;
-  const ghToken =
-    authProfile?.githubToken ||
-    (typeof window !== "undefined" && uid
-      ? localStorage.getItem(`dsa_viz_github_token_${uid}`)
-      : null) ||
+    authProfile?.leetcodeUsername ||
+    authProfile?.leetcode_username ||
+    legacy.leetcodeUsername ||
     null;
-  const ghUsername =
-    typeof window !== "undefined" && uid
-      ? localStorage.getItem(`dsa_viz_github_username_${uid}`)
-      : null;
-  const ghAvatar =
-    typeof window !== "undefined" && uid
-      ? localStorage.getItem(`dsa_viz_github_avatar_${uid}`)
-      : null;
+  const leetcodeStats =
+    authProfile?.leetcodeStats || authProfile?.leetcode_stats || legacy.leetcodeStats || null;
+  const ghToken = authProfile?.githubToken || legacy.githubToken || null;
+  const ghUsername = legacy.githubUsername || null;
+  const ghAvatar = legacy.githubAvatar || null;
   const ghConnected =
     Boolean(ghToken) ||
     Boolean(ghUsername) ||
@@ -285,18 +436,19 @@ function buildInstantFallbackSnapshot(firebaseUser: any, authProfile: any): any 
       githubUrl: ghUsername ? `https://github.com/${ghUsername}` : null,
       solvedCount: 0,
       optimalCount: 0,
-      attemptsCount: 0,
+      attemptsCount: legacy.submissions.length,
     },
-    submissions: [],
-    aiReports: [],
+    submissions: legacy.submissions,
+    aiReports: legacy.aiReports,
     keyVaultStatus,
-    attempts: 0,
+    attempts: legacy.submissions.length,
     solved: 0,
     optimal: 0,
     easy: 0,
     medium: 0,
     hard: 0,
     cachedAt: null,
+    isVerifiedSync: false,
     source: "instant",
   };
 }
@@ -360,8 +512,16 @@ function ProfilePage() {
 
   const persistSnapshotToRedisAndLocal = useCallback(
     async (uid: string | undefined | null, snapshot: any, bearerToken?: string | null) => {
-      if (!uid || !snapshot) return;
-      writeCachedProfileSnapshot(uid, snapshot);
+      if (!uid || !snapshot || !snapshot.profile || snapshot.source === "instant") return;
+      const verifiedSnapshot = {
+        ...snapshot,
+        profile: {
+          ...snapshot.profile,
+          isVerifiedSync: true,
+        },
+        isVerifiedSync: true,
+      };
+      writeCachedProfileSnapshot(uid, verifiedSnapshot);
       const tok =
         bearerToken ||
         (await getAuth()
@@ -375,7 +535,7 @@ function ProfilePage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${tok}`,
           },
-          body: JSON.stringify(snapshot),
+          body: JSON.stringify({ snapshot: verifiedSnapshot }),
         }).catch(() => {});
       }
     },
@@ -384,28 +544,32 @@ function ProfilePage() {
 
   const updateRetainedSnapshot = useCallback(
     (updater: (prev: any) => any) => {
-      const uid = user?.uid || getAuth().currentUser?.uid || "guest";
+      const uid = user?.uid || getAuth().currentUser?.uid;
+      if (!uid) return;
       queryClient.setQueryData(["profile-stats", uid], (old: any) => {
-        const base = old || readCachedProfileSnapshot(uid);
+        const base =
+          old ||
+          readCachedProfileSnapshot(uid) ||
+          buildInstantFallbackSnapshot(user || getAuth().currentUser, authProfile);
         if (!base) return old;
         const next = {
           ...updater(base),
+          isVerifiedSync: true,
+          source: "synced",
           cachedAt: new Date().toISOString(),
         };
-        if (uid !== "guest") {
-          void persistSnapshotToRedisAndLocal(uid, next);
-        }
+        void persistSnapshotToRedisAndLocal(uid, next);
         return next;
       });
     },
-    [user?.uid, queryClient, persistSnapshotToRedisAndLocal]
+    [user, authProfile, queryClient, persistSnapshotToRedisAndLocal]
   );
 
-  const queryUid = user?.uid || "guest";
+  const queryUid = user?.uid || getAuth().currentUser?.uid || null;
 
   const { data: rawData, refetch } = useQuery({
-    queryKey: ["profile-stats", queryUid],
-    initialData: () => (user?.uid ? readCachedProfileSnapshot(user.uid) ?? undefined : undefined),
+    queryKey: ["profile-stats", queryUid || "pending"],
+    initialData: () => (queryUid ? readCachedProfileSnapshot(queryUid) ?? undefined : undefined),
     staleTime: Infinity,
     gcTime: Infinity,
     refetchOnMount: false,
@@ -414,12 +578,13 @@ function ProfilePage() {
     queryFn: async () => {
       const auth = getAuth();
       const currentUser = auth.currentUser || user;
-      const uid = currentUser?.uid;
+      const uid = currentUser?.uid || queryUid;
       const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
       const forceFirebase = forceFirebaseResyncRef.current;
       forceFirebaseResyncRef.current = false;
 
-      const hashGithub = await consumeGithubSyncFromHash(uid);
+      const hashGithub = await consumeGithubSyncFromHash(uid || undefined);
+      const legacy = readLegacyNonNullSnapshotFields(uid);
 
       // 1. STRICT REDIS RETENTION PATH (On normal load or refresh when forceFirebase is false)
       if (!forceFirebase) {
@@ -431,7 +596,13 @@ function ProfilePage() {
             });
             if (snapRes.ok) {
               const snapJson = await snapRes.json();
-              if (snapJson?.cached && snapJson?.snapshot?.profile) {
+              if (
+                snapJson?.cached &&
+                snapJson?.snapshot?.profile &&
+                snapJson.snapshot.isVerifiedSync &&
+                snapJson.snapshot.source !== "instant" &&
+                hasMeaningfulSyncData(snapJson.snapshot)
+              ) {
                 const retained = applyLocalOverridesToSnapshot(
                   snapJson.snapshot,
                   uid,
@@ -454,10 +625,10 @@ function ProfilePage() {
           }
         }
 
-        // 1b. If Redis was cold-started or unreachable, check client retained snapshot before hitting Firebase
+        // 1b. If Redis was cold-started or unreachable, check client retained verified snapshot before hitting Firebase
         if (uid) {
           const localSnap = readCachedProfileSnapshot(uid);
-          if (localSnap && localSnap.profile) {
+          if (localSnap && localSnap.profile && hasMeaningfulSyncData(localSnap)) {
             const retained = applyLocalOverridesToSnapshot(localSnap, uid, hashGithub);
             void persistSnapshotToRedisAndLocal(uid, retained, currentToken);
             if (retained.cachedAt) {
@@ -468,56 +639,57 @@ function ProfilePage() {
         }
       }
 
-      // 2. EXPLICIT FIREBASE RESYNC OR FIRST-TIME CACHE SEED
+      // 2. EXPLICIT FIREBASE RESYNC OR FIRST-TIME VERIFIED CACHE SEED
       let clientProfile: any = null;
       let clientSubs: any[] = [];
       let clientAiReports: any[] = [];
       if (currentUser) {
-        try {
-          const [prof, subs, reports] = await Promise.all([
-            getOrCreateUserProfile(currentUser.uid, currentUser.email, currentUser.photoURL),
-            getUserSubmissions(currentUser.uid),
-            getUserAiReports(currentUser.uid),
-          ]);
-          clientProfile = prof;
-          clientSubs = Array.isArray(subs) ? subs : [];
-          clientAiReports = Array.isArray(reports) ? reports : [];
-        } catch (e) {
-          console.warn("Client Firestore read fallback in profile:", e);
-        }
+        const [prof, subs, reports] = await Promise.all([
+          getOrCreateUserProfile(currentUser.uid, currentUser.email, currentUser.photoURL).catch(
+            (e) => {
+              console.warn("Client Firestore profile read fallback:", e);
+              return null;
+            }
+          ),
+          getUserSubmissions(currentUser.uid).catch(() => []),
+          getUserAiReports(currentUser.uid).catch(() => []),
+        ]);
+        clientProfile = prof;
+        clientSubs = Array.isArray(subs) ? subs : [];
+        clientAiReports = Array.isArray(reports) ? reports : [];
       }
 
       let serverProfile: any = null;
       let serverSubs: any[] = [];
       let serverAiReports: any[] = [];
       let keyVaultStatus: any = null;
-      const refreshParam = forceFirebase ? "?refresh=1" : "";
+      const refreshParam = "?refresh=1";
       if (currentToken) {
         try {
           const [profileRes, subsRes, reportsRes, vaultRes] = await Promise.all([
             fetch(`/api/profile${refreshParam}`, {
               headers: { Authorization: `Bearer ${currentToken}` },
-            }),
+            }).catch(() => null),
             fetch(`/api/submissions${refreshParam}`, {
               headers: { Authorization: `Bearer ${currentToken}` },
-            }),
+            }).catch(() => null),
             fetch(`/api/user-reports${refreshParam}`, {
               headers: { Authorization: `Bearer ${currentToken}` },
-            }),
+            }).catch(() => null),
             fetch("/api/user-keys/status", {
               headers: { Authorization: `Bearer ${currentToken}` },
-            }),
+            }).catch(() => null),
           ]);
-          if (profileRes.ok) serverProfile = await profileRes.json();
-          if (subsRes.ok) {
+          if (profileRes?.ok) serverProfile = await profileRes.json();
+          if (subsRes?.ok) {
             const s = await subsRes.json();
             if (Array.isArray(s)) serverSubs = s;
           }
-          if (reportsRes.ok) {
+          if (reportsRes?.ok) {
             const r = await reportsRes.json();
             if (Array.isArray(r)) serverAiReports = r;
           }
-          if (vaultRes.ok) {
+          if (vaultRes?.ok) {
             keyVaultStatus = await vaultRes.json();
           }
         } catch (e) {
@@ -527,7 +699,7 @@ function ProfilePage() {
 
       const effectiveDisplayName =
         (typeof window !== "undefined" &&
-          ((currentUser && localStorage.getItem(`dsa_viz_display_name_${currentUser.uid}`)) ||
+          ((uid && localStorage.getItem(`dsa_viz_display_name_${uid}`)) ||
             localStorage.getItem("dsa_viz_display_name"))) ||
         clientProfile?.displayName ||
         clientProfile?.display_name ||
@@ -537,19 +709,54 @@ function ProfilePage() {
         currentUser?.email?.split("@")[0] ||
         "Authenticated User";
 
-      const effectiveLcStats =
-        clientProfile?.leetcodeStats ||
-        clientProfile?.leetcode_stats ||
-        serverProfile?.leetcodeStats ||
-        serverProfile?.leetcode_stats ||
-        null;
-
       const effectiveLcUsername =
         clientProfile?.leetcodeUsername ||
         clientProfile?.leetcode_username ||
         serverProfile?.leetcodeUsername ||
         serverProfile?.leetcode_username ||
+        legacy.leetcodeUsername ||
         null;
+
+      let effectiveLcStats =
+        clientProfile?.leetcodeStats ||
+        clientProfile?.leetcode_stats ||
+        serverProfile?.leetcodeStats ||
+        serverProfile?.leetcode_stats ||
+        legacy.leetcodeStats ||
+        null;
+
+      // If user has a connected LeetCode username (or explicitly clicked Resync Firebase), ensure fresh LeetCode stats are fetched
+      if (effectiveLcUsername && (!effectiveLcStats || forceFirebase) && currentToken) {
+        try {
+          const lcRes = await fetch("/api/sync-leetcode", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${currentToken}`,
+            },
+            body: JSON.stringify({ username: effectiveLcUsername }),
+          });
+          if (lcRes.ok) {
+            const lcData = await lcRes.json();
+            if (lcData?.stats) {
+              effectiveLcStats = lcData.stats;
+            }
+          }
+        } catch {
+          // Keep existing effectiveLcStats if LeetCode upstream is slow
+        }
+      }
+
+      if (typeof window !== "undefined" && uid) {
+        if (effectiveLcUsername) {
+          localStorage.setItem(`dsa_viz_leetcode_username_${uid}`, effectiveLcUsername);
+        }
+        if (effectiveLcStats) {
+          try {
+            localStorage.setItem(`dsa_viz_leetcode_stats_${uid}`, JSON.stringify(effectiveLcStats));
+          } catch {}
+        }
+      }
 
       const effectiveAvatar =
         clientProfile?.avatarUrl ||
@@ -560,12 +767,12 @@ function ProfilePage() {
         null;
 
       const localConnected =
-        typeof window !== "undefined" && currentUser
-          ? localStorage.getItem(`dsa_viz_github_connected_${currentUser.uid}`) === "true"
+        typeof window !== "undefined" && uid
+          ? localStorage.getItem(`dsa_viz_github_connected_${uid}`) === "true"
           : false;
       const localToken =
-        typeof window !== "undefined" && currentUser
-          ? localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)
+        typeof window !== "undefined" && uid
+          ? localStorage.getItem(`dsa_viz_github_token_${uid}`)
           : null;
 
       const effectiveGithubUsername =
@@ -574,9 +781,7 @@ function ProfilePage() {
         clientProfile?.github_username ||
         serverProfile?.githubUsername ||
         serverProfile?.github_username ||
-        (typeof window !== "undefined" && currentUser
-          ? localStorage.getItem(`dsa_viz_github_username_${currentUser.uid}`)
-          : null) ||
+        legacy.githubUsername ||
         null;
 
       const effectiveGithubAvatar =
@@ -585,9 +790,7 @@ function ProfilePage() {
         clientProfile?.github_avatar ||
         serverProfile?.githubAvatar ||
         serverProfile?.github_avatar ||
-        (typeof window !== "undefined" && currentUser
-          ? localStorage.getItem(`dsa_viz_github_avatar_${currentUser.uid}`)
-          : null) ||
+        legacy.githubAvatar ||
         null;
 
       const effectiveGithubToken =
@@ -595,6 +798,7 @@ function ProfilePage() {
         clientProfile?.githubToken ||
         serverProfile?.githubToken ||
         localToken ||
+        legacy.githubToken ||
         null;
 
       const isGithubConnected =
@@ -605,9 +809,9 @@ function ProfilePage() {
         !!effectiveGithubUsername ||
         localConnected;
 
-      if (typeof window !== "undefined" && currentUser && effectiveGithubToken) {
-        localStorage.setItem(`dsa_viz_github_token_${currentUser.uid}`, effectiveGithubToken);
-        localStorage.setItem(`dsa_viz_github_connected_${currentUser.uid}`, "true");
+      if (typeof window !== "undefined" && uid && effectiveGithubToken) {
+        localStorage.setItem(`dsa_viz_github_token_${uid}`, effectiveGithubToken);
+        localStorage.setItem(`dsa_viz_github_connected_${uid}`, "true");
       }
 
       const effectiveGithubUrl =
@@ -616,7 +820,7 @@ function ProfilePage() {
         serverProfile?.githubUrl ||
         (effectiveGithubUsername ? `https://github.com/${effectiveGithubUsername}` : null);
 
-      // Merge & deduplicate client Firestore submissions and server submissions
+      // Merge & deduplicate client Firestore submissions, server submissions, and any legacy cached submissions
       const subMap = new Map<string, any>();
       const clientIds = new Set<string>();
       for (const s of clientSubs) {
@@ -628,7 +832,7 @@ function ProfilePage() {
       }
 
       const unsyncedToFirestore: any[] = [];
-      for (const s of serverSubs) {
+      for (const s of [...serverSubs, ...legacy.submissions]) {
         if (!s || !s.slug) continue;
         const tsKey = String(s.createdAt || s.created_at || "").slice(0, 16);
         const dedupKey = `${s.slug}_${tsKey}_${s.classification || ""}`;
@@ -655,7 +859,7 @@ function ProfilePage() {
 
       // Merge & deduplicate AI diagnostic reports
       const reportMap = new Map<string, any>();
-      for (const r of [...clientAiReports, ...serverAiReports]) {
+      for (const r of [...clientAiReports, ...serverAiReports, ...legacy.aiReports]) {
         if (!r) continue;
         const payload = r.reportData ? { id: r.id, ...r.reportData, createdAt: r.createdAt } : r;
         const rKey = String(
@@ -721,9 +925,10 @@ function ProfilePage() {
         solvedCount: solved.size,
         optimalCount: optimal.size,
         attemptsCount: subsArray.length,
+        isVerifiedSync: true,
       };
 
-      // Background two-way reconciliation to Firebase Firestore if any records were only on server/local
+      // Background two-way reconciliation to Firebase Firestore (only writing non-null fields so we never erase Firestore data)
       if (currentUser) {
         if (unsyncedToFirestore.length > 0) {
           Promise.all(
@@ -735,41 +940,53 @@ function ProfilePage() {
         const needsProfileSync =
           clientProfile &&
           (clientProfile.displayName !== effectiveDisplayName ||
-            clientProfile.leetcodeUsername !== effectiveLcUsername ||
-            clientProfile.githubUsername !== effectiveGithubUsername ||
+            (effectiveLcUsername && clientProfile.leetcodeUsername !== effectiveLcUsername) ||
+            (effectiveGithubUsername && clientProfile.githubUsername !== effectiveGithubUsername) ||
             (effectiveGithubToken && clientProfile.githubToken !== effectiveGithubToken) ||
-            Boolean(clientProfile.githubConnected) !== isGithubConnected ||
-            clientProfile.solvedCount !== solved.size ||
-            clientProfile.optimalCount !== optimal.size ||
-            clientProfile.attemptsCount !== subsArray.length ||
+            (isGithubConnected && !clientProfile.githubConnected) ||
+            (solved.size > 0 && clientProfile.solvedCount !== solved.size) ||
+            (optimal.size > 0 && clientProfile.optimalCount !== optimal.size) ||
+            (subsArray.length > 0 && clientProfile.attemptsCount !== subsArray.length) ||
             (!clientProfile.leetcodeStats && effectiveLcStats));
         if (needsProfileSync) {
           updateUserProfile(currentUser.uid, {
             displayName: effectiveDisplayName,
             display_name: effectiveDisplayName,
-            avatarUrl: effectiveAvatar,
-            avatar_url: effectiveAvatar,
-            leetcodeUsername: effectiveLcUsername,
-            leetcode_username: effectiveLcUsername,
-            leetcodeStats: effectiveLcStats,
-            leetcode_stats: effectiveLcStats,
-            githubConnected: isGithubConnected,
-            github_connected: isGithubConnected,
+            ...(effectiveAvatar ? { avatarUrl: effectiveAvatar, avatar_url: effectiveAvatar } : {}),
+            ...(effectiveLcUsername
+              ? { leetcodeUsername: effectiveLcUsername, leetcode_username: effectiveLcUsername }
+              : {}),
+            ...(effectiveLcStats
+              ? { leetcodeStats: effectiveLcStats, leetcode_stats: effectiveLcStats }
+              : {}),
+            ...(isGithubConnected
+              ? { githubConnected: true, github_connected: true }
+              : {}),
             ...(effectiveGithubToken ? { githubToken: effectiveGithubToken } : {}),
-            githubUsername: effectiveGithubUsername,
-            github_username: effectiveGithubUsername,
-            githubAvatar: effectiveGithubAvatar,
-            github_avatar: effectiveGithubAvatar,
-            githubUrl: effectiveGithubUrl,
-            solvedCount: solved.size,
-            optimalCount: optimal.size,
-            attemptsCount: subsArray.length,
+            ...(effectiveGithubUsername
+              ? { githubUsername: effectiveGithubUsername, github_username: effectiveGithubUsername }
+              : {}),
+            ...(effectiveGithubAvatar
+              ? { githubAvatar: effectiveGithubAvatar, github_avatar: effectiveGithubAvatar }
+              : {}),
+            ...(effectiveGithubUrl ? { githubUrl: effectiveGithubUrl } : {}),
+            ...(subsArray.length > 0
+              ? {
+                  solvedCount: solved.size,
+                  optimalCount: optimal.size,
+                  attemptsCount: subsArray.length,
+                }
+              : {}),
           }).catch(() => {});
         }
       }
 
       const nowIso = new Date().toISOString();
       setLastFirebaseSyncAt(nowIso);
+
+      const isVerifiedFromBackendOrFirestore = Boolean(
+        clientProfile || serverProfile?.isVerifiedSync || forceFirebase
+      );
 
       const snapshotResult = {
         profile,
@@ -783,17 +1000,19 @@ function ProfilePage() {
         medium: byDifficulty.Medium.size,
         hard: byDifficulty.Hard.size,
         cachedAt: nowIso,
+        isVerifiedSync: isVerifiedFromBackendOrFirestore,
+        explicitlyResynced: forceFirebase || undefined,
         source: "firebase",
       };
 
-      // Persist snapshot to Redis & localStorage so subsequent refreshes load instantly from Redis without re-fetching Firebase
-      if (uid) {
+      // Persist verified snapshot to Redis & localStorage so subsequent refreshes load instantly from Redis without re-fetching Firebase
+      if (uid && isVerifiedFromBackendOrFirestore) {
         void persistSnapshotToRedisAndLocal(uid, snapshotResult, currentToken);
       }
 
       return snapshotResult;
     },
-    enabled: !!user || !!token,
+    enabled: Boolean(queryUid),
   });
 
   // Always provide immediate non-null data when user is logged in (0ms render, no blocking spinner)
@@ -829,41 +1048,18 @@ function ProfilePage() {
   const handleManualFirebaseSync = useCallback(async () => {
     setIsSyncingFirebase(true);
     try {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      if (currentUser && data?.profile) {
-        await updateUserProfile(currentUser.uid, {
-          displayName: data.profile.displayName,
-          display_name: data.profile.displayName,
-          leetcodeUsername: data.profile.leetcodeUsername || null,
-          leetcode_username: data.profile.leetcodeUsername || null,
-          leetcodeStats: data.profile.leetcodeStats || null,
-          leetcode_stats: data.profile.leetcodeStats || null,
-          githubConnected: Boolean(data.profile.githubConnected),
-          github_connected: Boolean(data.profile.githubConnected),
-          ...(data.profile.githubToken ? { githubToken: data.profile.githubToken } : {}),
-          githubUsername: data.profile.githubUsername || null,
-          github_username: data.profile.githubUsername || null,
-          githubAvatar: data.profile.githubAvatar || null,
-          github_avatar: data.profile.githubAvatar || null,
-          githubUrl: data.profile.githubUrl || null,
-          solvedCount: data.solved,
-          optimalCount: data.optimal,
-          attemptsCount: data.attempts,
-        });
-      }
-      // Strictly unlock Firebase resync and update Redis cache with fresh Firestore data
+      // Strictly fetch fresh data from Firebase Firestore & server first (never overwrite Firestore with fallback state before fetching!)
       forceFirebaseResyncRef.current = true;
-      await refetch();
+      await Promise.all([refetch(), refreshProfile().catch(() => {})]);
       setLastFirebaseSyncAt(new Date().toISOString());
-      toast.success("Resynced with Firebase Firestore & updated Redis retention cache!");
+      toast.success("Resynced from Firebase Firestore & updated Redis retention cache!");
     } catch (err: any) {
       toast.error(err?.message || "Could not complete Firebase sync");
     } finally {
       forceFirebaseResyncRef.current = false;
       setIsSyncingFirebase(false);
     }
-  }, [data, refetch]);
+  }, [refetch, refreshProfile]);
 
   const handleExportData = () => {
     const dataToExport = {
@@ -1136,6 +1332,17 @@ function ProfilePage() {
     },
     onSuccess: (resData, rawUsername) => {
       const cleanLcUsername = resData?.username || rawUsername;
+      const uid = user?.uid || getAuth().currentUser?.uid;
+      if (typeof window !== "undefined" && uid) {
+        if (cleanLcUsername) {
+          localStorage.setItem(`dsa_viz_leetcode_username_${uid}`, cleanLcUsername);
+        }
+        if (resData?.stats) {
+          try {
+            localStorage.setItem(`dsa_viz_leetcode_stats_${uid}`, JSON.stringify(resData.stats));
+          } catch {}
+        }
+      }
       updateRetainedSnapshot((prev) => ({
         ...prev,
         profile: {

@@ -40,7 +40,53 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 function getAuthProfileCacheKey(uid: string): string {
-  return `dsa_viz_auth_profile_${uid}`;
+  return `dsa_viz_auth_profile_v3_${uid}`;
+}
+
+function readLegacyNonNullAuthFields(uid: string): Partial<UserProfile> {
+  try {
+    if (typeof window === "undefined") return {};
+    const v1Raw = window.localStorage.getItem(`dsa_viz_auth_profile_${uid}`);
+    const v2SnapRaw = window.localStorage.getItem(`dsaviz_profile_snapshot_v2_${uid}`);
+    const v1 = v1Raw ? JSON.parse(v1Raw) : null;
+    const v2Snap = v2SnapRaw ? JSON.parse(v2SnapRaw) : null;
+    const v2Prof = v2Snap?.profile || null;
+    const lcUser =
+      window.localStorage.getItem(`dsa_viz_leetcode_username_${uid}`) ||
+      v2Prof?.leetcodeUsername ||
+      v2Prof?.leetcode_username ||
+      v1?.leetcodeUsername ||
+      v1?.leetcode_username ||
+      null;
+    let lcStats =
+      v2Prof?.leetcodeStats ||
+      v2Prof?.leetcode_stats ||
+      v1?.leetcodeStats ||
+      v1?.leetcode_stats ||
+      null;
+    if (!lcStats) {
+      const rawStats = window.localStorage.getItem(`dsa_viz_leetcode_stats_${uid}`);
+      if (rawStats) {
+        try {
+          lcStats = JSON.parse(rawStats);
+        } catch {}
+      }
+    }
+    const ghToken =
+      window.localStorage.getItem(`dsa_viz_github_token_${uid}`) ||
+      v2Prof?.githubToken ||
+      v1?.githubToken ||
+      null;
+    return {
+      leetcodeUsername: lcUser,
+      leetcode_username: lcUser,
+      leetcodeStats: lcStats,
+      leetcode_stats: lcStats,
+      githubToken: ghToken,
+    };
+  } catch {
+    return {};
+  }
 }
 
 function readCachedAuthProfile(uid: string): UserProfile | null {
@@ -48,15 +94,17 @@ function readCachedAuthProfile(uid: string): UserProfile | null {
     if (typeof window === "undefined") return null;
     const raw = window.localStorage.getItem(getAuthProfileCacheKey(uid));
     if (!raw) return null;
-    return JSON.parse(raw) as UserProfile;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.isVerifiedSync) return null;
+    return parsed as UserProfile;
   } catch {
     return null;
   }
 }
 
-function writeCachedAuthProfile(uid: string, prof: UserProfile): void {
+function writeCachedAuthProfile(uid: string, prof: UserProfile & { isVerifiedSync?: boolean }): void {
   try {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !prof?.isVerifiedSync) return;
     window.localStorage.setItem(getAuthProfileCacheKey(uid), JSON.stringify(prof));
   } catch {
     // Ignore storage quota errors
@@ -73,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const buildFallbackProfileFromFirebaseUser = useCallback((firebaseUser: FirebaseUser): UserProfile => {
     const cached = readCachedAuthProfile(firebaseUser.uid);
+    const legacy = readLegacyNonNullAuthFields(firebaseUser.uid);
     const savedName =
       typeof window !== "undefined"
         ? localStorage.getItem(`dsa_viz_display_name_${firebaseUser.uid}`) ||
@@ -86,6 +135,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (firebaseUser.email ? firebaseUser.email.split("@")[0] : null) ||
       "Authenticated User";
     const now = cached?.createdAt || cached?.created_at || new Date().toISOString();
+    const lcUser =
+      cached?.leetcodeUsername ||
+      cached?.leetcode_username ||
+      legacy.leetcodeUsername ||
+      null;
+    const lcStats =
+      cached?.leetcodeStats ||
+      cached?.leetcode_stats ||
+      legacy.leetcodeStats ||
+      null;
     return {
       id: firebaseUser.uid,
       display_name: cleanDisplayName,
@@ -94,22 +153,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       avatarUrl: cached?.avatarUrl || cached?.avatar_url || firebaseUser.photoURL || null,
       created_at: now,
       createdAt: now,
-      leetcode_username: cached?.leetcodeUsername || cached?.leetcode_username || null,
-      leetcodeUsername: cached?.leetcodeUsername || cached?.leetcode_username || null,
-      leetcode_stats: cached?.leetcodeStats || cached?.leetcode_stats || null,
-      leetcodeStats: cached?.leetcodeStats || cached?.leetcode_stats || null,
+      leetcode_username: lcUser,
+      leetcodeUsername: lcUser,
+      leetcode_stats: lcStats,
+      leetcodeStats: lcStats,
       githubToken:
         cached?.githubToken ||
-        (typeof window !== "undefined"
-          ? localStorage.getItem(`dsa_viz_github_token_${firebaseUser.uid}`)
-          : null) ||
+        legacy.githubToken ||
         null,
     };
   }, []);
 
   const fetchProfile = useCallback(
     async (firebaseUser: FirebaseUser, tokenStr?: string, forceFirestore = false) => {
-      // 1. Prefer fast Redis-cached backend /api/profile first unless forceFirestore is requested
+      const legacy = readLegacyNonNullAuthFields(firebaseUser.uid);
+      let apiData: any = null;
+
+      // 1. Check Redis-cached backend /api/profile first unless forceFirestore is requested
       if (tokenStr && !forceFirestore) {
         try {
           const res = await fetch("/api/profile", {
@@ -117,54 +177,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           if (res.ok) {
             const data = await res.json();
-            const cleanDisplayName =
-              (typeof window !== "undefined" &&
-                (localStorage.getItem(`dsa_viz_display_name_${firebaseUser.uid}`) ||
-                  localStorage.getItem("dsa_viz_display_name"))) ||
-              data.displayName ||
-              data.display_name ||
-              firebaseUser.displayName ||
-              (data.email ? data.email.split("@")[0] : null) ||
-              (firebaseUser.email ? firebaseUser.email.split("@")[0] : "Authenticated User");
-            const nextProfile: UserProfile = {
-              id: data.uid || data.id || firebaseUser.uid,
-              display_name: cleanDisplayName,
-              displayName: cleanDisplayName,
-              avatar_url:
-                data.avatarUrl ||
-                data.avatar_url ||
-                data.photoURL ||
-                firebaseUser.photoURL ||
-                null,
-              avatarUrl:
-                data.avatarUrl ||
-                data.avatar_url ||
-                data.photoURL ||
-                firebaseUser.photoURL ||
-                null,
-              created_at: data.createdAt || new Date().toISOString(),
-              createdAt: data.createdAt || new Date().toISOString(),
-              leetcode_username: data.leetcodeUsername || data.leetcode_username || null,
-              leetcodeUsername: data.leetcodeUsername || data.leetcode_username || null,
-              leetcode_stats: data.leetcodeStats || data.leetcode_stats || null,
-              leetcodeStats: data.leetcodeStats || data.leetcode_stats || null,
-              githubToken:
-                data.githubToken ||
-                (typeof window !== "undefined"
-                  ? localStorage.getItem(`dsa_viz_github_token_${firebaseUser.uid}`)
-                  : null) ||
-                null,
-            };
-            setProfile(nextProfile);
-            writeCachedAuthProfile(firebaseUser.uid, nextProfile);
-            return;
+            apiData = data;
+            // Only return immediately from /api/profile if it is a verified sync AND has non-empty fields
+            if (data.isVerifiedSync && (data.leetcodeUsername || data.githubConnected)) {
+              const cleanDisplayName =
+                (typeof window !== "undefined" &&
+                  (localStorage.getItem(`dsa_viz_display_name_${firebaseUser.uid}`) ||
+                    localStorage.getItem("dsa_viz_display_name"))) ||
+                data.displayName ||
+                data.display_name ||
+                firebaseUser.displayName ||
+                (data.email ? data.email.split("@")[0] : null) ||
+                (firebaseUser.email ? firebaseUser.email.split("@")[0] : "Authenticated User");
+              const lcUser =
+                data.leetcodeUsername || data.leetcode_username || legacy.leetcodeUsername || null;
+              const lcStats =
+                data.leetcodeStats || data.leetcode_stats || legacy.leetcodeStats || null;
+              const nextProfile: UserProfile & { isVerifiedSync: boolean } = {
+                id: data.uid || data.id || firebaseUser.uid,
+                display_name: cleanDisplayName,
+                displayName: cleanDisplayName,
+                avatar_url:
+                  data.avatarUrl ||
+                  data.avatar_url ||
+                  data.photoURL ||
+                  firebaseUser.photoURL ||
+                  null,
+                avatarUrl:
+                  data.avatarUrl ||
+                  data.avatar_url ||
+                  data.photoURL ||
+                  firebaseUser.photoURL ||
+                  null,
+                created_at: data.createdAt || new Date().toISOString(),
+                createdAt: data.createdAt || new Date().toISOString(),
+                leetcode_username: lcUser,
+                leetcodeUsername: lcUser,
+                leetcode_stats: lcStats,
+                leetcodeStats: lcStats,
+                githubToken:
+                  data.githubToken ||
+                  legacy.githubToken ||
+                  null,
+                isVerifiedSync: true,
+              };
+              setProfile(nextProfile);
+              writeCachedAuthProfile(firebaseUser.uid, nextProfile);
+              return;
+            }
           }
         } catch {
           // Fall through to Firestore if API unreachable
         }
       }
 
-      // 2. Fallback or explicit force sync with Firestore
+      // 2. Fetch directly from Firebase Firestore and merge with any non-null fields from /api/profile or legacy cache
       try {
         const firestoreDoc = await getOrCreateUserProfile(
           firebaseUser.uid,
@@ -173,32 +240,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
 
         const cleanDisplayName: string =
-          firestoreDoc.displayName ||
-          firestoreDoc.display_name ||
           (typeof window !== "undefined" &&
             (localStorage.getItem(`dsa_viz_display_name_${firebaseUser.uid}`) ||
               localStorage.getItem("dsa_viz_display_name"))) ||
+          firestoreDoc.displayName ||
+          firestoreDoc.display_name ||
+          apiData?.displayName ||
+          apiData?.display_name ||
           firebaseUser.displayName ||
           (firebaseUser.email ? firebaseUser.email.split("@")[0] : null) ||
           "Authenticated User";
 
-        const nextProfile: UserProfile = {
+        const lcUser =
+          firestoreDoc.leetcodeUsername ||
+          firestoreDoc.leetcode_username ||
+          apiData?.leetcodeUsername ||
+          apiData?.leetcode_username ||
+          legacy.leetcodeUsername ||
+          null;
+        const lcStats =
+          firestoreDoc.leetcodeStats ||
+          firestoreDoc.leetcode_stats ||
+          apiData?.leetcodeStats ||
+          apiData?.leetcode_stats ||
+          legacy.leetcodeStats ||
+          null;
+
+        const nextProfile: UserProfile & { isVerifiedSync: boolean } = {
           id: firebaseUser.uid,
           display_name: cleanDisplayName,
           displayName: cleanDisplayName,
           avatar_url:
-            firestoreDoc.avatarUrl || firestoreDoc.avatar_url || firebaseUser.photoURL || null,
+            firestoreDoc.avatarUrl ||
+            firestoreDoc.avatar_url ||
+            apiData?.avatarUrl ||
+            firebaseUser.photoURL ||
+            null,
           avatarUrl:
-            firestoreDoc.avatarUrl || firestoreDoc.avatar_url || firebaseUser.photoURL || null,
+            firestoreDoc.avatarUrl ||
+            firestoreDoc.avatar_url ||
+            apiData?.avatarUrl ||
+            firebaseUser.photoURL ||
+            null,
           created_at: firestoreDoc.createdAt || new Date().toISOString(),
           createdAt: firestoreDoc.createdAt || new Date().toISOString(),
-          leetcode_username:
-            firestoreDoc.leetcodeUsername || firestoreDoc.leetcode_username || null,
-          leetcodeUsername:
-            firestoreDoc.leetcodeUsername || firestoreDoc.leetcode_username || null,
-          leetcode_stats: firestoreDoc.leetcodeStats || firestoreDoc.leetcode_stats || null,
-          leetcodeStats: firestoreDoc.leetcodeStats || firestoreDoc.leetcode_stats || null,
-          githubToken: firestoreDoc.githubToken || null,
+          leetcode_username: lcUser,
+          leetcodeUsername: lcUser,
+          leetcode_stats: lcStats,
+          leetcodeStats: lcStats,
+          githubToken:
+            firestoreDoc.githubToken ||
+            apiData?.githubToken ||
+            legacy.githubToken ||
+            null,
+          isVerifiedSync: true,
         };
         setProfile(nextProfile);
         writeCachedAuthProfile(firebaseUser.uid, nextProfile);

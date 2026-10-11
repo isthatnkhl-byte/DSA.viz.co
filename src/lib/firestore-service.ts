@@ -209,41 +209,53 @@ export async function updateUserProfile(
  * Retrieves all submissions for a user from their subcollection.
  */
 export async function getUserSubmissions(userId: string): Promise<any[]> {
-  const path = `users/${userId}/submissions`;
   try {
     const subsRef = collection(db, "users", userId, "submissions");
-    const q = query(subsRef, orderBy("createdAt", "desc"), limit(200));
-    const snap = await getDocs(q);
+    let docs: any[] = [];
+    try {
+      const q = query(subsRef, orderBy("createdAt", "desc"), limit(200));
+      const snap = await getDocs(q);
+      docs = snap.docs;
+    } catch {
+      const snap = await getDocs(subsRef);
+      docs = snap.docs;
+    }
 
-    return snap.docs.map((d) => {
-      const r = d.data();
-      return {
-        id: d.id,
-        userId,
-        slug: r.slug,
-        title: r.title || r.slug,
-        code: r.code,
-        pseudocode: r.pseudocode || r.code,
-        lang: r.lang || r.language || "pseudocode",
-        classification: r.classification || r.status || "Incomplete",
-        difficulty: r.difficulty || "Medium",
-        timeTakenMs: r.timeTakenMs,
-        timeComplexity: r.timeComplexity || r.time_complexity || null,
-        spaceComplexity: r.spaceComplexity || r.space_complexity || null,
-        time_complexity: r.timeComplexity || r.time_complexity || null,
-        space_complexity: r.spaceComplexity || r.space_complexity || null,
-        praise: r.praise,
-        nudge: r.nudge,
-        review: r.review,
-        viz_steps: r.vizSteps,
-        test_case: r.testCase,
-        code_lines: r.codeLines,
-        created_at: r.createdAt || r.created_at || new Date().toISOString(),
-        createdAt: r.createdAt || r.created_at || new Date().toISOString(),
-      };
-    });
+    return docs
+      .map((d) => {
+        const r = d.data();
+        return {
+          id: d.id,
+          userId,
+          slug: r.slug,
+          title: r.title || r.slug,
+          code: r.code,
+          pseudocode: r.pseudocode || r.code,
+          lang: r.lang || r.language || "pseudocode",
+          classification: r.classification || r.status || "Incomplete",
+          difficulty: r.difficulty || "Medium",
+          timeTakenMs: r.timeTakenMs,
+          timeComplexity: r.timeComplexity || r.time_complexity || null,
+          spaceComplexity: r.spaceComplexity || r.space_complexity || null,
+          time_complexity: r.timeComplexity || r.time_complexity || null,
+          space_complexity: r.spaceComplexity || r.space_complexity || null,
+          praise: r.praise,
+          nudge: r.nudge,
+          review: r.review,
+          viz_steps: r.vizSteps,
+          test_case: r.testCase,
+          code_lines: r.codeLines,
+          created_at: r.createdAt || r.created_at || new Date().toISOString(),
+          createdAt: r.createdAt || r.created_at || new Date().toISOString(),
+        };
+      })
+      .sort((a, b) => {
+        const ta = new Date(a.createdAt || a.created_at || 0).getTime();
+        const tb = new Date(b.createdAt || b.created_at || 0).getTime();
+        return tb - ta;
+      });
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
+    console.warn("Could not retrieve submissions from Firestore:", error);
     return [];
   }
 }

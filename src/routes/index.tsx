@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { LandingHero } from "@/components/landing/LandingHero";
@@ -14,7 +14,7 @@ import { FeaturedProblemGrid } from "@/components/landing/FeaturedProblemGrid";
 import { LowerInteractiveShowcase } from "@/components/landing/LowerInteractiveShowcase";
 import { LiveVisualizerCard } from "@/components/landing/LiveVisualizerCard";
 import { useAuth } from "@/hooks/useAuth";
-import { motion, useScroll, useSpring, useMotionValueEvent } from "motion/react";
+import { motion, useMotionValue, useSpring, useMotionValueEvent } from "motion/react";
 import { toast } from "sonner";
 import type React from "react";
 
@@ -47,29 +47,28 @@ function mapProgressToHeroIntroPhase(p: number): HeroIntroPhase {
   if (p < 0.48) return "viz";
   if (p < 0.54) return "blank-2";
   if (p < 0.72) return "co";
-  if (p < 0.77) return "blank-3";
-  if (p < 0.87) return "full-title";
+  if (p < 0.78) return "blank-3";
+  if (p < 0.90) return "full-title";
   return "complete";
 }
+
+const STAGE_STOPS = [0.0, 0.15, 0.39, 0.63, 0.84, 1.0];
 
 export function LandingPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const heroScrollTrackRef = useRef<HTMLDivElement>(null);
+
+  const targetProgress = useMotionValue(0);
+  const smoothProgress = useSpring(targetProgress, {
+    stiffness: 110,
+    damping: 26,
+    mass: 0.42,
+  });
 
   const [introPhase, setIntroPhase] = useState<HeroIntroPhase>("blank-0");
   const [introProgress, setIntroProgress] = useState<number>(0);
-
-  const { scrollYProgress } = useScroll({
-    target: heroScrollTrackRef,
-    offset: ["start start", "end end"],
-  });
-
-  const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 120,
-    damping: 26,
-    mass: 0.4,
-  });
+  const [scrollUnlocked, setScrollUnlocked] = useState<boolean>(false);
+  const touchStartYRef = useRef<number | null>(null);
 
   useMotionValueEvent(smoothProgress, "change", (latest) => {
     const clamped = Math.max(0, Math.min(1, latest));
@@ -78,15 +77,91 @@ export function LandingPage() {
     setIntroPhase((prev) => (prev === nextPhase ? prev : nextPhase));
   });
 
-  const handleJumpToIntroProgress = useCallback((targetProgress: number) => {
-    if (!heroScrollTrackRef.current || typeof window === "undefined") return;
-    const trackEl = heroScrollTrackRef.current;
-    const rect = trackEl.getBoundingClientRect();
-    const trackTopDoc = window.scrollY + rect.top;
-    const scrollableDistance = Math.max(1, trackEl.offsetHeight - window.innerHeight);
-    const targetScrollY = trackTopDoc + scrollableDistance * Math.max(0, Math.min(1, targetProgress));
-    window.scrollTo({ top: targetScrollY, behavior: "smooth" });
-  }, []);
+  // Unlock document scrolling only after the full Hero + Navbar spawn animation has completed
+  useEffect(() => {
+    if (scrollUnlocked) return;
+    if (introPhase === "complete" && introProgress >= 0.94) {
+      const timer = window.setTimeout(() => {
+        setScrollUnlocked(true);
+      }, 600);
+      return () => window.clearTimeout(timer);
+    }
+  }, [introPhase, introProgress, scrollUnlocked]);
+
+  // Keep the site 100% static at scrollY = 0 while wheel / touch / keyboard gestures drive the intro animation
+  useEffect(() => {
+    if (typeof window === "undefined" || scrollUnlocked) {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      return;
+    }
+
+    window.scrollTo(0, 0);
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+
+    const handleWheel = (e: WheelEvent) => {
+      if (scrollUnlocked) return;
+      e.preventDefault();
+      const rawDelta = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY;
+      const clampedDelta = Math.max(-110, Math.min(110, rawDelta));
+      const next = Math.max(0, Math.min(1, targetProgress.get() + clampedDelta * 0.00042));
+      targetProgress.set(next);
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (scrollUnlocked || !e.touches[0]) return;
+      touchStartYRef.current = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (scrollUnlocked || !e.touches[0] || touchStartYRef.current === null) return;
+      e.preventDefault();
+      const currentY = e.touches[0].clientY;
+      const deltaY = touchStartYRef.current - currentY;
+      touchStartYRef.current = currentY;
+      const clampedDelta = Math.max(-80, Math.min(80, deltaY));
+      const next = Math.max(0, Math.min(1, targetProgress.get() + clampedDelta * 0.0014));
+      targetProgress.set(next);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (scrollUnlocked) return;
+      if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") {
+        e.preventDefault();
+        const cur = targetProgress.get();
+        const nextStop = STAGE_STOPS.find((s) => s > cur + 0.03) ?? 1.0;
+        targetProgress.set(nextStop);
+      } else if (e.key === "ArrowUp" || e.key === "PageUp") {
+        e.preventDefault();
+        const cur = targetProgress.get();
+        const prevStop = [...STAGE_STOPS].reverse().find((s) => s < cur - 0.03) ?? 0.0;
+        targetProgress.set(prevStop);
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [scrollUnlocked, targetProgress]);
+
+  const handleJumpToIntroProgress = useCallback(
+    (target: number) => {
+      const clamped = Math.max(0, Math.min(1, target));
+      targetProgress.set(clamped);
+    },
+    [targetProgress]
+  );
 
   const handleUnauthenticatedInteraction = (e: React.SyntheticEvent<HTMLElement>) => {
     if (loading || user) return;
@@ -145,16 +220,12 @@ export function LandingPage() {
       </motion.div>
 
       <main id="main-content" className="flex-1">
-        {/* 2. Scroll-Choreographed Hero Section (Blank -> DSA -> Blank -> VIZ -> Blank -> CO -> DSAVIZCO -> Full Hero & Navbar) */}
-        <div ref={heroScrollTrackRef} className="relative h-[480vh]">
-          <div className="sticky top-14 sm:top-16 min-h-[calc(100vh-3.5rem)] sm:min-h-[calc(100vh-4rem)] flex flex-col justify-start">
-            <LandingHero
-              introPhase={introPhase}
-              introProgress={introProgress}
-              onJumpToIntroProgress={handleJumpToIntroProgress}
-            />
-          </div>
-        </div>
+        {/* 2. Static Hero Section (Remains 100% static on scroll until Blank -> DSA -> VIZ -> CO -> DSAVIZCO -> Hero+Navbar completes) */}
+        <LandingHero
+          introPhase={introPhase}
+          introProgress={introProgress}
+          onJumpToIntroProgress={handleJumpToIntroProgress}
+        />
 
         {/* 2.5 Live Real-time Algorithmic Execution Ribbon */}
         <motion.div

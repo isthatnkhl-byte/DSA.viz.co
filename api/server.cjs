@@ -238556,7 +238556,7 @@ async function deleteUserApiKeyFromVault(req, provider, res) {
   }
   return getUserKeyVaultStatus(req, vaultSid, res);
 }
-var import_crypto, import_fs6, import_path5, import_async_hooks, VAULT_COOKIE_NAME, VAULT_BLOB_COOKIE_NAME, DATA_DIR4, VAULT_FILE, memoryVaultStore, requestKeyStorage, cleanEnv;
+var import_crypto, import_fs6, import_path5, import_async_hooks, VAULT_COOKIE_NAME, VAULT_BLOB_COOKIE_NAME, DATA_DIR5, VAULT_FILE, memoryVaultStore, requestKeyStorage, cleanEnv;
 var init_user_keys_server = __esm({
   "src/lib/user-keys.server.ts"() {
     "use strict";
@@ -238569,8 +238569,8 @@ var init_user_keys_server = __esm({
     init_firebase_applet_config();
     VAULT_COOKIE_NAME = "dsaviz_vault_sid";
     VAULT_BLOB_COOKIE_NAME = "dsaviz_vault_blob";
-    DATA_DIR4 = process.env.VERCEL ? import_path5.default.join("/tmp", ".data") : import_path5.default.join(process.cwd(), ".data");
-    VAULT_FILE = import_path5.default.join(DATA_DIR4, "user_keys_vault.json");
+    DATA_DIR5 = process.env.VERCEL ? import_path5.default.join("/tmp", ".data") : import_path5.default.join(process.cwd(), ".data");
+    VAULT_FILE = import_path5.default.join(DATA_DIR5, "user_keys_vault.json");
     memoryVaultStore = /* @__PURE__ */ new Map();
     requestKeyStorage = new import_async_hooks.AsyncLocalStorage();
     try {
@@ -285623,7 +285623,9 @@ var import_ioredis = __toESM(require_built3(), 1);
 var import_fs = __toESM(require("fs"), 1);
 var import_path = __toESM(require("path"), 1);
 var MEMORY_CACHE = /* @__PURE__ */ new Map();
-var CACHE_FILE = import_path.default.join(process.cwd(), ".data", "backend-cache.json");
+var DATA_DIR = process.env.VERCEL ? import_path.default.join("/tmp", ".data") : import_path.default.join(process.cwd(), ".data");
+var CACHE_FILE = import_path.default.join(DATA_DIR, "backend-cache.json");
+var DEFAULT_RETENTION_TTL_SECONDS = 60 * 60 * 24 * 7;
 try {
   if (import_fs.default.existsSync(CACHE_FILE)) {
     const raw = import_fs.default.readFileSync(CACHE_FILE, "utf-8");
@@ -285687,28 +285689,35 @@ if (REDIS_URL) {
   }
 }
 async function getCache(key) {
+  const memEntry = MEMORY_CACHE.get(key);
+  if (memEntry) {
+    if (memEntry.expiresAt > Date.now()) {
+      return memEntry.value;
+    }
+    MEMORY_CACHE.delete(key);
+  }
   if (redisClient && isConnectedToRedis) {
     try {
       const data = await redisClient.get(key);
       if (data) {
+        let parsedVal;
         try {
-          return JSON.parse(data);
+          parsedVal = JSON.parse(data);
         } catch {
-          return data;
+          parsedVal = data;
         }
+        MEMORY_CACHE.set(key, {
+          value: parsedVal,
+          expiresAt: Date.now() + DEFAULT_RETENTION_TTL_SECONDS * 1e3
+        });
+        return parsedVal;
       }
     } catch {
     }
   }
-  const entry = MEMORY_CACHE.get(key);
-  if (!entry) return null;
-  if (entry.expiresAt < Date.now()) {
-    MEMORY_CACHE.delete(key);
-    return null;
-  }
-  return entry.value;
+  return null;
 }
-async function setCache(key, value, ttlSeconds = 1800) {
+async function setCache(key, value, ttlSeconds = DEFAULT_RETENTION_TTL_SECONDS) {
   const expiresAt = Date.now() + ttlSeconds * 1e3;
   MEMORY_CACHE.set(key, { value, expiresAt });
   persistMemoryCache();
@@ -285732,8 +285741,8 @@ async function deleteCache(key) {
 }
 
 // src/db/users.ts
-var DATA_DIR = process.env.VERCEL ? import_path2.default.join("/tmp", ".data") : import_path2.default.join(process.cwd(), ".data");
-var USERS_FILE = import_path2.default.join(DATA_DIR, "users.json");
+var DATA_DIR2 = process.env.VERCEL ? import_path2.default.join("/tmp", ".data") : import_path2.default.join(process.cwd(), ".data");
+var USERS_FILE = import_path2.default.join(DATA_DIR2, "users.json");
 var memoryUserStore = /* @__PURE__ */ new Map();
 try {
   if (import_fs2.default.existsSync(USERS_FILE)) {
@@ -285831,8 +285840,8 @@ async function updateUser(uid, data) {
 var import_fs3 = __toESM(require("fs"), 1);
 var import_path3 = __toESM(require("path"), 1);
 init_firebase_admin();
-var DATA_DIR2 = process.env.VERCEL ? import_path3.default.join("/tmp", ".data") : import_path3.default.join(process.cwd(), ".data");
-var PROFILES_FILE = import_path3.default.join(DATA_DIR2, "profiles.json");
+var DATA_DIR3 = process.env.VERCEL ? import_path3.default.join("/tmp", ".data") : import_path3.default.join(process.cwd(), ".data");
+var PROFILES_FILE = import_path3.default.join(DATA_DIR3, "profiles.json");
 var memoryProfileStore = /* @__PURE__ */ new Map();
 try {
   if (import_fs3.default.existsSync(PROFILES_FILE)) {
@@ -285912,8 +285921,8 @@ async function updateProfile(userId, data) {
 var import_fs4 = __toESM(require("fs"), 1);
 var import_path4 = __toESM(require("path"), 1);
 init_firebase_admin();
-var DATA_DIR3 = process.env.VERCEL ? import_path4.default.join("/tmp", ".data") : import_path4.default.join(process.cwd(), ".data");
-var SUBMISSIONS_FILE = import_path4.default.join(DATA_DIR3, "submissions.json");
+var DATA_DIR4 = process.env.VERCEL ? import_path4.default.join("/tmp", ".data") : import_path4.default.join(process.cwd(), ".data");
+var SUBMISSIONS_FILE = import_path4.default.join(DATA_DIR4, "submissions.json");
 var memorySubmissionsStore = /* @__PURE__ */ new Map();
 try {
   if (import_fs4.default.existsSync(SUBMISSIONS_FILE)) {
@@ -291096,15 +291105,19 @@ app.get("/api/statement", async (req, res) => {
     return res.json({ statement: fallback || "" });
   }
 });
+var REDIS_RETENTION_TTL = 60 * 60 * 24 * 7;
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
     const uid = req.user.uid;
+    const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
     const bearerToken = extractRequestBearerToken(req);
     const ghCookie = getGithubSessionCookie(req, uid);
     const cacheKey = `profile:${uid}`;
-    const cached3 = await getCache(cacheKey);
-    if (cached3 && (cached3.githubToken || !ghCookie?.githubToken)) {
-      return res.json(cached3);
+    if (!forceRefresh) {
+      const cached3 = await getCache(cacheKey);
+      if (cached3 && (cached3.githubToken || !ghCookie?.githubToken)) {
+        return res.json(cached3);
+      }
     }
     const user = await getOrCreateUser(uid, req.user.email || null).catch(() => null);
     const profile = await getProfile(uid).catch(() => null);
@@ -291156,7 +291169,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       leetcodeStats: cleanLcStats,
       leetcode_stats: cleanLcStats
     };
-    await setCache(cacheKey, payload, 1800).catch(() => {
+    await setCache(cacheKey, payload, REDIS_RETENTION_TTL).catch(() => {
     });
     res.json(payload);
   } catch (error61) {
@@ -291171,6 +291184,63 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       githubTokenConfigured: false,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     });
+  }
+});
+app.get("/api/profile/snapshot", requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
+    const snapshotKey = `profile_snapshot:${uid}`;
+    if (!forceRefresh) {
+      const cachedSnapshot = await getCache(snapshotKey);
+      if (cachedSnapshot && cachedSnapshot.profile) {
+        const ghCookie = getGithubSessionCookie(req, uid);
+        if (ghCookie?.githubToken && !cachedSnapshot.profile.githubToken) {
+          cachedSnapshot.profile = {
+            ...cachedSnapshot.profile,
+            githubToken: ghCookie.githubToken,
+            githubConnected: true,
+            github_connected: true,
+            githubUsername: cachedSnapshot.profile.githubUsername || ghCookie.githubUsername || null,
+            githubAvatar: cachedSnapshot.profile.githubAvatar || ghCookie.githubAvatar || null
+          };
+        }
+        return res.json({ cached: true, snapshot: cachedSnapshot });
+      }
+    }
+    return res.json({ cached: false, snapshot: null });
+  } catch {
+    return res.json({ cached: false, snapshot: null });
+  }
+});
+app.post("/api/profile/snapshot", requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const snapshot = req.body?.snapshot;
+    if (!snapshot || typeof snapshot !== "object" || !snapshot.profile) {
+      return res.status(400).json({ error: "Valid snapshot payload required" });
+    }
+    const enrichedSnapshot = {
+      ...snapshot,
+      cachedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await Promise.all([
+      setCache(`profile_snapshot:${uid}`, enrichedSnapshot, REDIS_RETENTION_TTL).catch(() => {
+      }),
+      setCache(`profile:${uid}`, enrichedSnapshot.profile, REDIS_RETENTION_TTL).catch(() => {
+      }),
+      ...Array.isArray(enrichedSnapshot.submissions) ? [
+        setCache(
+          `submissions:${uid}`,
+          enrichedSnapshot.submissions,
+          REDIS_RETENTION_TTL
+        ).catch(() => {
+        })
+      ] : []
+    ]);
+    res.json({ ok: true, cachedAt: enrichedSnapshot.cachedAt });
+  } catch {
+    res.status(500).json({ error: "Failed to persist profile snapshot to Redis" });
   }
 });
 app.post("/api/profile/update", requireAuth, async (req, res) => {
@@ -291189,20 +291259,35 @@ app.post("/api/profile/update", requireAuth, async (req, res) => {
     const uid = req.user.uid;
     const updated = await updateProfile(uid, { displayName: clean3, display_name: clean3 }).catch(() => null);
     await updateUser(uid, { displayName: clean3, display_name: clean3 }).catch(() => null);
-    await deleteCache(`profile:${uid}`).catch(() => {
-    });
-    await deleteCache(`user:${uid}`).catch(() => {
-    });
+    const existingProfile = await getCache(`profile:${uid}`) || {};
     const responsePayload = {
+      ...existingProfile,
       uid,
       ...updated || {},
       displayName: clean3,
       display_name: clean3
     };
-    await setCache(`profile:${uid}`, responsePayload, 1800).catch(() => {
+    await setCache(`profile:${uid}`, responsePayload, REDIS_RETENTION_TTL).catch(() => {
     });
-    await setCache(`user:${uid}`, responsePayload, 1800).catch(() => {
+    await setCache(`user:${uid}`, responsePayload, REDIS_RETENTION_TTL).catch(() => {
     });
+    const existingSnapshot = await getCache(`profile_snapshot:${uid}`);
+    if (existingSnapshot?.profile) {
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          profile: {
+            ...existingSnapshot.profile,
+            displayName: clean3,
+            display_name: clean3
+          },
+          cachedAt: (/* @__PURE__ */ new Date()).toISOString()
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {
+      });
+    }
     res.json({
       ok: true,
       profile: responsePayload
@@ -291239,11 +291324,15 @@ app.delete("/api/profile", requireAuth, async (req, res) => {
     } catch (dbErr) {
       console.warn("Firestore subcollections purge notice:", dbErr);
     }
+    await deleteCache(`profile_snapshot:${uid}`).catch(() => {
+    });
     await deleteCache(`profile:${uid}`).catch(() => {
     });
     await deleteCache(`user:${uid}`).catch(() => {
     });
     await deleteCache(`submissions:${uid}`).catch(() => {
+    });
+    await deleteCache(`reports:${uid}`).catch(() => {
     });
     await updateProfile(uid, {
       displayName: "Deleted User",
@@ -291284,14 +291373,45 @@ app.post("/api/sync-leetcode", requireAuth, async (req, res) => {
     }
     try {
       if (req.user?.uid) {
-        await updateProfile(req.user.uid, {
+        const uid = req.user.uid;
+        await updateProfile(uid, {
           leetcodeUsername: cleanUsername,
           leetcode_username: cleanUsername,
           leetcodeStats: fetchedStats,
           leetcode_stats: fetchedStats
         }).catch(() => null);
-        await deleteCache(`profile:${req.user.uid}`).catch(() => {
+        const existingProfile = await getCache(`profile:${uid}`) || {};
+        await setCache(
+          `profile:${uid}`,
+          {
+            ...existingProfile,
+            leetcodeUsername: cleanUsername,
+            leetcode_username: cleanUsername,
+            leetcodeStats: fetchedStats,
+            leetcode_stats: fetchedStats
+          },
+          REDIS_RETENTION_TTL
+        ).catch(() => {
         });
+        const existingSnapshot = await getCache(`profile_snapshot:${uid}`);
+        if (existingSnapshot?.profile) {
+          await setCache(
+            `profile_snapshot:${uid}`,
+            {
+              ...existingSnapshot,
+              profile: {
+                ...existingSnapshot.profile,
+                leetcodeUsername: cleanUsername,
+                leetcode_username: cleanUsername,
+                leetcodeStats: fetchedStats,
+                leetcode_stats: fetchedStats
+              },
+              cachedAt: (/* @__PURE__ */ new Date()).toISOString()
+            },
+            REDIS_RETENTION_TTL
+          ).catch(() => {
+          });
+        }
       }
     } catch (e2) {
       console.warn("Server-side DB update warning in /api/sync-leetcode:", e2);
@@ -291304,7 +291424,18 @@ app.post("/api/sync-leetcode", requireAuth, async (req, res) => {
 });
 app.get("/api/submissions", requireAuth, async (req, res) => {
   try {
-    const subs = await getSubmissions(req.user.uid).catch(() => []);
+    const uid = req.user.uid;
+    const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
+    const cacheKey = `submissions:${uid}`;
+    if (!forceRefresh) {
+      const cached3 = await getCache(cacheKey);
+      if (Array.isArray(cached3)) {
+        return res.json(cached3);
+      }
+    }
+    const subs = await getSubmissions(uid).catch(() => []);
+    await setCache(cacheKey, subs, REDIS_RETENTION_TTL).catch(() => {
+    });
     res.json(subs);
   } catch (error61) {
     console.error("Failed to get submissions:", error61);
@@ -291313,11 +291444,41 @@ app.get("/api/submissions", requireAuth, async (req, res) => {
 });
 app.post("/api/submissions", requireAuth, async (req, res) => {
   try {
-    const sub = await addSubmission(req.user.uid, req.body).catch(() => ({
+    const uid = req.user.uid;
+    const sub = await addSubmission(uid, req.body).catch(() => ({
       id: "sub-" + Date.now(),
       ...req.body,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     }));
+    const existingSubs = await getCache(`submissions:${uid}`);
+    if (Array.isArray(existingSubs)) {
+      await setCache(`submissions:${uid}`, [sub, ...existingSubs], REDIS_RETENTION_TTL).catch(() => {
+      });
+    }
+    const existingSnapshot = await getCache(`profile_snapshot:${uid}`);
+    if (existingSnapshot && Array.isArray(existingSnapshot.submissions)) {
+      const nextSubs = [sub, ...existingSnapshot.submissions];
+      const completeRows = nextSubs.filter(
+        (r2) => r2.classification && r2.classification !== "Incomplete"
+      );
+      const solved = new Set(completeRows.map((r2) => r2.slug)).size;
+      const optimal = new Set(
+        completeRows.filter((r2) => r2.classification === "Optimal").map((r2) => r2.slug)
+      ).size;
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          submissions: nextSubs,
+          attempts: nextSubs.length,
+          solved,
+          optimal,
+          cachedAt: (/* @__PURE__ */ new Date()).toISOString()
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {
+      });
+    }
     res.json(sub);
   } catch (error61) {
     console.error("Failed to add submission:", error61);
@@ -291326,8 +291487,45 @@ app.post("/api/submissions", requireAuth, async (req, res) => {
 });
 app.delete("/api/submissions/:id", requireAuth, async (req, res) => {
   try {
-    await deleteSubmission(req.user.uid, req.params.id).catch(() => {
+    const uid = req.user.uid;
+    const targetId = String(req.params.id);
+    await deleteSubmission(uid, targetId).catch(() => {
     });
+    const existingSubs = await getCache(`submissions:${uid}`);
+    if (Array.isArray(existingSubs)) {
+      await setCache(
+        `submissions:${uid}`,
+        existingSubs.filter((s2) => String(s2?.id) !== targetId),
+        REDIS_RETENTION_TTL
+      ).catch(() => {
+      });
+    }
+    const existingSnapshot = await getCache(`profile_snapshot:${uid}`);
+    if (existingSnapshot && Array.isArray(existingSnapshot.submissions)) {
+      const nextSubs = existingSnapshot.submissions.filter(
+        (s2) => String(s2?.id) !== targetId
+      );
+      const completeRows = nextSubs.filter(
+        (r2) => r2.classification && r2.classification !== "Incomplete"
+      );
+      const solved = new Set(completeRows.map((r2) => r2.slug)).size;
+      const optimal = new Set(
+        completeRows.filter((r2) => r2.classification === "Optimal").map((r2) => r2.slug)
+      ).size;
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          submissions: nextSubs,
+          attempts: nextSubs.length,
+          solved,
+          optimal,
+          cachedAt: (/* @__PURE__ */ new Date()).toISOString()
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {
+      });
+    }
     res.json({ success: true });
   } catch (error61) {
     console.error("Failed to delete submission:", error61);
@@ -292069,6 +292267,33 @@ Return a strictly valid JSON object matching this schema:
           reportData
         });
         savedReportId = saved.id;
+        const normalizedSaved = {
+          id: saved.id,
+          ...reportData,
+          createdAt: saved.createdAt || (/* @__PURE__ */ new Date()).toISOString()
+        };
+        const existingReports = await getCache(`reports:${userId}`);
+        if (Array.isArray(existingReports)) {
+          await setCache(
+            `reports:${userId}`,
+            [normalizedSaved, ...existingReports],
+            REDIS_RETENTION_TTL
+          ).catch(() => {
+          });
+        }
+        const existingSnapshot = await getCache(`profile_snapshot:${userId}`);
+        if (existingSnapshot && Array.isArray(existingSnapshot.aiReports)) {
+          await setCache(
+            `profile_snapshot:${userId}`,
+            {
+              ...existingSnapshot,
+              aiReports: [normalizedSaved, ...existingSnapshot.aiReports],
+              cachedAt: (/* @__PURE__ */ new Date()).toISOString()
+            },
+            REDIS_RETENTION_TTL
+          ).catch(() => {
+          });
+        }
       } catch (saveErr) {
         console.warn("Could not save AI report to Firestore:", saveErr);
       }
@@ -292092,7 +292317,18 @@ Return a strictly valid JSON object matching this schema:
 });
 app.get("/api/user-reports", requireAuth, async (req, res) => {
   try {
-    const reports = await getUserAiReports(req.user.uid);
+    const uid = req.user.uid;
+    const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
+    const cacheKey = `reports:${uid}`;
+    if (!forceRefresh) {
+      const cached3 = await getCache(cacheKey);
+      if (Array.isArray(cached3)) {
+        return res.json(cached3);
+      }
+    }
+    const reports = await getUserAiReports(uid);
+    await setCache(cacheKey, reports, REDIS_RETENTION_TTL).catch(() => {
+    });
     res.json(reports);
   } catch (error61) {
     console.error("Failed to get user AI reports:", error61);
@@ -292512,8 +292748,43 @@ app.get("/api/github/callback", async (req, res) => {
         githubUrl: ghUrl
       });
     }
-    await deleteCache(`profile:${uid}`).catch(() => {
+    const existingProfile = await getCache(`profile:${uid}`) || {};
+    await setCache(
+      `profile:${uid}`,
+      {
+        ...existingProfile,
+        githubToken: encryptedToken,
+        githubConnected: true,
+        githubUsername: ghUsername,
+        githubAvatar: ghAvatar,
+        githubUrl: ghUrl
+      },
+      REDIS_RETENTION_TTL
+    ).catch(() => {
     });
+    const existingSnapshot = await getCache(`profile_snapshot:${uid}`);
+    if (existingSnapshot?.profile) {
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          profile: {
+            ...existingSnapshot.profile,
+            githubToken: encryptedToken,
+            githubConnected: true,
+            github_connected: true,
+            githubUsername: ghUsername,
+            github_username: ghUsername,
+            githubAvatar: ghAvatar,
+            github_avatar: ghAvatar,
+            githubUrl: ghUrl
+          },
+          cachedAt: (/* @__PURE__ */ new Date()).toISOString()
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {
+      });
+    }
     const syncPayloadBase64 = Buffer.from(
       JSON.stringify({
         uid,
@@ -292604,8 +292875,43 @@ app.post("/api/github/disconnect", requireAuth, async (req, res) => {
         githubUrl: null
       });
     }
-    await deleteCache(`profile:${uid}`).catch(() => {
+    const existingProfile = await getCache(`profile:${uid}`) || {};
+    await setCache(
+      `profile:${uid}`,
+      {
+        ...existingProfile,
+        githubToken: null,
+        githubConnected: false,
+        githubUsername: null,
+        githubAvatar: null,
+        githubUrl: null
+      },
+      REDIS_RETENTION_TTL
+    ).catch(() => {
     });
+    const existingSnapshot = await getCache(`profile_snapshot:${uid}`);
+    if (existingSnapshot?.profile) {
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          profile: {
+            ...existingSnapshot.profile,
+            githubToken: null,
+            githubConnected: false,
+            github_connected: false,
+            githubUsername: null,
+            github_username: null,
+            githubAvatar: null,
+            github_avatar: null,
+            githubUrl: null
+          },
+          cachedAt: (/* @__PURE__ */ new Date()).toISOString()
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {
+      });
+    }
     res.json({ success: true });
   } catch (error61) {
     res.status(500).json({ error: "Failed to disconnect GitHub" });

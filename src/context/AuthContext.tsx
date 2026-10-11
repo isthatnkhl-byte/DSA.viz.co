@@ -39,13 +39,40 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function getAuthProfileCacheKey(uid: string): string {
+  return `dsa_viz_auth_profile_${uid}`;
+}
+
+function readCachedAuthProfile(uid: string): UserProfile | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(getAuthProfileCacheKey(uid));
+    if (!raw) return null;
+    return JSON.parse(raw) as UserProfile;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedAuthProfile(uid: string, prof: UserProfile): void {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(getAuthProfileCacheKey(uid), JSON.stringify(prof));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(() => auth.currentUser);
   const [token, setToken] = useState<string | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(() =>
+    auth.currentUser ? readCachedAuthProfile(auth.currentUser.uid) : null
+  );
+  const [loading, setLoading] = useState<boolean>(() => !auth.currentUser);
 
   const buildFallbackProfileFromFirebaseUser = useCallback((firebaseUser: FirebaseUser): UserProfile => {
+    const cached = readCachedAuthProfile(firebaseUser.uid);
     const savedName =
       typeof window !== "undefined"
         ? localStorage.getItem(`dsa_viz_display_name_${firebaseUser.uid}`) ||
@@ -53,28 +80,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         : null;
     const cleanDisplayName =
       savedName ||
+      cached?.displayName ||
+      cached?.display_name ||
       firebaseUser.displayName ||
       (firebaseUser.email ? firebaseUser.email.split("@")[0] : null) ||
       "Authenticated User";
-    const now = new Date().toISOString();
+    const now = cached?.createdAt || cached?.created_at || new Date().toISOString();
     return {
       id: firebaseUser.uid,
       display_name: cleanDisplayName,
       displayName: cleanDisplayName,
-      avatar_url: firebaseUser.photoURL || null,
-      avatarUrl: firebaseUser.photoURL || null,
+      avatar_url: cached?.avatarUrl || cached?.avatar_url || firebaseUser.photoURL || null,
+      avatarUrl: cached?.avatarUrl || cached?.avatar_url || firebaseUser.photoURL || null,
       created_at: now,
       createdAt: now,
-      leetcode_username: null,
-      leetcodeUsername: null,
-      leetcode_stats: null,
-      leetcodeStats: null,
-      githubToken: null,
+      leetcode_username: cached?.leetcodeUsername || cached?.leetcode_username || null,
+      leetcodeUsername: cached?.leetcodeUsername || cached?.leetcode_username || null,
+      leetcode_stats: cached?.leetcodeStats || cached?.leetcode_stats || null,
+      leetcodeStats: cached?.leetcodeStats || cached?.leetcode_stats || null,
+      githubToken:
+        cached?.githubToken ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem(`dsa_viz_github_token_${firebaseUser.uid}`)
+          : null) ||
+        null,
     };
   }, []);
 
   const fetchProfile = useCallback(
-    async (firebaseUser: FirebaseUser, tokenStr?: string) => {
+    async (firebaseUser: FirebaseUser, tokenStr?: string, forceFirestore = false) => {
+      // 1. Prefer fast Redis-cached backend /api/profile first unless forceFirestore is requested
+      if (tokenStr && !forceFirestore) {
+        try {
+          const res = await fetch("/api/profile", {
+            headers: { Authorization: `Bearer ${tokenStr}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const cleanDisplayName =
+              (typeof window !== "undefined" &&
+                (localStorage.getItem(`dsa_viz_display_name_${firebaseUser.uid}`) ||
+                  localStorage.getItem("dsa_viz_display_name"))) ||
+              data.displayName ||
+              data.display_name ||
+              firebaseUser.displayName ||
+              (data.email ? data.email.split("@")[0] : null) ||
+              (firebaseUser.email ? firebaseUser.email.split("@")[0] : "Authenticated User");
+            const nextProfile: UserProfile = {
+              id: data.uid || data.id || firebaseUser.uid,
+              display_name: cleanDisplayName,
+              displayName: cleanDisplayName,
+              avatar_url:
+                data.avatarUrl ||
+                data.avatar_url ||
+                data.photoURL ||
+                firebaseUser.photoURL ||
+                null,
+              avatarUrl:
+                data.avatarUrl ||
+                data.avatar_url ||
+                data.photoURL ||
+                firebaseUser.photoURL ||
+                null,
+              created_at: data.createdAt || new Date().toISOString(),
+              createdAt: data.createdAt || new Date().toISOString(),
+              leetcode_username: data.leetcodeUsername || data.leetcode_username || null,
+              leetcodeUsername: data.leetcodeUsername || data.leetcode_username || null,
+              leetcode_stats: data.leetcodeStats || data.leetcode_stats || null,
+              leetcodeStats: data.leetcodeStats || data.leetcode_stats || null,
+              githubToken:
+                data.githubToken ||
+                (typeof window !== "undefined"
+                  ? localStorage.getItem(`dsa_viz_github_token_${firebaseUser.uid}`)
+                  : null) ||
+                null,
+            };
+            setProfile(nextProfile);
+            writeCachedAuthProfile(firebaseUser.uid, nextProfile);
+            return;
+          }
+        } catch {
+          // Fall through to Firestore if API unreachable
+        }
+      }
+
+      // 2. Fallback or explicit force sync with Firestore
       try {
         const firestoreDoc = await getOrCreateUserProfile(
           firebaseUser.uid,
@@ -92,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           (firebaseUser.email ? firebaseUser.email.split("@")[0] : null) ||
           "Authenticated User";
 
-        setProfile({
+        const nextProfile: UserProfile = {
           id: firebaseUser.uid,
           display_name: cleanDisplayName,
           displayName: cleanDisplayName,
@@ -109,52 +199,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           leetcode_stats: firestoreDoc.leetcodeStats || firestoreDoc.leetcode_stats || null,
           leetcodeStats: firestoreDoc.leetcodeStats || firestoreDoc.leetcode_stats || null,
           githubToken: firestoreDoc.githubToken || null,
-        });
+        };
+        setProfile(nextProfile);
+        writeCachedAuthProfile(firebaseUser.uid, nextProfile);
       } catch {
-        if (tokenStr) {
-          try {
-            const res = await fetch("/api/profile", {
-              headers: { Authorization: `Bearer ${tokenStr}` },
-            });
-            if (res.ok) {
-              const data = await res.json();
-              const cleanDisplayName =
-                data.displayName ||
-                data.display_name ||
-                firebaseUser.displayName ||
-                (data.email ? data.email.split("@")[0] : null) ||
-                (firebaseUser.email ? firebaseUser.email.split("@")[0] : "Authenticated User");
-              setProfile({
-                id: data.uid || data.id || firebaseUser.uid,
-                display_name: cleanDisplayName,
-                displayName: cleanDisplayName,
-                avatar_url:
-                  data.avatarUrl ||
-                  data.avatar_url ||
-                  data.photoURL ||
-                  firebaseUser.photoURL ||
-                  null,
-                avatarUrl:
-                  data.avatarUrl ||
-                  data.avatar_url ||
-                  data.photoURL ||
-                  firebaseUser.photoURL ||
-                  null,
-                created_at: data.createdAt || new Date().toISOString(),
-                createdAt: data.createdAt || new Date().toISOString(),
-                leetcode_username: data.leetcodeUsername || data.leetcode_username || null,
-                leetcodeUsername: data.leetcodeUsername || data.leetcode_username || null,
-                leetcode_stats: data.leetcodeStats || data.leetcode_stats || null,
-                leetcodeStats: data.leetcodeStats || data.leetcode_stats || null,
-                githubToken: data.githubToken || null,
-              });
-              return;
-            }
-          } catch {
-            // Fall through to Firebase user profile
-          }
-        }
-        setProfile(buildFallbackProfileFromFirebaseUser(firebaseUser));
+        const fallback = buildFallbackProfileFromFirebaseUser(firebaseUser);
+        setProfile(fallback);
       }
     },
     [buildFallbackProfileFromFirebaseUser],
@@ -164,7 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (auth.currentUser) {
       const t = await auth.currentUser.getIdToken();
       setToken(t);
-      await fetchProfile(auth.currentUser, t);
+      await fetchProfile(auth.currentUser, t, false);
     } else {
       setUser(null);
       setToken(null);
@@ -189,8 +239,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Handled by caller or API fallback
     }
-    setProfile((prev) =>
-      prev
+    setProfile((prev) => {
+      const next = prev
         ? { ...prev, display_name: clean, displayName: clean }
         : {
             id: auth.currentUser!.uid,
@@ -199,8 +249,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             avatar_url: auth.currentUser!.photoURL || null,
             avatarUrl: auth.currentUser!.photoURL || null,
             created_at: new Date().toISOString(),
-          },
-    );
+          };
+      writeCachedAuthProfile(auth.currentUser!.uid, next);
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -210,10 +262,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       getRedirectResult(auth)
         .then(async (result) => {
           if (result?.user && isActive) {
-            const t = await result.user.getIdToken();
             setUser(result.user);
+            setProfile(buildFallbackProfileFromFirebaseUser(result.user));
+            setLoading(false);
+            const t = await result.user.getIdToken();
+            if (!isActive) return;
             setToken(t);
-            await fetchProfile(result.user, t);
+            await fetchProfile(result.user, t, false);
           }
         })
         .catch(() => {
@@ -223,21 +278,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (!isActive) return;
         if (firebaseUser && !firebaseUser.isAnonymous) {
+          // Immediately unblock AuthGuard & render cached/fallback profile in 0ms
+          const cachedProf = readCachedAuthProfile(firebaseUser.uid);
           setUser(firebaseUser);
+          setProfile(cachedProf || buildFallbackProfileFromFirebaseUser(firebaseUser));
+          setLoading(false);
+
           try {
             const t = await firebaseUser.getIdToken();
+            if (!isActive) return;
             setToken(t);
-            await fetchProfile(firebaseUser, t);
+            // If we already have a cached profile in localStorage, do not re-fetch on refresh
+            if (!cachedProf) {
+              await fetchProfile(firebaseUser, t, false);
+            }
           } catch {
+            if (!isActive) return;
             setToken(null);
-            setProfile(buildFallbackProfileFromFirebaseUser(firebaseUser));
           }
         } else {
           setUser(null);
           setToken(null);
           setProfile(null);
+          setLoading(false);
         }
-        setLoading(false);
       });
 
       return () => {
@@ -260,10 +324,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await signInWithPopup(auth, googleAuthProvider);
       if (result.user) {
-        const t = await result.user.getIdToken();
         setUser(result.user);
+        setProfile(buildFallbackProfileFromFirebaseUser(result.user));
+        setLoading(false);
+        const t = await result.user.getIdToken();
         setToken(t);
-        await fetchProfile(result.user, t);
+        await fetchProfile(result.user, t, false);
       }
     } catch (err: any) {
       if (err?.code === "auth/popup-blocked") {
@@ -274,7 +340,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [fetchProfile]);
+  }, [fetchProfile, buildFallbackProfileFromFirebaseUser]);
 
   const signOut = useCallback(async () => {
     try {

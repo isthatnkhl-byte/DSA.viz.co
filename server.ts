@@ -903,17 +903,22 @@ app.get("/api/statement", async (req: Request, res: Response) => {
 // API: List entire repository file tree
 
 // --- DB API Routes ---
+const REDIS_RETENTION_TTL = 60 * 60 * 24 * 7; // 7 days — retained until explicit Firebase resync or mutation
+
 app.get("/api/profile", requireAuth, async (req: any, res) => {
   try {
     const uid = req.user.uid;
+    const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
     const bearerToken = extractRequestBearerToken(req);
     const ghCookie = getGithubSessionCookie(req, uid);
     const cacheKey = `profile:${uid}`;
 
-    // 1. Try Redis cache first (merging live cookie token if present)
-    const cached = await getCache<any>(cacheKey);
-    if (cached && (cached.githubToken || !ghCookie?.githubToken)) {
-      return res.json(cached);
+    // 1. Return retained Redis cache immediately unless explicitly refreshed
+    if (!forceRefresh) {
+      const cached = await getCache<any>(cacheKey);
+      if (cached && (cached.githubToken || !ghCookie?.githubToken)) {
+        return res.json(cached);
+      }
     }
 
     const user = await getOrCreateUser(uid, req.user.email || null).catch(() => null);
@@ -1014,8 +1019,8 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
       leetcode_stats: cleanLcStats,
     };
 
-    // Cache in Redis for 1800s (30 minutes)
-    await setCache(cacheKey, payload, 1800).catch(() => {});
+    // Retain in Redis until explicitly resynced or mutated
+    await setCache(cacheKey, payload, REDIS_RETENTION_TTL).catch(() => {});
 
     res.json(payload);
   } catch (error) {
@@ -1030,6 +1035,72 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
       githubTokenConfigured: false,
       createdAt: new Date().toISOString(),
     });
+  }
+});
+
+// Unified Redis-retained Profile Telemetry Snapshot (returns retained data without hitting Firebase on refresh)
+app.get("/api/profile/snapshot", requireAuth, async (req: any, res) => {
+  try {
+    const uid = req.user.uid;
+    const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
+    const snapshotKey = `profile_snapshot:${uid}`;
+
+    if (!forceRefresh) {
+      const cachedSnapshot = await getCache<any>(snapshotKey);
+      if (cachedSnapshot && cachedSnapshot.profile) {
+        const ghCookie = getGithubSessionCookie(req, uid);
+        if (ghCookie?.githubToken && !cachedSnapshot.profile.githubToken) {
+          cachedSnapshot.profile = {
+            ...cachedSnapshot.profile,
+            githubToken: ghCookie.githubToken,
+            githubConnected: true,
+            github_connected: true,
+            githubUsername:
+              cachedSnapshot.profile.githubUsername || ghCookie.githubUsername || null,
+            githubAvatar:
+              cachedSnapshot.profile.githubAvatar || ghCookie.githubAvatar || null,
+          };
+        }
+        return res.json({ cached: true, snapshot: cachedSnapshot });
+      }
+    }
+
+    return res.json({ cached: false, snapshot: null });
+  } catch {
+    return res.json({ cached: false, snapshot: null });
+  }
+});
+
+app.post("/api/profile/snapshot", requireAuth, async (req: any, res) => {
+  try {
+    const uid = req.user.uid;
+    const snapshot = req.body?.snapshot;
+    if (!snapshot || typeof snapshot !== "object" || !snapshot.profile) {
+      return res.status(400).json({ error: "Valid snapshot payload required" });
+    }
+
+    const enrichedSnapshot = {
+      ...snapshot,
+      cachedAt: new Date().toISOString(),
+    };
+
+    await Promise.all([
+      setCache(`profile_snapshot:${uid}`, enrichedSnapshot, REDIS_RETENTION_TTL).catch(() => {}),
+      setCache(`profile:${uid}`, enrichedSnapshot.profile, REDIS_RETENTION_TTL).catch(() => {}),
+      ...(Array.isArray(enrichedSnapshot.submissions)
+        ? [
+            setCache(
+              `submissions:${uid}`,
+              enrichedSnapshot.submissions,
+              REDIS_RETENTION_TTL
+            ).catch(() => {}),
+          ]
+        : []),
+    ]);
+
+    res.json({ ok: true, cachedAt: enrichedSnapshot.cachedAt });
+  } catch {
+    res.status(500).json({ error: "Failed to persist profile snapshot to Redis" });
   }
 });
 
@@ -1050,20 +1121,35 @@ app.post("/api/profile/update", requireAuth, async (req: any, res) => {
     const updated = await updateProfile(uid, { displayName: clean, display_name: clean }).catch(() => null);
     await updateUser(uid, { displayName: clean, display_name: clean }).catch(() => null);
 
-    // Invalidate Redis profile cache so fresh data is loaded
-    await deleteCache(`profile:${uid}`).catch(() => {});
-    await deleteCache(`user:${uid}`).catch(() => {});
-
+    // Update Redis profile and retained snapshot in-place
+    const existingProfile = (await getCache<any>(`profile:${uid}`)) || {};
     const responsePayload = {
+      ...existingProfile,
       uid,
       ...(updated || {}),
       displayName: clean,
       display_name: clean,
     };
 
-    // Prime the cache with the updated profile
-    await setCache(`profile:${uid}`, responsePayload, 1800).catch(() => {});
-    await setCache(`user:${uid}`, responsePayload, 1800).catch(() => {});
+    await setCache(`profile:${uid}`, responsePayload, REDIS_RETENTION_TTL).catch(() => {});
+    await setCache(`user:${uid}`, responsePayload, REDIS_RETENTION_TTL).catch(() => {});
+
+    const existingSnapshot = await getCache<any>(`profile_snapshot:${uid}`);
+    if (existingSnapshot?.profile) {
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          profile: {
+            ...existingSnapshot.profile,
+            displayName: clean,
+            display_name: clean,
+          },
+          cachedAt: new Date().toISOString(),
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {});
+    }
 
     res.json({
       ok: true,
@@ -1105,9 +1191,11 @@ app.delete("/api/profile", requireAuth, async (req: any, res: Response) => {
     }
 
     // 3. Invalidate Redis caches
+    await deleteCache(`profile_snapshot:${uid}`).catch(() => {});
     await deleteCache(`profile:${uid}`).catch(() => {});
     await deleteCache(`user:${uid}`).catch(() => {});
     await deleteCache(`submissions:${uid}`).catch(() => {});
+    await deleteCache(`reports:${uid}`).catch(() => {});
 
     // 4. Mark profile cleared/deleted
     await updateProfile(uid, {
@@ -1152,18 +1240,48 @@ app.post("/api/sync-leetcode", requireAuth, async (req: any, res) => {
       return res.status(404).json({ error: `Could not load LeetCode data for "${cleanUsername}". Please verify the username is public.` });
     }
 
-    // Persist via DB if available
+    // Persist via DB & update retained Redis caches in-place
     try {
       if (req.user?.uid) {
-        await updateProfile(req.user.uid, {
+        const uid = req.user.uid;
+        await updateProfile(uid, {
           leetcodeUsername: cleanUsername,
           leetcode_username: cleanUsername,
           leetcodeStats: fetchedStats,
           leetcode_stats: fetchedStats,
         }).catch(() => null);
 
-        // Invalidate Redis profile cache to reflect fresh stats
-        await deleteCache(`profile:${req.user.uid}`).catch(() => {});
+        const existingProfile = (await getCache<any>(`profile:${uid}`)) || {};
+        await setCache(
+          `profile:${uid}`,
+          {
+            ...existingProfile,
+            leetcodeUsername: cleanUsername,
+            leetcode_username: cleanUsername,
+            leetcodeStats: fetchedStats,
+            leetcode_stats: fetchedStats,
+          },
+          REDIS_RETENTION_TTL
+        ).catch(() => {});
+
+        const existingSnapshot = await getCache<any>(`profile_snapshot:${uid}`);
+        if (existingSnapshot?.profile) {
+          await setCache(
+            `profile_snapshot:${uid}`,
+            {
+              ...existingSnapshot,
+              profile: {
+                ...existingSnapshot.profile,
+                leetcodeUsername: cleanUsername,
+                leetcode_username: cleanUsername,
+                leetcodeStats: fetchedStats,
+                leetcode_stats: fetchedStats,
+              },
+              cachedAt: new Date().toISOString(),
+            },
+            REDIS_RETENTION_TTL
+          ).catch(() => {});
+        }
       }
     } catch (e) {
       console.warn("Server-side DB update warning in /api/sync-leetcode:", e);
@@ -1179,7 +1297,17 @@ app.post("/api/sync-leetcode", requireAuth, async (req: any, res) => {
 
 app.get("/api/submissions", requireAuth, async (req: any, res) => {
   try {
-    const subs = await getSubmissions(req.user.uid).catch(() => []);
+    const uid = req.user.uid;
+    const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
+    const cacheKey = `submissions:${uid}`;
+    if (!forceRefresh) {
+      const cached = await getCache<any[]>(cacheKey);
+      if (Array.isArray(cached)) {
+        return res.json(cached);
+      }
+    }
+    const subs = await getSubmissions(uid).catch(() => []);
+    await setCache(cacheKey, subs, REDIS_RETENTION_TTL).catch(() => {});
     res.json(subs);
   } catch (error) {
     console.error("Failed to get submissions:", error);
@@ -1189,11 +1317,39 @@ app.get("/api/submissions", requireAuth, async (req: any, res) => {
 
 app.post("/api/submissions", requireAuth, async (req: any, res) => {
   try {
-    const sub = await addSubmission(req.user.uid, req.body).catch(() => ({
+    const uid = req.user.uid;
+    const sub = await addSubmission(uid, req.body).catch(() => ({
       id: "sub-" + Date.now(),
       ...req.body,
       createdAt: new Date().toISOString(),
     }));
+    const existingSubs = await getCache<any[]>(`submissions:${uid}`);
+    if (Array.isArray(existingSubs)) {
+      await setCache(`submissions:${uid}`, [sub, ...existingSubs], REDIS_RETENTION_TTL).catch(() => {});
+    }
+    const existingSnapshot = await getCache<any>(`profile_snapshot:${uid}`);
+    if (existingSnapshot && Array.isArray(existingSnapshot.submissions)) {
+      const nextSubs = [sub, ...existingSnapshot.submissions];
+      const completeRows = nextSubs.filter(
+        (r: any) => r.classification && r.classification !== "Incomplete"
+      );
+      const solved = new Set(completeRows.map((r: any) => r.slug)).size;
+      const optimal = new Set(
+        completeRows.filter((r: any) => r.classification === "Optimal").map((r: any) => r.slug)
+      ).size;
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          submissions: nextSubs,
+          attempts: nextSubs.length,
+          solved,
+          optimal,
+          cachedAt: new Date().toISOString(),
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {});
+    }
     res.json(sub);
   } catch (error) {
     console.error("Failed to add submission:", error);
@@ -1203,7 +1359,42 @@ app.post("/api/submissions", requireAuth, async (req: any, res) => {
 
 app.delete("/api/submissions/:id", requireAuth, async (req: any, res) => {
   try {
-    await deleteSubmission(req.user.uid, req.params.id).catch(() => {});
+    const uid = req.user.uid;
+    const targetId = String(req.params.id);
+    await deleteSubmission(uid, targetId).catch(() => {});
+    const existingSubs = await getCache<any[]>(`submissions:${uid}`);
+    if (Array.isArray(existingSubs)) {
+      await setCache(
+        `submissions:${uid}`,
+        existingSubs.filter((s: any) => String(s?.id) !== targetId),
+        REDIS_RETENTION_TTL
+      ).catch(() => {});
+    }
+    const existingSnapshot = await getCache<any>(`profile_snapshot:${uid}`);
+    if (existingSnapshot && Array.isArray(existingSnapshot.submissions)) {
+      const nextSubs = existingSnapshot.submissions.filter(
+        (s: any) => String(s?.id) !== targetId
+      );
+      const completeRows = nextSubs.filter(
+        (r: any) => r.classification && r.classification !== "Incomplete"
+      );
+      const solved = new Set(completeRows.map((r: any) => r.slug)).size;
+      const optimal = new Set(
+        completeRows.filter((r: any) => r.classification === "Optimal").map((r: any) => r.slug)
+      ).size;
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          submissions: nextSubs,
+          attempts: nextSubs.length,
+          solved,
+          optimal,
+          cachedAt: new Date().toISOString(),
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {});
+    }
     res.json({ success: true });
   } catch (error) {
     console.error("Failed to delete submission:", error);
@@ -2043,6 +2234,31 @@ Return a strictly valid JSON object matching this schema:
           reportData,
         });
         savedReportId = saved.id;
+        const normalizedSaved = {
+          id: saved.id,
+          ...reportData,
+          createdAt: saved.createdAt || new Date().toISOString(),
+        };
+        const existingReports = await getCache<any[]>(`reports:${userId}`);
+        if (Array.isArray(existingReports)) {
+          await setCache(
+            `reports:${userId}`,
+            [normalizedSaved, ...existingReports],
+            REDIS_RETENTION_TTL
+          ).catch(() => {});
+        }
+        const existingSnapshot = await getCache<any>(`profile_snapshot:${userId}`);
+        if (existingSnapshot && Array.isArray(existingSnapshot.aiReports)) {
+          await setCache(
+            `profile_snapshot:${userId}`,
+            {
+              ...existingSnapshot,
+              aiReports: [normalizedSaved, ...existingSnapshot.aiReports],
+              cachedAt: new Date().toISOString(),
+            },
+            REDIS_RETENTION_TTL
+          ).catch(() => {});
+        }
       } catch (saveErr) {
         console.warn("Could not save AI report to Firestore:", saveErr);
       }
@@ -2069,7 +2285,17 @@ Return a strictly valid JSON object matching this schema:
 // API: Get User's Past Saved Diagnostic Reports
 app.get("/api/user-reports", requireAuth, async (req: any, res: Response) => {
   try {
-    const reports = await getUserAiReports(req.user.uid);
+    const uid = req.user.uid;
+    const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
+    const cacheKey = `reports:${uid}`;
+    if (!forceRefresh) {
+      const cached = await getCache<any[]>(cacheKey);
+      if (Array.isArray(cached)) {
+        return res.json(cached);
+      }
+    }
+    const reports = await getUserAiReports(uid);
+    await setCache(cacheKey, reports, REDIS_RETENTION_TTL).catch(() => {});
     res.json(reports);
   } catch (error) {
     console.error("Failed to get user AI reports:", error);
@@ -2574,8 +2800,43 @@ app.get("/api/github/callback", async (req, res) => {
       });
     }
 
-    // Invalidate Redis profile cache so fresh data is loaded
-    await deleteCache(`profile:${uid}`).catch(() => {});
+    // Update Redis profile & snapshot caches in-place so connected GitHub state is retained immediately
+    const existingProfile = (await getCache<any>(`profile:${uid}`)) || {};
+    await setCache(
+      `profile:${uid}`,
+      {
+        ...existingProfile,
+        githubToken: encryptedToken,
+        githubConnected: true,
+        githubUsername: ghUsername,
+        githubAvatar: ghAvatar,
+        githubUrl: ghUrl,
+      },
+      REDIS_RETENTION_TTL
+    ).catch(() => {});
+
+    const existingSnapshot = await getCache<any>(`profile_snapshot:${uid}`);
+    if (existingSnapshot?.profile) {
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          profile: {
+            ...existingSnapshot.profile,
+            githubToken: encryptedToken,
+            githubConnected: true,
+            github_connected: true,
+            githubUsername: ghUsername,
+            github_username: ghUsername,
+            githubAvatar: ghAvatar,
+            github_avatar: ghAvatar,
+            githubUrl: ghUrl,
+          },
+          cachedAt: new Date().toISOString(),
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {});
+    }
 
     const syncPayloadBase64 = Buffer.from(
       JSON.stringify({
@@ -2672,7 +2933,42 @@ app.post("/api/github/disconnect", requireAuth, async (req: any, res) => {
         githubUrl: null,
       });
     }
-    await deleteCache(`profile:${uid}`).catch(() => {});
+    const existingProfile = (await getCache<any>(`profile:${uid}`)) || {};
+    await setCache(
+      `profile:${uid}`,
+      {
+        ...existingProfile,
+        githubToken: null,
+        githubConnected: false,
+        githubUsername: null,
+        githubAvatar: null,
+        githubUrl: null,
+      },
+      REDIS_RETENTION_TTL
+    ).catch(() => {});
+
+    const existingSnapshot = await getCache<any>(`profile_snapshot:${uid}`);
+    if (existingSnapshot?.profile) {
+      await setCache(
+        `profile_snapshot:${uid}`,
+        {
+          ...existingSnapshot,
+          profile: {
+            ...existingSnapshot.profile,
+            githubToken: null,
+            githubConnected: false,
+            github_connected: false,
+            githubUsername: null,
+            github_username: null,
+            githubAvatar: null,
+            github_avatar: null,
+            githubUrl: null,
+          },
+          cachedAt: new Date().toISOString(),
+        },
+        REDIS_RETENTION_TTL
+      ).catch(() => {});
+    }
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: "Failed to disconnect GitHub" });

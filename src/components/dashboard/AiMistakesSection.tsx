@@ -69,32 +69,35 @@ export interface AiReportData {
 
 export interface AiMistakesSectionProps {
   className?: string;
+  initialReports?: AiReportData[];
 }
 
-export function AiMistakesSection({ className = "" }: AiMistakesSectionProps = {}) {
+export function AiMistakesSection({
+  className = "",
+  initialReports,
+}: AiMistakesSectionProps = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [selectedReport, setSelectedReport] = useState<AiReportData | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Fetch past saved reports from Firestore (client SDK + server API merged)
-  const { data: pastReports = [], isLoading: reportsLoading } = useQuery({
-    queryKey: ["user-ai-reports"],
+  // Fetch past saved reports from Redis-retained server API first
+  const { data: fetchedReports = [], isLoading: reportsLoading } = useQuery({
+    queryKey: ["user-ai-reports", user?.uid || "guest"],
+    initialData: Array.isArray(initialReports) && initialReports.length > 0 ? initialReports : undefined,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
+      if (Array.isArray(initialReports) && initialReports.length > 0) {
+        return initialReports;
+      }
       const auth = getAuth();
       const currentUser = auth.currentUser;
       const token = await currentUser?.getIdToken().catch(() => null);
-
-      let clientReports: any[] = [];
-      if (currentUser) {
-        try {
-          const { getUserAiReports } = await import("@/lib/firestore-service");
-          clientReports = await getUserAiReports(currentUser.uid);
-        } catch {
-          // Ignore client Firestore fallback error
-        }
-      }
 
       let serverReports: any[] = [];
       if (token) {
@@ -111,8 +114,18 @@ export function AiMistakesSection({ className = "" }: AiMistakesSectionProps = {
         }
       }
 
+      let clientReports: any[] = [];
+      if (serverReports.length === 0 && currentUser) {
+        try {
+          const { getUserAiReports } = await import("@/lib/firestore-service");
+          clientReports = await getUserAiReports(currentUser.uid);
+        } catch {
+          // Ignore client Firestore fallback error
+        }
+      }
+
       const mergedMap = new Map<string, any>();
-      for (const r of [...clientReports, ...serverReports]) {
+      for (const r of [...serverReports, ...clientReports]) {
         if (!r) continue;
         const key = String(r.id || `${r.reportTitle || ""}_${(r.createdAt || r.generatedAt || "").slice(0, 16)}`);
         if (!mergedMap.has(key)) {
@@ -127,6 +140,11 @@ export function AiMistakesSection({ className = "" }: AiMistakesSectionProps = {
     },
     enabled: !!user,
   });
+
+  const pastReports =
+    Array.isArray(initialReports) && initialReports.length > 0 && fetchedReports.length === 0
+      ? initialReports
+      : fetchedReports;
 
   // Generate new report mutation
   const generateMutation = useMutation({
@@ -158,9 +176,15 @@ export function AiMistakesSection({ className = "" }: AiMistakesSectionProps = {
     },
     onSuccess: (data) => {
       setSelectedReport(data);
-      queryClient.invalidateQueries({ queryKey: ["user-ai-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-      toast.success("AI Common Mistakes Report generated and synced to Firebase!");
+      queryClient.setQueryData(["user-ai-reports", user?.uid || "guest"], (old: any) =>
+        Array.isArray(old) ? [data, ...old] : [data]
+      );
+      queryClient.setQueryData(["profile-stats", user?.uid || "guest"], (old: any) => {
+        if (!old) return old;
+        const nextReports = Array.isArray(old.aiReports) ? [data, ...old.aiReports] : [data];
+        return { ...old, aiReports: nextReports };
+      });
+      toast.success("AI Common Mistakes Report generated and retained in Redis + Firebase!");
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to generate diagnostic report");

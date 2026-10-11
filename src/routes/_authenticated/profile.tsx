@@ -52,8 +52,6 @@ import { Input } from "@/components/ui/input";
 import { Visualizer } from "@/components/Visualizer";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
-import { doc, collection, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import {
   getOrCreateUserProfile,
   updateUserProfile,
@@ -128,8 +126,183 @@ function formatShortRelativeTime(ts?: string | number | null): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function getProfileSnapshotStorageKey(uid: string): string {
+  return `dsaviz_profile_snapshot_v2_${uid}`;
+}
+
+function readCachedProfileSnapshot(uid?: string | null): any | null {
+  try {
+    if (!uid || typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(getProfileSnapshotStorageKey(uid));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && parsed.profile ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedProfileSnapshot(uid: string | undefined | null, snapshot: any): void {
+  try {
+    if (!uid || !snapshot || typeof window === "undefined") return;
+    window.localStorage.setItem(getProfileSnapshotStorageKey(uid), JSON.stringify(snapshot));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+function applyLocalOverridesToSnapshot(snapshot: any, uid?: string | null, hashGithub?: any): any {
+  if (!snapshot || !snapshot.profile) return snapshot;
+  const savedDisplayName =
+    typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_display_name_${uid}`) ||
+        localStorage.getItem("dsa_viz_display_name")
+      : null;
+  const localGhConnected =
+    typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_github_connected_${uid}`) === "true"
+      : false;
+  const localGhToken =
+    typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_github_token_${uid}`)
+      : null;
+  const localGhUsername =
+    typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_github_username_${uid}`)
+      : null;
+  const localGhAvatar =
+    typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_github_avatar_${uid}`)
+      : null;
+
+  const ghUsername =
+    hashGithub?.githubUsername || snapshot.profile.githubUsername || localGhUsername || null;
+  const ghAvatar =
+    hashGithub?.githubAvatar || snapshot.profile.githubAvatar || localGhAvatar || null;
+  const ghToken =
+    hashGithub?.githubToken || snapshot.profile.githubToken || localGhToken || null;
+  const ghConnected =
+    Boolean(hashGithub?.githubConnected) ||
+    Boolean(snapshot.profile.githubConnected) ||
+    Boolean(ghToken) ||
+    Boolean(ghUsername) ||
+    localGhConnected;
+  const ghUrl =
+    hashGithub?.githubUrl ||
+    snapshot.profile.githubUrl ||
+    (ghUsername ? `https://github.com/${ghUsername}` : null);
+  const displayName =
+    savedDisplayName || snapshot.profile.displayName || snapshot.profile.display_name;
+
+  return {
+    ...snapshot,
+    profile: {
+      ...snapshot.profile,
+      displayName,
+      display_name: displayName,
+      githubConnected: ghConnected,
+      github_connected: ghConnected,
+      githubToken: ghToken,
+      githubUsername: ghUsername,
+      github_username: ghUsername,
+      githubAvatar: ghAvatar,
+      github_avatar: ghAvatar,
+      githubUrl: ghUrl,
+    },
+  };
+}
+
+function buildInstantFallbackSnapshot(firebaseUser: any, authProfile: any): any {
+  const uid = firebaseUser?.uid || authProfile?.id || "";
+  const cached = readCachedProfileSnapshot(uid);
+  if (cached) {
+    return applyLocalOverridesToSnapshot(cached, uid);
+  }
+
+  const savedDisplayName =
+    typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_display_name_${uid}`) ||
+        localStorage.getItem("dsa_viz_display_name")
+      : null;
+  const displayName =
+    savedDisplayName ||
+    authProfile?.displayName ||
+    authProfile?.display_name ||
+    firebaseUser?.displayName ||
+    (firebaseUser?.email ? firebaseUser.email.split("@")[0] : "Authenticated User");
+  const avatarUrl =
+    authProfile?.avatarUrl || authProfile?.avatar_url || firebaseUser?.photoURL || null;
+  const leetcodeUsername =
+    authProfile?.leetcodeUsername || authProfile?.leetcode_username || null;
+  const leetcodeStats = authProfile?.leetcodeStats || authProfile?.leetcode_stats || null;
+  const ghToken =
+    authProfile?.githubToken ||
+    (typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_github_token_${uid}`)
+      : null) ||
+    null;
+  const ghUsername =
+    typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_github_username_${uid}`)
+      : null;
+  const ghAvatar =
+    typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_github_avatar_${uid}`)
+      : null;
+  const ghConnected =
+    Boolean(ghToken) ||
+    Boolean(ghUsername) ||
+    (typeof window !== "undefined" && uid
+      ? localStorage.getItem(`dsa_viz_github_connected_${uid}`) === "true"
+      : false);
+
+  let keyVaultStatus: any = null;
+  try {
+    if (typeof window !== "undefined" && uid) {
+      const rawVault = localStorage.getItem(`dsaviz:vault_public_status:${uid}`);
+      if (rawVault) keyVaultStatus = JSON.parse(rawVault);
+    }
+  } catch {}
+
+  return {
+    profile: {
+      id: uid,
+      displayName,
+      display_name: displayName,
+      avatarUrl,
+      avatar_url: avatarUrl,
+      leetcodeUsername,
+      leetcode_username: leetcodeUsername,
+      leetcodeStats,
+      leetcode_stats: leetcodeStats,
+      githubConnected: ghConnected,
+      github_connected: ghConnected,
+      githubToken: ghToken,
+      githubUsername: ghUsername,
+      github_username: ghUsername,
+      githubAvatar: ghAvatar,
+      github_avatar: ghAvatar,
+      githubUrl: ghUsername ? `https://github.com/${ghUsername}` : null,
+      solvedCount: 0,
+      optimalCount: 0,
+      attemptsCount: 0,
+    },
+    submissions: [],
+    aiReports: [],
+    keyVaultStatus,
+    attempts: 0,
+    solved: 0,
+    optimal: 0,
+    easy: 0,
+    medium: 0,
+    hard: 0,
+    cachedAt: null,
+    source: "instant",
+  };
+}
+
 function ProfilePage() {
-  const { user, token, refreshProfile, updateNickname, signOut } = useAuth();
+  const { user, profile: authProfile, token, refreshProfile, updateNickname, signOut } = useAuth();
   const queryClient = useQueryClient();
 
   const [inputUsername, setInputUsername] = useState("");
@@ -146,7 +319,14 @@ function ProfilePage() {
   const [isConnectingGithub, setIsConnectingGithub] = useState(false);
   const [isPushingGithub, setIsPushingGithub] = useState(false);
   const [isSyncingFirebase, setIsSyncingFirebase] = useState(false);
-  const [lastFirebaseSyncAt, setLastFirebaseSyncAt] = useState<string | null>(null);
+  const [lastFirebaseSyncAt, setLastFirebaseSyncAt] = useState<string | null>(() => {
+    const cached = readCachedProfileSnapshot(getAuth().currentUser?.uid);
+    return cached?.cachedAt || null;
+  });
+
+  // Strictly false on normal page loads/refreshes so Redis retains data without re-fetching Firebase.
+  // Only set to true when the user explicitly clicks "RESYNC FIREBASE".
+  const forceFirebaseResyncRef = useRef(false);
 
   const [cookieModalOpen, setCookieModalOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -178,55 +358,117 @@ function ProfilePage() {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // Real-time Firebase Firestore listener on user profile, submissions, and AI reports
-  useEffect(() => {
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
-    if (!currentUser?.uid) return;
+  const persistSnapshotToRedisAndLocal = useCallback(
+    async (uid: string | undefined | null, snapshot: any, bearerToken?: string | null) => {
+      if (!uid || !snapshot) return;
+      writeCachedProfileSnapshot(uid, snapshot);
+      const tok =
+        bearerToken ||
+        (await getAuth()
+          .currentUser?.getIdToken()
+          .catch(() => token)) ||
+        token;
+      if (tok) {
+        await fetch("/api/profile/snapshot", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tok}`,
+          },
+          body: JSON.stringify(snapshot),
+        }).catch(() => {});
+      }
+    },
+    [token]
+  );
 
-    const uid = currentUser.uid;
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const triggerRefresh = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        setLastFirebaseSyncAt(new Date().toISOString());
-        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-      }, 350);
-    };
+  const updateRetainedSnapshot = useCallback(
+    (updater: (prev: any) => any) => {
+      const uid = user?.uid || getAuth().currentUser?.uid || "guest";
+      queryClient.setQueryData(["profile-stats", uid], (old: any) => {
+        const base = old || readCachedProfileSnapshot(uid);
+        if (!base) return old;
+        const next = {
+          ...updater(base),
+          cachedAt: new Date().toISOString(),
+        };
+        if (uid !== "guest") {
+          void persistSnapshotToRedisAndLocal(uid, next);
+        }
+        return next;
+      });
+    },
+    [user?.uid, queryClient, persistSnapshotToRedisAndLocal]
+  );
 
-    const unsubProfile = onSnapshot(
-      doc(db, "users", uid),
-      () => triggerRefresh(),
-      () => {}
-    );
-    const unsubSubs = onSnapshot(
-      collection(db, "users", uid, "submissions"),
-      () => triggerRefresh(),
-      () => {}
-    );
-    const unsubReports = onSnapshot(
-      collection(db, "users", uid, "ai_reports"),
-      () => triggerRefresh(),
-      () => {}
-    );
+  const queryUid = user?.uid || "guest";
 
-    return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      unsubProfile();
-      unsubSubs();
-      unsubReports();
-    };
-  }, [user?.uid, queryClient]);
-
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["profile-stats"],
+  const { data: rawData, refetch } = useQuery({
+    queryKey: ["profile-stats", queryUid],
+    initialData: () => (user?.uid ? readCachedProfileSnapshot(user.uid) ?? undefined : undefined),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
       const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const currentUser = auth.currentUser || user;
+      const uid = currentUser?.uid;
       const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
+      const forceFirebase = forceFirebaseResyncRef.current;
+      forceFirebaseResyncRef.current = false;
 
-      const hashGithub = await consumeGithubSyncFromHash(currentUser?.uid);
+      const hashGithub = await consumeGithubSyncFromHash(uid);
 
+      // 1. STRICT REDIS RETENTION PATH (On normal load or refresh when forceFirebase is false)
+      if (!forceFirebase) {
+        // 1a. Check server Redis snapshot first (/api/profile/snapshot)
+        if (currentToken) {
+          try {
+            const snapRes = await fetch("/api/profile/snapshot", {
+              headers: { Authorization: `Bearer ${currentToken}` },
+            });
+            if (snapRes.ok) {
+              const snapJson = await snapRes.json();
+              if (snapJson?.cached && snapJson?.snapshot?.profile) {
+                const retained = applyLocalOverridesToSnapshot(
+                  snapJson.snapshot,
+                  uid,
+                  hashGithub
+                );
+                if (uid) {
+                  writeCachedProfileSnapshot(uid, retained);
+                  if (hashGithub) {
+                    void persistSnapshotToRedisAndLocal(uid, retained, currentToken);
+                  }
+                }
+                if (retained.cachedAt) {
+                  setLastFirebaseSyncAt(retained.cachedAt);
+                }
+                return retained;
+              }
+            }
+          } catch {
+            // Fall through to local snapshot check
+          }
+        }
+
+        // 1b. If Redis was cold-started or unreachable, check client retained snapshot before hitting Firebase
+        if (uid) {
+          const localSnap = readCachedProfileSnapshot(uid);
+          if (localSnap && localSnap.profile) {
+            const retained = applyLocalOverridesToSnapshot(localSnap, uid, hashGithub);
+            void persistSnapshotToRedisAndLocal(uid, retained, currentToken);
+            if (retained.cachedAt) {
+              setLastFirebaseSyncAt(retained.cachedAt);
+            }
+            return retained;
+          }
+        }
+      }
+
+      // 2. EXPLICIT FIREBASE RESYNC OR FIRST-TIME CACHE SEED
       let clientProfile: any = null;
       let clientSubs: any[] = [];
       let clientAiReports: any[] = [];
@@ -249,12 +491,19 @@ function ProfilePage() {
       let serverSubs: any[] = [];
       let serverAiReports: any[] = [];
       let keyVaultStatus: any = null;
+      const refreshParam = forceFirebase ? "?refresh=1" : "";
       if (currentToken) {
         try {
           const [profileRes, subsRes, reportsRes, vaultRes] = await Promise.all([
-            fetch("/api/profile", { headers: { Authorization: `Bearer ${currentToken}` } }),
-            fetch("/api/submissions", { headers: { Authorization: `Bearer ${currentToken}` } }),
-            fetch("/api/user-reports", { headers: { Authorization: `Bearer ${currentToken}` } }),
+            fetch(`/api/profile${refreshParam}`, {
+              headers: { Authorization: `Bearer ${currentToken}` },
+            }),
+            fetch(`/api/submissions${refreshParam}`, {
+              headers: { Authorization: `Bearer ${currentToken}` },
+            }),
+            fetch(`/api/user-reports${refreshParam}`, {
+              headers: { Authorization: `Bearer ${currentToken}` },
+            }),
             fetch("/api/user-keys/status", {
               headers: { Authorization: `Bearer ${currentToken}` },
             }),
@@ -519,9 +768,10 @@ function ProfilePage() {
         }
       }
 
-      setLastFirebaseSyncAt(new Date().toISOString());
+      const nowIso = new Date().toISOString();
+      setLastFirebaseSyncAt(nowIso);
 
-      return {
+      const snapshotResult = {
         profile,
         submissions: subsArray,
         aiReports,
@@ -532,10 +782,49 @@ function ProfilePage() {
         easy: byDifficulty.Easy.size,
         medium: byDifficulty.Medium.size,
         hard: byDifficulty.Hard.size,
+        cachedAt: nowIso,
+        source: "firebase",
       };
+
+      // Persist snapshot to Redis & localStorage so subsequent refreshes load instantly from Redis without re-fetching Firebase
+      if (uid) {
+        void persistSnapshotToRedisAndLocal(uid, snapshotResult, currentToken);
+      }
+
+      return snapshotResult;
     },
     enabled: !!user || !!token,
   });
+
+  // Always provide immediate non-null data when user is logged in (0ms render, no blocking spinner)
+  const data = useMemo(
+    () => rawData || (user ? buildInstantFallbackSnapshot(user, authProfile) : null),
+    [rawData, user, authProfile]
+  );
+
+  // If URL hash contains a fresh GitHub OAuth payload (#gh_sync=...), consume and persist it immediately into Redis + local cache
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.location.hash.includes("gh_sync=")) return;
+    const uid = user?.uid || getAuth().currentUser?.uid;
+    void consumeGithubSyncFromHash(uid).then((ghPayload) => {
+      if (ghPayload) {
+        updateRetainedSnapshot((prev) => ({
+          ...prev,
+          profile: {
+            ...prev.profile,
+            githubConnected: true,
+            github_connected: true,
+            githubToken: ghPayload.githubToken || prev.profile?.githubToken || null,
+            githubUsername: ghPayload.githubUsername || prev.profile?.githubUsername || null,
+            github_username: ghPayload.githubUsername || prev.profile?.githubUsername || null,
+            githubAvatar: ghPayload.githubAvatar || prev.profile?.githubAvatar || null,
+            github_avatar: ghPayload.githubAvatar || prev.profile?.githubAvatar || null,
+            githubUrl: ghPayload.githubUrl || prev.profile?.githubUrl || null,
+          },
+        }));
+      }
+    });
+  }, [user?.uid, updateRetainedSnapshot]);
 
   const handleManualFirebaseSync = useCallback(async () => {
     setIsSyncingFirebase(true);
@@ -563,12 +852,15 @@ function ProfilePage() {
           attemptsCount: data.attempts,
         });
       }
+      // Strictly unlock Firebase resync and update Redis cache with fresh Firestore data
+      forceFirebaseResyncRef.current = true;
       await refetch();
       setLastFirebaseSyncAt(new Date().toISOString());
-      toast.success("Synced profile, submissions, and telemetry with Firebase Firestore!");
+      toast.success("Resynced with Firebase Firestore & updated Redis retention cache!");
     } catch (err: any) {
       toast.error(err?.message || "Could not complete Firebase sync");
     } finally {
+      forceFirebaseResyncRef.current = false;
       setIsSyncingFirebase(false);
     }
   }, [data, refetch]);
@@ -606,6 +898,9 @@ function ProfilePage() {
         },
       });
       if (!res.ok) throw new Error("Failed to delete account");
+      if (user?.uid && typeof window !== "undefined") {
+        localStorage.removeItem(getProfileSnapshotStorageKey(user.uid));
+      }
       toast.success("Account and associated data deleted permanently.");
       await signOut();
       window.location.href = "/";
@@ -647,30 +942,40 @@ function ProfilePage() {
           headers: { Authorization: `Bearer ${currentToken}` },
         }).catch(() => {});
       }
-      toast.success("GitHub disconnected and synced with Firebase");
-      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-      refetch();
+      updateRetainedSnapshot((prev) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          githubConnected: false,
+          github_connected: false,
+          githubToken: null,
+          githubUsername: null,
+          github_username: null,
+          githubAvatar: null,
+          github_avatar: null,
+          githubUrl: null,
+        },
+      }));
+      toast.success("GitHub disconnected and retained in Redis + Firebase");
     } catch {
       toast.error("Failed to disconnect GitHub");
     }
   };
 
   useEffect(() => {
-    void resumePendingGithubPushIfPresent().then(() => {
-      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-    });
+    void resumePendingGithubPushIfPresent();
 
     const handleMessage = async (event: MessageEvent) => {
       const msgType = event.data?.type;
       if (msgType === "GITHUB_AUTH_SUCCESS" || msgType === "GITHUB_CONNECTED") {
         const auth = getAuth();
         const currentUser = auth.currentUser;
+        const ghUsername = event.data?.githubUsername || null;
+        const ghAvatar = event.data?.githubAvatar || null;
+        const ghToken = event.data?.githubToken || null;
+        const ghUrl =
+          event.data?.githubUrl || (ghUsername ? `https://github.com/${ghUsername}` : null);
         if (currentUser) {
-          const ghUsername = event.data?.githubUsername || null;
-          const ghAvatar = event.data?.githubAvatar || null;
-          const ghToken = event.data?.githubToken || null;
-          const ghUrl =
-            event.data?.githubUrl || (ghUsername ? `https://github.com/${ghUsername}` : null);
           await persistGithubAuthToClient(currentUser.uid, {
             uid: currentUser.uid,
             githubConnected: true,
@@ -680,24 +985,47 @@ function ProfilePage() {
             githubUrl: ghUrl,
           });
         }
-        toast.success("GitHub connected & synced to Firebase!");
-        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-        queryClient.invalidateQueries({ queryKey: ["profileStats"] });
-        refetch();
+        updateRetainedSnapshot((prev) => ({
+          ...prev,
+          profile: {
+            ...prev.profile,
+            githubConnected: true,
+            github_connected: true,
+            githubToken: ghToken || prev.profile?.githubToken || null,
+            githubUsername: ghUsername || prev.profile?.githubUsername || null,
+            github_username: ghUsername || prev.profile?.githubUsername || null,
+            githubAvatar: ghAvatar || prev.profile?.githubAvatar || null,
+            github_avatar: ghAvatar || prev.profile?.githubAvatar || null,
+            githubUrl: ghUrl || prev.profile?.githubUrl || null,
+          },
+        }));
+        toast.success("GitHub connected & retained in Redis + Firebase!");
       }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [queryClient, refetch]);
+  }, [updateRetainedSnapshot]);
 
   const handleConnectGithub = async () => {
     setIsConnectingGithub(true);
     try {
       const res = await connectGithubWithPopupOrRedirect({ returnTo: "/profile" });
       if (res.connected) {
+        updateRetainedSnapshot((prev) => ({
+          ...prev,
+          profile: {
+            ...prev.profile,
+            githubConnected: true,
+            github_connected: true,
+            githubToken: res.payload?.githubToken || prev.profile?.githubToken || null,
+            githubUsername: res.payload?.githubUsername || prev.profile?.githubUsername || null,
+            github_username: res.payload?.githubUsername || prev.profile?.githubUsername || null,
+            githubAvatar: res.payload?.githubAvatar || prev.profile?.githubAvatar || null,
+            github_avatar: res.payload?.githubAvatar || prev.profile?.githubAvatar || null,
+            githubUrl: res.payload?.githubUrl || prev.profile?.githubUrl || null,
+          },
+        }));
         toast.success("GitHub account connected & encrypted token synced!");
-        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-        await refetch();
       }
     } catch (e: any) {
       console.error("GitHub connect error:", e);
@@ -759,8 +1087,6 @@ function ProfilePage() {
             onClick: () => window.open(result.url, "_blank"),
           },
         });
-        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-        await refetch();
       }
     } catch (e: any) {
       toast.error(e?.message || "Failed to push to GitHub");
@@ -808,10 +1134,19 @@ function ProfilePage() {
 
       return resData;
     },
-    onSuccess: () => {
-      toast.success("LeetCode profile & heatmap synced with Firebase!");
-      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["profileStats"] });
+    onSuccess: (resData, rawUsername) => {
+      const cleanLcUsername = resData?.username || rawUsername;
+      updateRetainedSnapshot((prev) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          leetcodeUsername: cleanLcUsername,
+          leetcode_username: cleanLcUsername,
+          leetcodeStats: resData?.stats || prev.profile?.leetcodeStats || null,
+          leetcode_stats: resData?.stats || prev.profile?.leetcode_stats || null,
+        },
+      }));
+      toast.success("LeetCode profile & heatmap synced and retained in Redis!");
       refreshProfile();
       setEditingLc(false);
       setInputUsername("");
@@ -866,31 +1201,15 @@ function ProfilePage() {
     },
     onSuccess: (_res, newUsername) => {
       setCustomHandle(newUsername);
-      toast.success("Username handle updated & synced with Firebase!");
-      queryClient.setQueryData(["profile-stats"], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          profile: {
-            ...old.profile,
-            displayName: newUsername,
-            display_name: newUsername,
-          },
-        };
-      });
-      queryClient.setQueryData(["profileStats"], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          profile: {
-            ...old.profile,
-            displayName: newUsername,
-            display_name: newUsername,
-          },
-        };
-      });
-      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["profileStats"] });
+      updateRetainedSnapshot((prev) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          displayName: newUsername,
+          display_name: newUsername,
+        },
+      }));
+      toast.success("Username handle updated & retained in Redis + Firebase!");
       refreshProfile();
       setEditingUsername(false);
     },
@@ -1420,7 +1739,7 @@ function ProfilePage() {
   const optimalRatePct =
     data && data.solved > 0 ? Math.round((data.optimal / data.solved) * 100) : 0;
 
-  // Delete Saved Submission Mutation (Firebase Firestore + Server API)
+  // Delete Saved Submission Mutation (Firebase Firestore + Server API + Redis Snapshot Retention)
   const deleteSubmissionMutation = useMutation({
     mutationFn: async (submissionId: string) => {
       const auth = getAuth();
@@ -1453,9 +1772,44 @@ function ProfilePage() {
       if (openSubmissionId === deletedId) {
         setOpenSubmissionId(null);
       }
-      toast.success("Submission deleted from Firebase Firestore.");
-      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["profileStats"] });
+      updateRetainedSnapshot((prev) => {
+        const nextSubs = Array.isArray(prev.submissions)
+          ? prev.submissions.filter((s: any) => String(s?.id) !== String(deletedId))
+          : [];
+        const completeRows = nextSubs.filter(
+          (r: any) => r.classification && r.classification !== "Incomplete"
+        );
+        const solved = new Set(completeRows.map((r: any) => r.slug)).size;
+        const optimal = new Set(
+          completeRows.filter((r: any) => r.classification === "Optimal").map((r: any) => r.slug)
+        ).size;
+        const easy = new Set(
+          completeRows
+            .filter((r: any) => String(r.difficulty).toLowerCase() === "easy")
+            .map((r: any) => r.slug)
+        ).size;
+        const medium = new Set(
+          completeRows
+            .filter((r: any) => String(r.difficulty).toLowerCase() === "medium")
+            .map((r: any) => r.slug)
+        ).size;
+        const hard = new Set(
+          completeRows
+            .filter((r: any) => String(r.difficulty).toLowerCase() === "hard")
+            .map((r: any) => r.slug)
+        ).size;
+        return {
+          ...prev,
+          submissions: nextSubs,
+          attempts: nextSubs.length,
+          solved,
+          optimal,
+          easy,
+          medium,
+          hard,
+        };
+      });
+      toast.success("Submission deleted from Firebase & Redis retention cache.");
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to delete submission.");
@@ -1735,18 +2089,18 @@ function ProfilePage() {
               className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer"
               title={
                 lastFirebaseSyncAt
-                  ? `Last synced with Firebase Firestore: ${new Date(
+                  ? `Data retained in Redis cache (Last Firebase sync: ${new Date(
                       lastFirebaseSyncAt
-                    ).toLocaleTimeString()}`
-                  : "Click to force two-way sync with Firebase Firestore"
+                    ).toLocaleTimeString()}). Click to force a live two-way resync from Firebase Firestore.`
+                  : "Data retained in Redis cache. Click to force a live two-way resync from Firebase Firestore."
               }
             >
               <RefreshCw className={`size-3 ${isSyncingFirebase ? "animate-spin" : ""}`} />
               <span>
                 {isSyncingFirebase
-                  ? "SYNCING FIREBASE…"
-                  : `FIREBASE LIVE${
-                      lastFirebaseSyncAt ? ` • ${formatShortRelativeTime(lastFirebaseSyncAt)}` : ""
+                  ? "RESYNCING FIREBASE…"
+                  : `REDIS RETAINED • RESYNC FIREBASE${
+                      lastFirebaseSyncAt ? ` (${formatShortRelativeTime(lastFirebaseSyncAt)})` : ""
                     }`}
               </span>
             </button>
@@ -1805,7 +2159,7 @@ function ProfilePage() {
           </div>
         </div>
 
-        {!user ? (
+        {!user || !data ? (
           <div className="flex min-h-[340px] flex-col items-center justify-center gap-4 rounded-2xl border-[1.5px] border-dashed border-foreground/30 bg-card/50 p-8 text-center backdrop-blur-sm">
             <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/15 border border-primary/30 text-primary">
               <Sparkles className="size-7" />
@@ -1822,13 +2176,6 @@ function ProfilePage() {
             >
               Sign In with Google
             </Link>
-          </div>
-        ) : isLoading || !data ? (
-          <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-2xl border-[1.5px] border-dashed border-foreground/30 bg-card/40 p-8 text-center animate-pulse">
-            <Trophy className="size-8 text-primary animate-bounce" />
-            <p className="font-mono text-sm text-muted-foreground">
-              Syncing your unified profile &amp; dashboard telemetry from Firebase Firestore…
-            </p>
           </div>
         ) : (
           <div className="space-y-6 animate-rise">
@@ -3328,7 +3675,7 @@ function ProfilePage() {
             {/* ROW 5: AI MISTAKE DIAGNOSTICS & PATTERNS REPORT                    */}
             {/* ================================================================== */}
             <div ref={diagnosticsSectionRef}>
-              <AiMistakesSection />
+              <AiMistakesSection initialReports={aiReports} />
             </div>
 
             {/* ================================================================== */}

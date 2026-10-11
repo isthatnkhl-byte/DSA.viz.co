@@ -8,7 +8,11 @@ interface CacheEntry<T = any> {
 }
 
 const MEMORY_CACHE = new Map<string, CacheEntry>();
-const CACHE_FILE = path.join(process.cwd(), '.data', 'backend-cache.json');
+const DATA_DIR = process.env.VERCEL
+  ? path.join('/tmp', '.data')
+  : path.join(process.cwd(), '.data');
+const CACHE_FILE = path.join(DATA_DIR, 'backend-cache.json');
+const DEFAULT_RETENTION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days (retained until explicit resync/mutation)
 
 // Initialize local file cache if present
 try {
@@ -86,37 +90,49 @@ if (REDIS_URL) {
 }
 
 /**
- * Retrieve cached value by key. Checks Redis first (if available), then memory/disk.
+ * Retrieve cached value by key. Checks L1 memory first for 0ms reads, then Redis, then disk.
  */
 export async function getCache<T = any>(key: string): Promise<T | null> {
+  const memEntry = MEMORY_CACHE.get(key);
+  if (memEntry) {
+    if (memEntry.expiresAt > Date.now()) {
+      return memEntry.value as T;
+    }
+    MEMORY_CACHE.delete(key);
+  }
+
   if (redisClient && isConnectedToRedis) {
     try {
       const data = await redisClient.get(key);
       if (data) {
+        let parsedVal: T;
         try {
-          return JSON.parse(data) as T;
+          parsedVal = JSON.parse(data) as T;
         } catch {
-          return data as unknown as T;
+          parsedVal = data as unknown as T;
         }
+        MEMORY_CACHE.set(key, {
+          value: parsedVal,
+          expiresAt: Date.now() + DEFAULT_RETENTION_TTL_SECONDS * 1000,
+        });
+        return parsedVal;
       }
     } catch {
       // Fallback to memory
     }
   }
 
-  const entry = MEMORY_CACHE.get(key);
-  if (!entry) return null;
-  if (entry.expiresAt < Date.now()) {
-    MEMORY_CACHE.delete(key);
-    return null;
-  }
-  return entry.value as T;
+  return null;
 }
 
 /**
- * Set a key with TTL (default 1800s / 30 mins). Writes to Redis (if available) and memory/disk.
+ * Set a key with TTL (default 7 days). Writes to L1 memory/disk and Redis (if available).
  */
-export async function setCache(key: string, value: any, ttlSeconds: number = 1800): Promise<void> {
+export async function setCache(
+  key: string,
+  value: any,
+  ttlSeconds: number = DEFAULT_RETENTION_TTL_SECONDS
+): Promise<void> {
   const expiresAt = Date.now() + ttlSeconds * 1000;
   MEMORY_CACHE.set(key, { value, expiresAt });
   persistMemoryCache();

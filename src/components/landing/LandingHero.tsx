@@ -62,23 +62,20 @@ export function LandingHero({
     THEME_OPTIONS.find((t) => t.id === theme) ?? THEME_OPTIONS[0]!;
 
   const isComplete = introPhase === "complete";
-  const brandVerticalOffset = isComplete
-    ? 0
-    : introPhase === "full-title"
-      ? -75
-      : -155;
+  const brandVerticalOffset =
+    isComplete || introPhase === "full-title" ? 0 : -48;
 
   return (
-    <section className="relative overflow-hidden pt-6 pb-14 md:pt-10 md:pb-20 px-4 sm:px-8 lg:px-12 max-w-6xl mx-auto w-full text-left select-none transition-colors duration-300">
+    <section className="relative overflow-x-clip pt-6 pb-14 md:pt-10 md:pb-20 px-4 sm:px-8 lg:px-12 max-w-6xl mx-auto w-full text-left select-none transition-colors duration-300">
       {/* ================= 1. TOP TECHNICAL HEADER & INTERACTIVE CALIBRATION STRIP ================= */}
       <motion.div
         initial={false}
         animate={{
           opacity: isComplete ? 1 : 0,
-          y: isComplete ? 0 : -18,
-          filter: isComplete ? "blur(0px)" : "blur(6px)",
+          y: isComplete ? 0 : -14,
+          filter: isComplete ? "blur(0px)" : "blur(5px)",
         }}
-        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.48, delay: isComplete ? 0.02 : 0, ease: [0.22, 1, 0.36, 1] }}
         className={`relative w-full mb-10 sm:mb-14 ${
           isComplete ? "pointer-events-auto" : "pointer-events-none"
         }`}
@@ -197,10 +194,10 @@ export function LandingHero({
           initial={false}
           animate={{
             opacity: isComplete ? 1 : 0,
-            y: isComplete ? 0 : 18,
-            filter: isComplete ? "blur(0px)" : "blur(8px)",
+            y: isComplete ? 0 : 14,
+            filter: isComplete ? "blur(0px)" : "blur(6px)",
           }}
-          transition={{ duration: 0.6, delay: isComplete ? 0.05 : 0, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.5, delay: isComplete ? 0.04 : 0, ease: [0.22, 1, 0.36, 1] }}
           className={`text-4xl sm:text-6xl md:text-[4.5rem] lg:text-[4.85rem] font-sans font-extrabold tracking-[-0.035em] text-foreground leading-[1.08] max-w-4xl mx-auto flex flex-col items-center text-center transition-colors duration-300 ${
             isComplete ? "pointer-events-auto" : "pointer-events-none"
           }`}
@@ -227,21 +224,23 @@ export function LandingHero({
           animate={{
             y: brandVerticalOffset,
           }}
-          transition={{ type: "spring", stiffness: 180, damping: 26 }}
+          transition={{ duration: 0.52, ease: [0.22, 1, 0.36, 1] }}
           className="relative z-30 w-full flex flex-col items-center"
         >
           <HeroBrandTitle introPhase={introPhase} />
 
-          {/* Slideshow Introduction Deck (Active during blank / DSA / VIZ / CO / full-title intro phases) */}
-          {!isComplete && (
-            <div className="absolute top-full left-0 right-0 pt-2">
-              <HeroSlideshowDeck
-                phase={introPhase}
-                progress={introProgress}
-                onJumpToProgress={onJumpToIntroProgress}
-              />
-            </div>
-          )}
+          {/* 1-Liner Highlight Banner (Smoothly cross-fades out when isComplete becomes true) */}
+          <div
+            className={`absolute top-full left-0 right-0 pt-1 ${
+              isComplete ? "pointer-events-none" : "pointer-events-auto"
+            }`}
+          >
+            <HeroSlideshowDeck
+              phase={introPhase}
+              progress={introProgress}
+              onJumpToProgress={onJumpToIntroProgress}
+            />
+          </div>
         </motion.div>
 
         {/* Lead Paragraph (Below DSAVIZCO) */}
@@ -249,10 +248,10 @@ export function LandingHero({
           initial={false}
           animate={{
             opacity: isComplete ? 1 : 0,
-            y: isComplete ? 0 : 20,
-            filter: isComplete ? "blur(0px)" : "blur(8px)",
+            y: isComplete ? 0 : 14,
+            filter: isComplete ? "blur(0px)" : "blur(6px)",
           }}
-          transition={{ duration: 0.6, delay: isComplete ? 0.12 : 0, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.5, delay: isComplete ? 0.08 : 0, ease: [0.22, 1, 0.36, 1] }}
           className={`text-base sm:text-xl md:text-[1.32rem] text-muted-foreground font-sans font-normal leading-[1.6] max-w-3xl mx-auto text-center transition-colors duration-300 ${
             isComplete ? "pointer-events-auto" : "pointer-events-none"
           }`}
@@ -265,10 +264,10 @@ export function LandingHero({
           initial={false}
           animate={{
             opacity: isComplete ? 1 : 0,
-            y: isComplete ? 0 : 22,
-            filter: isComplete ? "blur(0px)" : "blur(8px)",
+            y: isComplete ? 0 : 16,
+            filter: isComplete ? "blur(0px)" : "blur(6px)",
           }}
-          transition={{ duration: 0.6, delay: isComplete ? 0.18 : 0, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.52, delay: isComplete ? 0.13 : 0, ease: [0.22, 1, 0.36, 1] }}
           className={`pt-2 sm:pt-3 flex flex-wrap items-center justify-center gap-4 sm:gap-5 ${
             isComplete ? "pointer-events-auto" : "pointer-events-none"
           }`}
@@ -293,10 +292,10 @@ export function LandingHero({
           initial={false}
           animate={{
             opacity: isComplete ? 1 : 0,
-            y: isComplete ? 0 : 28,
-            filter: isComplete ? "blur(0px)" : "blur(8px)",
+            y: isComplete ? 0 : 20,
+            filter: isComplete ? "blur(0px)" : "blur(6px)",
           }}
-          transition={{ duration: 0.65, delay: isComplete ? 0.24 : 0, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.55, delay: isComplete ? 0.18 : 0, ease: [0.22, 1, 0.36, 1] }}
           className={`pt-6 sm:pt-8 w-full text-left ${
             isComplete ? "pointer-events-auto" : "pointer-events-none"
           }`}

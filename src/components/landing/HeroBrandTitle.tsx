@@ -182,13 +182,13 @@ export function HeroBrandTitle({ introPhase = "complete" }: HeroBrandTitleProps)
                 : isForcedLit
                   ? 1
                   : isPreviouslyLitAndNowDimmed
-                    ? 0.14
-                    : 0.06;
+                    ? 0.22
+                    : 0.04;
 
             const charFilter = isBlankPhase
-              ? "blur(8px) brightness(0.2)"
+              ? "blur(6px) brightness(0.3)"
               : forcedPillar !== null && !isForcedLit
-                ? "brightness(0.42) saturate(0.35)"
+                ? "blur(0px) brightness(0.5) saturate(0.4)"
                 : "blur(0px) brightness(1)";
 
             return (
@@ -204,20 +204,20 @@ export function HeroBrandTitle({ introPhase = "complete" }: HeroBrandTitleProps)
                   opacity: charOpacity,
                   filter: charFilter,
                   y: isBlankPhase
-                    ? 12
+                    ? 10
                     : isHighlighted
-                      ? -6
+                      ? -5
                       : isNeighbor
                         ? -3
                         : waveTrigger > 0
                           ? [0, -9, 0]
                           : 0,
                   scale: isBlankPhase
-                    ? 0.9
+                    ? 0.92
                     : isHighlighted
-                      ? 1.08
+                      ? 1.06
                       : forcedPillar !== null && !isForcedLit
-                        ? 0.95
+                        ? 0.96
                         : isNeighbor
                           ? 1.03
                           : waveTrigger > 0
@@ -231,11 +231,16 @@ export function HeroBrandTitle({ introPhase = "complete" }: HeroBrandTitleProps)
                         delay: idx * 0.04,
                         ease: "easeOut",
                       }
-                    : {
-                        type: "spring",
-                        stiffness: 340,
-                        damping: 26,
-                      }
+                    : introPhase !== "complete"
+                      ? {
+                          duration: 0.36,
+                          ease: [0.22, 1, 0.36, 1],
+                        }
+                      : {
+                          type: "spring",
+                          stiffness: 340,
+                          damping: 26,
+                        }
                 }
                 className="dsavizco-pixel-char px-[0.015em]"
               >

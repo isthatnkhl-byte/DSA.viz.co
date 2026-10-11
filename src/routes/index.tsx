@@ -41,18 +41,18 @@ export const Route = createFileRoute("/")({
 });
 
 function mapProgressToHeroIntroPhase(p: number): HeroIntroPhase {
-  if (p < 0.06) return "blank-0";
-  if (p < 0.24) return "dsa";
+  if (p < 0.05) return "blank-0";
+  if (p < 0.25) return "dsa";
   if (p < 0.30) return "blank-1";
-  if (p < 0.48) return "viz";
-  if (p < 0.54) return "blank-2";
-  if (p < 0.72) return "co";
-  if (p < 0.78) return "blank-3";
-  if (p < 0.90) return "full-title";
+  if (p < 0.50) return "viz";
+  if (p < 0.55) return "blank-2";
+  if (p < 0.75) return "co";
+  if (p < 0.80) return "blank-3";
+  if (p < 0.92) return "full-title";
   return "complete";
 }
 
-const STAGE_STOPS = [0.0, 0.15, 0.39, 0.63, 0.84, 1.0];
+const STAGE_STOPS = [0.0, 0.14, 0.39, 0.64, 0.85, 1.0];
 
 export function LandingPage() {
   const { user, loading } = useAuth();
@@ -60,9 +60,9 @@ export function LandingPage() {
 
   const targetProgress = useMotionValue(0);
   const smoothProgress = useSpring(targetProgress, {
-    stiffness: 110,
+    stiffness: 120,
     damping: 26,
-    mass: 0.42,
+    mass: 0.36,
   });
 
   const [introPhase, setIntroPhase] = useState<HeroIntroPhase>("blank-0");
@@ -77,16 +77,16 @@ export function LandingPage() {
     setIntroPhase((prev) => (prev === nextPhase ? prev : nextPhase));
   });
 
-  // Unlock document scrolling only after the full Hero + Navbar spawn animation has completed
+  // Unlock document scrolling smoothly as soon as the Hero + Navbar spawn animation finishes
   useEffect(() => {
     if (scrollUnlocked) return;
-    if (introPhase === "complete" && introProgress >= 0.94) {
+    if (introPhase === "complete") {
       const timer = window.setTimeout(() => {
         setScrollUnlocked(true);
-      }, 600);
+      }, 380);
       return () => window.clearTimeout(timer);
     }
-  }, [introPhase, introProgress, scrollUnlocked]);
+  }, [introPhase, scrollUnlocked]);
 
   // Keep the site 100% static at scrollY = 0 while wheel / touch / keyboard gestures drive the intro animation
   useEffect(() => {
@@ -105,7 +105,8 @@ export function LandingPage() {
       e.preventDefault();
       const rawDelta = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY;
       const clampedDelta = Math.max(-110, Math.min(110, rawDelta));
-      const next = Math.max(0, Math.min(1, targetProgress.get() + clampedDelta * 0.00042));
+      const rawNext = Math.max(0, Math.min(1, targetProgress.get() + clampedDelta * 0.00058));
+      const next = rawNext >= 0.92 && clampedDelta > 0 ? 1 : rawNext;
       targetProgress.set(next);
     };
 
@@ -121,7 +122,8 @@ export function LandingPage() {
       const deltaY = touchStartYRef.current - currentY;
       touchStartYRef.current = currentY;
       const clampedDelta = Math.max(-80, Math.min(80, deltaY));
-      const next = Math.max(0, Math.min(1, targetProgress.get() + clampedDelta * 0.0014));
+      const rawNext = Math.max(0, Math.min(1, targetProgress.get() + clampedDelta * 0.0018));
+      const next = rawNext >= 0.92 && deltaY > 0 ? 1 : rawNext;
       targetProgress.set(next);
     };
 
@@ -158,9 +160,13 @@ export function LandingPage() {
   const handleJumpToIntroProgress = useCallback(
     (target: number) => {
       const clamped = Math.max(0, Math.min(1, target));
-      targetProgress.set(clamped);
+      targetProgress.set(clamped >= 0.92 ? 1 : clamped);
+      if (clamped >= 0.92) {
+        smoothProgress.set(1);
+        setIntroPhase("complete");
+      }
     },
-    [targetProgress]
+    [targetProgress, smoothProgress]
   );
 
   const handleUnauthenticatedInteraction = (e: React.SyntheticEvent<HTMLElement>) => {
@@ -209,9 +215,9 @@ export function LandingPage() {
         initial={false}
         animate={{
           opacity: isNavbarAndHeroSpawned ? 1 : 0,
-          y: isNavbarAndHeroSpawned ? 0 : -28,
+          y: isNavbarAndHeroSpawned ? 0 : -18,
         }}
-        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
         className={`sticky top-0 z-40 w-full ${
           isNavbarAndHeroSpawned ? "pointer-events-auto" : "pointer-events-none"
         }`}

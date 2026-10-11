@@ -98,6 +98,13 @@ export function CookiesPage() {
                     <td className="p-3">Maintains cryptographically verified user authentication across page reloads.</td>
                   </tr>
                   <tr>
+                    <td className="p-3 font-mono font-bold text-foreground">dsaviz_vault_blob</td>
+                    <td className="p-3 font-mono">HttpOnly Cookie (AES-256-GCM)</td>
+                    <td className="p-3 text-primary font-semibold">Strictly Necessary</td>
+                    <td className="p-3">1 Year</td>
+                    <td className="p-3">Stores your backend-sealed AES-256-GCM account key vault envelope (bound to your Google UID) so your personal AI keys remain active across refreshes and serverless cold starts alongside Firebase Cloud Firestore.</td>
+                  </tr>
+                  <tr>
                     <td className="p-3 font-mono font-bold text-foreground">dsaviz_cookie_consent</td>
                     <td className="p-3 font-mono">Local Storage</td>
                     <td className="p-3 text-primary font-semibold">Strictly Necessary</td>

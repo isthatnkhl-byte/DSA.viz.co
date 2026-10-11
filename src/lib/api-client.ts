@@ -2,17 +2,110 @@ import type { ReviewResult, DatasetPlanResult, DatasetVizTrace, ExecutionPlanSte
 import type { CppExecutionResult } from "./compiler.types";
 import type { TestDataset } from "./problems";
 import { getAuth } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "./firebase";
 
-/** Helper to retrieve the current user's Firebase Bearer ID Token */
+const memorySealedVaultByUid = new Map<string, string>();
+const inflightVaultLoadByUid = new Map<string, Promise<string | null>>();
+
+function getSealedVaultCacheKey(uid: string): string {
+  return `dsaviz:sealed_vault_envelope:${uid}`;
+}
+
+async function loadSealedVaultForUid(uid: string): Promise<string | null> {
+  if (!uid) return null;
+  const inMem = memorySealedVaultByUid.get(uid);
+  if (inMem) return inMem;
+
+  try {
+    if (typeof window !== "undefined") {
+      const cached = window.localStorage.getItem(getSealedVaultCacheKey(uid));
+      if (cached && cached.split(".").length === 3) {
+        memorySealedVaultByUid.set(uid, cached);
+        return cached;
+      }
+    }
+  } catch {
+    // Ignore storage read error
+  }
+
+  let inflight = inflightVaultLoadByUid.get(uid);
+  if (!inflight) {
+    inflight = (async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", uid, "tasks", "encrypted_key_vault"));
+        if (snap.exists()) {
+          const data = snap.data();
+          const sealed = typeof data?.sealedVault === "string" ? data.sealedVault : null;
+          if (sealed && sealed.split(".").length === 3) {
+            memorySealedVaultByUid.set(uid, sealed);
+            try {
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(getSealedVaultCacheKey(uid), sealed);
+              }
+            } catch {
+              // Ignore
+            }
+            return sealed;
+          }
+        }
+      } catch {
+        // Offline or Firestore rules pending
+      } finally {
+        inflightVaultLoadByUid.delete(uid);
+      }
+      return null;
+    })();
+    inflightVaultLoadByUid.set(uid, inflight);
+  }
+  return inflight;
+}
+
+async function persistSealedVaultForUid(uid: string, sealedVault?: string | null): Promise<void> {
+  if (!uid) return;
+  if (sealedVault && sealedVault.split(".").length === 3) {
+    memorySealedVaultByUid.set(uid, sealedVault);
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(getSealedVaultCacheKey(uid), sealedVault);
+      }
+    } catch {
+      // Ignore
+    }
+    try {
+      await setDoc(
+        doc(db, "users", uid, "tasks", "encrypted_key_vault"),
+        {
+          ownerId: `uid:${uid}`,
+          sealedVault,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch {
+      // Non-blocking Firestore sync
+    }
+  }
+}
+
+/** Helper to retrieve the current user's Firebase Bearer ID Token and encrypted account vault envelope */
 async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
     const auth = getAuth();
     const user = auth.currentUser;
     if (user) {
-      const token = await user.getIdToken();
+      const [token, sealedVault] = await Promise.all([
+        user.getIdToken(),
+        loadSealedVaultForUid(user.uid),
+      ]);
+      const headers: Record<string, string> = {};
       if (token) {
-        return { Authorization: `Bearer ${token}` };
+        headers.Authorization = `Bearer ${token}`;
       }
+      if (sealedVault) {
+        headers["X-Encrypted-Account-Vault"] = sealedVault;
+      }
+      return headers;
     }
   } catch {
     // Unauthenticated or Firebase not initialized
@@ -427,12 +520,13 @@ export interface UserKeyVaultStatus {
     openrouter: UserKeyVaultProviderStatus;
     openai: UserKeyVaultProviderStatus;
   };
+  sealedVault?: string | null;
   securityMode: string;
 }
 
 /**
- * Fetches the non-sensitive status of the user's backend-encrypted API key vault.
- * Never returns raw or encrypted keys to the frontend.
+ * Fetches the non-sensitive status of the user's persistent encrypted API key vault
+ * and synchronizes the AES-256-GCM sealed envelope with Firebase Firestore for the account.
  */
 export async function apiGetUserKeyVaultStatus(): Promise<UserKeyVaultStatus> {
   const authHeaders = await getAuthHeaders();
@@ -447,12 +541,21 @@ export async function apiGetUserKeyVaultStatus(): Promise<UserKeyVaultStatus> {
   if (!response.ok) {
     throw new Error(`Failed to fetch key vault status (${response.status})`);
   }
-  return response.json();
+  const data = (await response.json()) as UserKeyVaultStatus;
+  try {
+    const uid = getAuth().currentUser?.uid;
+    if (uid && data?.sealedVault) {
+      void persistSealedVaultForUid(uid, data.sealedVault);
+    }
+  } catch {
+    // Non-blocking
+  }
+  return data;
 }
 
 /**
  * Sends a user API key over HTTPS to the backend vault where it is verified, encrypted with AES-256-GCM,
- * and bound to an HttpOnly signed session cookie and authenticated UID.
+ * and persisted in Firebase Cloud Firestore + backend vault for the authenticated Google account.
  */
 export async function apiSaveUserApiKey(payload: {
   apiKey: string;
@@ -463,6 +566,7 @@ export async function apiSaveUserApiKey(payload: {
   provider?: "gemini" | "openrouter" | "openai";
   maskedHint?: string;
   verifiedModel?: string;
+  sealedVault?: string | null;
   error?: string;
   status?: UserKeyVaultStatus;
 }> {
@@ -480,11 +584,20 @@ export async function apiSaveUserApiKey(payload: {
   if (!response.ok) {
     throw new Error(data.error || `Failed to save API key (${response.status})`);
   }
+  try {
+    const uid = getAuth().currentUser?.uid;
+    const sealed = data?.sealedVault || data?.status?.sealedVault;
+    if (uid && sealed) {
+      await persistSealedVaultForUid(uid, sealed);
+    }
+  } catch {
+    // Non-blocking
+  }
   return data;
 }
 
 /**
- * Permanently removes a user's encrypted API key from the backend vault.
+ * Permanently removes a user's encrypted API key from the backend vault and updates Firebase Firestore.
  */
 export async function apiDeleteUserApiKey(
   provider: "gemini" | "openrouter" | "openai" | "all" = "all"
@@ -502,6 +615,31 @@ export async function apiDeleteUserApiKey(
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(data.error || `Failed to remove API key (${response.status})`);
+  }
+  try {
+    const uid = getAuth().currentUser?.uid;
+    if (uid) {
+      const sealed = data?.status?.sealedVault;
+      if (sealed && data?.status?.hasPersonalKey) {
+        await persistSealedVaultForUid(uid, sealed);
+      } else {
+        memorySealedVaultByUid.delete(uid);
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(getSealedVaultCacheKey(uid));
+        }
+        await setDoc(
+          doc(db, "users", uid, "tasks", "encrypted_key_vault"),
+          {
+            ownerId: `uid:${uid}`,
+            sealedVault: "",
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
+    }
+  } catch {
+    // Non-blocking
   }
   return data;
 }

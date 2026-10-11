@@ -237950,6 +237950,13 @@ function persistVaultToDisk() {
   } catch {
   }
 }
+function getFirebaseProjectId() {
+  return cleanEnv(process.env.VITE_FIREBASE_PROJECT_ID) || cleanEnv(process.env.FIREBASE_PROJECT_ID) || firebase_applet_config_default.projectId;
+}
+function getFirebaseDatabaseId() {
+  const dbId = cleanEnv(process.env.VITE_FIREBASE_DATABASE_ID) || firebase_applet_config_default.firestoreDatabaseId || "(default)";
+  return dbId;
+}
 function getVaultMasterKey() {
   const masterSecret = cleanEnv(process.env.VAULT_MASTER_KEY) || cleanEnv(process.env.ENCRYPTION_KEY) || cleanEnv(process.env.GITHUB_CLIENT_SECRET) || cleanEnv(process.env.LIVEKIT_API_SECRET) || "dsaviz_vault_server_only_master_secret_v1";
   return import_crypto.default.scryptSync(masterSecret, "dsaviz_user_api_key_vault_salt_v1", 32);
@@ -237976,6 +237983,38 @@ function decryptUserApiKey(ciphertext, ownerId) {
     let decrypted = decipher.update(encryptedText, void 0, "utf8");
     decrypted += decipher.final("utf8");
     return decrypted;
+  } catch {
+    return null;
+  }
+}
+function sealVaultRecord(record2) {
+  const payloadJson = JSON.stringify(record2);
+  const iv = import_crypto.default.randomBytes(16);
+  const cipher = import_crypto.default.createCipheriv("aes-256-gcm", getVaultMasterKey(), iv);
+  cipher.setAAD(Buffer.from(`vault_envelope:${record2.ownerId}`, "utf8"));
+  let encrypted = cipher.update(payloadJson, "utf8", "base64url");
+  encrypted += cipher.final("base64url");
+  const authTag = cipher.getAuthTag().toString("base64url");
+  return `${iv.toString("base64url")}.${encrypted}.${authTag}`;
+}
+function unsealVaultRecord(sealed, expectedOwnerId) {
+  if (!sealed || typeof sealed !== "string" || !expectedOwnerId) return null;
+  try {
+    const parts = sealed.trim().split(".");
+    if (parts.length !== 3) return null;
+    const iv = Buffer.from(parts[0], "base64url");
+    const encrypted = Buffer.from(parts[1], "base64url");
+    const authTag = Buffer.from(parts[2], "base64url");
+    const decipher = import_crypto.default.createDecipheriv("aes-256-gcm", getVaultMasterKey(), iv);
+    decipher.setAAD(Buffer.from(`vault_envelope:${expectedOwnerId}`, "utf8"));
+    decipher.setAuthTag(authTag);
+    let json3 = decipher.update(encrypted, void 0, "utf8");
+    json3 += decipher.final("utf8");
+    const parsed = JSON.parse(json3);
+    if (!parsed || parsed.ownerId !== expectedOwnerId || typeof parsed.providers !== "object") {
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -238050,11 +238089,18 @@ function parseCookies(cookieHeader) {
   }
   return out;
 }
-async function extractVerifiedUidFromRequest(req) {
+function extractBearerToken(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.split("Bearer ")[1]?.trim();
-  if (!token || token === "undefined" || token === "null" || token === "local-dev-token") return null;
+  if (!token || token === "undefined" || token === "null" || token === "local-dev-token") {
+    return null;
+  }
+  return token;
+}
+async function extractVerifiedUidFromRequest(req) {
+  const token = extractBearerToken(req);
+  if (!token) return null;
   try {
     const decoded = await adminAuth.verifyIdToken(token, true);
     if (decoded?.uid) return decoded.uid;
@@ -238065,7 +238111,7 @@ async function extractVerifiedUidFromRequest(req) {
         const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
         const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
         if (header.alg !== "RS256" || !header.kid) return null;
-        const projectId2 = cleanEnv(process.env.VITE_FIREBASE_PROJECT_ID) || cleanEnv(process.env.FIREBASE_PROJECT_ID) || firebase_applet_config_default.projectId;
+        const projectId2 = getFirebaseProjectId();
         const expectedIssuer = `https://securetoken.google.com/${projectId2}`;
         const now = Math.floor(Date.now() / 1e3);
         const isNotExpired = typeof payload.exp === "number" && payload.exp > now - 120;
@@ -238082,6 +238128,66 @@ async function extractVerifiedUidFromRequest(req) {
   }
   return null;
 }
+async function fetchVaultFromFirestoreRest(uid, bearerToken) {
+  if (!uid || !bearerToken) return null;
+  const ownerId = `uid:${uid}`;
+  const projectId2 = getFirebaseProjectId();
+  const databaseId2 = getFirebaseDatabaseId();
+  const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId2
+  )}/databases/${encodeURIComponent(
+    databaseId2
+  )}/documents/users/${encodeURIComponent(uid)}/tasks/encrypted_key_vault`;
+  try {
+    const res = await fetch(docUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${bearerToken}`
+      }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const sealed = data?.fields?.sealedVault?.stringValue;
+    if (typeof sealed === "string" && sealed.length > 16) {
+      const unsealed = unsealVaultRecord(sealed, ownerId);
+      if (unsealed) {
+        memoryVaultStore.set(ownerId, unsealed);
+        persistVaultToDisk();
+        return unsealed;
+      }
+    }
+  } catch {
+  }
+  return null;
+}
+async function saveVaultToFirestoreRest(uid, bearerToken, record2) {
+  if (!uid || !bearerToken) return;
+  const sealed = sealVaultRecord(record2);
+  const projectId2 = getFirebaseProjectId();
+  const databaseId2 = getFirebaseDatabaseId();
+  const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId2
+  )}/databases/${encodeURIComponent(
+    databaseId2
+  )}/documents/users/${encodeURIComponent(uid)}/tasks/encrypted_key_vault`;
+  try {
+    await fetch(docUrl, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${bearerToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        fields: {
+          ownerId: { stringValue: record2.ownerId },
+          sealedVault: { stringValue: sealed },
+          updatedAt: { stringValue: record2.updatedAt }
+        }
+      })
+    });
+  } catch {
+  }
+}
 function ensureHttpOnlyVaultCookie(req, res) {
   const cookies = parseCookies(req.headers.cookie);
   const existingSid = verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
@@ -238095,16 +238201,69 @@ function ensureHttpOnlyVaultCookie(req, res) {
     "HttpOnly",
     "SameSite=Strict",
     `Max-Age=${60 * 60 * 24 * 90}`
-    // 90 days
   ];
   if (isSecure) cookieParts.push("Secure");
   res.append("Set-Cookie", cookieParts.join("; "));
   return newSid;
 }
-async function getVaultRecord(ownerId) {
+function writeHttpOnlyVaultBlobCookie(req, res, record2) {
+  try {
+    const sealed = sealVaultRecord(record2);
+    const isSecure = process.env.NODE_ENV === "production" || req.secure || req.headers["x-forwarded-proto"] === "https";
+    const cookieParts = [
+      `${VAULT_BLOB_COOKIE_NAME}=${encodeURIComponent(sealed)}`,
+      "Path=/",
+      "HttpOnly",
+      "SameSite=Strict",
+      `Max-Age=${60 * 60 * 24 * 90}`
+    ];
+    if (isSecure) cookieParts.push("Secure");
+    res.append("Set-Cookie", cookieParts.join("; "));
+  } catch {
+  }
+}
+function hydrateVaultFromRequestEnvelope(req, uid, vaultSid) {
+  const cookies = parseCookies(req.headers.cookie);
+  const cookieBlob = cookies[VAULT_BLOB_COOKIE_NAME];
+  const headerBlob = typeof req.headers["x-encrypted-account-vault"] === "string" ? req.headers["x-encrypted-account-vault"] : null;
+  if (uid) {
+    const uidOwner = `uid:${uid}`;
+    if (!memoryVaultStore.has(uidOwner)) {
+      const fromHeader = unsealVaultRecord(headerBlob, uidOwner);
+      if (fromHeader) {
+        memoryVaultStore.set(uidOwner, fromHeader);
+        persistVaultToDisk();
+        return;
+      }
+      const fromCookie = unsealVaultRecord(cookieBlob, uidOwner);
+      if (fromCookie) {
+        memoryVaultStore.set(uidOwner, fromCookie);
+        persistVaultToDisk();
+        return;
+      }
+    }
+  }
+  if (vaultSid) {
+    const sidOwner = `sid:${vaultSid}`;
+    if (!memoryVaultStore.has(sidOwner)) {
+      const fromCookie = unsealVaultRecord(cookieBlob, sidOwner);
+      if (fromCookie) {
+        memoryVaultStore.set(sidOwner, fromCookie);
+        persistVaultToDisk();
+      }
+    }
+  }
+}
+async function getVaultRecord(ownerId, uid, bearerToken) {
   if (!ownerId) return null;
   const local = memoryVaultStore.get(ownerId);
-  if (local) return local;
+  if (local && local.providers && Object.keys(local.providers).length > 0) {
+    return local;
+  }
+  if (uid && ownerId === `uid:${uid}` && bearerToken) {
+    const restRecord = await fetchVaultFromFirestoreRest(uid, bearerToken);
+    if (restRecord) return restRecord;
+  }
   try {
     if (adminDb) {
       const doc = await adminDb.collection("user_key_vault").doc(ownerId).get();
@@ -238117,11 +238276,14 @@ async function getVaultRecord(ownerId) {
     }
   } catch {
   }
-  return null;
+  return local || null;
 }
-async function saveVaultRecord(record2) {
+async function saveVaultRecord(record2, uid, bearerToken) {
   memoryVaultStore.set(record2.ownerId, record2);
   persistVaultToDisk();
+  if (uid && record2.ownerId === `uid:${uid}` && bearerToken) {
+    await saveVaultToFirestoreRest(uid, bearerToken, record2);
+  }
   try {
     if (adminDb) {
       await adminDb.collection("user_key_vault").doc(record2.ownerId).set(record2, { merge: true });
@@ -238129,11 +238291,11 @@ async function saveVaultRecord(record2) {
   } catch {
   }
 }
-async function resolveUserKeysForRequest(uid, vaultSid) {
+async function resolveUserKeysForRequest(uid, vaultSid, bearerToken) {
   const uidOwner = uid ? `uid:${uid}` : null;
   const sidOwner = vaultSid ? `sid:${vaultSid}` : null;
   const [uidRecord, sidRecord] = await Promise.all([
-    uidOwner ? getVaultRecord(uidOwner) : Promise.resolve(null),
+    uidOwner ? getVaultRecord(uidOwner, uid, bearerToken) : Promise.resolve(null),
     sidOwner ? getVaultRecord(sidOwner) : Promise.resolve(null)
   ]);
   let geminiKey = "";
@@ -238168,7 +238330,9 @@ async function attachUserKeyVaultContext(req, _res, next) {
     const cookies = parseCookies(req.headers.cookie);
     const vaultSid = verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
     const uid = await extractVerifiedUidFromRequest(req);
-    const resolved = await resolveUserKeysForRequest(uid, vaultSid);
+    const bearerToken = extractBearerToken(req);
+    hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
+    const resolved = await resolveUserKeysForRequest(uid, vaultSid, bearerToken);
     requestKeyStorage.run(resolved, () => next());
   } catch {
     next();
@@ -238177,14 +238341,16 @@ async function attachUserKeyVaultContext(req, _res, next) {
 function getActiveRequestUserKeys() {
   return requestKeyStorage.getStore();
 }
-async function getUserKeyVaultStatus(req, overrideVaultSid) {
+async function getUserKeyVaultStatus(req, overrideVaultSid, res) {
   const cookies = parseCookies(req.headers.cookie);
   const vaultSid = overrideVaultSid || verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
   const uid = await extractVerifiedUidFromRequest(req);
+  const bearerToken = extractBearerToken(req);
+  hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
   const uidOwner = uid ? `uid:${uid}` : null;
   const sidOwner = vaultSid ? `sid:${vaultSid}` : null;
   const [uidRecord, sidRecord] = await Promise.all([
-    uidOwner ? getVaultRecord(uidOwner) : Promise.resolve(null),
+    uidOwner ? getVaultRecord(uidOwner, uid, bearerToken) : Promise.resolve(null),
     sidOwner ? getVaultRecord(sidOwner) : Promise.resolve(null)
   ]);
   const providers = {
@@ -238207,11 +238373,16 @@ async function getUserKeyVaultStatus(req, overrideVaultSid) {
     }
   }
   const activeProvider = providers.gemini.configured ? "gemini" : providers.openrouter.configured ? "openrouter" : providers.openai.configured ? "openai" : "none";
+  const primaryRecord = uidRecord || sidRecord || null;
+  if (res && primaryRecord) {
+    writeHttpOnlyVaultBlobCookie(req, res, primaryRecord);
+  }
   return {
     hasPersonalKey: activeProvider !== "none",
     activeProvider,
     providers,
-    securityMode: "AES-256-GCM Backend Vault (HttpOnly / Zero-Frontend-Storage)"
+    sealedVault: uidRecord ? sealVaultRecord(uidRecord) : null,
+    securityMode: "Persistent Account Vault (Firebase + Backend AES-256-GCM)"
   };
 }
 async function verifyUserApiKeyLive(provider, rawKey) {
@@ -238320,14 +238491,17 @@ async function saveUserApiKeyToVault(req, res, params) {
   }
   const vaultSid = ensureHttpOnlyVaultCookie(req, res);
   const uid = await extractVerifiedUidFromRequest(req);
+  const bearerToken = extractBearerToken(req);
+  hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
   const nowIso = (/* @__PURE__ */ new Date()).toISOString();
   const maskedHint = buildMaskedKeyHint(rawKey);
   const targetOwnerIds = [`sid:${vaultSid}`];
   if (uid) {
     targetOwnerIds.push(`uid:${uid}`);
   }
+  let savedUidRecord = null;
   for (const ownerId of targetOwnerIds) {
-    const existing = await getVaultRecord(ownerId) || {
+    const existing = await getVaultRecord(ownerId, uid, bearerToken) || {
       ownerId,
       providers: {},
       updatedAt: nowIso
@@ -238339,26 +238513,35 @@ async function saveUserApiKeyToVault(req, res, params) {
       updatedAt: nowIso
     };
     existing.updatedAt = nowIso;
-    await saveVaultRecord(existing);
+    await saveVaultRecord(existing, uid, bearerToken);
+    if (uid && ownerId === `uid:${uid}`) {
+      savedUidRecord = existing;
+    }
   }
-  const status = await getUserKeyVaultStatus(req, vaultSid);
+  if (savedUidRecord) {
+    writeHttpOnlyVaultBlobCookie(req, res, savedUidRecord);
+  }
+  const status = await getUserKeyVaultStatus(req, vaultSid, res);
   return {
     ok: true,
     provider: detectedProvider,
     maskedHint,
     verifiedModel,
+    sealedVault: status.sealedVault ?? null,
     status
   };
 }
-async function deleteUserApiKeyFromVault(req, provider) {
+async function deleteUserApiKeyFromVault(req, provider, res) {
   const cookies = parseCookies(req.headers.cookie);
   const vaultSid = verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
   const uid = await extractVerifiedUidFromRequest(req);
+  const bearerToken = extractBearerToken(req);
+  hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
   const targetOwnerIds = [];
   if (vaultSid) targetOwnerIds.push(`sid:${vaultSid}`);
   if (uid) targetOwnerIds.push(`uid:${uid}`);
   for (const ownerId of targetOwnerIds) {
-    const rec = await getVaultRecord(ownerId);
+    const rec = await getVaultRecord(ownerId, uid, bearerToken);
     if (!rec || !rec.providers) continue;
     if (!provider || provider === "all") {
       rec.providers = {};
@@ -238366,11 +238549,14 @@ async function deleteUserApiKeyFromVault(req, provider) {
       delete rec.providers[provider];
     }
     rec.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-    await saveVaultRecord(rec);
+    await saveVaultRecord(rec, uid, bearerToken);
+    if (res && uid && ownerId === `uid:${uid}`) {
+      writeHttpOnlyVaultBlobCookie(req, res, rec);
+    }
   }
-  return getUserKeyVaultStatus(req);
+  return getUserKeyVaultStatus(req, vaultSid, res);
 }
-var import_crypto, import_fs6, import_path5, import_async_hooks, VAULT_COOKIE_NAME, DATA_DIR4, VAULT_FILE, memoryVaultStore, requestKeyStorage, cleanEnv;
+var import_crypto, import_fs6, import_path5, import_async_hooks, VAULT_COOKIE_NAME, VAULT_BLOB_COOKIE_NAME, DATA_DIR4, VAULT_FILE, memoryVaultStore, requestKeyStorage, cleanEnv;
 var init_user_keys_server = __esm({
   "src/lib/user-keys.server.ts"() {
     "use strict";
@@ -238382,6 +238568,7 @@ var init_user_keys_server = __esm({
     init_firebase_admin();
     init_firebase_applet_config();
     VAULT_COOKIE_NAME = "dsaviz_vault_sid";
+    VAULT_BLOB_COOKIE_NAME = "dsaviz_vault_blob";
     DATA_DIR4 = process.env.VERCEL ? import_path5.default.join("/tmp", ".data") : import_path5.default.join(process.cwd(), ".data");
     VAULT_FILE = import_path5.default.join(DATA_DIR4, "user_keys_vault.json");
     memoryVaultStore = /* @__PURE__ */ new Map();
@@ -290329,7 +290516,7 @@ app.use("/api/", attachUserKeyVaultContext);
 app.get("/api/user-keys/status", requireAuth, async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
-    const status = await getUserKeyVaultStatus(req);
+    const status = await getUserKeyVaultStatus(req, void 0, res);
     return res.json(status);
   } catch (err) {
     return res.status(500).json({ error: err?.message || "Failed to read key vault status" });
@@ -290356,7 +290543,7 @@ app.delete("/api/user-keys", requireAuth, async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     const provider = req.body?.provider || req.query?.provider || "all";
-    const status = await deleteUserApiKeyFromVault(req, provider);
+    const status = await deleteUserApiKeyFromVault(req, provider, res);
     return res.json({ ok: true, status });
   } catch (err) {
     return res.status(500).json({ error: err?.message || "Failed to remove API key from vault" });

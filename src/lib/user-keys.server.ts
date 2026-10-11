@@ -11,7 +11,7 @@ export type SupportedKeyProvider = "gemini" | "openrouter" | "openai";
 
 export interface EncryptedProviderRecord {
   ciphertext: string; // ivHex:encryptedHex:authTagHex (AES-256-GCM)
-  maskedHint: string; // e.g. "AQ.A••••••••x2eQ" (irreversible display hint)
+  maskedHint: string; // e.g. "AIza••••••••x2eQ" (irreversible display hint)
   updatedAt: string;
 }
 
@@ -41,11 +41,15 @@ export interface UserKeysStatusResponse {
   hasPersonalKey: boolean;
   activeProvider: SupportedKeyProvider | "none";
   providers: Record<SupportedKeyProvider, ProviderStatusPublic>;
-  securityMode: "AES-256-GCM Backend Vault (HttpOnly / Zero-Frontend-Storage)";
+  sealedVault?: string | null;
+  securityMode: "Persistent Account Vault (Firebase + Backend AES-256-GCM)";
 }
 
 const VAULT_COOKIE_NAME = "dsaviz_vault_sid";
-const DATA_DIR = process.env.VERCEL ? path.join("/tmp", ".data") : path.join(process.cwd(), ".data");
+const VAULT_BLOB_COOKIE_NAME = "dsaviz_vault_blob";
+const DATA_DIR = process.env.VERCEL
+  ? path.join("/tmp", ".data")
+  : path.join(process.cwd(), ".data");
 const VAULT_FILE = path.join(DATA_DIR, "user_keys_vault.json");
 const memoryVaultStore = new Map<string, UserVaultRecord>();
 const requestKeyStorage = new AsyncLocalStorage<RequestUserKeys>();
@@ -91,6 +95,22 @@ const cleanEnv = (val?: string | null): string => {
   return val.trim().replace(/^["']|["']$/g, "").trim();
 };
 
+function getFirebaseProjectId(): string {
+  return (
+    cleanEnv(process.env.VITE_FIREBASE_PROJECT_ID) ||
+    cleanEnv(process.env.FIREBASE_PROJECT_ID) ||
+    fallbackConfig.projectId
+  );
+}
+
+function getFirebaseDatabaseId(): string {
+  const dbId =
+    cleanEnv(process.env.VITE_FIREBASE_DATABASE_ID) ||
+    fallbackConfig.firestoreDatabaseId ||
+    "(default)";
+  return dbId;
+}
+
 /**
  * Derives a dedicated 256-bit master key for the User API Key Vault using scrypt
  * with domain separation so even database/file dumps cannot be decoded without server secrets.
@@ -108,7 +128,7 @@ function getVaultMasterKey(): Buffer {
 /**
  * Encrypts a plaintext API key using AES-256-GCM with a unique 16-byte random IV
  * and binds the ownerId as Additional Authenticated Data (AAD) so ciphertext cannot
- * even be transplanted across users.
+ * be transplanted across accounts.
  */
 export function encryptUserApiKey(plainKey: string, ownerId: string): string {
   const iv = crypto.randomBytes(16);
@@ -143,7 +163,53 @@ export function decryptUserApiKey(ciphertext: string, ownerId: string): string |
 }
 
 /**
- * Generates an irreversible masked hint (e.g. "AQ.A••••••••x2eQ") for UI status display.
+ * Seals an entire UserVaultRecord into an opaque, tamper-proof AES-256-GCM envelope
+ * bound to its ownerId via AAD. This envelope can be safely stored in Firebase Firestore
+ * and HttpOnly cookies because only the backend possesses getVaultMasterKey().
+ */
+export function sealVaultRecord(record: UserVaultRecord): string {
+  const payloadJson = JSON.stringify(record);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv("aes-256-gcm", getVaultMasterKey(), iv);
+  cipher.setAAD(Buffer.from(`vault_envelope:${record.ownerId}`, "utf8"));
+  let encrypted = cipher.update(payloadJson, "utf8", "base64url");
+  encrypted += cipher.final("base64url");
+  const authTag = cipher.getAuthTag().toString("base64url");
+  return `${iv.toString("base64url")}.${encrypted}.${authTag}`;
+}
+
+/**
+ * Unseals and verifies an AES-256-GCM vault envelope for a specific expectedOwnerId.
+ * Returns null if the signature/AuthTag is invalid or if the ownerId does not match.
+ */
+export function unsealVaultRecord(
+  sealed: string | null | undefined,
+  expectedOwnerId: string
+): UserVaultRecord | null {
+  if (!sealed || typeof sealed !== "string" || !expectedOwnerId) return null;
+  try {
+    const parts = sealed.trim().split(".");
+    if (parts.length !== 3) return null;
+    const iv = Buffer.from(parts[0]!, "base64url");
+    const encrypted = Buffer.from(parts[1]!, "base64url");
+    const authTag = Buffer.from(parts[2]!, "base64url");
+    const decipher = crypto.createDecipheriv("aes-256-gcm", getVaultMasterKey(), iv);
+    decipher.setAAD(Buffer.from(`vault_envelope:${expectedOwnerId}`, "utf8"));
+    decipher.setAuthTag(authTag);
+    let json = decipher.update(encrypted, undefined, "utf8");
+    json += decipher.final("utf8");
+    const parsed = JSON.parse(json) as UserVaultRecord;
+    if (!parsed || parsed.ownerId !== expectedOwnerId || typeof parsed.providers !== "object") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Generates an irreversible masked hint (e.g. "AIza••••••••x2eQ") for UI status display.
  * Never reveals the middle characters of the secret key.
  */
 export function buildMaskedKeyHint(rawKey: string): string {
@@ -165,13 +231,19 @@ export function detectKeyProvider(
 ): SupportedKeyProvider | null {
   const trimmed = rawKey.trim();
   if (!trimmed || trimmed.length < 12) return null;
-  // Reject masked hints if accidentally submitted
   if (trimmed.includes("••") || /^\*+$/.test(trimmed)) return null;
 
-  if (explicitProvider === "gemini" || explicitProvider === "openrouter" || explicitProvider === "openai") {
+  if (
+    explicitProvider === "gemini" ||
+    explicitProvider === "openrouter" ||
+    explicitProvider === "openai"
+  ) {
     if (trimmed.startsWith("sk-or-")) return "openrouter";
     if (trimmed.startsWith("AIza") || trimmed.startsWith("AQ.")) return "gemini";
-    if (trimmed.startsWith("sk-proj-") || (trimmed.startsWith("sk-") && !trimmed.startsWith("sk-or-"))) {
+    if (
+      trimmed.startsWith("sk-proj-") ||
+      (trimmed.startsWith("sk-") && !trimmed.startsWith("sk-or-"))
+    ) {
       return "openai";
     }
     return explicitProvider;
@@ -183,9 +255,6 @@ export function detectKeyProvider(
   return "gemini";
 }
 
-/**
- * Signs a vault session ID with HMAC-SHA256 so the HttpOnly cookie cannot be forged or tampered with.
- */
 function signVaultSessionId(sid: string): string {
   const hmac = crypto.createHmac("sha256", getVaultMasterKey());
   hmac.update(`vault_sid:${sid}`);
@@ -235,30 +304,34 @@ function parseCookies(cookieHeader?: string): Record<string, string> {
   return out;
 }
 
+function extractBearerToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.split("Bearer ")[1]?.trim();
+  if (!token || token === "undefined" || token === "null" || token === "local-dev-token") {
+    return null;
+  }
+  return token;
+}
+
 /**
  * Extracts verified Firebase UID from the Authorization Bearer header if present.
  */
 async function extractVerifiedUidFromRequest(req: Request): Promise<string | null> {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-  const token = authHeader.split("Bearer ")[1]?.trim();
-  if (!token || token === "undefined" || token === "null" || token === "local-dev-token") return null;
+  const token = extractBearerToken(req);
+  if (!token) return null;
 
   try {
     const decoded = await adminAuth.verifyIdToken(token, true);
     if (decoded?.uid) return decoded.uid;
   } catch {
-    // Fallback structural verification if Firebase service account isn't configured locally
     try {
       const parts = token.split(".");
       if (parts.length === 3 && parts[2] && parts[2].length >= 64) {
         const header = JSON.parse(Buffer.from(parts[0]!, "base64url").toString("utf8"));
         const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8"));
         if (header.alg !== "RS256" || !header.kid) return null;
-        const projectId =
-          cleanEnv(process.env.VITE_FIREBASE_PROJECT_ID) ||
-          cleanEnv(process.env.FIREBASE_PROJECT_ID) ||
-          fallbackConfig.projectId;
+        const projectId = getFirebaseProjectId();
         const expectedIssuer = `https://securetoken.google.com/${projectId}`;
         const now = Math.floor(Date.now() / 1000);
         const isNotExpired = typeof payload.exp === "number" && payload.exp > now - 120;
@@ -284,8 +357,90 @@ async function extractVerifiedUidFromRequest(req: Request): Promise<string | nul
 }
 
 /**
+ * Reads the user's AES-256-GCM sealed vault directly from Firebase Cloud Firestore
+ * using the official Firestore v1 REST API authenticated with the user's Firebase ID Token.
+ * Works on Vercel serverless functions without requiring a service account JSON file.
+ */
+async function fetchVaultFromFirestoreRest(
+  uid: string,
+  bearerToken: string | null
+): Promise<UserVaultRecord | null> {
+  if (!uid || !bearerToken) return null;
+  const ownerId = `uid:${uid}`;
+  const projectId = getFirebaseProjectId();
+  const databaseId = getFirebaseDatabaseId();
+  const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId
+  )}/databases/${encodeURIComponent(
+    databaseId
+  )}/documents/users/${encodeURIComponent(uid)}/tasks/encrypted_key_vault`;
+
+  try {
+    const res = await fetch(docUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${bearerToken}`,
+      },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as any;
+    const sealed = data?.fields?.sealedVault?.stringValue;
+    if (typeof sealed === "string" && sealed.length > 16) {
+      const unsealed = unsealVaultRecord(sealed, ownerId);
+      if (unsealed) {
+        memoryVaultStore.set(ownerId, unsealed);
+        persistVaultToDisk();
+        return unsealed;
+      }
+    }
+  } catch {
+    // Non-fatal network fallback
+  }
+  return null;
+}
+
+/**
+ * Persists the user's AES-256-GCM sealed vault directly into Firebase Cloud Firestore
+ * under `/users/{uid}/tasks/encrypted_key_vault` (protected by `isOwner(userId)` rules)
+ * using the user's Firebase ID Token.
+ */
+async function saveVaultToFirestoreRest(
+  uid: string,
+  bearerToken: string | null,
+  record: UserVaultRecord
+): Promise<void> {
+  if (!uid || !bearerToken) return;
+  const sealed = sealVaultRecord(record);
+  const projectId = getFirebaseProjectId();
+  const databaseId = getFirebaseDatabaseId();
+  const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId
+  )}/databases/${encodeURIComponent(
+    databaseId
+  )}/documents/users/${encodeURIComponent(uid)}/tasks/encrypted_key_vault`;
+
+  try {
+    await fetch(docUrl, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${bearerToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fields: {
+          ownerId: { stringValue: record.ownerId },
+          sealedVault: { stringValue: sealed },
+          updatedAt: { stringValue: record.updatedAt },
+        },
+      }),
+    });
+  } catch {
+    // Non-blocking Firestore REST write
+  }
+}
+
+/**
  * Sets an HttpOnly, SameSite=Strict, signed vault session cookie on the response.
- * JavaScript in the browser (document.cookie) can NEVER read this cookie.
  */
 export function ensureHttpOnlyVaultCookie(req: Request, res: Response): string {
   const cookies = parseCookies(req.headers.cookie);
@@ -304,7 +459,7 @@ export function ensureHttpOnlyVaultCookie(req: Request, res: Response): string {
     "Path=/",
     "HttpOnly",
     "SameSite=Strict",
-    `Max-Age=${60 * 60 * 24 * 90}`, // 90 days
+    `Max-Age=${60 * 60 * 24 * 90}`,
   ];
   if (isSecure) cookieParts.push("Secure");
 
@@ -312,11 +467,101 @@ export function ensureHttpOnlyVaultCookie(req: Request, res: Response): string {
   return newSid;
 }
 
-async function getVaultRecord(ownerId: string): Promise<UserVaultRecord | null> {
+/**
+ * Writes the AES-256-GCM sealed account vault record into an HttpOnly cookie
+ * so page refreshes and serverless function transitions on the same browser retain
+ * 0ms access to the encrypted vault without waiting on external network calls.
+ */
+export function writeHttpOnlyVaultBlobCookie(
+  req: Request,
+  res: Response,
+  record: UserVaultRecord
+): void {
+  try {
+    const sealed = sealVaultRecord(record);
+    const isSecure =
+      process.env.NODE_ENV === "production" ||
+      req.secure ||
+      req.headers["x-forwarded-proto"] === "https";
+
+    const cookieParts = [
+      `${VAULT_BLOB_COOKIE_NAME}=${encodeURIComponent(sealed)}`,
+      "Path=/",
+      "HttpOnly",
+      "SameSite=Strict",
+      `Max-Age=${60 * 60 * 24 * 90}`,
+    ];
+    if (isSecure) cookieParts.push("Secure");
+    res.append("Set-Cookie", cookieParts.join("; "));
+  } catch {
+    // Ignore cookie serialization errors
+  }
+}
+
+/**
+ * Hydrates the in-memory vault from the request's HttpOnly encrypted blob cookie or
+ * `X-Encrypted-Account-Vault` header (synced from Firebase Firestore by the client).
+ */
+function hydrateVaultFromRequestEnvelope(
+  req: Request,
+  uid: string | null,
+  vaultSid: string | null
+): void {
+  const cookies = parseCookies(req.headers.cookie);
+  const cookieBlob = cookies[VAULT_BLOB_COOKIE_NAME];
+  const headerBlob =
+    typeof req.headers["x-encrypted-account-vault"] === "string"
+      ? req.headers["x-encrypted-account-vault"]
+      : null;
+
+  if (uid) {
+    const uidOwner = `uid:${uid}`;
+    if (!memoryVaultStore.has(uidOwner)) {
+      const fromHeader = unsealVaultRecord(headerBlob, uidOwner);
+      if (fromHeader) {
+        memoryVaultStore.set(uidOwner, fromHeader);
+        persistVaultToDisk();
+        return;
+      }
+      const fromCookie = unsealVaultRecord(cookieBlob, uidOwner);
+      if (fromCookie) {
+        memoryVaultStore.set(uidOwner, fromCookie);
+        persistVaultToDisk();
+        return;
+      }
+    }
+  }
+
+  if (vaultSid) {
+    const sidOwner = `sid:${vaultSid}`;
+    if (!memoryVaultStore.has(sidOwner)) {
+      const fromCookie = unsealVaultRecord(cookieBlob, sidOwner);
+      if (fromCookie) {
+        memoryVaultStore.set(sidOwner, fromCookie);
+        persistVaultToDisk();
+      }
+    }
+  }
+}
+
+async function getVaultRecord(
+  ownerId: string,
+  uid?: string | null,
+  bearerToken?: string | null
+): Promise<UserVaultRecord | null> {
   if (!ownerId) return null;
   const local = memoryVaultStore.get(ownerId);
-  if (local) return local;
+  if (local && local.providers && Object.keys(local.providers).length > 0) {
+    return local;
+  }
 
+  // 1. Try Firebase Firestore REST API with user's Google OAuth Bearer token (works on Vercel!)
+  if (uid && ownerId === `uid:${uid}` && bearerToken) {
+    const restRecord = await fetchVaultFromFirestoreRest(uid, bearerToken);
+    if (restRecord) return restRecord;
+  }
+
+  // 2. Try Firebase Admin SDK if service account credentials are configured
   try {
     if (adminDb) {
       const doc = await adminDb.collection("user_key_vault").doc(ownerId).get();
@@ -328,37 +573,48 @@ async function getVaultRecord(ownerId: string): Promise<UserVaultRecord | null> 
       }
     }
   } catch {
-    // Offline or Firestore unavailable
+    // Offline or service account credentials not configured
   }
-  return null;
+
+  return local || null;
 }
 
-async function saveVaultRecord(record: UserVaultRecord): Promise<void> {
+async function saveVaultRecord(
+  record: UserVaultRecord,
+  uid?: string | null,
+  bearerToken?: string | null
+): Promise<void> {
   memoryVaultStore.set(record.ownerId, record);
   persistVaultToDisk();
+
+  // 1. Persist to Firebase Firestore REST API under user's account
+  if (uid && record.ownerId === `uid:${uid}` && bearerToken) {
+    await saveVaultToFirestoreRest(uid, bearerToken, record);
+  }
+
+  // 2. Also persist via Firebase Admin SDK if configured
   try {
     if (adminDb) {
       await adminDb.collection("user_key_vault").doc(record.ownerId).set(record, { merge: true });
     }
   } catch {
-    // Non-blocking Firestore persistence
+    // Non-blocking Firestore Admin persistence
   }
 }
 
 /**
  * Resolves the decrypted keys for a given user UID and/or HttpOnly vault session ID.
- * If the user logged in after setting keys in their browser session, automatically merges
- * their session vault into their authenticated UID vault.
  */
 export async function resolveUserKeysForRequest(
   uid: string | null,
-  vaultSid: string | null
+  vaultSid: string | null,
+  bearerToken?: string | null
 ): Promise<RequestUserKeys> {
   const uidOwner = uid ? `uid:${uid}` : null;
   const sidOwner = vaultSid ? `sid:${vaultSid}` : null;
 
   const [uidRecord, sidRecord] = await Promise.all([
-    uidOwner ? getVaultRecord(uidOwner) : Promise.resolve(null),
+    uidOwner ? getVaultRecord(uidOwner, uid, bearerToken) : Promise.resolve(null),
     sidOwner ? getVaultRecord(sidOwner) : Promise.resolve(null),
   ]);
 
@@ -366,7 +622,6 @@ export async function resolveUserKeysForRequest(
   let openRouterKey = "";
   let openAIKey = "";
 
-  // Helper to decrypt from a record using its bound ownerId AAD
   const extractFrom = (rec: UserVaultRecord | null) => {
     if (!rec || !rec.providers) return;
     if (!geminiKey && rec.providers.gemini?.ciphertext) {
@@ -408,7 +663,12 @@ export async function attachUserKeyVaultContext(
     const cookies = parseCookies(req.headers.cookie);
     const vaultSid = verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
     const uid = await extractVerifiedUidFromRequest(req);
-    const resolved = await resolveUserKeysForRequest(uid, vaultSid);
+    const bearerToken = extractBearerToken(req);
+
+    // Immediately hydrate from HttpOnly encrypted blob cookie or Firebase-synced header envelope
+    hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
+
+    const resolved = await resolveUserKeysForRequest(uid, vaultSid, bearerToken);
     requestKeyStorage.run(resolved, () => next());
   } catch {
     next();
@@ -423,21 +683,26 @@ export function getActiveRequestUserKeys(): RequestUserKeys | undefined {
 }
 
 /**
- * Builds the public, zero-secret status summary for the frontend UI.
+ * Builds the public status summary for the frontend UI and returns the opaque `sealedVault`
+ * envelope so the authenticated client can also keep it synced in Firebase Firestore.
  */
 export async function getUserKeyVaultStatus(
   req: Request,
-  overrideVaultSid?: string | null
+  overrideVaultSid?: string | null,
+  res?: Response
 ): Promise<UserKeysStatusResponse> {
   const cookies = parseCookies(req.headers.cookie);
   const vaultSid = overrideVaultSid || verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
   const uid = await extractVerifiedUidFromRequest(req);
+  const bearerToken = extractBearerToken(req);
+
+  hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
 
   const uidOwner = uid ? `uid:${uid}` : null;
   const sidOwner = vaultSid ? `sid:${vaultSid}` : null;
 
   const [uidRecord, sidRecord] = await Promise.all([
-    uidOwner ? getVaultRecord(uidOwner) : Promise.resolve(null),
+    uidOwner ? getVaultRecord(uidOwner, uid, bearerToken) : Promise.resolve(null),
     sidOwner ? getVaultRecord(sidOwner) : Promise.resolve(null),
   ]);
 
@@ -451,7 +716,6 @@ export async function getUserKeyVaultStatus(
     const entry = uidRecord?.providers?.[prov] || sidRecord?.providers?.[prov];
     const ownerId = uidRecord?.providers?.[prov] ? uidRecord.ownerId : sidRecord?.ownerId;
     if (entry && ownerId) {
-      // Verify the ciphertext still decrypts cleanly with its AuthTag & AAD
       const validPlain = decryptUserApiKey(entry.ciphertext, ownerId);
       if (validPlain) {
         providers[prov] = {
@@ -471,11 +735,17 @@ export async function getUserKeyVaultStatus(
         ? "openai"
         : "none";
 
+  const primaryRecord = uidRecord || sidRecord || null;
+  if (res && primaryRecord) {
+    writeHttpOnlyVaultBlobCookie(req, res, primaryRecord);
+  }
+
   return {
     hasPersonalKey: activeProvider !== "none",
     activeProvider,
     providers,
-    securityMode: "AES-256-GCM Backend Vault (HttpOnly / Zero-Frontend-Storage)",
+    sealedVault: uidRecord ? sealVaultRecord(uidRecord) : null,
+    securityMode: "Persistent Account Vault (Firebase + Backend AES-256-GCM)",
   };
 }
 
@@ -568,8 +838,8 @@ export async function verifyUserApiKeyLive(
 }
 
 /**
- * Stores a user's API key encrypted with AES-256-GCM in the backend vault and binds it
- * to their HttpOnly session cookie AND (if logged in) their authenticated UID.
+ * Stores a user's API key encrypted with AES-256-GCM in the backend vault, persists it
+ * to Firebase Cloud Firestore for their Google Account UID, and writes an HttpOnly encrypted cookie.
  */
 export async function saveUserApiKeyToVault(
   req: Request,
@@ -584,6 +854,7 @@ export async function saveUserApiKeyToVault(
   provider?: SupportedKeyProvider;
   maskedHint?: string;
   verifiedModel?: string;
+  sealedVault?: string | null;
   error?: string;
   status?: UserKeysStatusResponse;
 }> {
@@ -599,7 +870,8 @@ export async function saveUserApiKeyToVault(
   if (!detectedProvider) {
     return {
       ok: false,
-      error: "Could not recognize API key format. Supported keys: Gemini (AIza... or AQ....), OpenRouter (sk-or-...), or OpenAI (sk-...).",
+      error:
+        "Could not recognize API key format. Supported keys: Gemini (AIza... or AQ....), OpenRouter (sk-or-...), or OpenAI (sk-...).",
     };
   }
 
@@ -617,6 +889,10 @@ export async function saveUserApiKeyToVault(
 
   const vaultSid = ensureHttpOnlyVaultCookie(req, res);
   const uid = await extractVerifiedUidFromRequest(req);
+  const bearerToken = extractBearerToken(req);
+
+  hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
+
   const nowIso = new Date().toISOString();
   const maskedHint = buildMaskedKeyHint(rawKey);
 
@@ -625,8 +901,10 @@ export async function saveUserApiKeyToVault(
     targetOwnerIds.push(`uid:${uid}`);
   }
 
+  let savedUidRecord: UserVaultRecord | null = null;
+
   for (const ownerId of targetOwnerIds) {
-    const existing = (await getVaultRecord(ownerId)) || {
+    const existing = (await getVaultRecord(ownerId, uid, bearerToken)) || {
       ownerId,
       providers: {},
       updatedAt: nowIso,
@@ -638,36 +916,48 @@ export async function saveUserApiKeyToVault(
       updatedAt: nowIso,
     };
     existing.updatedAt = nowIso;
-    await saveVaultRecord(existing);
+    await saveVaultRecord(existing, uid, bearerToken);
+    if (uid && ownerId === `uid:${uid}`) {
+      savedUidRecord = existing;
+    }
   }
 
-  const status = await getUserKeyVaultStatus(req, vaultSid);
+  if (savedUidRecord) {
+    writeHttpOnlyVaultBlobCookie(req, res, savedUidRecord);
+  }
+
+  const status = await getUserKeyVaultStatus(req, vaultSid, res);
   return {
     ok: true,
     provider: detectedProvider,
     maskedHint,
     verifiedModel,
+    sealedVault: status.sealedVault ?? null,
     status,
   };
 }
 
 /**
- * Deletes a user's encrypted API key(s) from the backend vault.
+ * Deletes a user's encrypted API key(s) from the backend vault and Firebase Firestore.
  */
 export async function deleteUserApiKeyFromVault(
   req: Request,
-  provider?: SupportedKeyProvider | "all"
+  provider?: SupportedKeyProvider | "all",
+  res?: Response
 ): Promise<UserKeysStatusResponse> {
   const cookies = parseCookies(req.headers.cookie);
   const vaultSid = verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
   const uid = await extractVerifiedUidFromRequest(req);
+  const bearerToken = extractBearerToken(req);
+
+  hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
 
   const targetOwnerIds: string[] = [];
   if (vaultSid) targetOwnerIds.push(`sid:${vaultSid}`);
   if (uid) targetOwnerIds.push(`uid:${uid}`);
 
   for (const ownerId of targetOwnerIds) {
-    const rec = await getVaultRecord(ownerId);
+    const rec = await getVaultRecord(ownerId, uid, bearerToken);
     if (!rec || !rec.providers) continue;
     if (!provider || provider === "all") {
       rec.providers = {};
@@ -675,8 +965,11 @@ export async function deleteUserApiKeyFromVault(
       delete rec.providers[provider];
     }
     rec.updatedAt = new Date().toISOString();
-    await saveVaultRecord(rec);
+    await saveVaultRecord(rec, uid, bearerToken);
+    if (res && uid && ownerId === `uid:${uid}`) {
+      writeHttpOnlyVaultBlobCookie(req, res, rec);
+    }
   }
 
-  return getUserKeyVaultStatus(req);
+  return getUserKeyVaultStatus(req, vaultSid, res);
 }

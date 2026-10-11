@@ -3231,11 +3231,11 @@ function ProfilePage() {
                 <div className="flex items-center gap-2">
                   <KeyRound className="size-4 text-primary" />
                   <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
-                    PERSONAL AI KEY VAULT (BYOK • AES-256-GCM BACKEND ONLY)
+                    PERSONAL AI KEY VAULT (BYOK • PERSISTENT ACCOUNT STORAGE IN FIREBASE + BACKEND)
                   </span>
                 </div>
                 <span className="rounded bg-[#dce6c1] text-[#1d2d19] dark:bg-emerald-500/15 dark:text-emerald-400 px-2 py-0.5 font-mono text-[10px] font-bold uppercase">
-                  ZERO FRONTEND EXPOSURE
+                  AES-256-GCM ACCOUNT SYNC
                 </span>
               </div>
 

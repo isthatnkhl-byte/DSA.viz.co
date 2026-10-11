@@ -25,26 +25,61 @@ import { toast } from "sonner";
 
 const VAULT_UPDATED_EVENT = "dsaviz:vault-status-updated";
 
+function getStatusCacheKey(uid: string): string {
+  return `dsaviz:vault_public_status:${uid}`;
+}
+
 export function useUserKeyVaultStatus() {
-  const { user } = useAuth();
-  const [status, setStatus] = useState<UserKeyVaultStatus | null>(null);
+  const { user, loading: authLoading } = useAuth();
+  const [status, setStatus] = useState<UserKeyVaultStatus | null>(() => {
+    try {
+      if (typeof window !== "undefined" && user?.uid) {
+        const raw = window.localStorage.getItem(getStatusCacheKey(user.uid));
+        if (raw) return JSON.parse(raw) as UserKeyVaultStatus;
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  });
   const [loading, setLoading] = useState<boolean>(true);
 
   const refresh = useCallback(async () => {
-    if (!user) {
+    if (authLoading) return;
+    if (!user?.uid) {
       setStatus(null);
       setLoading(false);
       return;
     }
+
+    // Hydrate cached public status immediately for this account while backend verifies
+    try {
+      if (typeof window !== "undefined") {
+        const cachedRaw = window.localStorage.getItem(getStatusCacheKey(user.uid));
+        if (cachedRaw) {
+          setStatus(JSON.parse(cachedRaw) as UserKeyVaultStatus);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
     try {
       const res = await apiGetUserKeyVaultStatus();
       setStatus(res);
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(getStatusCacheKey(user.uid), JSON.stringify(res));
+        }
+      } catch {
+        // Ignore
+      }
     } catch {
-      // Non-blocking fallback
+      // Keep last known account status if network is momentarily unavailable
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.uid, authLoading]);
 
   useEffect(() => {
     refresh();
@@ -55,10 +90,25 @@ export function useUserKeyVaultStatus() {
     return () => window.removeEventListener(VAULT_UPDATED_EVENT, handler);
   }, [refresh]);
 
-  const notifyVaultUpdated = useCallback((newStatus?: UserKeyVaultStatus) => {
-    if (newStatus) setStatus(newStatus);
-    window.dispatchEvent(new CustomEvent(VAULT_UPDATED_EVENT));
-  }, []);
+  const notifyVaultUpdated = useCallback(
+    (newStatus?: UserKeyVaultStatus) => {
+      if (newStatus) {
+        setStatus(newStatus);
+        try {
+          if (typeof window !== "undefined" && user?.uid) {
+            window.localStorage.setItem(
+              getStatusCacheKey(user.uid),
+              JSON.stringify(newStatus)
+            );
+          }
+        } catch {
+          // Ignore
+        }
+      }
+      window.dispatchEvent(new CustomEvent(VAULT_UPDATED_EVENT));
+    },
+    [user?.uid]
+  );
 
   return { status, loading, refresh, notifyVaultUpdated };
 }
@@ -94,8 +144,8 @@ export function ApiKeyVaultButton({ compact = false }: { compact?: boolean }) {
         }`}
         title={
           hasPersonal
-            ? `Personal ${activeLabel} Key Active (AES-256-GCM Backend Vault)`
-            : "Configure your personal Gemini / OpenRouter / OpenAI API Key (Backend-Only Encrypted Vault)"
+            ? `Personal ${activeLabel} Key Persisted for Your Account (Firebase + AES-256-GCM Vault)`
+            : "Save your personal Gemini / OpenRouter / OpenAI API Key to your Google Account (Firebase + AES-256-GCM Encrypted)"
         }
       >
         <KeyRound className={`size-3.5 ${hasPersonal ? "text-emerald-400" : "text-primary"}`} />
@@ -142,10 +192,10 @@ export function ApiKeyVaultModal({
             </div>
             <div>
               <h2 className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-[#F5F2EB]">
-                Personal AI Key Vault (Zero-Frontend-Trust)
+                Account-Bound AI Key Vault (Firebase + Backend Encrypted)
               </h2>
               <p className="font-mono text-[10px] text-[#A39B8F]">
-                AES-256-GCM Backend Encrypted • Isolated Rate Limits • HttpOnly Bound
+                Persisted for Your Google Account • AES-256-GCM Encrypted • Auto-Active on Refresh
               </p>
             </div>
           </div>
@@ -203,7 +253,7 @@ export function ApiKeyVaultManager({ onSaved }: { onSaved?: () => void }) {
         notifyVaultUpdated();
       }
       toast.success(
-        `Encrypted & verified ${res.provider?.toUpperCase() || "AI"} key (${res.maskedHint}) in backend vault!`
+        `Saved & encrypted ${res.provider?.toUpperCase() || "AI"} key (${res.maskedHint}) to your account!`
       );
       onSaved?.();
     } catch (err: any) {
@@ -221,8 +271,8 @@ export function ApiKeyVaultManager({ onSaved }: { onSaved?: () => void }) {
       notifyVaultUpdated(res.status);
       toast.success(
         provider === "all"
-          ? "Removed all personal API keys from backend vault."
-          : `Removed ${provider.toUpperCase()} key from backend vault.`
+          ? "Removed all personal API keys from your account vault."
+          : `Removed ${provider.toUpperCase()} key from your account vault.`
       );
     } catch (err: any) {
       setErrorMsg(err?.message || "Failed to remove API key.");
@@ -263,19 +313,20 @@ export function ApiKeyVaultManager({ onSaved }: { onSaved?: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* Security Guarantee Banner */}
+      {/* Persistent Account Storage & Encryption Policy Banner */}
       <div className="border border-emerald-500/30 bg-emerald-950/20 p-3.5 text-xs">
         <div className="flex items-start gap-2.5">
           <ShieldCheck className="size-4 text-emerald-400 shrink-0 mt-0.5" />
           <div className="space-y-1 text-[#D6D1C7]">
             <p className="font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-300">
-              100% Backend-Only Secret Storage • Zero Frontend Exposure
+              Persistent Account Storage • Firebase Cloud + AES-256-GCM Backend Vault
             </p>
             <p className="text-[11px] leading-relaxed text-[#A39B8F]">
-              Your API key is transmitted once over HTTPS, verified live on the server, and encrypted at rest using{" "}
-              <span className="font-mono text-[#EAE6DF]">AES-256-GCM</span> with authenticated AAD binding. It is{" "}
-              <strong className="text-[#EAE6DF]">never</strong> stored in{" "}
-              <span className="font-mono">localStorage</span>, <span className="font-mono">sessionStorage</span>, or readable cookies, and can never be decoded or read back from the browser.
+              Once pasted, your API key is verified on our backend, encrypted with{" "}
+              <span className="font-mono text-[#EAE6DF]">AES-256-GCM</span> using authenticated account binding (<span className="font-mono text-[#EAE6DF]">AAD = UID</span>), and{" "}
+              <strong className="text-[#EAE6DF]">persistently stored for your Google Account</strong> in{" "}
+              <span className="font-mono text-[#EAE6DF]">Firebase Cloud Firestore</span> and our backend vault. It remains{" "}
+              <strong className="text-[#EAE6DF]">automatically active across page refreshes, sessions, and devices</strong> for your account until you revoke or rotate it.
             </p>
           </div>
         </div>

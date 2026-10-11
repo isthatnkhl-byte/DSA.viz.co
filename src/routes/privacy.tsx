@@ -60,9 +60,9 @@ export function PrivacyPage() {
             </h2>
             <div className="space-y-3">
               <div className="rounded-xl border border-border/70 bg-card/60 p-4 space-y-1.5">
-                <h3 className="text-xs font-bold text-foreground">A. Authentication &amp; Profile Data (Voluntary)</h3>
+                <h3 className="text-xs font-bold text-foreground">A. Authentication, Profile &amp; Encrypted Account API Keys</h3>
                 <p>
-                  When you authenticate using Google OAuth, Firebase Auth retrieves your email address, display name, and avatar URL. If you choose to connect GitHub or LeetCode, we store your public username and securely encrypted access tokens using <code>AES-256-GCM</code> strictly for pushing solutions to your private repository.
+                  When you authenticate using Google OAuth, Firebase Auth retrieves your email address, display name, and avatar URL. When you save personal AI API keys (Gemini, OpenRouter, or OpenAI) in your Personal AI Key Vault, <strong>we persistently store your encrypted keys in Firebase Cloud Firestore and our backend vault tied specifically to your Google Account (<code>uid</code>)</strong> so they remain automatically usable across page refreshes, sessions, and devices without needing to be re-pasted. All personal API keys and connected GitHub/LeetCode tokens are encrypted at rest using <code>AES-256-GCM</code> authenticated encryption with per-user Additional Authenticated Data (AAD) and a backend-only master key—meaning raw keys are never stored in plaintext and can be permanently revoked at any time with one click.
                 </p>
               </div>
 

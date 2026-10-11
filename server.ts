@@ -187,7 +187,7 @@ app.use("/api/", attachUserKeyVaultContext);
 app.get("/api/user-keys/status", requireAuth, async (req: Request, res: Response) => {
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
-    const status = await getUserKeyVaultStatus(req);
+    const status = await getUserKeyVaultStatus(req, undefined, res);
     return res.json(status);
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || "Failed to read key vault status" });
@@ -216,7 +216,7 @@ app.delete("/api/user-keys", requireAuth, async (req: Request, res: Response) =>
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     const provider = (req.body?.provider || req.query?.provider || "all") as any;
-    const status = await deleteUserApiKeyFromVault(req, provider);
+    const status = await deleteUserApiKeyFromVault(req, provider, res);
     return res.json({ ok: true, status });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || "Failed to remove API key from vault" });

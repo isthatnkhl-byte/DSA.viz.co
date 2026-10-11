@@ -32,7 +32,7 @@ const TRACKS: Track[] = [
     subtitle: "Array & String Invariants",
     description:
       "Step-by-step visual glides from left-right pinches to dynamic sliding windows. Master contiguous subarray optimizations and two-sum patterns.",
-    badge: "FAANG Hot",
+    badge: "Core Pattern",
     badgeVariant: "hot",
     topics: ["Two Pointers", "Sliding Window", "Binary Search", "Prefix Sums", "Fast & Slow Pointers"],
     patternsCount: 18,

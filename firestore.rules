@@ -16,8 +16,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
+      allow read, write: if isOwner(userId);
       
       match /submissions/{submissionId} {
         allow read, write: if isOwner(userId);
@@ -42,6 +41,11 @@ service cloud.firestore {
       match /tasks/{taskId} {
         allow read, write: if isOwner(userId);
       }
+    }
+
+    // Default deny-all rule for any unmatched collections or documents
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

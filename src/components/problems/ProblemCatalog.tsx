@@ -73,8 +73,8 @@ const PRESET_COLLECTIONS = [
   { label: "⚡ Two Pointers & Windows", filter: "two-pointers" },
   { label: "🌲 Trees & Graphs", filter: "trees" },
   { label: "🧠 Dynamic Programming", filter: "dp" },
-  { label: "💎 Google Favorites", filter: "google" },
-  { label: "🌐 Meta Core", filter: "meta" },
+  { label: "💎 Google Topic Tag", filter: "google" },
+  { label: "🌐 Meta Topic Tag", filter: "meta" },
 ];
 
 // Pre-computed search & filter index (built once at module load for sub-millisecond filtering)
@@ -601,9 +601,11 @@ export function ProblemCatalog({
                 </span>
               </h1>
               <p className="mt-2.5 text-sm sm:text-base text-muted-foreground font-sans max-w-2xl leading-relaxed">
-                Master 1,500+ interview challenges with step-by-step invariant visualizers,
-                automated Socratic nudges, live C++ sandbox execution, and company frequency
-                heatmaps.
+                Explore 1,500+ classic algorithmic and data structure problems with step-by-step invariant visualizers,
+                Socratic AI coaching hints, sandboxed C++ execution, and historical topic tags.
+              </p>
+              <p className="mt-1.5 text-[11px] font-mono text-muted-foreground/80 max-w-2xl">
+                Nominative Fair Use Notice: Problem titles and historical company topic tags are indexed for non-commercial computer science education with direct links to original sources; not affiliated with or endorsed by LeetCode LLC or any listed company.
               </p>
             </div>
 

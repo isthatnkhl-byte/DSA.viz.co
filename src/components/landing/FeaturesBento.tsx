@@ -246,15 +246,15 @@ export function FeaturesBento() {
                 <ShieldCheck className="size-6" />
               </div>
               <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-[11px] font-bold text-primary">
-                1500+ Verified
+                Public Topic Index
               </span>
             </div>
 
             <h3 className="font-display text-2xl font-black text-foreground group-hover:text-primary transition-colors">
-              Company-Tagged Interview Index
+              Historical Topic &amp; Company Study Index
             </h3>
             <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed font-sans">
-              Filter questions by real-world interview frequency. Practice the exact patterns asked in modern technical screening loops.
+              Filter classic algorithmic problems by publicly reported historical topic tags for educational study (referenced under nominative fair use; not affiliated with or endorsed by any listed company).
             </p>
 
             {/* Interactive Company Chips Cloud */}
@@ -284,7 +284,7 @@ export function FeaturesBento() {
           <div className="pt-4 border-t border-border/40 font-mono text-xs text-primary font-bold flex items-center justify-between">
             <span className="flex items-center gap-2">
               <CheckCircle2 className="size-4" />
-              <span>Updated with recent interview questions</span>
+              <span>Community-indexed public algorithmic patterns (Nominative Fair Use)</span>
             </span>
             <Link to="/problems" className="flex items-center gap-1 hover:underline">
               <span>View All Questions</span>

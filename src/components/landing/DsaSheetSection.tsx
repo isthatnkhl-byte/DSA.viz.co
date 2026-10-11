@@ -21,13 +21,13 @@ interface SheetCardData {
 const SHEETS: SheetCardData[] = [
   {
     title: "NeetCode 150",
-    badge: "Most Popular",
-    desc: "The gold standard curriculum of 150 essential algorithmic patterns covering all interview archetypes.",
+    badge: "Pattern Roadmap",
+    desc: "Structured study index of 150 classic algorithmic problems covering foundational data structures and graph/DP patterns.",
     totalCount: 150,
     easy: 32,
     med: 88,
     hard: 30,
-    companies: ["Google", "Meta", "Amazon", "Apple"],
+    companies: ["Arrays & Hashing", "Two Pointers", "Trees & Graphs", "Dynamic Programming"],
     featuredProblems: [
       { title: "Two Sum", slug: "two-sum" },
       { title: "3Sum", slug: "3sum" },
@@ -40,13 +40,13 @@ const SHEETS: SheetCardData[] = [
   },
   {
     title: "Striver's SDE Sheet",
-    badge: "FAANG Tier",
-    desc: "191 carefully structured questions designed by Raj Vikramaditya for cracking top-tier software engineering interviews.",
+    badge: "Comprehensive Track",
+    desc: "191 structured computer science problems indexed from Raj Vikramaditya's (TakeUForward) public study curriculum.",
     totalCount: 191,
     easy: 42,
     med: 104,
     hard: 45,
-    companies: ["Microsoft", "Uber", "Bloomberg", "Google"],
+    companies: ["Arrays & Matrices", "Linked Lists", "Greedy & Recursion", "Graphs & DP"],
     featuredProblems: [
       { title: "Set Matrix Zeroes", slug: "set-matrix-zeroes" },
       { title: "Pascal's Triangle", slug: "pascals-triangle" },
@@ -59,13 +59,13 @@ const SHEETS: SheetCardData[] = [
   },
   {
     title: "Blind 75",
-    badge: "High Efficiency",
-    desc: "The timeless 75 problem list curated by a Facebook Tech Lead for maximum signal-to-time ratio.",
+    badge: "Core 75 Essentials",
+    desc: "The classic 75-problem community study list focused on high-signal data structures and algorithmic invariants.",
     totalCount: 75,
     easy: 21,
     med: 43,
     hard: 11,
-    companies: ["Meta", "Amazon", "Netflix", "LinkedIn"],
+    companies: ["Sliding Window", "Binary Search", "Intervals", "Graph Traversal"],
     featuredProblems: [
       { title: "Best Time to Buy Stock", slug: "best-time-to-buy-and-sell-stock" },
       { title: "Course Schedule", slug: "course-schedule" },
@@ -90,14 +90,14 @@ export function DsaSheetSection() {
       <div className="mb-12 text-center max-w-3xl mx-auto">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-3 shadow-xs">
           <FolderKanban className="size-3.5 text-primary" />
-          <span>Curated Interview Curricula</span>
+          <span>Public Study Roadmaps</span>
         </div>
         <h2 className="text-3xl md:text-5xl font-display font-black tracking-tight text-foreground mb-3">
           Master the <br />
           <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent font-pixel text-4xl sm:text-5xl md:text-6xl py-2 block mt-6 mb-4 drop-shadow-[0_0_20px_color-mix(in_oklch,var(--primary)_60%,transparent)]">DSA Sheets</span>
         </h2>
         <p className="text-muted-foreground font-sans text-sm md:text-base leading-relaxed">
-          Structured learning roadmaps with integrated visualizer simulations, spaced repetition tracking, and real-time execution.
+          Structured learning roadmaps with integrated visualizer simulations, progress tracking, and direct links to original problem sources.
         </p>
       </div>
 
@@ -158,10 +158,10 @@ export function DsaSheetSection() {
                 </div>
               </div>
 
-              {/* Company Tags */}
+              {/* Core Focus Tags */}
               <div className="mb-4">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground block mb-1.5">
-                  Frequently Target:
+                  Core Topics:
                 </span>
                 <div className="flex flex-wrap gap-1">
                   {sheet.companies.map((c) => (
@@ -182,13 +182,18 @@ export function DsaSheetSection() {
                 to={"/sheets" as any}
                 className="inline-flex items-center justify-between w-full font-mono text-xs font-bold text-primary group-hover:text-primary transition-colors"
               >
-                <span>Launch {sheet.title}</span>
+                <span>Open {sheet.title} Index</span>
                 <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Nominative Fair Use & Creator Attribution Notice */}
+      <p className="mt-6 text-center text-[11px] font-mono text-muted-foreground/80 max-w-3xl mx-auto">
+        Attribution &amp; Nominative Fair Use: Roadmap titles (NeetCode 150, Striver&apos;s SDE/A2Z by TakeUForward, Blind 75) belong to their respective creators and are indexed here for non-commercial visual education with direct links to original problems.
+      </p>
     </section>
   );
 }

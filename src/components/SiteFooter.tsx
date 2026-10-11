@@ -42,7 +42,7 @@ export function SiteFooter() {
             </Link>
 
             <p className="font-sans text-xs text-muted-foreground leading-relaxed max-w-sm">
-              Next-generation algorithmic spatial intuition platform. Step through 1,500+ LeetCode problems with deterministic memory pointer traces, real-time invariant auditing, and isolated compiler sandboxes.
+              Interactive computer science education platform. Step through 1,500+ classic data structures and algorithmic problems with deterministic memory pointer traces, step-by-step dry runs, and sandboxed C++ execution.
             </p>
 
             {/* Operational & Security Badges */}
@@ -52,12 +52,12 @@ export function SiteFooter() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
                 </span>
-                <span>Visualizer Engines Operational</span>
+                <span>Visualizer Engines Ready</span>
               </div>
 
               <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-[10px] font-bold text-primary">
                 <Shield className="size-3" />
-                <span>Zero-Trust Hardened</span>
+                <span>HTTPS &amp; AES-256-GCM Protected</span>
               </div>
             </div>
           </div>
@@ -111,13 +111,13 @@ export function SiteFooter() {
               </h3>
               <nav aria-label="Legal and Privacy Links" className="flex flex-col gap-2.5">
                 <Link to="/terms" className="text-muted-foreground hover:text-primary transition-colors">
-                  Terms of Service
+                  Terms &amp; Fair Use Notice
                 </Link>
                 <Link to="/privacy" className="text-muted-foreground hover:text-primary transition-colors">
-                  Privacy Policy
+                  Privacy &amp; Security Policy
                 </Link>
                 <Link to="/cookies" className="text-muted-foreground hover:text-primary transition-colors">
-                  Cookie Policy
+                  Cookie &amp; Storage Policy
                 </Link>
                 <button
                   type="button"
@@ -136,17 +136,17 @@ export function SiteFooter() {
         {/* Disclaimer & Fair Use Notice */}
         <div className="max-w-7xl mx-auto mt-10 pt-6 border-t border-border/50 text-[11px] text-muted-foreground/80 leading-relaxed space-y-2">
           <p>
-            <strong>Fair Use &amp; Trademark Disclaimer:</strong> DSA.viz.co is an independent computer science education platform. "LeetCode" is a registered trademark of LeetCode LLC. "HackerRank" is a registered trademark of HackerRank, Inc. DSA.viz.co is not affiliated with, endorsed by, or sponsored by LeetCode LLC, HackerRank, Inc., or their affiliates. Algorithmic problem concepts and titles are referenced strictly under non-commercial fair use for transformative pedagogical analysis and structural intuition.
+            <strong>Independent Educational Project &amp; Nominative Fair Use Notice (17 U.S.C. § 107):</strong> DSA.viz.co is an independent computer science visualization platform and is <strong>not affiliated with, endorsed by, or sponsored by</strong> LeetCode LLC, HackerRank, Inc., TakeUForward (Striver), NeetCode, Google, Meta, Amazon, Apple, Microsoft, or any other referenced entity. All third-party trademarks, company names, and curated roadmap titles (including Blind 75, Grind 75, Striver&apos;s A2Z, NeetCode 150, Love Babbar 450, Apna College, and Sean Prasad) remain the property of their respective owners and are referenced strictly under nominative and educational fair use for descriptive indexing and transformative visual pedagogy, with direct outbound links to original sources.
           </p>
           <p>
-            <strong>Simulated Environment:</strong> Mock interview webcam/microphone telemetry and anti-cheat indicators are executed exclusively within the user's browser runtime. No biometric recordings are transmitted or retained.
+            <strong>No Outcome Guarantee &amp; Local Media Privacy:</strong> Practice ratings and AI coaching outputs are automated heuristic study aids and do not guarantee interview outcomes or employment. Mock interview webcam/microphone streams are processed exclusively in your local browser and are never recorded or uploaded.
           </p>
         </div>
 
         {/* Bottom Bar: Copyright & Accessibility */}
         <div className="max-w-7xl mx-auto mt-6 pt-6 border-t border-border/40 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-[11px] font-mono text-muted-foreground">
-            © {new Date().getFullYear()} DSA.viz.co. All rights reserved. • WCAG 2.1 AA Compliant
+            © {new Date().getFullYear()} DSA.viz.co • Independent Educational Platform (17 U.S.C. § 107 Fair Use)
           </p>
 
           <div className="flex items-center gap-4">

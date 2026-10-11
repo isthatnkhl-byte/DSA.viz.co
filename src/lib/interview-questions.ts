@@ -721,9 +721,9 @@ export function getRandomInterviewQuestion(excludeId?: string): InterviewQuestio
 export const INTERVIEW_TEMPLATES = [
   {
     id: "faang-round",
-    title: "FAANG Coding Round",
+    title: "Standard 45-Minute Coding Round",
     tagline: "3 Questions in 45 Minutes",
-    description: "Industry-standard full loop simulation covering arrays, two-pointers, and hash table invariants with strict 15-minute question slots.",
+    description: "Full-length practice simulation covering arrays, two-pointers, and hash table invariants with 15-minute question slots.",
     questionCount: 3,
     perQuestionMinutes: 15,
     totalMinutes: 45,

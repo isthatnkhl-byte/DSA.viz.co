@@ -1,16 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { ShieldCheck, Lock, Eye, Database, Globe, UserCheck, HelpCircle } from "lucide-react";
+import { ShieldCheck, Lock, Eye, Database, Globe, UserCheck, HelpCircle, KeyRound } from "lucide-react";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
-      { title: "Privacy Policy — DSA.viz.co" },
+      { title: "Privacy & Security Policy — DSA.viz.co" },
       {
         name: "description",
         content:
-          "Privacy Policy for DSA.viz.co. Learn about our strict data minimization, zero biometric tracking, and GDPR, CCPA, and DPDP Act compliance.",
+          "Privacy & Security Architecture for DSA.viz.co. Learn about our AES-256-GCM API key encryption, owner-isolated Firestore rules, zero biometric upload, and GDPR/CCPA/DPDP compliance.",
       },
     ],
   }),
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/privacy")({
 });
 
 export function PrivacyPage() {
-  const lastUpdated = "September 8, 2026";
+  const lastUpdated = "October 11, 2026";
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -29,13 +29,13 @@ export function PrivacyPage() {
         <div className="border-b border-border/70 pb-8 mb-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 mb-4">
             <ShieldCheck className="size-3.5" />
-            <span>Zero-Trust Privacy</span>
+            <span>Z1 Security &amp; Privacy Architecture</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-display font-black tracking-tight text-foreground">
-            Privacy Policy
+            Privacy &amp; Security Policy
           </h1>
           <p className="mt-2 text-xs font-mono text-muted-foreground">
-            Effective Date: {lastUpdated} • Version 2.0 • Data Minimization Certified
+            Effective Date: {lastUpdated} • Version 3.0 • Strict Data Minimization &amp; AES-256-GCM Vault
           </p>
         </div>
 
@@ -45,10 +45,10 @@ export function PrivacyPage() {
           <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 space-y-2">
             <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
               <Lock className="size-4 text-emerald-400" />
-              <span>Our Foundational Privacy Promise</span>
+              <span>Our Foundational Privacy &amp; Security Commitment</span>
             </h2>
             <p>
-              At <strong>DSA.viz.co</strong>, we believe that practicing computer science and data structures should never come at the cost of your personal privacy. We strictly practice <strong>Data Minimization</strong>: we collect only what is strictly required to execute code, visualize algorithms, and synchronize your progress. <strong>We do not sell, rent, or monetize your personal data or algorithm submissions with advertisers.</strong>
+              At <strong>DSA.viz.co</strong>, we practice strict <strong>Data Minimization</strong> and defense-in-depth engineering. We collect only the minimum data necessary to authenticate your session, synchronize your study progress, and securely store your optional encrypted API keys. <strong>We never sell, rent, or monetize your personal data or code submissions with advertisers or data brokers.</strong>
             </p>
           </section>
 
@@ -56,27 +56,33 @@ export function PrivacyPage() {
           <section className="space-y-4">
             <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
               <Database className="size-4 text-primary" />
-              <span>1. Information We Collect &amp; Why</span>
+              <span>1. Information We Collect &amp; Cryptographic Storage Architecture</span>
             </h2>
             <div className="space-y-3">
               <div className="rounded-xl border border-border/70 bg-card/60 p-4 space-y-1.5">
-                <h3 className="text-xs font-bold text-foreground">A. Authentication, Profile &amp; Encrypted Account API Keys</h3>
+                <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <KeyRound className="size-3.5 text-primary" />
+                  <span>A. Google Authentication &amp; AES-256-GCM Encrypted Account API Keys</span>
+                </h3>
                 <p>
-                  When you authenticate using Google OAuth, Firebase Auth retrieves your email address, display name, and avatar URL. When you save personal AI API keys (Gemini, OpenRouter, or OpenAI) in your Personal AI Key Vault, <strong>we persistently store your encrypted keys in Firebase Cloud Firestore and our backend vault tied specifically to your Google Account (<code>uid</code>)</strong> so they remain automatically usable across page refreshes, sessions, and devices without needing to be re-pasted. All personal API keys and connected GitHub/LeetCode tokens are encrypted at rest using <code>AES-256-GCM</code> authenticated encryption with per-user Additional Authenticated Data (AAD) and a backend-only master key—meaning raw keys are never stored in plaintext and can be permanently revoked at any time with one click.
+                  When you sign in via Google OAuth, Firebase Authentication provides your basic profile identifiers (<code>uid</code>, email address, display name, and avatar URL). When you save personal AI API keys (Gemini, OpenRouter, or OpenAI) in your Personal AI Key Vault or connect a GitHub token, <strong>we persistently store your encrypted keys in Firebase Cloud Firestore (under your owner-isolated <code>/users/&#123;uid&#125;</code> document) and a backend-sealed vault cookie</strong> so your keys remain automatically usable for your account across browser refreshes and sessions.
+                </p>
+                <p>
+                  <strong>Cryptographic Safeguards:</strong> All saved API keys and OAuth tokens are encrypted on the server using Node.js <code>crypto</code> <code>AES-256-GCM</code> with a unique 96-bit random initialization vector (IV), a 128-bit authentication tag, a 256-bit server secret key derived via SHA-256, and per-user Additional Authenticated Data (AAD) bound to your exact Google <code>uid</code>. Raw API keys are never logged, never returned to the browser UI after saving (only masked prefixes/suffixes are displayed), and can be permanently purged at any time.
                 </p>
               </div>
 
               <div className="rounded-xl border border-border/70 bg-card/60 p-4 space-y-1.5">
-                <h3 className="text-xs font-bold text-foreground">B. User-Authored Pseudocode &amp; Submissions</h3>
+                <h3 className="text-xs font-bold text-foreground">B. User-Authored Pseudocode, Bookmarks &amp; Study Progress</h3>
                 <p>
-                  We store your written pseudocode, algorithm attempts, Big-O runtime verdicts, and AI feedback history in your personal, isolated document partition to power your personal dashboard and review metrics.
+                  We store your solved problem IDs, bookmarks, written pseudocode, C++ submissions, and AI coaching transcripts in your isolated Cloud Firestore subcollections (<code>/users/&#123;uid&#125;/...</code>). Firestore security rules strictly enforce <code>request.auth != null &amp;&amp; request.auth.uid == userId</code>, preventing any other user from reading or modifying your profile or study records.
                 </p>
               </div>
 
               <div className="rounded-xl border border-border/70 bg-card/60 p-4 space-y-1.5">
-                <h3 className="text-xs font-bold text-foreground">C. Technical &amp; Security Telemetry</h3>
+                <h3 className="text-xs font-bold text-foreground">C. Ephemeral Security &amp; Rate-Limit Telemetry</h3>
                 <p>
-                  To defend against denial-of-service (DoS) attacks and enforce API rate limits, our backend records ephemeral IP addresses and request timestamps. These logs are stored for security auditing and automatically rotated.
+                  To protect our API endpoints against automated abuse and denial-of-service (DoS) traffic, our server maintains short-lived, in-memory rate-limiting counters keyed by request IP address. All traffic is enforced over HTTPS with HSTS preload, strict Content-Security-Policy (CSP), and cross-origin isolation headers.
                 </p>
               </div>
             </div>
@@ -86,13 +92,13 @@ export function PrivacyPage() {
           <section className="space-y-3 rounded-2xl border border-border/80 bg-secondary/30 p-5">
             <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
               <Eye className="size-4 text-primary" />
-              <span>2. Explicit Non-Collection: Audio &amp; Video Streams</span>
+              <span>2. Explicit Non-Collection: Webcam Video &amp; Microphone Audio</span>
             </h2>
             <p>
-              During live mock interview simulations, the Platform requests camera and microphone access to render a local video mirror and responsive volume gauge.
+              During optional Live Interview practice sessions, your browser may request camera and microphone permissions to display a local self-view mirror, compute a local audio volume meter, and run browser-native speech recognition.
             </p>
             <p>
-              <strong>Zero Server Upload:</strong> Video and audio streams are processed strictly within your device's browser memory (via Web Audio API and HTML5 Video). <strong>No audio recordings, video frames, or biometric facial templates ever leave your browser or get uploaded to DSA.viz.co servers.</strong>
+              <strong>Zero Server Upload:</strong> All video frames and audio streams remain strictly within your local browser memory. <strong>No audio recordings, video recordings, or biometric templates are ever transmitted to or stored on DSA.viz.co servers.</strong>
             </p>
           </section>
 
@@ -100,13 +106,13 @@ export function PrivacyPage() {
           <section className="space-y-3">
             <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
               <Globe className="size-4 text-primary" />
-              <span>3. Legal Basis for Processing (GDPR / DPDP)</span>
+              <span>3. Legal Basis for Processing (GDPR, CCPA/CPRA &amp; India DPDP Act)</span>
             </h2>
-            <p>We process personal data under the following recognized legal bases:</p>
+            <p>We process personal data solely under the following lawful bases:</p>
             <ul className="list-disc pl-5 space-y-1.5">
-              <li><strong>Contractual Performance:</strong> Storing code submissions and generating visual animations as requested by the user.</li>
-              <li><strong>Consent:</strong> Explicit user opt-in for Google OAuth sign-in and optional functional/analytics cookies.</li>
-              <li><strong>Legitimate Interests:</strong> Protecting our infrastructure, preventing API rate-limit abuse, and debugging compiler sandbox failures.</li>
+              <li><strong>Performance of a Service:</strong> Authenticating your account, persisting your encrypted API key vault as requested, and syncing your algorithm progress.</li>
+              <li><strong>Explicit Consent:</strong> Opt-in Google OAuth sign-in, optional saving of personal BYOK API keys, and optional functional/analytics browser storage.</li>
+              <li><strong>Legitimate Security Interests:</strong> Enforcing rate limits, validating Firebase ID tokens, and preventing sandbox abuse.</li>
             </ul>
           </section>
 
@@ -114,27 +120,27 @@ export function PrivacyPage() {
           <section className="space-y-4">
             <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
               <UserCheck className="size-4 text-primary" />
-              <span>4. Your Data Protection Rights (GDPR, CCPA/CPRA, DPDP)</span>
+              <span>4. Your Data Protection Rights &amp; One-Click Revocation</span>
             </h2>
             <p>
-              Regardless of your geographic jurisdiction, DSA.viz.co extends the following foundational rights to all users:
+              Regardless of your geographic location, DSA.viz.co provides all users with direct self-service controls over their data:
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               <div className="p-3.5 rounded-xl border border-border/70 bg-card/60">
-                <h4 className="font-bold text-xs text-foreground">Right of Access &amp; Portability</h4>
-                <p className="text-[11px] text-muted-foreground mt-1">Request a copy of your stored submissions and chat history.</p>
+                <h4 className="font-bold text-xs text-foreground">Right of Access &amp; Inspection</h4>
+                <p className="text-[11px] text-muted-foreground mt-1">View all saved submissions, activity logs, and masked API key statuses directly in your Profile.</p>
               </div>
               <div className="p-3.5 rounded-xl border border-border/70 bg-card/60">
-                <h4 className="font-bold text-xs text-foreground">Right to Erasure ("Right to Be Forgotten")</h4>
-                <p className="text-[11px] text-muted-foreground mt-1">Permanently purge your account, submissions, and profile with one click.</p>
+                <h4 className="font-bold text-xs text-foreground">Instant Key &amp; Account Erasure</h4>
+                <p className="text-[11px] text-muted-foreground mt-1">Purge your encrypted API keys or delete your profile data at any time via the AI Key Vault or Profile settings.</p>
               </div>
               <div className="p-3.5 rounded-xl border border-border/70 bg-card/60">
                 <h4 className="font-bold text-xs text-foreground">Right to Rectification</h4>
-                <p className="text-[11px] text-muted-foreground mt-1">Update or edit your profile username and preferences at any time.</p>
+                <p className="text-[11px] text-muted-foreground mt-1">Update your connected handles, preferences, or saved API keys whenever you choose.</p>
               </div>
               <div className="p-3.5 rounded-xl border border-border/70 bg-card/60">
-                <h4 className="font-bold text-xs text-foreground">Do Not Sell or Share My Information</h4>
-                <p className="text-[11px] text-muted-foreground mt-1">We do not sell personal data. We honor Global Privacy Control (GPC).</p>
+                <h4 className="font-bold text-xs text-foreground">Zero Sale of Personal Information</h4>
+                <p className="text-[11px] text-muted-foreground mt-1">We never sell or share personal data for cross-context behavioral advertising and honor Global Privacy Control (GPC).</p>
               </div>
             </div>
           </section>
@@ -142,24 +148,24 @@ export function PrivacyPage() {
           {/* Section 5: Third-Party Service Providers */}
           <section className="space-y-3">
             <h2 className="text-base sm:text-lg font-bold text-foreground">
-              5. Third-Party Infrastructure &amp; API Subprocessors
+              5. Third-Party Infrastructure &amp; Subprocessors
             </h2>
-            <p>We work exclusively with vetted, enterprise-grade cloud infrastructure providers:</p>
+            <p>To operate the Platform, we rely on the following infrastructure and user-selected API providers:</p>
             <ul className="list-disc pl-5 space-y-1.5">
-              <li><strong>Google Cloud Platform &amp; Firebase:</strong> Authentication, session management, and encrypted Firestore database storage.</li>
-              <li><strong>Google Gemini API:</strong> Socratic pseudocode analysis and algorithmic hints. Code submitted for review does not contain PII.</li>
-              <li><strong>Compiler Explorer (Godbolt) &amp; Wandbox:</strong> Sandboxed, resource-bounded C++ compilation in isolated Linux containers.</li>
-              <li><strong>Vercel:</strong> Static frontend edge delivery and serverless routing.</li>
+              <li><strong>Google Cloud &amp; Firebase (Authentication &amp; Cloud Firestore):</strong> Provides OAuth identity verification and encrypted document storage.</li>
+              <li><strong>AI Model Providers (Google Gemini, OpenRouter, OpenAI):</strong> Processes pseudocode, code snippets, and interview chat prompts when invoked by the user.</li>
+              <li><strong>Compiler Explorer (Godbolt) &amp; Wandbox APIs:</strong> Executes user-submitted C++ source code in isolated remote Linux sandboxes.</li>
+              <li><strong>Vercel:</strong> Hosts static assets and serverless API endpoints over TLS 1.3.</li>
             </ul>
           </section>
 
           {/* Section 6: Children's Privacy */}
           <section className="space-y-3">
             <h2 className="text-base sm:text-lg font-bold text-foreground">
-              6. Protection of Minors (COPPA Compliance)
+              6. Protection of Minors (COPPA)
             </h2>
             <p>
-              DSA.viz.co is designed for students, job candidates, and software engineering professionals. We do not knowingly solicit or collect personal data from children under the age of 13 (or under 16 where required by regional law). If we discover that personal data from a minor has been collected without verifiable parental consent, we will promptly delete that data.
+              DSA.viz.co is intended for computer science students and software developers aged 13 and older (or 16+ where required by local jurisdiction). We do not knowingly collect personal information from children under 13.
             </p>
           </section>
 
@@ -167,11 +173,37 @@ export function PrivacyPage() {
           <section className="space-y-3 border-t border-border/60 pt-6">
             <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
               <HelpCircle className="size-4 text-primary" />
-              <span>7. Privacy Inquiries &amp; Data Erasure Requests</span>
+              <span>7. Security Vulnerability Disclosure &amp; Privacy Contact</span>
             </h2>
             <p>
-              To exercise your privacy rights, request data export, or inquire about our privacy architecture, please contact our Data Protection Officer at{" "}
-              <code className="text-primary font-mono text-xs bg-muted/60 px-2 py-0.5 rounded">privacy@dsa.viz.co</code>.
+              We maintain a standardized RFC 9116 security disclosure policy at{" "}
+              <a
+                href="/.well-known/security.txt"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-mono text-xs underline hover:text-accent"
+              >
+                /.well-known/security.txt
+              </a>
+              . To report a security issue, request data erasure assistance, or ask a privacy question, please contact us via{" "}
+              <a
+                href="https://github.com/isthatnkhl-byte/DSA.viz.co/security"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-mono text-xs underline hover:text-accent"
+              >
+                github.com/isthatnkhl-byte/DSA.viz.co/security
+              </a>{" "}
+              or{" "}
+              <a
+                href="https://github.com/isthatnkhl-byte/DSA.viz.co/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-mono text-xs underline hover:text-accent"
+              >
+                github.com/isthatnkhl-byte/DSA.viz.co/issues
+              </a>
+              .
             </p>
           </section>
         </div>

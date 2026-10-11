@@ -116,28 +116,28 @@ Both the Dashboard and Profile have been unified into a single real-time **Algor
 </details>
 
 <details>
-<summary><b>05 · 🎙️ Proctored FAANG Live Mock Interview Suite (`/live-interview`)</b> <i>(Click to toggle)</i></summary>
+<summary><b>05 · 🎙️ 3-Tier Simulated Live Coding Interview Suite (`/live-interview`)</b> <i>(Click to toggle)</i></summary>
 <br />
 
-Simulates a real 45-minute technical interview with a staff-level AI interviewer:
+Simulates a 45-minute technical coding session with an AI coaching interviewer:
 
 - **3-Tier Progressive Complexity Gate**:
   - **Tier 1 (Brute Force)**: Establish a working baseline and verify edge cases.
   - **Tier 2 (Better / Space-Time Tradeoff)**: Optimize time complexity using auxiliary data structures.
   - **Tier 3 (Optimal In-Place)**: Achieve optimal asymptotic time & space bounds.
-- **Live Voice & Camera Proctoring**: Real-time WebAudio frequency telemetry, focus/tab-switch lockdown monitoring, and a full **FAANG Hiring Committee Scorecard** upon completion.
+- **Local-Only Browser Audio & Camera Telemetry**: Real-time WebAudio volume meters, focus/tab-switch indicators, and an automated **Practice Readiness Scorecard** upon completion (all audio/video streams remain 100% inside the local browser runtime and are never uploaded).
 
 </details>
 
 <details>
-<summary><b>06 · 🔐 Zero-Knowledge AES-256-GCM Personal API Key Vault (`KEY VAULT`)</b> <i>(Click to toggle)</i></summary>
+<summary><b>06 · 🔐 Persistent AES-256-GCM Personal API Key Vault (`KEY VAULT`)</b> <i>(Click to toggle)</i></summary>
 <br />
 
 Want to run unlimited AI evaluations with your own **Google Gemini (`AIza...`)**, **OpenRouter (`sk-or-...`)**, or **OpenAI (`sk-...`)** key?
 
-- **Zero Browser Storage**: Keys are never stored in `localStorage` or exposed to client JavaScript after submission.
-- **AES-256-GCM Authenticated Encryption**: Keys are encrypted in backend memory using a scrypt-derived master key with the user's `ownerId` bound as Additional Authenticated Data (`AAD`), so ciphertexts cannot be transplanted across users.
-- **Live Provider Verification**: Every key is live-tested against its provider before being sealed into the vault, returning only an irreversible masked hint (e.g. `AIza••••••••9x2Q`).
+- **Persistent Per-Account Cloud + Backend Vault**: Keys are encrypted and saved to your authenticated Google Account (`uid`) in Firebase Cloud Firestore (`users/{uid}`) and a sealed `HttpOnly` cookie (`dsaviz_vault_blob`), so your keys remain automatically usable across page refreshes and sessions.
+- **AES-256-GCM Authenticated Encryption**: Keys are encrypted using a 256-bit server secret with per-record random IVs and your Google `uid` bound as Additional Authenticated Data (`AAD`), so ciphertexts cannot be transplanted across users.
+- **Live Provider Verification**: Every key is live-tested against its provider before being sealed into the vault, returning only a masked prefix/suffix hint (e.g. `AIza••••••••9x2Q`) to the UI.
 
 </details>
 
@@ -343,6 +343,15 @@ npm run build
 ```
 
 </details>
+
+---
+
+## ⚖️ Legal, Nominative Fair Use (17 U.S.C. § 107) & Security Disclosure
+
+- **Independent Educational Project**: **DSA.viz.co** is an independent computer science visualization platform and is **not affiliated with, endorsed by, sponsored by, or officially connected with** LeetCode LLC, HackerRank, Inc., TakeUForward (Striver / Raj Vikramaditya), NeetCode, Google, Meta, Amazon, Apple, Microsoft, or any other referenced organization.
+- **Statutory & Nominative Fair Use (17 U.S.C. § 107 & § 102(b))**: Abstract algorithms, recurrence relations, and data-structure operations are uncopyrightable mathematical principles under 17 U.S.C. § 102(b). Problem titles, public study roadmap indexes (Striver's A2Z, Blind 75, NeetCode 150, Grind 75, Love Babbar 450, Apna College, Sean Prasad), and historical company topic tags are referenced strictly under non-commercial educational and nominative fair use for transformative visual state analysis, with direct outbound links to original sources.
+- **DMCA & Attribution Contact**: Rightsholders or educators requesting attribution updates or content removal may open an issue at [`github.com/isthatnkhl-byte/DSA.viz.co/issues`](https://github.com/isthatnkhl-byte/DSA.viz.co/issues) for prompt action within 24–72 hours.
+- **RFC 9116 Security Vulnerability Disclosure**: Published at [`/.well-known/security.txt`](public/.well-known/security.txt) and [`github.com/isthatnkhl-byte/DSA.viz.co/security`](https://github.com/isthatnkhl-byte/DSA.viz.co/security).
 
 ---
 

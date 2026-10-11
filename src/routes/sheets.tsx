@@ -419,7 +419,7 @@ const SHEET_THEMES: Record<string, SheetTheme> = {
   },
   "love-babbar": {
     shortName: "Love Babbar 450",
-    tagline: "SDE Placement Cracker",
+    tagline: "450 Topic-Wise Practice Problems",
     accentBar: "bg-rose-500",
     activeBorder: "border-rose-500/60 ring-1 ring-rose-500/25",
     badge: "bg-rose-500/15 text-rose-400 border-rose-500/30",
@@ -860,11 +860,14 @@ function SheetsPage() {
                 <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-foreground">
                   Structured{" "}
                   <span className="bg-gradient-to-r from-primary via-accent to-emerald-400 bg-clip-text text-transparent">
-                    DSA Sheets & Pattern Tracks
+                    DSA Sheets &amp; Pattern Tracks
                   </span>
                 </h1>
                 <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground max-w-3xl leading-relaxed">
-                  Navigate industry-standard interview sheets organized into canonical algorithmic modules. Syncs automatically with your platform submissions, with 1-click access to interactive visualizers, compiler sandboxes, and revision bookmarks.
+                  Navigate community-curated study roadmaps organized into canonical algorithmic modules. Syncs with your personal progress, with 1-click access to interactive visualizers, compiler sandboxes, and outbound links to original problems.
+                </p>
+                <p className="mt-1.5 text-[11px] font-mono text-muted-foreground/80 max-w-3xl">
+                  Attribution &amp; Nominative Fair Use: Sheet titles (Striver&apos;s A2Z by TakeUForward, Blind 75, NeetCode 150, Grind 75, Sean Prasad, Love Babbar 450, Apna College) belong to their respective creators and are indexed here for non-commercial educational study.
                 </p>
               </div>
             </div>

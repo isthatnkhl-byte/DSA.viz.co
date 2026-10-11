@@ -1807,10 +1807,10 @@ function LiveInterviewPage() {
     if (!scorecard) return;
     const submissions = scorecard.questionSubmissions || [];
     const lines: string[] = [
-      `# ${selectedTemplate.title} — Technical Interview Scorecard`,
+      `# ${selectedTemplate.title} — Technical Interview Practice Scorecard`,
       ``,
       `- **Date**: ${new Date().toLocaleString()}`,
-      `- **Hiring Recommendation**: **${scorecard.hiringRecommendation}**`,
+      `- **Practice Readiness Indicator**: **${scorecard.hiringRecommendation}** *(Automated Heuristic — For Self-Study Only)*`,
       `- **Overall Rating**: **${scorecard.overallScore} / 10**`,
       `- **Algorithmic Craft**: ${scorecard.craftScore} / 10`,
       `- **Speech & Communication**: ${scorecard.confidenceScore} / 10 (${scorecard.speechAnalysis.wordsPerMinute} WPM, Steadiness ${scorecard.speechAnalysis.vocalSteadiness}/10)`,
@@ -1820,7 +1820,7 @@ function LiveInterviewPage() {
       `## Executive Summary`,
       scorecard.executiveSummary,
       ``,
-      `> **Interviewer Closing Remarks:** "${scorecard.spokenClosingFeedback}"`,
+      `> **Automated AI Coaching Summary:** ${scorecard.spokenClosingFeedback}`,
       ``,
       `## Top Strengths`,
       ...scorecard.topStrengths.map((s) => `- ✅ ${s}`),
@@ -1847,7 +1847,7 @@ function LiveInterviewPage() {
         sub.tierCodes.optimal || sub.tierCodes.better || sub.tierCodes.bruteForce || "// No code submitted",
         "```",
         ``,
-        `#### FAANG Reference Optimal Solution (${selectedLanguage.toUpperCase()})`,
+        `#### Reference Optimal Solution (${selectedLanguage.toUpperCase()})`,
         "```" + selectedLanguage,
         refCode,
         "```"
@@ -1901,22 +1901,25 @@ function LiveInterviewPage() {
             <div className="rounded-3xl border border-border/80 bg-card/80 backdrop-blur-xl p-6 sm:p-8 space-y-4 shadow-xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-mono font-bold text-primary">
                 <Brain className="size-3.5" />
-                Live Mock Interview Overhaul • In-Browser AI Proctoring
+                Simulated Practice Environment • Local Browser Media Processing
               </div>
 
               <div className="space-y-1">
                 <h1 className="text-3xl sm:text-4xl font-black font-display text-foreground tracking-tight">
-                  Proctored Technical Coding Round
+                  Simulated Technical Coding Round
                 </h1>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Real-time algorithmic state machine progressing from <strong className="text-foreground">Brute Force</strong> to <strong className="text-foreground">Better</strong> to <strong className="text-foreground">Optimal</strong>, paired with continuous speech recognition and client-side face tracking.
+                  Practice progressing from <strong className="text-foreground">Brute Force</strong> to <strong className="text-foreground">Better</strong> to <strong className="text-foreground">Optimal</strong> with Socratic AI hints, browser-native speech recognition, and optional local webcam preview.
+                </p>
+                <p className="text-[11px] font-mono text-muted-foreground/80 pt-1">
+                  Privacy &amp; Fair Use Notice: Webcam video and microphone audio stay 100% inside your local browser and are never recorded or uploaded. Company tags are referenced under nominative fair use; practice scorecards are automated study heuristics and do not guarantee interview outcomes.
                 </p>
               </div>
 
               {/* Template Selection Cards */}
               <div className="space-y-2.5 pt-2">
                 <label className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Layers className="size-3.5 text-primary" /> Select Interview Template & Question Queue:
+                  <Layers className="size-3.5 text-primary" /> Select Interview Template &amp; Question Queue:
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {INTERVIEW_TEMPLATES.map((tpl) => {
@@ -1960,10 +1963,10 @@ function LiveInterviewPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
-                      Target Company & Topic Focus:
+                      Historical Topic &amp; Company Filter:
                     </span>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                      {INTERVIEW_QUESTIONS.length} Curated FAANG Problems
+                      {INTERVIEW_QUESTIONS.length} Practice Problems (Nominative Fair Use)
                     </span>
                   </div>
                   <button
@@ -1978,7 +1981,7 @@ function LiveInterviewPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div className="space-y-1">
                     <span className="text-[10px] font-mono uppercase text-muted-foreground">
-                      Company Track
+                      Company Tag (Nominative Fair Use)
                     </span>
                     <div className="flex flex-wrap gap-1">
                       {availableCompanies.map((comp) => (
@@ -2093,7 +2096,7 @@ function LiveInterviewPage() {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                          Neural Voicepack
+                          Browser Speech Synthesis
                         </span>
                       )}
                     </div>
@@ -2127,7 +2130,7 @@ function LiveInterviewPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-bold text-xs text-foreground">
                     <ShieldAlert className="size-4 text-primary" />
-                    <span>Hardware Webcam & Microphone Verification</span>
+                    <span>Hardware Webcam &amp; Microphone Verification</span>
                   </div>
                   <Button
                     size="sm"
@@ -2152,7 +2155,7 @@ function LiveInterviewPage() {
                   >
                     <div className="flex items-center gap-2">
                       <Video className="size-4 shrink-0" />
-                      <span>Webcam: {hasCameraPermission ? "Connected (Local 0ms GPU)" : "Awaiting Permission"}</span>
+                      <span>Webcam: {hasCameraPermission ? "Connected (Local Browser Stream)" : "Awaiting Permission"}</span>
                     </div>
                     {availableCameras.length > 0 && (
                       <select

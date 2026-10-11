@@ -225,8 +225,8 @@ function PlaygroundPage() {
             {/* Telemetry Badge Deck */}
             <div className="rounded-2xl border border-border/80 bg-background/80 p-4 font-mono shadow-md backdrop-blur-xl shrink-0 w-full sm:w-auto flex items-center gap-6">
               <div>
-                <div className="text-[11px] uppercase text-muted-foreground">Evaluation Latency</div>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-display">&lt; 1.2s</div>
+                <div className="text-[11px] uppercase text-muted-foreground">Execution Mode</div>
+                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-display">Step-by-Step</div>
               </div>
               <div className="h-10 w-px bg-border/60" />
               <div>

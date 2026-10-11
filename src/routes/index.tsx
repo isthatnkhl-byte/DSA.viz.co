@@ -19,17 +19,17 @@ import type React from "react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "DSA.viz — 1500+ Interactive LeetCode Algorithms with Real-Time Animation" },
+      { title: "DSA.viz — 1500+ Interactive Data Structure & Algorithm Visualizations" },
       {
         name: "description",
         content:
-          "Visual, animated execution for 1500+ LeetCode problems. Draft pseudocode, get instant AI invariant review, and watch algorithms step frame-by-frame.",
+          "Visual, animated execution for 1500+ classic algorithmic problems. Draft pseudocode, inspect step-by-step memory pointers, and study Big-O complexity.",
       },
       { property: "og:title", content: "DSA.viz — Watch Computer Science Think" },
       {
         property: "og:description",
         content:
-          "1500+ company-tagged problems. Write pseudocode, get an AI interview review, and watch your algorithm animate step by step.",
+          "1500+ interactive algorithm visualizations. Write pseudocode, get Socratic AI feedback, and watch your algorithm animate step by step.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

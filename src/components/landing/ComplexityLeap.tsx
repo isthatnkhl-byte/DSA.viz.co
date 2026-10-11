@@ -44,7 +44,7 @@ vector<int> twoSumBrute(vector<int>& nums, int target) {
     timeComplexity: "O(n log n)",
     spaceComplexity: "O(1)",
     summary: "Sort the array first in O(n log n), then glide two pointers inwards from left and right in O(n).",
-    aiVerdict: "🟡 99% faster than brute force, but mutates array indices & adds sorting overhead.",
+    aiVerdict: "🟡 Asymptotically faster O(n log n) scaling for large N, though sorting mutates original array indices.",
     codeSnippet: `// Sort + Two Pointers — O(n log n) Time | O(1) Space
 vector<int> twoSumSort(vector<int>& nums, int target) {
     // Note: requires tracking original indices with pair
@@ -421,8 +421,8 @@ export function ComplexityLeap() {
                   <CheckCircle2 className="size-3.5" />
                 </div>
                 <div className="text-xs sm:text-sm font-sans">
-                  <strong className="font-bold text-foreground">Real-World Interview Focus:</strong>
-                  <span className="text-muted-foreground"> Master the exact optimal leaps expected by Google, Meta, and Amazon interview rubrics.</span>
+                  <strong className="font-bold text-foreground">Asymptotic Trade-Off Intuition:</strong>
+                  <span className="text-muted-foreground"> Understand the exact time-vs-space complexity leaps between brute-force, sorting, and hash-map invariants.</span>
                 </div>
               </div>
             </div>

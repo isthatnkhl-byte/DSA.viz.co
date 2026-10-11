@@ -46,7 +46,7 @@ export const Route = createFileRoute("/compiler")({
       {
         name: "description",
         content:
-          "Fast online compiler & DSA execution engine supporting C++, C, Java, and Python. Interactive standard I/O streams, diagnostic output, and FAANG algorithm templates.",
+          "Sandboxed online compiler & DSA execution runner supporting C++, C, Java, and Python. Interactive standard I/O streams, diagnostic output, and algorithm templates.",
       },
       {
         property: "og:title",
@@ -55,7 +55,7 @@ export const Route = createFileRoute("/compiler")({
       {
         property: "og:description",
         content:
-          "Zero-latency online code runner for C++, C, Java, and Python with live stdin/stdout and algorithm templates.",
+          "Sandboxed online code runner for C++, C, Java, and Python with live stdin/stdout and standard algorithm templates.",
       },
     ],
   }),
@@ -144,7 +144,7 @@ const LANGUAGE_PRO_TIPS: Record<
       {
         title: "⚡ Fast I/O Boilerplate",
         code: "ios_base::sync_with_stdio(false);\ncin.tie(NULL);",
-        desc: "Unties C++ streams from C stdio for 10x faster I/O execution.",
+        desc: "Unties C++ streams from C stdio to reduce I/O buffering overhead on large inputs.",
       },
       {
         title: "🧭 4-Direction Grid Vectors",
@@ -220,9 +220,9 @@ const LANGUAGE_PRO_TIPS: Record<
     subtitle: "Pythonic algorithmic speed, deque, heapq & memoization",
     tips: [
       {
-        title: "⚡ Ultra-Fast Standard Input",
+        title: "⚡ Buffered Standard Input",
         code: "import sys\ninput = sys.stdin.read\ntokens = input().split()",
-        desc: "Reads entire stdin in one syscall. 5x faster than line-by-line input().",
+        desc: "Reads all of stdin in a single buffered operation rather than line-by-line input() calls.",
       },
       {
         title: "🧭 Double-Ended Queue (BFS)",

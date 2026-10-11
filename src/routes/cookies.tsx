@@ -21,7 +21,7 @@ export const Route = createFileRoute("/cookies")({
 });
 
 export function CookiesPage() {
-  const lastUpdated = "September 8, 2026";
+  const lastUpdated = "October 11, 2026";
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
@@ -33,13 +33,13 @@ export function CookiesPage() {
         <div className="border-b border-border/70 pb-8 mb-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-4">
             <Cookie className="size-3.5" />
-            <span>Transparency &amp; Tracking</span>
+            <span>Transparency &amp; Storage Inventory</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-display font-black tracking-tight text-foreground">
             Cookie &amp; Local Storage Policy
           </h1>
           <p className="mt-2 text-xs font-mono text-muted-foreground">
-            Effective Date: {lastUpdated} • Version 2.0 • GDPR &amp; ePrivacy Compliant
+            Effective Date: {lastUpdated} • Version 3.0 • GDPR &amp; ePrivacy Transparency
           </p>
 
           <div className="mt-6 flex items-center gap-3">
@@ -168,11 +168,19 @@ export function CookiesPage() {
           <section className="space-y-3 border-t border-border/60 pt-6">
             <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
               <HelpCircle className="size-4 text-primary" />
-              <span>4. Contact Our Privacy Team</span>
+              <span>4. Contact Our Privacy &amp; Security Team</span>
             </h2>
             <p>
-              If you have any questions regarding our use of cookies, tracking technologies, or data minimization practices, please contact us at{" "}
-              <code className="text-primary font-mono text-xs bg-muted/60 px-2 py-0.5 rounded">privacy@dsa.viz.co</code>.
+              If you have any questions regarding our use of cookies, local storage, or encrypted vault cookies, please contact us via our official repository channels at{" "}
+              <a
+                href="https://github.com/isthatnkhl-byte/DSA.viz.co/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-mono text-xs underline hover:text-accent"
+              >
+                github.com/isthatnkhl-byte/DSA.viz.co/issues
+              </a>
+              .
             </p>
           </section>
         </div>

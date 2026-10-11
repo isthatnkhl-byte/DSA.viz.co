@@ -122,12 +122,15 @@ export function securityHeadersMiddleware(req: Request, res: Response, next: Nex
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("X-XSS-Protection", "0");
+    res.setHeader("X-DNS-Prefetch-Control", "off");
+    res.setHeader("X-Download-Options", "noopen");
+    res.setHeader("Origin-Agent-Cluster", "?1");
     res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
     res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     res.setHeader(
       "Permissions-Policy",
-      "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=()"
+      "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), browsing-topics=(), interest-cohort=()"
     );
 
     const cspDirectives = [

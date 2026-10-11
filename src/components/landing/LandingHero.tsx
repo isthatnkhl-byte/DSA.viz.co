@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
+import { motion } from "motion/react";
 import { DsavizcoLogo } from "@/components/brand/DsavizcoLogo";
-import { HeroBrandTitle } from "./HeroBrandTitle";
+import { HeroBrandTitle, type HeroIntroPhase } from "./HeroBrandTitle";
+import { HeroSlideshowDeck } from "./HeroSlideshowDeck";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { THEME_OPTIONS, type ThemeColor } from "@/lib/theme";
 
@@ -44,15 +46,43 @@ const CALIBRATION_SWATCHES: Array<{
   { id: "aether", shortCode: "AE", swatchBg: "oklch(0.60 0.22 278)" },
 ];
 
-export function LandingHero() {
+interface LandingHeroProps {
+  introPhase?: HeroIntroPhase;
+  introProgress?: number;
+  onJumpToIntroProgress?: (targetProgress: number) => void;
+}
+
+export function LandingHero({
+  introPhase = "complete",
+  introProgress = 1,
+  onJumpToIntroProgress = () => {},
+}: LandingHeroProps) {
   const { theme, setTheme } = useThemeColor();
   const activeThemeOption =
     THEME_OPTIONS.find((t) => t.id === theme) ?? THEME_OPTIONS[0]!;
 
+  const isComplete = introPhase === "complete";
+  const brandVerticalOffset = isComplete
+    ? 0
+    : introPhase === "full-title"
+      ? -75
+      : -155;
+
   return (
     <section className="relative overflow-hidden pt-6 pb-14 md:pt-10 md:pb-20 px-4 sm:px-8 lg:px-12 max-w-6xl mx-auto w-full text-left select-none transition-colors duration-300">
       {/* ================= 1. TOP TECHNICAL HEADER & INTERACTIVE CALIBRATION STRIP ================= */}
-      <div className="relative w-full mb-10 sm:mb-14">
+      <motion.div
+        initial={false}
+        animate={{
+          opacity: isComplete ? 1 : 0,
+          y: isComplete ? 0 : -18,
+          filter: isComplete ? "blur(0px)" : "blur(6px)",
+        }}
+        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        className={`relative w-full mb-10 sm:mb-14 ${
+          isComplete ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+      >
         {/* Left & Right Trim Crosshair Marks */}
         <div
           className="pointer-events-none hidden sm:block absolute -left-3 top-2 w-8 h-8"
@@ -78,7 +108,7 @@ export function LandingHero() {
           <div className="h-px bg-border flex-1 min-w-[16px] transition-colors duration-300" />
 
           {/* Interactive 12-Theme Color Calibration Strip */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5" data-allow-guest="true">
             <div
               role="radiogroup"
               aria-label="Interactive Theme Color Calibration Bar"
@@ -92,6 +122,7 @@ export function LandingHero() {
                     key={swatch.id}
                     type="button"
                     role="radio"
+                    data-allow-guest="true"
                     aria-checked={isSelected}
                     onClick={() => setTheme(swatch.id)}
                     title={
@@ -157,12 +188,23 @@ export function LandingHero() {
             </span>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* ================= 2. MAIN EDITORIAL HERO COPY ================= */}
-      <div className="sm:px-4 space-y-6 sm:space-y-8 flex flex-col items-center text-center">
+      <div className="relative sm:px-4 space-y-6 sm:space-y-8 flex flex-col items-center text-center">
         {/* Main Display Headline — Centered 3-Line Inverted Pyramid (Upper) */}
-        <h1 className="text-4xl sm:text-6xl md:text-[4.5rem] lg:text-[4.85rem] font-sans font-extrabold tracking-[-0.035em] text-foreground leading-[1.08] max-w-4xl mx-auto flex flex-col items-center text-center transition-colors duration-300">
+        <motion.h1
+          initial={false}
+          animate={{
+            opacity: isComplete ? 1 : 0,
+            y: isComplete ? 0 : 18,
+            filter: isComplete ? "blur(0px)" : "blur(8px)",
+          }}
+          transition={{ duration: 0.6, delay: isComplete ? 0.05 : 0, ease: [0.16, 1, 0.3, 1] }}
+          className={`text-4xl sm:text-6xl md:text-[4.5rem] lg:text-[4.85rem] font-sans font-extrabold tracking-[-0.035em] text-foreground leading-[1.08] max-w-4xl mx-auto flex flex-col items-center text-center transition-colors duration-300 ${
+            isComplete ? "pointer-events-auto" : "pointer-events-none"
+          }`}
+        >
           <span className="block">Master algorithms</span>
           <span className="block mt-1 sm:mt-1.5">
             by{" "}
@@ -177,18 +219,60 @@ export function LandingHero() {
               think.
             </span>
           </span>
-        </h1>
+        </motion.h1>
 
         {/* Interactive DSAVIZCO + (algorithms • visualizer • compiler) Brand Title (Middle) */}
-        <HeroBrandTitle />
+        <motion.div
+          initial={false}
+          animate={{
+            y: brandVerticalOffset,
+          }}
+          transition={{ type: "spring", stiffness: 180, damping: 26 }}
+          className="relative z-30 w-full flex flex-col items-center"
+        >
+          <HeroBrandTitle introPhase={introPhase} />
+
+          {/* Slideshow Introduction Deck (Active during blank / DSA / VIZ / CO / full-title intro phases) */}
+          {!isComplete && (
+            <div className="absolute top-full left-0 right-0 pt-2">
+              <HeroSlideshowDeck
+                phase={introPhase}
+                progress={introProgress}
+                onJumpToProgress={onJumpToIntroProgress}
+              />
+            </div>
+          )}
+        </motion.div>
 
         {/* Lead Paragraph (Below DSAVIZCO) */}
-        <p className="text-base sm:text-xl md:text-[1.32rem] text-muted-foreground font-sans font-normal leading-[1.6] max-w-3xl mx-auto text-center transition-colors duration-300">
+        <motion.p
+          initial={false}
+          animate={{
+            opacity: isComplete ? 1 : 0,
+            y: isComplete ? 0 : 20,
+            filter: isComplete ? "blur(0px)" : "blur(8px)",
+          }}
+          transition={{ duration: 0.6, delay: isComplete ? 0.12 : 0, ease: [0.16, 1, 0.3, 1] }}
+          className={`text-base sm:text-xl md:text-[1.32rem] text-muted-foreground font-sans font-normal leading-[1.6] max-w-3xl mx-auto text-center transition-colors duration-300 ${
+            isComplete ? "pointer-events-auto" : "pointer-events-none"
+          }`}
+        >
           Step through 1,500+ interview problems frame by frame, inspect live pointer mutations and recursion stacks, and validate your invariants with Socratic AI feedback and sandboxed C++20 execution.
-        </p>
+        </motion.p>
 
         {/* Action Buttons Row (Primary + Complementary Hard-Shadow & Dashed Controls) */}
-        <div className="pt-2 sm:pt-3 flex flex-wrap items-center justify-center gap-4 sm:gap-5">
+        <motion.div
+          initial={false}
+          animate={{
+            opacity: isComplete ? 1 : 0,
+            y: isComplete ? 0 : 22,
+            filter: isComplete ? "blur(0px)" : "blur(8px)",
+          }}
+          transition={{ duration: 0.6, delay: isComplete ? 0.18 : 0, ease: [0.16, 1, 0.3, 1] }}
+          className={`pt-2 sm:pt-3 flex flex-wrap items-center justify-center gap-4 sm:gap-5 ${
+            isComplete ? "pointer-events-auto" : "pointer-events-none"
+          }`}
+        >
           <Link
             to="/problems"
             className="inline-flex items-center justify-center bg-primary hover:opacity-95 text-primary-foreground border border-foreground/80 font-mono text-xs sm:text-sm font-semibold uppercase tracking-[0.22em] px-7 sm:px-9 py-4 rounded-none shadow-[5px_5px_0px_var(--complement)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[4px_4px_0px_var(--complement)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-[2px_2px_0px_var(--complement)] transition-all cursor-pointer"
@@ -202,10 +286,21 @@ export function LandingHero() {
           >
             <span>OPEN VISUALIZER</span>
           </Link>
-        </div>
+        </motion.div>
 
         {/* ================= 3. BOTTOM HALFTONE DITHER FRAME WITH SAME LOGO ================= */}
-        <div className="pt-6 sm:pt-8 w-full text-left">
+        <motion.div
+          initial={false}
+          animate={{
+            opacity: isComplete ? 1 : 0,
+            y: isComplete ? 0 : 28,
+            filter: isComplete ? "blur(0px)" : "blur(8px)",
+          }}
+          transition={{ duration: 0.65, delay: isComplete ? 0.24 : 0, ease: [0.16, 1, 0.3, 1] }}
+          className={`pt-6 sm:pt-8 w-full text-left ${
+            isComplete ? "pointer-events-auto" : "pointer-events-none"
+          }`}
+        >
           <div className="relative border border-border bg-card/90 p-3 sm:p-4 shadow-[0_2px_0_var(--border)] transition-colors duration-300">
             {/* Corner Registration Bullseye Marks */}
             <div className="flex items-center justify-between mb-2">
@@ -266,7 +361,7 @@ export function LandingHero() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

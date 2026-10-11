@@ -137,7 +137,7 @@ export const deleteSubmission = createServerFn({ method: "POST" })
 export const getProfileStats = createServerFn({ method: "POST" }).handler(async () => {
   const defaultStats = {
     profile: {
-      display_name: "Algorithm Explorer",
+      display_name: "Authenticated User",
       avatar_url: null,
       created_at: new Date().toISOString(),
       leetcode_username: null,
@@ -181,7 +181,8 @@ export const getProfileStats = createServerFn({ method: "POST" }).handler(async 
 
       const cleanDisplayName =
         firestoreDoc.displayName ||
-        (user.email ? user.email.split("@")[0] : "Algorithm Explorer");
+        user.displayName ||
+        (user.email ? user.email.split("@")[0] : "Authenticated User");
 
       return {
         profile: {
@@ -238,7 +239,7 @@ export const getProfileStats = createServerFn({ method: "POST" }).handler(async 
     }
 
     const cleanDisplayName =
-      profile.displayName || (profile.email ? profile.email.split("@")[0] : "Algorithm Explorer");
+      profile.displayName || (profile.email ? profile.email.split("@")[0] : "Authenticated User");
     return {
       profile: {
         display_name: cleanDisplayName,

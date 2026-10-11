@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { LandingHero } from "@/components/landing/LandingHero";
@@ -12,9 +12,9 @@ import { FeaturedProblemGrid } from "@/components/landing/FeaturedProblemGrid";
 import { LowerInteractiveShowcase } from "@/components/landing/LowerInteractiveShowcase";
 import { LiveVisualizerCard } from "@/components/landing/LiveVisualizerCard";
 import { useAuth } from "@/hooks/useAuth";
-import { DsavizcoLogo } from "@/components/brand/DsavizcoLogo";
-import { Shield, Sparkles, Activity, Code2, BookOpen } from "lucide-react";
 import { motion } from "motion/react";
+import { toast } from "sonner";
+import type React from "react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -39,10 +39,45 @@ export const Route = createFileRoute("/")({
 });
 
 export function LandingPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  const handleUnauthenticatedInteraction = (e: React.SyntheticEvent<HTMLElement>) => {
+    if (loading || user) return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    const interactiveEl = target.closest(
+      'a, button, input, select, textarea, [role="button"], [role="radio"], [role="slider"], [role="tab"]'
+    ) as HTMLElement | null;
+
+    if (!interactiveEl) return;
+
+    const anchor = target.closest("a") as HTMLAnchorElement | null;
+    const href = anchor?.getAttribute("href") || "";
+    if (href === "#main-content") return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const redirectDest =
+      href && href.startsWith("/") && !href.startsWith("//") && href !== "/" && href !== "/auth"
+        ? href
+        : "/problems";
+
+    toast.info("Sign in with Google is required to access platform features.");
+    navigate({
+      to: "/auth",
+      search: { redirect: redirectDest } as any,
+    });
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+    <div
+      className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300"
+      onClickCapture={handleUnauthenticatedInteraction}
+      onChangeCapture={handleUnauthenticatedInteraction}
+    >
       {/* 1. Global Navigation Header */}
       <SiteHeader />
 
@@ -67,13 +102,13 @@ export function LandingPage() {
           <AlgorithmLiveTicker />
         </motion.div>
 
-        {/* 2.6 Live Visualizer Showcase from Hero */}
+        {/* 2.6 Flagship Live Visualizer Showcase */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
-          className="will-change-transform max-w-5xl mx-auto px-4 py-8 flex justify-center"
+          transition={{ duration: 0.7, ease: "easeOut", delay: 0.1 }}
+          className="will-change-transform"
         >
           <LiveVisualizerCard />
         </motion.div>

@@ -36,19 +36,19 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
   }, [isOpen]);
 
   return (
-    <div className="relative inline-flex items-center gap-1 shrink-0" ref={containerRef}>
+    <div className="relative inline-flex items-center gap-1.5 shrink-0" ref={containerRef}>
       {/* 1. Light / Dark Mode Toggle Button */}
       <button
         type="button"
         onClick={toggleMode}
-        className="flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/60 text-muted-foreground transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0"
+        className="flex size-9 items-center justify-center rounded-none border border-[#625B52] bg-[#2C2724] text-[#EAE6DF] transition-all hover:border-primary hover:text-white active:scale-95 shrink-0 cursor-pointer"
         title={mode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
         aria-label="Toggle dark and light appearance mode"
       >
         {mode === "dark" ? (
-          <Sun className="size-4 text-amber-400 hover:rotate-45 transition-transform" />
+          <Sun className="size-4 text-primary hover:rotate-45 transition-transform" />
         ) : (
-          <Moon className="size-4 text-primary hover:-rotate-12 transition-transform" />
+          <Moon className="size-4 text-[#EAE6DF] hover:-rotate-12 transition-transform" />
         )}
       </button>
 
@@ -56,18 +56,23 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/60 transition-all hover:bg-secondary hover:text-foreground active:scale-95 shadow-xs shrink-0 ${
-          isOpen ? "ring-2 ring-primary/40 border-primary/50" : ""
+        className={`flex size-9 items-center justify-center rounded-none border border-[#625B52] bg-[#2C2724] text-[#EAE6DF] transition-all hover:border-primary hover:text-white active:scale-95 shrink-0 cursor-pointer ${
+          isOpen ? "ring-1 ring-primary border-primary" : ""
         }`}
-        title={`Theme Accent: ${activeOption.label}`}
+        title={`Theme Accent: ${activeOption.name} (${activeOption.label})`}
         aria-label="Select Color Theme"
       >
         <span className="flex items-center justify-center gap-1">
           <span
-            className="size-2.5 rounded-full shadow-xs ring-1 ring-white/25 shrink-0"
+            className="relative size-2.5 rounded-none shadow-xs ring-1 ring-white/25 shrink-0"
             style={{ backgroundColor: activeOption.previewColor }}
-          />
-          <Palette className="size-3 text-muted-foreground shrink-0" />
+          >
+            <span
+              className="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full border border-black/40"
+              style={{ backgroundColor: activeOption.complementColor }}
+            />
+          </span>
+          <Palette className="size-3 text-[#EAE6DF] shrink-0" />
         </span>
       </button>
 

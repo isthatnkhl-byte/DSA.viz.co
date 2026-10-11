@@ -94,11 +94,8 @@ export function SiteFooter() {
                 Account &amp; Work
               </h3>
               <nav aria-label="Account Navigation" className="flex flex-col gap-2.5">
-                <Link to={"/dashboard" as any} className="text-muted-foreground hover:text-primary transition-colors">
-                  My Dashboard
-                </Link>
                 <Link to={"/profile" as any} className="text-muted-foreground hover:text-primary transition-colors">
-                  Profile &amp; Settings
+                  Profile &amp; Telemetry Hub
                 </Link>
                 <Link to="/auth" className="text-muted-foreground hover:text-primary transition-colors">
                   Sign In with Google

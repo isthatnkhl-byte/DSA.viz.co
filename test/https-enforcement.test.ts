@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { httpsEnforcer, securityHeadersMiddleware } from "../src/middleware/security.ts";
 
-test("httpsEnforcer - passes through requests in non-production environment", () => {
+test("httpsEnforcer - redirects non-loopback plain HTTP requests to HTTPS even in development", () => {
   const origEnv = process.env.NODE_ENV;
   const origForce = process.env.FORCE_HTTPS;
   try {
@@ -10,7 +10,8 @@ test("httpsEnforcer - passes through requests in non-production environment", ()
     delete process.env.FORCE_HTTPS;
 
     let nextCalled = false;
-    let redirected = false;
+    let redirectedCode = 0;
+    let redirectedUrl = "";
 
     const req: any = {
       headers: { host: "example.com" },
@@ -18,8 +19,10 @@ test("httpsEnforcer - passes through requests in non-production environment", ()
       secure: false,
     };
     const res: any = {
-      redirect: () => {
-        redirected = true;
+      setHeader: () => {},
+      redirect: (code: number, url: string) => {
+        redirectedCode = code;
+        redirectedUrl = url;
       },
     };
     const next = () => {
@@ -27,8 +30,9 @@ test("httpsEnforcer - passes through requests in non-production environment", ()
     };
 
     httpsEnforcer(req, res, next);
-    assert.equal(nextCalled, true);
-    assert.equal(redirected, false);
+    assert.equal(nextCalled, false);
+    assert.equal(redirectedCode, 301);
+    assert.equal(redirectedUrl, "https://example.com/problem/two-sum");
   } finally {
     process.env.NODE_ENV = origEnv;
     if (origForce !== undefined) process.env.FORCE_HTTPS = origForce;

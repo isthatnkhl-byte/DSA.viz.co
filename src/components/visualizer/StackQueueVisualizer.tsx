@@ -459,7 +459,7 @@ export function StackQueueVisualizer({
             return (
               <div
                 key={`circ-slot-${idx}`}
-                className={`relative flex flex-col items-center justify-center min-w-[70px] h-[85px] rounded-xl border-2 transition-all duration-300 ${
+                className={`relative flex flex-col items-center justify-center min-w-[70px] w-auto px-3 min-h-[85px] py-2 rounded-xl border-2 whitespace-nowrap transition-all duration-300 ${
                   isFront && isRear
                     ? "border-amber-400 bg-amber-500/20 text-amber-200 font-black scale-105 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/50"
                     : isFront
@@ -544,7 +544,7 @@ export function StackQueueVisualizer({
             return (
               <div
                 key={`stream-${idx}`}
-                className={`relative flex flex-col items-center justify-center min-w-[42px] px-2.5 py-1.5 rounded-lg font-mono text-xs font-bold border transition-all ${
+                className={`relative flex flex-col items-center justify-center min-w-[42px] w-auto px-2.5 py-1.5 rounded-lg font-mono text-xs font-bold whitespace-nowrap border transition-all ${
                   isCurr
                     ? "bg-primary text-primary-foreground border-primary scale-110 shadow-md ring-2 ring-primary/40 z-10"
                     : isPast
@@ -586,7 +586,7 @@ export function StackQueueVisualizer({
     const isTopPush = actionType === "push" && !isSecondary;
 
     return (
-      <div className="relative flex flex-1 flex-col items-center min-w-[220px] max-w-[420px]">
+      <div className="relative flex flex-1 flex-col items-center min-w-[240px] max-w-full sm:max-w-[520px]">
         {/* Header with size and minimum if applicable */}
         <div className="mb-2.5 flex items-center justify-between w-full px-2 text-[11px] font-mono font-bold text-muted-foreground">
           <span className={isSecondary ? "text-indigo-300 flex items-center gap-1" : "text-primary flex items-center gap-1"}>
@@ -648,7 +648,7 @@ export function StackQueueVisualizer({
               return (
                 <div
                   key={`stack-${stackLabel}-${i}`}
-                  className={`flex items-center justify-between rounded-xl border px-3.5 py-2.5 font-mono transition-all duration-300 ${
+                  className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 font-mono transition-all duration-300 ${
                     isCurrent
                       ? isSecondary
                         ? "scale-105 border-indigo-400 bg-indigo-500/30 text-indigo-200 font-black shadow-xl shadow-indigo-500/40 ring-2 ring-indigo-400/60"
@@ -662,14 +662,14 @@ export function StackQueueVisualizer({
                           : "border-border/80 bg-background/90 text-foreground font-semibold"
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-muted-foreground font-mono">[{i}]</span>
-                    <span className="text-base font-extrabold">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[11px] text-muted-foreground font-mono shrink-0">[{i}]</span>
+                    <span className="text-base font-extrabold break-all">
                       {String(val)}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     {/* Paired Minimum Badge for Min Stack */}
                     {pairedMin !== null && (
                       <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
@@ -755,7 +755,7 @@ export function StackQueueVisualizer({
                 return (
                   <div
                     key={`queue-${queueLabel}-${i}`}
-                    className={`relative flex min-w-18 flex-col items-center justify-center rounded-xl border p-3 font-mono transition-all duration-300 ${
+                    className={`relative flex min-w-[72px] w-auto px-3.5 py-3 flex-col items-center justify-center rounded-xl border font-mono whitespace-nowrap transition-all duration-300 ${
                       isCurrent
                         ? isSecondary
                           ? "scale-110 border-indigo-400 bg-indigo-500/30 text-indigo-200 font-black shadow-xl shadow-indigo-500/40 ring-4 ring-indigo-400/60 z-10"

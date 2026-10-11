@@ -181,6 +181,26 @@ export class InterviewSpeechSynthesizer {
   }
 }
 
+export type SpeechRecognitionStatus = "listening" | "paused" | "unsupported" | "error";
+
+export async function listMediaDevices(): Promise<{
+  microphones: MediaDeviceInfo[];
+  cameras: MediaDeviceInfo[];
+}> {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
+    return { microphones: [], cameras: [] };
+  }
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return {
+      microphones: devices.filter((d) => d.kind === "audioinput"),
+      cameras: devices.filter((d) => d.kind === "videoinput"),
+    };
+  } catch {
+    return { microphones: [], cameras: [] };
+  }
+}
+
 export class CandidateAudioTracker {
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
@@ -204,23 +224,37 @@ export class CandidateAudioTracker {
   private sessionStartTime: number = Date.now();
   private wasSpeaking: boolean = false;
 
+  // Throttling for UI volume meter (prevents 60fps React re-render storms)
+  private lastEmittedVolume: number = 0;
+  private lastVolumeEmitTime: number = 0;
+
   // Speech Recognition (Candidate thoughts)
   private recognition: any = null;
   private transcriptLines: string[] = [];
+  private currentInterimText: string = "";
   private fillerWordsFound: string[] = [];
   private isListening: boolean = false;
+  private isMicMuted: boolean = false;
+  private isTtsSpeaking: boolean = false;
+  private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private recognitionStatus: SpeechRecognitionStatus = "paused";
 
   // Callbacks
   public onVolumeUpdate?: (volumePct: number) => void;
-  public onTranscriptUpdate?: (latestText: string, fullTranscript: string) => void;
+  public onTranscriptUpdate?: (latestText: string, fullTranscript: string, isFinal?: boolean) => void;
+  public onInterimUpdate?: (interimText: string) => void;
+  public onFinalSegment?: (finalSegment: string, fullTranscript: string) => void;
+  public onRecognitionStatusChange?: (status: SpeechRecognitionStatus, message?: string) => void;
 
   public async startTracking(mediaStream: MediaStream): Promise<boolean> {
     try {
+      this.stopTracking();
       this.stream = mediaStream;
       this.sessionStartTime = Date.now();
       this.recordedAudioChunks = [];
       this.sessionAudioBlob = null;
       this.sessionAudioUrl = null;
+      this.currentInterimText = "";
 
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return false;
@@ -232,7 +266,7 @@ export class CandidateAudioTracker {
 
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 256;
-      this.analyser.smoothingTimeConstant = 0.6;
+      this.analyser.smoothingTimeConstant = 0.65;
 
       this.microphone = this.audioContext.createMediaStreamSource(mediaStream);
       this.microphone.connect(this.analyser);
@@ -246,6 +280,96 @@ export class CandidateAudioTracker {
       console.warn("CandidateAudioTracker error initializing:", err);
       return false;
     }
+  }
+
+  public setMicMuted(muted: boolean) {
+    this.isMicMuted = muted;
+    if (this.stream) {
+      this.stream.getAudioTracks().forEach((track) => {
+        track.enabled = !muted;
+      });
+    }
+    if (muted) {
+      this.currentInterimText = "";
+      this.onInterimUpdate?.("");
+      this.onVolumeUpdate?.(0);
+      this.updateRecognitionStatus("paused", "Microphone muted");
+      if (this.recognition) {
+        try {
+          this.recognition.abort();
+        } catch {
+          // ignore
+        }
+      }
+    } else if (this.isListening && !this.isTtsSpeaking) {
+      this.safeStartRecognition();
+    }
+  }
+
+  public getMicMuted(): boolean {
+    return this.isMicMuted;
+  }
+
+  /**
+   * Suppresses speech recognition while the AI Interviewer TTS is speaking aloud
+   * so the microphone does not transcribe the interviewer's own voice.
+   */
+  public setTtsSpeaking(speaking: boolean) {
+    if (this.isTtsSpeaking === speaking) return;
+    this.isTtsSpeaking = speaking;
+
+    if (speaking) {
+      this.currentInterimText = "";
+      this.onInterimUpdate?.("");
+      if (this.recognition) {
+        try {
+          this.recognition.abort();
+        } catch {
+          // ignore
+        }
+      }
+    } else if (this.isListening && !this.isMicMuted) {
+      this.safeStartRecognition();
+    }
+  }
+
+  /**
+   * If the user clicks "Send Spoken Thought" before SpeechRecognition marks the current
+   * phrase as final, flush the pending interim phrase as a final segment immediately.
+   */
+  public flushInterimAsFinal(): string {
+    const pending = this.currentInterimText.trim();
+    if (!pending) return "";
+    this.currentInterimText = "";
+    this.onInterimUpdate?.("");
+    this.transcriptLines.push(pending);
+    this.auditFillerWords(pending);
+    const fullText = this.transcriptLines.join(" ");
+    this.onFinalSegment?.(pending, fullText);
+    this.onTranscriptUpdate?.(pending, fullText, true);
+    return pending;
+  }
+
+  private updateRecognitionStatus(status: SpeechRecognitionStatus, message?: string) {
+    this.recognitionStatus = status;
+    this.onRecognitionStatusChange?.(status, message);
+  }
+
+  private safeStartRecognition() {
+    if (!this.recognition || !this.isListening || this.isMicMuted || this.isTtsSpeaking) return;
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+    this.restartTimer = setTimeout(() => {
+      if (!this.recognition || !this.isListening || this.isMicMuted || this.isTtsSpeaking) return;
+      try {
+        this.recognition.start();
+        this.updateRecognitionStatus("listening");
+      } catch {
+        // Already started or transitioning
+      }
+    }, 180);
   }
 
   private initMediaRecorder(stream: MediaStream) {
@@ -285,6 +409,15 @@ export class CandidateAudioTracker {
   private monitorLoop = () => {
     if (!this.analyser) return;
 
+    if (this.isMicMuted) {
+      if (this.lastEmittedVolume !== 0) {
+        this.lastEmittedVolume = 0;
+        this.onVolumeUpdate?.(0);
+      }
+      this.animationFrameId = requestAnimationFrame(this.monitorLoop);
+      return;
+    }
+
     const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
     this.analyser.getByteFrequencyData(dataArray);
 
@@ -294,15 +427,15 @@ export class CandidateAudioTracker {
     }
     const average = sum / dataArray.length;
     // Scale to percentage (0 - 100)
-    const volumePct = Math.min(100, Math.round((average / 128) * 100));
+    const volumePct = Math.min(100, Math.round((average / 110) * 100));
 
     this.volumeReadings.push(volumePct);
     if (this.volumeReadings.length > 500) {
       this.volumeReadings.shift();
     }
 
-    // Active speech detection threshold
-    const isSpeakingNow = volumePct > 12;
+    // Active speech detection threshold (ignore while TTS is speaking)
+    const isSpeakingNow = !this.isTtsSpeaking && volumePct > 10;
     if (isSpeakingNow) {
       this.totalSpeakingFrames++;
       if (!this.wasSpeaking) {
@@ -313,69 +446,103 @@ export class CandidateAudioTracker {
       this.totalSilenceFrames++;
       if (this.wasSpeaking) {
         this.silenceSegments++;
-        // If pause is quick after speech, could be a hesitation
         this.hesitationEvents++;
       }
       this.wasSpeaking = false;
     }
 
-    this.onVolumeUpdate?.(volumePct);
+    // Throttle React state callback to ~12fps and only when volume changes meaningfully
+    const now = performance.now();
+    if (
+      now - this.lastVolumeEmitTime >= 80 &&
+      (Math.abs(volumePct - this.lastEmittedVolume) >= 2 ||
+        (volumePct === 0 && this.lastEmittedVolume !== 0))
+    ) {
+      this.lastEmittedVolume = volumePct;
+      this.lastVolumeEmitTime = now;
+      this.onVolumeUpdate?.(volumePct);
+    }
+
     this.animationFrameId = requestAnimationFrame(this.monitorLoop);
   };
 
   private initSpeechRecognition() {
     if (typeof window === "undefined") return;
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRec) return;
+    if (!SpeechRec) {
+      this.updateRecognitionStatus(
+        "unsupported",
+        "Browser SpeechRecognition API not available (use Chrome or Edge for live voice transcription)."
+      );
+      return;
+    }
 
     try {
       this.recognition = new SpeechRec();
       this.recognition.continuous = true;
       this.recognition.interimResults = true;
+      this.recognition.maxAlternatives = 1;
       this.recognition.lang = "en-US";
 
+      this.recognition.onstart = () => {
+        if (!this.isMicMuted && !this.isTtsSpeaking) {
+          this.updateRecognitionStatus("listening");
+        }
+      };
+
       this.recognition.onresult = (event: any) => {
+        // Ignore mic pickup while muted or while AI interviewer is speaking aloud
+        if (this.isMicMuted || this.isTtsSpeaking) return;
+
         let interim = "";
         let final = "";
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            final += transcript;
+            final += transcript + " ";
           } else {
             interim += transcript;
           }
         }
 
-        if (final) {
-          this.transcriptLines.push(final.trim());
-          this.auditFillerWords(final);
+        const cleanedInterim = interim.trim();
+        const cleanedFinal = final.trim();
+
+        this.currentInterimText = cleanedInterim;
+        this.onInterimUpdate?.(cleanedInterim);
+
+        if (cleanedFinal) {
+          this.transcriptLines.push(cleanedFinal);
+          this.auditFillerWords(cleanedFinal);
           const fullText = this.transcriptLines.join(" ");
-          this.onTranscriptUpdate?.(final, fullText);
-        } else if (interim) {
-          const fullText = [...this.transcriptLines, interim].join(" ");
-          this.onTranscriptUpdate?.(interim, fullText);
+          this.onFinalSegment?.(cleanedFinal, fullText);
+          this.onTranscriptUpdate?.(cleanedFinal, fullText, true);
+        } else if (cleanedInterim) {
+          const fullText = [...this.transcriptLines, cleanedInterim].join(" ");
+          this.onTranscriptUpdate?.(cleanedInterim, fullText, false);
         }
       };
 
-      this.recognition.onerror = () => {
-        // Continuous retry
+      this.recognition.onerror = (event: any) => {
+        const errCode = event?.error || "";
+        if (errCode === "not-allowed" || errCode === "service-not-allowed") {
+          this.updateRecognitionStatus("error", "Microphone speech recognition permission denied.");
+          return;
+        }
+        // "no-speech" and "aborted" are normal during quiet coding intervals; onend will restart
       };
 
       this.recognition.onend = () => {
-        if (this.isListening) {
-          try {
-            this.recognition.start();
-          } catch {
-            // Ignored
-          }
+        if (this.isListening && !this.isMicMuted && !this.isTtsSpeaking) {
+          this.safeStartRecognition();
         }
       };
 
       this.isListening = true;
-      this.recognition.start();
+      this.safeStartRecognition();
     } catch {
-      // Speech recognition not available or denied
+      this.updateRecognitionStatus("error", "Speech recognition could not be initialized.");
     }
   }
 
@@ -395,6 +562,14 @@ export class CandidateAudioTracker {
 
   public getLiveTranscript(): string {
     return this.transcriptLines.join(" ");
+  }
+
+  public getInterimTranscript(): string {
+    return this.currentInterimText;
+  }
+
+  public getRecognitionStatus(): SpeechRecognitionStatus {
+    return this.recognitionStatus;
   }
 
   public getRecordedAudioBlob(): Blob | null {
@@ -496,16 +671,23 @@ export class CandidateAudioTracker {
 
   public stopTracking() {
     this.isListening = false;
+    this.currentInterimText = "";
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
     if (this.recognition) {
       try {
+        this.recognition.onend = null;
         this.recognition.stop();
       } catch {
         // Ignored
       }
+      this.recognition = null;
     }
     if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
       try {
@@ -523,3 +705,4 @@ export class CandidateAudioTracker {
     }
   }
 }
+

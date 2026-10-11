@@ -74,11 +74,22 @@ export interface UserProfileData {
   avatarUrl?: string | null;
   avatar_url?: string | null;
   createdAt?: string;
+  updatedAt?: string;
   leetcodeUsername?: string | null;
   leetcode_username?: string | null;
   leetcodeStats?: any;
   leetcode_stats?: any;
   githubToken?: string | null;
+  githubConnected?: boolean;
+  github_connected?: boolean;
+  githubUsername?: string | null;
+  github_username?: string | null;
+  githubAvatar?: string | null;
+  github_avatar?: string | null;
+  githubUrl?: string | null;
+  solvedCount?: number;
+  optimalCount?: number;
+  attemptsCount?: number;
 }
 
 /**
@@ -103,6 +114,13 @@ export async function getOrCreateUserProfile(
       const effectiveAvatar = data.avatarUrl || data.avatar_url || photoURL || null;
       const effectiveLcUsername = data.leetcodeUsername || data.leetcode_username || null;
       const effectiveLcStats = data.leetcodeStats || data.leetcode_stats || null;
+      const effectiveGhUsername = data.githubUsername || data.github_username || null;
+      const effectiveGhAvatar = data.githubAvatar || data.github_avatar || null;
+      const effectiveGhConnected = Boolean(
+        data.githubConnected || data.github_connected || data.githubToken || effectiveGhUsername
+      );
+      const effectiveGhUrl =
+        data.githubUrl || (effectiveGhUsername ? `https://github.com/${effectiveGhUsername}` : null);
 
       return {
         id: userId,
@@ -112,11 +130,22 @@ export async function getOrCreateUserProfile(
         avatarUrl: effectiveAvatar,
         avatar_url: effectiveAvatar,
         createdAt: data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt || data.createdAt || new Date().toISOString(),
         leetcodeUsername: effectiveLcUsername,
         leetcode_username: effectiveLcUsername,
         leetcodeStats: effectiveLcStats,
         leetcode_stats: effectiveLcStats,
         githubToken: data.githubToken || null,
+        githubConnected: effectiveGhConnected,
+        github_connected: effectiveGhConnected,
+        githubUsername: effectiveGhUsername,
+        github_username: effectiveGhUsername,
+        githubAvatar: effectiveGhAvatar,
+        github_avatar: effectiveGhAvatar,
+        githubUrl: effectiveGhUrl,
+        solvedCount: typeof data.solvedCount === "number" ? data.solvedCount : undefined,
+        optimalCount: typeof data.optimalCount === "number" ? data.optimalCount : undefined,
+        attemptsCount: typeof data.attemptsCount === "number" ? data.attemptsCount : undefined,
       };
     }
 
@@ -124,11 +153,18 @@ export async function getOrCreateUserProfile(
       id: userId,
       email: email || null,
       displayName: defaultUsername,
+      display_name: defaultUsername,
       avatarUrl: photoURL || null,
+      avatar_url: photoURL || null,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       leetcodeUsername: null,
       leetcodeStats: null,
       githubToken: null,
+      githubConnected: false,
+      githubUsername: null,
+      githubAvatar: null,
+      githubUrl: null,
     };
 
     await setDoc(userDocRef, {
@@ -153,7 +189,15 @@ export async function updateUserProfile(
   const path = `users/${userId}`;
   try {
     const userDocRef = doc(db, "users", userId);
-    await setDoc(userDocRef, updates, { merge: true });
+    const cleanUpdates: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+    for (const [k, v] of Object.entries(updates)) {
+      if (v !== undefined) {
+        cleanUpdates[k] = v;
+      }
+    }
+    await setDoc(userDocRef, cleanUpdates, { merge: true });
     return await getOrCreateUserProfile(userId);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -180,22 +224,22 @@ export async function getUserSubmissions(userId: string): Promise<any[]> {
         title: r.title || r.slug,
         code: r.code,
         pseudocode: r.pseudocode || r.code,
-        lang: r.lang || "pseudocode",
-        classification: r.classification,
-        difficulty: r.difficulty,
+        lang: r.lang || r.language || "pseudocode",
+        classification: r.classification || r.status || "Incomplete",
+        difficulty: r.difficulty || "Medium",
         timeTakenMs: r.timeTakenMs,
-        timeComplexity: r.timeComplexity,
-        spaceComplexity: r.spaceComplexity,
-        time_complexity: r.timeComplexity,
-        space_complexity: r.spaceComplexity,
+        timeComplexity: r.timeComplexity || r.time_complexity || null,
+        spaceComplexity: r.spaceComplexity || r.space_complexity || null,
+        time_complexity: r.timeComplexity || r.time_complexity || null,
+        space_complexity: r.spaceComplexity || r.space_complexity || null,
         praise: r.praise,
         nudge: r.nudge,
         review: r.review,
         viz_steps: r.vizSteps,
         test_case: r.testCase,
         code_lines: r.codeLines,
-        created_at: r.createdAt || new Date().toISOString(),
-        createdAt: r.createdAt || new Date().toISOString(),
+        created_at: r.createdAt || r.created_at || new Date().toISOString(),
+        createdAt: r.createdAt || r.created_at || new Date().toISOString(),
       };
     });
   } catch (error) {
@@ -212,16 +256,19 @@ export async function saveUserSubmission(userId: string, data: any): Promise<any
   try {
     const code = data.code || data.pseudocode || "";
     const pseudocode = data.pseudocode || data.code || "";
-    const lang = data.lang || "pseudocode";
-    const classification = data.classification || "Incomplete";
+    const lang = data.lang || data.language || "pseudocode";
+    const classification = data.classification || data.status || "Incomplete";
     const difficulty = data.difficulty || "Medium";
-    const timeComplexity = data.timeComplexity || data.time_complexity || null;
-    const spaceComplexity = data.spaceComplexity || data.space_complexity || null;
+    const timeComplexity =
+      data.timeComplexity || data.time_complexity || data.complexity?.time || null;
+    const spaceComplexity =
+      data.spaceComplexity || data.space_complexity || data.complexity?.space || null;
     const timeTakenMs = data.timeTakenMs || data.time_taken_ms || null;
+    const createdAt = data.createdAt || data.created_at || new Date().toISOString();
 
     const newSub = {
       slug: data.slug,
-      title: data.title || null,
+      title: data.title || data.slug || null,
       code,
       pseudocode,
       lang,
@@ -236,15 +283,23 @@ export async function saveUserSubmission(userId: string, data: any): Promise<any
       vizSteps: data.viz_steps || data.vizSteps || null,
       testCase: data.test_case || data.testCase || null,
       codeLines: data.code_lines || data.codeLines || null,
-      createdAt: new Date().toISOString(),
+      createdAt,
     };
 
-    const subsRef = collection(db, "users", userId, "submissions");
-    const docRef = await addDoc(subsRef, newSub);
+    let docId: string;
+    if (data.id && typeof data.id === "string") {
+      const existingDocRef = doc(db, "users", userId, "submissions", data.id);
+      await setDoc(existingDocRef, newSub, { merge: true });
+      docId = data.id;
+    } else {
+      const subsRef = collection(db, "users", userId, "submissions");
+      const docRef = await addDoc(subsRef, newSub);
+      docId = docRef.id;
+    }
 
     return {
       ...newSub,
-      id: docRef.id,
+      id: docId,
       userId,
       title: newSub.title || newSub.slug,
       pseudocode: newSub.pseudocode,

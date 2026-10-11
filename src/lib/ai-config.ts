@@ -1,31 +1,24 @@
+import { getGeminiKey, getOpenAIKey, getOpenRouterKey } from "./openrouter.server";
+
 export type AiProvider = "gemini" | "openrouter" | "openai" | "none";
 
 export function getAiConfig() {
-  const env: Record<string, string | undefined> =
-    typeof process !== "undefined" && process?.env ? process.env : {};
+  // Never read VITE_* client variables on the frontend; only resolve keys on the backend
+  if (typeof window !== "undefined") {
+    return {
+      geminiKey: "",
+      openRouterKey: "",
+      openAIKey: "",
+      reviewKey: "",
+      vizKey: "",
+      reviewProvider: "none" as AiProvider,
+      vizProvider: "none" as AiProvider,
+    };
+  }
 
-  const geminiKey =
-    env["GEMINI_API_KEY"] ||
-    env["GOOGLE_API_KEY"] ||
-    env["VITE_GEMINI_API_KEY"] ||
-    env["VITE_GOOGLE_API_KEY"] ||
-    (typeof import.meta !== "undefined" && ((import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.VITE_GOOGLE_API_KEY)) ||
-    "";
-
-  const openRouterKey =
-    env["OPENROUTER_API_KEY"] ||
-    env["OPEN_ROUTER_API_KEY"] ||
-    env["Openrouterapi"] ||
-    env["VITE_OPENROUTER_API_KEY"] ||
-    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_OPENROUTER_API_KEY) ||
-    "";
-
-  const openAIKey =
-    env["OPENAI_API_KEY"] ||
-    env["OPEN_AI_API_KEY"] ||
-    env["VITE_OPENAI_API_KEY"] ||
-    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_OPENAI_API_KEY) ||
-    "";
+  const geminiKey = getGeminiKey();
+  const openRouterKey = getOpenRouterKey();
+  const openAIKey = getOpenAIKey();
 
   const reviewKey = geminiKey || openRouterKey || openAIKey;
   const vizKey = geminiKey || openRouterKey || openAIKey;

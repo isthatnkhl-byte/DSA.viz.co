@@ -91,7 +91,7 @@ export function HashMapVisualizer({
               return (
                 <div
                   key={`map-entry-${key}-${i}`}
-                  className={`flex flex-col rounded-xl border p-3 font-mono transition-all duration-300 shadow-sm ${
+                  className={`flex flex-col min-w-[110px] max-w-full rounded-xl border p-3 font-mono transition-all duration-300 shadow-sm ${
                     isActive
                       ? "scale-105 border-primary bg-primary/25 text-primary shadow-xl shadow-primary/40 ring-2 ring-primary font-bold constant-glow-primary animate-sync-glow"
                       : isSeen
@@ -102,24 +102,24 @@ export function HashMapVisualizer({
                   <div className="flex items-center justify-between gap-4 text-[10px] text-muted-foreground mb-1">
                     <span>slot #{i}</span>
                     {isActive ? (
-                      <span className={`rounded px-1.5 py-0.5 text-[8px] font-bold shadow-xs ${
+                      <span className={`rounded px-1.5 py-0.5 text-[8px] font-bold shadow-xs shrink-0 ${
                         isKeyMatch ? "bg-primary text-primary-foreground" : isValueMatch ? "bg-emerald-500 text-white" : "bg-primary/80 text-primary-foreground"
                       }`}>
                         {activeTag}
                       </span>
                     ) : isSeen ? (
-                      <span className="rounded bg-accent/30 text-accent px-1.5 py-0.5 text-[8px] font-semibold">
+                      <span className="rounded bg-accent/30 text-accent px-1.5 py-0.5 text-[8px] font-semibold shrink-0">
                         STORED
                       </span>
                     ) : null}
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-foreground">{toText(key)}</span>
+                  <div className="flex flex-wrap items-center gap-2 break-all">
+                    <span className="font-bold text-sm text-foreground break-all">{toText(key)}</span>
                     {type !== "set" && (
                       <>
-                        <span className="text-muted-foreground">→</span>
-                        <span className="font-bold text-sm text-primary">{toText(value)}</span>
+                        <span className="text-muted-foreground shrink-0">→</span>
+                        <span className="font-bold text-sm text-primary break-all">{toText(value)}</span>
                       </>
                     )}
                   </div>

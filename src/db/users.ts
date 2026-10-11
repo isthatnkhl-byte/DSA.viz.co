@@ -3,7 +3,8 @@ import path from 'path';
 import { adminDb } from '../lib/firebase-admin';
 import { getCache, setCache } from '../lib/redis-cache';
 
-const USERS_FILE = path.join(process.cwd(), '.data', 'users.json');
+const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.join(process.cwd(), '.data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const memoryUserStore = new Map<string, any>();
 
 // Load persistent users if present

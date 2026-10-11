@@ -586,23 +586,23 @@ export function DpTableVisualizer({
       {((activeMode === "1d" && dp1d) || (activeMode === "2d" && dp2d)) && (
         <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/5 via-card/80 to-purple-500/5 p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex items-start gap-2.5">
+            <div className="flex items-start gap-2.5 min-w-0 max-w-full">
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary border border-primary/30 mt-0.5">
                 <Calculator className="size-4" />
               </div>
-              <div>
+              <div className="min-w-0 max-w-full">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-primary">
                   Optimal Substructure Recurrence Relation
                 </div>
-                <div className="mt-1 font-mono text-xs font-semibold text-foreground bg-background/80 px-2.5 py-1 rounded-lg border border-border/70 inline-block shadow-inner">
+                <div className="mt-1 font-mono text-xs font-semibold text-foreground bg-background/80 px-2.5 py-1 rounded-lg border border-border/70 inline-block max-w-full whitespace-pre-wrap break-words shadow-inner">
                   {activeMode === "1d" ? dp1d?.transitionFormula : dp2d?.transitionFormula}
                 </div>
                 {((activeMode === "1d" && dp1d?.evaluatedFormula) || (activeMode === "2d" && dp2d?.evaluatedFormula)) && (
-                  <div className="mt-2 flex items-center gap-2 text-xs font-mono font-bold text-emerald-400">
-                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 border border-emerald-500/30 text-[10px] uppercase">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-mono font-bold text-emerald-400">
+                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 border border-emerald-500/30 text-[10px] uppercase shrink-0">
                       Current Evaluation
                     </span>
-                    <span>{activeMode === "1d" ? dp1d?.evaluatedFormula : dp2d?.evaluatedFormula}</span>
+                    <span className="break-words">{activeMode === "1d" ? dp1d?.evaluatedFormula : dp2d?.evaluatedFormula}</span>
                   </div>
                 )}
               </div>
@@ -610,12 +610,12 @@ export function DpTableVisualizer({
 
             {/* Decision Reason Badge */}
             {((activeMode === "1d" && dp1d?.decisionReason) || (activeMode === "2d" && dp2d?.decisionReason)) && (
-              <div className="max-w-md rounded-xl border border-border/60 bg-card/60 p-2.5 text-[11px] text-muted-foreground shadow-xs">
+              <div className="max-w-md rounded-xl border border-border/60 bg-card/60 p-2.5 text-[11px] text-muted-foreground shadow-xs break-words">
                 <div className="flex items-center gap-1.5 font-bold text-foreground mb-1">
-                  <Info className="size-3.5 text-primary" />
+                  <Info className="size-3.5 text-primary shrink-0" />
                   <span>Subproblem Decision</span>
                 </div>
-                <p className="leading-relaxed">
+                <p className="leading-relaxed break-words">
                   {activeMode === "1d" ? dp1d?.decisionReason : dp2d?.decisionReason}
                 </p>
               </div>
@@ -642,16 +642,16 @@ export function DpTableVisualizer({
       {/* INSPECTED CELL FLYOUT (WHEN CLICKED) */}
       {activeInspectedFormula && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2.5 text-xs text-foreground animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <div className="flex items-center gap-2">
-            <Sparkles className="size-4 text-primary" />
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Sparkles className="size-4 text-primary shrink-0" />
             <span className="font-bold">{activeInspectedFormula.title}:</span>
-            <span className="font-mono font-black text-primary text-sm">{activeInspectedFormula.value}</span>
-            <span className="text-muted-foreground ml-2">{activeInspectedFormula.detail}</span>
+            <span className="font-mono font-black text-primary text-sm break-all">{activeInspectedFormula.value}</span>
+            <span className="text-muted-foreground ml-2 break-words">{activeInspectedFormula.detail}</span>
           </div>
           <button
             type="button"
             onClick={() => setSelectedCell(null)}
-            className="rounded-lg p-1 hover:bg-primary/20 text-muted-foreground hover:text-foreground"
+            className="rounded-lg p-1 hover:bg-primary/20 text-muted-foreground hover:text-foreground shrink-0"
           >
             <X className="size-3.5" />
           </button>
@@ -689,16 +689,28 @@ function Dp1DView({ state, selectedCell, onSelectCell }: Dp1DViewProps) {
   const { dpArray, inputArray, inputLabel, currentIndex, dependencies, optimalChoiceIndex } = state;
   const count = dpArray.length;
 
+  // Dynamically compute uniform column width so large numbers/strings never overflow 1D DP cells
+  const maxCharLen = useMemo(() => {
+    let maxLen = 4;
+    dpArray.forEach((v) => {
+      if (v !== null && v !== undefined) maxLen = Math.max(maxLen, toText(v).length);
+    });
+    inputArray?.forEach((v) => {
+      if (v !== null && v !== undefined) maxLen = Math.max(maxLen, toText(v).length);
+    });
+    return maxLen;
+  }, [dpArray, inputArray]);
+
   // Calculate SVG quadratic Bézier jump arcs
   const arcHeight = 50;
-  const cellWidth = 64; // px per cell approx
+  const cellWidth = Math.max(64, Math.min(180, maxCharLen * 9 + 28)); // dynamically expands with data length
   const cellPadding = 12;
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border/80 bg-background/80 p-5 shadow-sm backdrop-blur-sm">
       {/* Dependency Arc Legend */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="font-bold text-foreground">Active Step Dependencies:</span>
           {dependencies.length === 0 ? (
             <span className="text-muted-foreground">Base Case (No prior dependencies)</span>
@@ -757,8 +769,8 @@ function Dp1DView({ state, selectedCell, onSelectCell }: Dp1DViewProps) {
               </defs>
 
               {dependencies.map((dep, idx) => {
-                const fromX = dep.fromIndex * (cellWidth + cellPadding) + cellWidth / 2 + 16;
-                const toX = dep.toIndex * (cellWidth + cellPadding) + cellWidth / 2 + 16;
+                const fromX = dep.fromIndex * (cellWidth + cellPadding) + cellWidth / 2 + 124;
+                const toX = dep.toIndex * (cellWidth + cellPadding) + cellWidth / 2 + 124;
                 const distance = Math.abs(toX - fromX);
                 const midX = (fromX + toX) / 2;
                 const curveY = Math.max(8, 55 - distance * 0.25);
@@ -800,7 +812,7 @@ function Dp1DView({ state, selectedCell, onSelectCell }: Dp1DViewProps) {
             {/* Input Array Row (e.g. nums[i], costs, coins) */}
             {inputArray && inputArray.length > 0 && (
               <div className="flex items-center gap-3">
-                <div className="w-28 text-right text-[11px] font-mono font-bold text-muted-foreground uppercase">
+                <div className="w-28 shrink-0 text-right text-[11px] font-mono font-bold text-muted-foreground uppercase break-words">
                   {inputLabel}
                 </div>
                 <div className="flex items-center gap-3">
@@ -810,7 +822,8 @@ function Dp1DView({ state, selectedCell, onSelectCell }: Dp1DViewProps) {
                     return (
                       <div
                         key={idx}
-                        className={`flex h-11 w-16 flex-col items-center justify-center rounded-xl border text-center font-mono text-xs transition-all ${
+                        style={{ minWidth: `${cellWidth}px` }}
+                        className={`flex min-h-11 w-auto px-2.5 py-1 flex-col items-center justify-center rounded-xl border text-center font-mono text-xs whitespace-nowrap transition-all ${
                           isActive
                             ? "border-primary bg-primary/20 text-primary font-black scale-105 shadow-xs"
                             : isOptimalChosen
@@ -829,7 +842,7 @@ function Dp1DView({ state, selectedCell, onSelectCell }: Dp1DViewProps) {
 
             {/* DP State Array Row: dp[i] */}
             <div className="flex items-center gap-3">
-              <div className="w-28 text-right text-[11px] font-mono font-black text-primary uppercase">
+              <div className="w-28 shrink-0 text-right text-[11px] font-mono font-black text-primary uppercase">
                 DP State (dp[i])
               </div>
               <div className="flex items-center gap-3">
@@ -864,7 +877,8 @@ function Dp1DView({ state, selectedCell, onSelectCell }: Dp1DViewProps) {
                       key={idx}
                       type="button"
                       onClick={() => onSelectCell(idx)}
-                      className={`group relative flex h-14 w-16 cursor-pointer flex-col items-center justify-center rounded-2xl border p-1 text-center font-mono text-xs transition-all duration-300 hover:scale-105 ${cellStyle}`}
+                      style={{ minWidth: `${cellWidth}px` }}
+                      className={`group relative flex min-h-14 w-auto px-3 py-1.5 cursor-pointer flex-col items-center justify-center rounded-2xl border text-center font-mono text-xs whitespace-nowrap transition-all duration-300 hover:scale-105 ${cellStyle}`}
                     >
                       <span className="text-[9px] opacity-75 font-mono">dp[{idx}]</span>
                       <span className="text-sm font-black mt-0.5">
@@ -1082,7 +1096,7 @@ function Dp2DView({ state, selectedCell, onSelectCell }: Dp2DViewProps) {
                         <button
                           type="button"
                           onClick={() => onSelectCell(r, c)}
-                          className={`group relative flex min-h-12 min-w-12 cursor-pointer items-center justify-center rounded-2xl border p-1 text-center font-mono text-xs transition-all duration-300 hover:scale-105 ${cellStyle}`}
+                          className={`group relative flex min-h-12 min-w-12 w-full px-2.5 py-1.5 cursor-pointer items-center justify-center rounded-2xl border text-center font-mono text-xs whitespace-nowrap transition-all duration-300 hover:scale-105 ${cellStyle}`}
                         >
                           <span className="text-sm font-black">
                             {val !== undefined && val !== null ? toText(val) : "0"}

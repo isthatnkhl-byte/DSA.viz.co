@@ -35,64 +35,45 @@ API calls are not working on Vercel because environment variables are not proper
 
 > ⚠️ **CRITICAL SECURITY RULE:** Never add the `VITE_` prefix to server secrets (`GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GITHUB_CLIENT_SECRET`, `ENCRYPTION_KEY`). Vite embeds all `VITE_*` variables into client-side JS bundles, which exposes them to any visitor viewing browser DevTools.
 
-### Step 3: Redeploy on Vercel
+### Step 3: Authorize Your Vercel Domain in Firebase (Required for Google Sign-In)
+1. Open the [Firebase Console](https://console.firebase.google.com/) and select your project (`gen-lang-client-0136275577` or your configured `VITE_FIREBASE_PROJECT_ID`).
+2. Navigate to **Authentication** → **Settings** → **Authorized domains**.
+3. Click **Add domain** and add your Vercel deployment domain (e.g. `dsa-viz-co.vercel.app` or your custom domain).
+
+### Step 4: Redeploy on Vercel
 After adding or modifying environment variables in Vercel:
 1. Go to the **Deployments** tab on Vercel
 2. Click **...** on your latest deployment and select **Redeploy** (ensure **"Use existing Build Cache" is unchecked** if you want to rebuild with new Vite env vars).
 3. Alternatively, push a new commit to trigger a fresh build.
 
-### Step 4: Verify Setup
-Test if environment variables are loaded correctly:
+### Step 5: Verify Setup
+Test if the production server and API are healthy:
 ```bash
-curl https://your-vercel-url.vercel.app/api/debug/env
+curl https://your-vercel-url.vercel.app/api/health
 ```
 
 Expected response:
 ```json
 {
-  "gemini": true,
-  "openrouter": true,
-  "github": true,
-  "firebase": true,
-  "nodeEnv": "production"
+  "status": "ok",
+  "timestamp": "2026-10-11T12:00:00.000Z"
 }
 ```
 
-If any values are `false`, that environment variable is not set in Vercel.
+## Working Endpoints (Protected by Google OAuth Bearer Token)
 
-## Troubleshooting
-
-### Issue: Still getting "No API keys configured" error
-
-1. **Check Vercel logs**: Go to **Deployments** → Select latest → **Logs**
-2. **Verify variable names**: Make sure exact variable names match above (case-sensitive)
-3. **Redeploy after changes**: Vercel doesn't auto-reload env vars on existing deployments
-4. **Clear browser cache**: CTRL+Shift+Delete and refresh
-
-### Issue: API keys work locally but not on Vercel
-
-- Local uses `.env` file which Vercel doesn't have
-- Vercel must use the Environment Variables settings
-- Never commit sensitive keys to Git
-
-### Issue: CORS or fetch errors
-
-- Ensure API endpoints are server-side routes (in `server.ts`)
-- Client-side code should call `/api/review`, `/api/chat`, etc. via fetch
-
-## Working Endpoints
-
-After setup, these should work:
+All functional endpoints require `Authorization: Bearer <Firebase_Google_ID_Token>`:
+- `GET /api/health` - Public health check
+- `GET /api/profile` & `POST /api/profile` - Authenticated user profile & telemetry
+- `GET /api/user-keys/status` & `POST /api/user-keys` - Zero-knowledge AES-256-GCM API Key Vault
+- `POST /api/problem-run-tests` & `POST /api/problem-submit` - AI + Sandbox LeetCode Judge
+- `POST /api/compiler/execute` - Multi-language C/C++/Java/Python sandbox compiler
 - `POST /api/review` - Pseudocode review with AI
 - `POST /api/visualize-dataset` - Dataset visualization
-- `POST /api/chat` - Interview chat with Gemini
+- `POST /api/chat` - Socratic AI Tutor & Interviewer chat
 - `POST /api/playground-review` - Playground code review
 - `POST /api/interview-evaluate` - Multi-tier code evaluation (Brute Force / Better / Optimal)
 - `POST /api/interview-respond` - Real-time conversational interviewer responses
 - `POST /api/interview-scorecard` - Comprehensive FAANG-grade interview scorecard
 - `GET /api/livekit-token` - LiveKit WebRTC access token generator for real-time voice
-- `GET /api/debug/env` - Check environment variables status
 
----
-
-**Questions?** Check your Vercel project logs for detailed error messages.

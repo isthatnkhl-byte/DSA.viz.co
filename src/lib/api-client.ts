@@ -233,6 +233,7 @@ export async function apiInterviewScorecard(payload: {
   betterCode: string;
   optimalCode: string;
   tiersCompleted: string[];
+  questionSubmissions?: any[];
   confidenceMetrics: any;
   proctoringMetrics: any;
   elapsedSeconds: number;
@@ -262,9 +263,13 @@ export async function apiInterviewRespond(payload: {
   question: any;
   tier: string;
   code: string;
+  language?: string;
   candidateSpeech: string;
   transcriptHistory?: string;
-}): Promise<{ spokenText: string; writtenNote: string }> {
+  interviewStage?: import("./interview-types").InterviewFlowStage;
+  coachingAction?: import("./interview-types").InterviewerCoachingAction;
+  hintLevel?: number;
+}): Promise<import("./interview-types").InterviewerResponseResult> {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/interview-respond", {
     method: "POST",
@@ -294,6 +299,7 @@ export async function apiGetLiveKitToken(room?: string, identity?: string): Prom
   identity?: string;
   message?: string;
 }> {
+  const authHeaders = await getAuthHeaders();
   const params = new URLSearchParams();
   if (room) params.append("room", room);
   if (identity) params.append("identity", identity);
@@ -303,6 +309,7 @@ export async function apiGetLiveKitToken(room?: string, identity?: string): Prom
     method: "GET",
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders,
     },
   });
 
@@ -314,5 +321,188 @@ export async function apiGetLiveKitToken(room?: string, identity?: string): Prom
   return response.json();
 }
 
+/**
+ * Live Interview: Run sample test cases and custom input against the candidate's code.
+ */
+export async function apiInterviewRunTests(payload: {
+  question: any;
+  code: string;
+  language: string;
+  customInput?: string;
+}): Promise<import("./interview-types").InterviewSampleRunResponse> {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch("/api/interview-run-tests", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders,
+    },
+    body: JSON.stringify(payload),
+  });
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Sample test execution error (${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * LeetCode-Style Editor: Run code against 3 sample test cases (+ optional custom input).
+ */
+export async function apiRunProblemTests(payload: {
+  slug: string;
+  title: string;
+  difficulty?: string;
+  topics?: string[];
+  statement?: string;
+  code: string;
+  language: string;
+  sampleCases?: import("./leetcode-testcases").LeetCodeSampleCase[];
+  customInput?: string;
+}): Promise<import("./leetcode-testcases").LeetCodeRunResponse> {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch("/api/problem-run-tests", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Run testcases failed (${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * LeetCode-Style Editor: Submit code against the 2-Stage Hybrid Stress & Edge-Case Judge Suite.
+ */
+export async function apiSubmitProblemCode(payload: {
+  slug: string;
+  title: string;
+  difficulty?: string;
+  topics?: string[];
+  statement?: string;
+  code: string;
+  language: string;
+  preverifiedRunResult?: import("./leetcode-testcases").LeetCodeRunResponse;
+}): Promise<import("./leetcode-testcases").LeetCodeSubmitResponse> {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch("/api/problem-submit", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Submit evaluation failed (${response.status})`);
+  }
+
+  return response.json();
+}
+
+export interface UserKeyVaultProviderStatus {
+  configured: boolean;
+  maskedHint: string | null;
+  updatedAt: string | null;
+}
+
+export interface UserKeyVaultStatus {
+  hasPersonalKey: boolean;
+  activeProvider: "gemini" | "openrouter" | "openai" | "none";
+  providers: {
+    gemini: UserKeyVaultProviderStatus;
+    openrouter: UserKeyVaultProviderStatus;
+    openai: UserKeyVaultProviderStatus;
+  };
+  securityMode: string;
+}
+
+/**
+ * Fetches the non-sensitive status of the user's backend-encrypted API key vault.
+ * Never returns raw or encrypted keys to the frontend.
+ */
+export async function apiGetUserKeyVaultStatus(): Promise<UserKeyVaultStatus> {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch("/api/user-keys/status", {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch key vault status (${response.status})`);
+  }
+  return response.json();
+}
+
+/**
+ * Sends a user API key over HTTPS to the backend vault where it is verified, encrypted with AES-256-GCM,
+ * and bound to an HttpOnly signed session cookie and authenticated UID.
+ */
+export async function apiSaveUserApiKey(payload: {
+  apiKey: string;
+  provider?: "gemini" | "openrouter" | "openai" | "auto";
+  verify?: boolean;
+}): Promise<{
+  ok: boolean;
+  provider?: "gemini" | "openrouter" | "openai";
+  maskedHint?: string;
+  verifiedModel?: string;
+  error?: string;
+  status?: UserKeyVaultStatus;
+}> {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch("/api/user-keys", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `Failed to save API key (${response.status})`);
+  }
+  return data;
+}
+
+/**
+ * Permanently removes a user's encrypted API key from the backend vault.
+ */
+export async function apiDeleteUserApiKey(
+  provider: "gemini" | "openrouter" | "openai" | "all" = "all"
+): Promise<{ ok: boolean; status: UserKeyVaultStatus }> {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch("/api/user-keys", {
+    method: "DELETE",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders,
+    },
+    body: JSON.stringify({ provider }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `Failed to remove API key (${response.status})`);
+  }
+  return data;
+}
 

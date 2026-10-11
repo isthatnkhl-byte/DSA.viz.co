@@ -11,7 +11,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { useThemeColor } from "@/hooks/useThemeColor";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { AuthGuard } from "@/components/AuthGuard";
 import { CustomCursor } from "@/components/ui/custom-cursor";
 import { ChatProvider, useChat } from "@/context/ChatContext";
@@ -116,7 +116,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap",
         crossOrigin: "anonymous",
       },
       {
@@ -138,6 +138,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function GlobalVizcoBuddyIntegration() {
   const location = useLocation();
   const { updateContext } = useChat();
+  const { user } = useAuth();
 
   useEffect(() => {
     updateContext({
@@ -148,7 +149,7 @@ function GlobalVizcoBuddyIntegration() {
 
   return (
     <>
-      <VizcoCloudChatbox />
+      {user ? <VizcoCloudChatbox /> : null}
       <VizcoBuddy />
     </>
   );
@@ -160,7 +161,7 @@ function RootComponent() {
 
   useEffect(() => {
     try {
-      const mode = localStorage.getItem("dsaviz:color_mode") || "dark";
+      const mode = localStorage.getItem("dsaviz:color_mode_print_tech") || "light";
       const theme = localStorage.getItem("dsaviz:theme_color") || "purple";
       document.documentElement.classList.remove("dark", "light");
       document.documentElement.classList.add(mode);

@@ -15,56 +15,62 @@ export const requireAuth = async (
 ): Promise<any> => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized: Missing or malformed authorization header' });
+    return res.status(401).json({ error: 'Unauthorized: Missing or malformed Google OAuth authorization header' });
   }
 
   const token = authHeader.split('Bearer ')[1]?.trim();
-  if (!token || token === 'undefined' || token === 'null') { 
-    return res.status(401).json({ error: 'Unauthorized: Missing token' }); 
-  }
-
-  // Explicitly gated mock auth strictly for offline automated integration test suites or guest dev mode
-  if (process.env.NODE_ENV === 'test' && req.headers['x-test-mock-user-id']) {
-    req.user = {
-      uid: String(req.headers['x-test-mock-user-id']),
-      email: String(req.headers['x-test-mock-email'] || 'test@example.com'),
-    } as unknown as DecodedIdToken;
-    return next();
+  if (!token || token === 'undefined' || token === 'null' || token === 'local-dev-token') {
+    return res.status(401).json({ error: 'Unauthorized: Valid Google OAuth token required' });
   }
 
   try {
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    const decodedToken = await adminAuth.verifyIdToken(token, true);
+    if (!decodedToken || !decodedToken.uid) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid token claims' });
+    }
     req.user = decodedToken;
     return next();
   } catch (error: any) {
-    // If adminAuth verification fails because service account credentials are not configured in environment,
-    // verify the Firebase token structure, algorithm, audience, and signature claims securely
+    // When local Firebase Admin ADC credentials are not present on the machine,
+    // strictly validate the Firebase RS256 Google ID token structure, issuer, audience, and expiry
     try {
       const parts = token.split('.');
-      if (parts.length === 3) {
+      if (parts.length === 3 && parts[2] && parts[2].length >= 64) {
         const header = JSON.parse(Buffer.from(parts[0]!, 'base64url').toString('utf8'));
         const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8'));
 
-        // Strictly reject unsigned or 'none' algorithm tokens to defend against signature bypass attacks
-        if (!header.alg || header.alg === 'none' || !header.kid) {
-          console.error('Authentication verification failed: Unsigned or invalid JWT algorithm');
+        if (header.alg !== 'RS256' || !header.kid || typeof header.kid !== 'string') {
           return res.status(401).json({ error: 'Unauthorized: Invalid token signature algorithm' });
         }
 
         const cleanEnv = (v?: string | null) => v?.trim().replace(/^["']|["']$/g, "").trim();
-        const projectId = cleanEnv(process.env.VITE_FIREBASE_PROJECT_ID) || cleanEnv(process.env.FIREBASE_PROJECT_ID) || fallbackConfig.projectId;
+        const projectId =
+          cleanEnv(process.env.VITE_FIREBASE_PROJECT_ID) ||
+          cleanEnv(process.env.FIREBASE_PROJECT_ID) ||
+          fallbackConfig.projectId;
         const expectedIssuer = `https://securetoken.google.com/${projectId}`;
-        
-        const now = Math.floor(Date.now() / 1000);
-        // Allow clock skew
-        const isNotExpired = typeof payload.exp === 'number' && payload.exp > now - 600;
-        const isMatchingAudience = payload.aud === projectId || (typeof payload.iss === 'string' && payload.iss === `https://securetoken.google.com/${payload.aud}`);
-        const isMatchingIssuer = payload.iss === expectedIssuer || (typeof payload.iss === 'string' && payload.iss.startsWith('https://securetoken.google.com/'));
-        const hasValidUid = typeof (payload.sub || payload.user_id) === 'string' && (payload.sub || payload.user_id).length > 0;
 
-        if (isNotExpired && isMatchingAudience && isMatchingIssuer && hasValidUid) {
+        const now = Math.floor(Date.now() / 1000);
+        const isNotExpired = typeof payload.exp === 'number' && payload.exp > now - 120;
+        const isValidIssuedAt = typeof payload.iat === 'number' && payload.iat <= now + 120;
+        const isMatchingAudience = payload.aud === projectId;
+        const isMatchingIssuer = payload.iss === expectedIssuer;
+        const uid = payload.sub || payload.user_id;
+        const hasValidUid =
+          typeof uid === 'string' &&
+          uid.length >= 6 &&
+          uid !== 'local-dev-user' &&
+          uid !== 'explorer';
+
+        if (
+          isNotExpired &&
+          isValidIssuedAt &&
+          isMatchingAudience &&
+          isMatchingIssuer &&
+          hasValidUid
+        ) {
           req.user = {
-            uid: payload.sub || payload.user_id,
+            uid,
             email: payload.email,
             name: payload.name,
             picture: payload.picture,
@@ -77,7 +83,7 @@ export const requireAuth = async (
       // Fall through to 401
     }
 
-    console.error('Authentication verification failed:', error?.message || error);
-    return res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
+    return res.status(401).json({ error: 'Unauthorized: Invalid or expired Google OAuth token' });
   }
 };
+

@@ -78,19 +78,52 @@ export function AiMistakesSection({ className = "" }: AiMistakesSectionProps = {
   const [selectedReport, setSelectedReport] = useState<AiReportData | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Fetch past saved reports from Firestore via server API
+  // Fetch past saved reports from Firestore (client SDK + server API merged)
   const { data: pastReports = [], isLoading: reportsLoading } = useQuery({
     queryKey: ["user-ai-reports"],
     queryFn: async () => {
       const auth = getAuth();
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) return [];
-      const res = await fetch("/api/user-reports", {
-        headers: { Authorization: `Bearer ${token}` },
+      const currentUser = auth.currentUser;
+      const token = await currentUser?.getIdToken().catch(() => null);
+
+      let clientReports: any[] = [];
+      if (currentUser) {
+        try {
+          const { getUserAiReports } = await import("@/lib/firestore-service");
+          clientReports = await getUserAiReports(currentUser.uid);
+        } catch {
+          // Ignore client Firestore fallback error
+        }
+      }
+
+      let serverReports: any[] = [];
+      if (token) {
+        try {
+          const res = await fetch("/api/user-reports", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const d = await res.json();
+            if (Array.isArray(d)) serverReports = d;
+          }
+        } catch {
+          // Ignore server fallback error
+        }
+      }
+
+      const mergedMap = new Map<string, any>();
+      for (const r of [...clientReports, ...serverReports]) {
+        if (!r) continue;
+        const key = String(r.id || `${r.reportTitle || ""}_${(r.createdAt || r.generatedAt || "").slice(0, 16)}`);
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, r);
+        }
+      }
+      return Array.from(mergedMap.values()).sort((a, b) => {
+        const ta = new Date(a.createdAt || a.generatedAt || 0).getTime();
+        const tb = new Date(b.createdAt || b.generatedAt || 0).getTime();
+        return tb - ta;
       });
-      if (!res.ok) return [];
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
     },
     enabled: !!user,
   });
@@ -99,7 +132,8 @@ export function AiMistakesSection({ className = "" }: AiMistakesSectionProps = {
   const generateMutation = useMutation({
     mutationFn: async () => {
       const auth = getAuth();
-      const token = await auth.currentUser?.getIdToken();
+      const currentUser = auth.currentUser;
+      const token = await currentUser?.getIdToken().catch(() => null);
       const res = await fetch("/api/generate-mistakes-report", {
         method: "POST",
         headers: {
@@ -112,12 +146,21 @@ export function AiMistakesSection({ className = "" }: AiMistakesSectionProps = {
       if (!res.ok) {
         throw new Error(data.error || "Failed to generate report");
       }
+      if (currentUser) {
+        try {
+          const { saveUserAiReport } = await import("@/lib/firestore-service");
+          await saveUserAiReport(currentUser.uid, data).catch(() => {});
+        } catch {
+          // Non-blocking Firestore persistence
+        }
+      }
       return data;
     },
     onSuccess: (data) => {
       setSelectedReport(data);
       queryClient.invalidateQueries({ queryKey: ["user-ai-reports"] });
-      toast.success("AI Common Mistakes Report generated and saved to your profile!");
+      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+      toast.success("AI Common Mistakes Report generated and synced to Firebase!");
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to generate diagnostic report");

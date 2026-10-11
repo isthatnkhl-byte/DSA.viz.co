@@ -3,7 +3,8 @@ import path from 'path';
 import { adminDb } from '../lib/firebase-admin';
 import { getCache, setCache, deleteCache } from '../lib/redis-cache';
 
-const SUBMISSIONS_FILE = path.join(process.cwd(), '.data', 'submissions.json');
+const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.join(process.cwd(), '.data');
+const SUBMISSIONS_FILE = path.join(DATA_DIR, 'submissions.json');
 const memorySubmissionsStore = new Map<string, any[]>();
 
 // Load persistent submissions if present
@@ -103,16 +104,19 @@ export async function addSubmission(userId: string, data: any) {
 
   const code = data.code || data.pseudocode || "";
   const pseudocode = data.pseudocode || data.code || "";
-  const lang = data.lang || "pseudocode";
-  const classification = data.classification || "Incomplete";
+  const lang = data.lang || data.language || "pseudocode";
+  const classification = data.classification || data.status || "Incomplete";
   const difficulty = data.difficulty || "Medium";
-  const timeComplexity = data.timeComplexity || data.time_complexity || null;
-  const spaceComplexity = data.spaceComplexity || data.space_complexity || null;
+  const timeComplexity =
+    data.timeComplexity || data.time_complexity || data.complexity?.time || null;
+  const spaceComplexity =
+    data.spaceComplexity || data.space_complexity || data.complexity?.space || null;
   const timeTakenMs = data.timeTakenMs || data.time_taken_ms || null;
+  const createdAt = data.createdAt || data.created_at || new Date().toISOString();
 
   const newSub = {
     slug: data.slug,
-    title: data.title || null,
+    title: data.title || data.slug || null,
     code,
     pseudocode,
     lang,
@@ -127,7 +131,7 @@ export async function addSubmission(userId: string, data: any) {
     vizSteps: data.viz_steps || data.vizSteps || null,
     testCase: data.test_case || data.testCase || null,
     codeLines: data.code_lines || data.codeLines || null,
-    createdAt: new Date().toISOString(),
+    createdAt,
   };
 
   const localId = "sub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);

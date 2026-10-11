@@ -1280,7 +1280,7 @@ export function BinaryHeapVisualizer({
                   </div>
 
                   {/* Array Cell Value */}
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center font-mono font-bold text-sm bg-card border border-border/50 text-foreground my-1 shadow-2xs">
+                  <div className="min-w-10 w-auto px-2.5 h-10 rounded-lg flex items-center justify-center font-mono font-bold text-sm whitespace-nowrap bg-card border border-border/50 text-foreground my-1 shadow-2xs">
                     {val}
                   </div>
 
@@ -1450,7 +1450,11 @@ export function BinaryHeapVisualizer({
               const isSwapping =
                 heapSwap && (heapSwap.parentIdx === idx || heapSwap.childIdx === idx);
 
+              const valText = String(node.val);
               const radius = 22;
+              const capsuleW = Math.max(radius * 2, valText.length * 7.5 + 18);
+              const idxBadgeText = `i=${idx}`;
+              const idxBadgeW = Math.max(36, idxBadgeText.length * 6 + 12);
 
               return (
                 <g
@@ -1462,16 +1466,24 @@ export function BinaryHeapVisualizer({
                 >
                   {/* Swapping animated pulse ring */}
                   {isSwapping && (
-                    <circle
-                      r={radius + 7}
+                    <rect
+                      x={-(capsuleW / 2 + 6)}
+                      y={-(radius + 6)}
+                      width={capsuleW + 12}
+                      height={(radius + 6) * 2}
+                      rx={radius + 6}
                       className={isSiftUp ? "stroke-emerald-400/60 fill-emerald-400/15 animate-ping" : "stroke-amber-400/60 fill-amber-400/15 animate-ping"}
                       strokeWidth={2}
                     />
                   )}
 
-                  {/* Main Circle */}
-                  <circle
-                    r={radius}
+                  {/* Main Node Capsule (circle when short, rounded pill when value is large) */}
+                  <rect
+                    x={-capsuleW / 2}
+                    y={-radius}
+                    width={capsuleW}
+                    height={radius * 2}
+                    rx={radius}
                     className={`transition-colors shadow-md ${
                       isSwapping
                         ? isSiftUp
@@ -1491,7 +1503,7 @@ export function BinaryHeapVisualizer({
                   <text
                     textAnchor="middle"
                     dy="0.32em"
-                    className={`text-[12px] font-mono font-bold select-none ${
+                    className={`${valText.length > 6 ? "text-[10px]" : "text-[12px]"} font-mono font-bold select-none ${
                       isSwapping
                         ? isSiftUp
                           ? "fill-emerald-300 font-extrabold"
@@ -1505,15 +1517,15 @@ export function BinaryHeapVisualizer({
                         : "fill-foreground"
                     }`}
                   >
-                    {node.val}
+                    {valText}
                   </text>
 
                   {/* Index badge underneath */}
                   <g transform={`translate(0, ${radius + 14})`}>
                     <rect
-                      x={-18}
+                      x={-idxBadgeW / 2}
                       y={-8}
-                      width={36}
+                      width={idxBadgeW}
                       height={15}
                       rx={3}
                       className="fill-background/90 stroke-border/70"
@@ -1523,7 +1535,7 @@ export function BinaryHeapVisualizer({
                       y={3}
                       className="text-[8.5px] font-mono fill-muted-foreground select-none"
                     >
-                      i={idx}
+                      {idxBadgeText}
                     </text>
                   </g>
                 </g>

@@ -1,9 +1,20 @@
 // @ts-nocheck
 import raw from "../data/problems.json" with { type: "json" };
-import statementsJson from "../data/statements.json" with { type: "json" };
 import { classifyProblem } from "./problemClassifier";
 
-const rawStatements = (statementsJson ?? {}) as Record<string, string>;
+let rawStatements: Record<string, string> = {};
+if (typeof window !== "undefined") {
+  // Defer loading 1.7MB statements.json off the critical path
+  setTimeout(() => {
+    import("../data/statements.json")
+      .then((mod) => {
+        rawStatements = ((mod as any)?.default ?? mod ?? {}) as Record<string, string>;
+      })
+      .catch(() => {
+        // ignore
+      });
+  }, 1500);
+}
 
 export type ProblemDatasetSpec = {
   name: string;
@@ -28,7 +39,16 @@ export const problems = raw as Problem[];
 
 export const TOTAL_PROBLEMS = problems.length;
 
+export const difficultyCounts: Record<"Easy" | "Medium" | "Hard", number> = {
+  Easy: 0,
+  Medium: 0,
+  Hard: 0,
+};
+
 export const companyCounts: Record<string, number> = problems.reduce((acc, p) => {
+  if (p.difficulty in difficultyCounts) {
+    difficultyCounts[p.difficulty] = (difficultyCounts[p.difficulty] || 0) + 1;
+  }
   for (const c of p.companies ?? []) {
     acc[c] = (acc[c] || 0) + 1;
   }
@@ -42,6 +62,28 @@ export const companies = Object.keys(companyCounts).sort((a, b) => {
 });
 
 export const allTopics = Array.from(new Set(problems.flatMap((p) => p.topics))).sort();
+
+// Pre-indexed O(1) lookup maps to eliminate O(N) linear regex scans
+const PROBLEM_SLUG_MAP = new Map<string, Problem>();
+const PROBLEM_CLEAN_ENTRIES: Array<{ cleanSlug: string; problem: Problem }> = [];
+const PROBLEM_LOOKUP_CACHE = new Map<string, Problem>();
+
+for (const p of problems) {
+  const lowerSlug = (p.slug ?? "").toLowerCase().trim();
+  const normSlug = lowerSlug.replace(/_/g, "-").replace(/\s+/g, "-");
+  const cleanSlug = normSlug.replace(/[^a-z0-9]/g, "");
+  const titleNorm = (p.title ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const titleClean = (p.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  if (lowerSlug) PROBLEM_SLUG_MAP.set(lowerSlug, p);
+  if (normSlug) PROBLEM_SLUG_MAP.set(normSlug, p);
+  if (cleanSlug) PROBLEM_SLUG_MAP.set(cleanSlug, p);
+  if (titleNorm && !PROBLEM_SLUG_MAP.has(titleNorm)) PROBLEM_SLUG_MAP.set(titleNorm, p);
+  if (titleClean && !PROBLEM_SLUG_MAP.has(titleClean)) PROBLEM_SLUG_MAP.set(titleClean, p);
+  if (cleanSlug.length >= 4) {
+    PROBLEM_CLEAN_ENTRIES.push({ cleanSlug, problem: p });
+  }
+}
 
 const COMPANY_DISPLAY_NAMES: Record<string, string> = {
   google: "Google",
@@ -129,6 +171,10 @@ export const companyLabel = (c: string) => {
 
 export const problemBySlug = (slug: string): Problem | null => {
   if (!slug || typeof slug !== "string") return null;
+
+  const cached = PROBLEM_LOOKUP_CACHE.get(slug);
+  if (cached) return cached;
+
   let s = "";
   try {
     s = decodeURIComponent(slug).toLowerCase().trim().replace(/\/+$/, "");
@@ -136,29 +182,40 @@ export const problemBySlug = (slug: string): Problem | null => {
     s = slug.toLowerCase().trim().replace(/\/+$/, "");
   }
   if (!s) return null;
+
+  const direct = PROBLEM_SLUG_MAP.get(s);
+  if (direct) {
+    PROBLEM_LOOKUP_CACHE.set(slug, direct);
+    return direct;
+  }
+
   const normalized = s.replace(/_/g, "-").replace(/\s+/g, "-");
+  const byNorm = PROBLEM_SLUG_MAP.get(normalized);
+  if (byNorm) {
+    PROBLEM_LOOKUP_CACHE.set(slug, byNorm);
+    return byNorm;
+  }
+
   const cleanAlphanumeric = normalized.replace(/[^a-z0-9]/g, "");
+  const byClean = PROBLEM_SLUG_MAP.get(cleanAlphanumeric);
+  if (byClean) {
+    PROBLEM_LOOKUP_CACHE.set(slug, byClean);
+    return byClean;
+  }
 
-  const exact = problems.find(
-    (p) =>
-      p.slug === s ||
-      p.slug === normalized ||
-      p.slug.toLowerCase() === s ||
-      p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") === normalized ||
-      p.slug.replace(/[^a-z0-9]/g, "") === cleanAlphanumeric ||
-      p.title.toLowerCase().replace(/[^a-z0-9]/g, "") === cleanAlphanumeric,
-  );
-  if (exact) return exact;
-
-  // Fuzzy substring or keyword match
-  const fuzzy = problems.find((p) => {
-    const pSlugClean = p.slug.replace(/[^a-z0-9]/g, "");
-    return (
-      (cleanAlphanumeric.length >= 4 && pSlugClean.includes(cleanAlphanumeric)) ||
-      (pSlugClean.length >= 4 && cleanAlphanumeric.includes(pSlugClean))
-    );
-  });
-  if (fuzzy) return fuzzy;
+  // Fuzzy substring match (cached after first lookup)
+  if (cleanAlphanumeric.length >= 4) {
+    for (let i = 0; i < PROBLEM_CLEAN_ENTRIES.length; i++) {
+      const entry = PROBLEM_CLEAN_ENTRIES[i]!;
+      if (
+        entry.cleanSlug.includes(cleanAlphanumeric) ||
+        cleanAlphanumeric.includes(entry.cleanSlug)
+      ) {
+        PROBLEM_LOOKUP_CACHE.set(slug, entry.problem);
+        return entry.problem;
+      }
+    }
+  }
 
   // Graceful fallback problem generation so every valid slug loads seamlessly
   const generatedTitle = normalized
@@ -167,7 +224,7 @@ export const problemBySlug = (slug: string): Problem | null => {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 
-  return {
+  const fallback: Problem = {
     slug: normalized,
     title: generatedTitle || "Algorithm Challenge",
     difficulty: "Medium",
@@ -175,6 +232,8 @@ export const problemBySlug = (slug: string): Problem | null => {
     companies: ["General"],
     freq: 50,
   };
+  PROBLEM_LOOKUP_CACHE.set(slug, fallback);
+  return fallback;
 };
 
 export const leetcodeUrl = (slug: string) => `https://leetcode.com/problems/${slug}/`;
@@ -2346,10 +2405,14 @@ export const CANONICAL_HEAP_DATASETS: Record<
 export function isUnionFindProblem(slug: string, topics: string[] = []): boolean {
   const s = (slug ?? "").toLowerCase();
   const t = (topics ?? []).map((x) => String(x).toLowerCase()).join(" ");
+  if (isIslandOrGridProblem(slug, topics)) return false;
   return (
     /redundant-connection|number-of-provinces|accounts-merge|satisfiability-of-equality|earliest-moment|graph-valid-tree|number-of-operations-to-make-network-connected|min-cost-to-connect/.test(
       s,
-    ) || /union[- ]?find|disjoint[- ]?set|dsu/.test(t)
+    ) ||
+    (/union[- ]?find|disjoint[- ]?set|dsu/.test(t) &&
+      !/matrix|grid|island/i.test(t) &&
+      !/matrix|grid|island/i.test(s))
   );
 }
 
@@ -6857,9 +6920,11 @@ export function getCanonicalMultiDatasets(
   const isDesign = isDesignProblem(slug, topics);
   const primaryType = pickShape(slug, topics);
   const isGraph =
-    primaryType === "graph" ||
-    topics.some((t) => /graph|union|topological/i.test(t)) ||
-    /graph|course-schedule|clone-graph|network-delay|bipartite|judge|redundant|alien-dictionary|word-ladder/i.test(slug);
+    !isIsland &&
+    !isMatrix &&
+    (primaryType === "graph" ||
+      topics.some((t) => /graph|union|topological/i.test(t)) ||
+      /graph|course-schedule|clone-graph|network-delay|bipartite|judge|redundant|alien-dictionary|word-ladder/i.test(slug));
   const isParentheses = /parenthes|bracket/i.test(slug);
   const isString =
     !isParentheses &&

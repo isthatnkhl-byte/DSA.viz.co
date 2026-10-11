@@ -49,9 +49,9 @@ function AuthPage() {
     Boolean(error && (error.includes("unauthorized-domain") || error.includes("Authorized Domains") || error.includes("Authorized Domain")));
 
   const redirectTarget = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("redirect") || "/dashboard"
-    : "/dashboard";
-  const safeRedirect = redirectTarget.startsWith("/") && !redirectTarget.startsWith("//") ? redirectTarget : "/dashboard";
+    ? new URLSearchParams(window.location.search).get("redirect") || "/"
+    : "/";
+  const safeRedirect = redirectTarget.startsWith("/") && !redirectTarget.startsWith("//") ? redirectTarget : "/";
 
   useEffect(() => {
     if (user) {

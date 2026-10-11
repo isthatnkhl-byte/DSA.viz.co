@@ -1,69 +1,191 @@
-import React from "react";
-import { DsavizcoLogo } from "@/components/brand/DsavizcoLogo";
+import React, { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
+import { useThemeColor } from "@/hooks/useThemeColor";
+
+type PillarKey = "algorithms" | "visualizer" | "compiler";
+
+const TITLE_CHARS: Array<{ char: string; pillar: PillarKey }> = [
+  { char: "D", pillar: "algorithms" },
+  { char: "S", pillar: "algorithms" },
+  { char: "A", pillar: "algorithms" },
+  { char: "V", pillar: "visualizer" },
+  { char: "I", pillar: "visualizer" },
+  { char: "Z", pillar: "visualizer" },
+  { char: "C", pillar: "compiler" },
+  { char: "O", pillar: "compiler" },
+];
+
+const PILLARS: Array<{
+  key: PillarKey;
+  label: string;
+  to: "/problems" | "/playground" | "/compiler";
+}> = [
+  { key: "algorithms", label: "algorithms", to: "/problems" },
+  { key: "visualizer", label: "visualizer", to: "/playground" },
+  { key: "compiler", label: "compiler", to: "/compiler" },
+];
 
 export function HeroBrandTitle() {
+  const { theme } = useThemeColor();
+  const [hoveredCharIdx, setHoveredCharIdx] = useState<number | null>(null);
+  const [hoveredPillar, setHoveredPillar] = useState<PillarKey | null>(null);
+  const [waveTrigger, setWaveTrigger] = useState<number>(0);
+  const [pointerPos, setPointerPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+
+  const activePillar: PillarKey | null =
+    hoveredPillar ??
+    (hoveredCharIdx !== null ? TITLE_CHARS[hoveredCharIdx]?.pillar ?? null : null);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    setPointerPos({
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
+    });
+  };
+
   return (
-    <div className="relative flex flex-col items-center justify-center my-3 select-none w-full max-w-5xl mx-auto">
-      {/* 🌟 REFINED 3D MINIMALIST MASCOT LOGO - Main hero visual anchor with circular radial stage */}
-      <div className="relative group flex items-center justify-center my-2 sm:my-4 isolate z-10">
-        {/* Layer 1: Radiant Dynamic Theme Gradient Disc Behind Logo */}
-        <div
-          className="absolute inset-0 -z-10 rounded-full blur-2xl opacity-80 dark:opacity-65 pointer-events-none transition-all duration-700 animate-pulse"
-          style={{
-            background: "radial-gradient(circle, var(--glow-primary, rgba(225,29,72,0.35)) 0%, var(--glow-complement, rgba(13,148,136,0.22)) 48%, transparent 75%)",
-          }}
+    <div
+      data-theme-active={theme}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => {
+        setHoveredCharIdx(null);
+        setHoveredPillar(null);
+        setPointerPos(null);
+      }}
+      className="relative flex flex-col items-center justify-center text-center select-none w-full mx-auto"
+    >
+      {/* Brand Title Text Container with Pixel Typography & Dynamic Theme Luminescence */}
+      <div className="dsavizco-title-container group/brand relative inline-flex flex-col items-center justify-center py-2 px-4 mx-auto">
+        {/* Soft ambient glow behind all characters of DSAVIZCO — varies automatically with selected theme */}
+        <span
+          className="dsavizco-purplish-bg-glow transition-all duration-500 group-hover/brand:scale-105 group-hover/brand:opacity-100"
+          aria-hidden="true"
         />
-        {/* Layer 2: Deep Ambient Spotlight Aura */}
-        <div
-          className="absolute -inset-6 -z-20 rounded-full blur-3xl opacity-50 dark:opacity-35 pointer-events-none transition-all duration-700"
-          style={{
-            background: "radial-gradient(ellipse at center, var(--primary) 0%, var(--complement) 45%, transparent 70%)",
-          }}
-        />
 
-        {/* Outer Circular Stage Border */}
-        <div className="absolute -z-10 size-60 sm:size-72 md:size-84 lg:size-96 rounded-full border border-primary/20 pointer-events-none" />
-
-        {/* Middle Ring with subtle complementary border */}
-        <div className="absolute -z-10 size-48 sm:size-58 md:size-68 lg:size-78 rounded-full border border-complement/25 pointer-events-none" />
-
-        {/* Inner Dashed Concentric Ring (matches screenshot) */}
-        <div className="absolute -z-10 size-40 sm:size-48 md:size-56 lg:size-64 rounded-full border border-dashed border-primary/30 pointer-events-none" />
-
-        {/* 3D Mascot Logo from reference zip 12 */}
-        <motion.div
-          initial={{ scale: 0.88, opacity: 0, y: 12 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="relative z-10 text-primary w-36 h-36 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 aspect-[100/110] shrink-0 cursor-pointer filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.12)] dark:drop-shadow-[0_12px_28px_rgba(0,0,0,0.45)]"
-        >
-          <DsavizcoLogo
-            className="w-full h-full"
-            interactive={true}
-            showShadow={true}
+        {/* Interactive cursor-following theme spotlight aura */}
+        {pointerPos && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10 rounded-full blur-xl transition-opacity duration-300"
+            style={{
+              background: `radial-gradient(circle at ${pointerPos.x}% ${pointerPos.y}%, color-mix(in oklch, var(--complement) 55%, transparent) 0%, color-mix(in oklch, var(--primary) 35%, transparent) 45%, transparent 75%)`,
+            }}
           />
-        </motion.div>
-      </div>
+        )}
 
-      {/* Brand Title Text Container with Minecraft Typography & Luminescence */}
-      <div className="dsavizco-title-container relative inline-flex flex-col items-center justify-center mt-2">
-        {/* Soft ambient glow behind all characters of DSAVIZCO */}
-        <span className="dsavizco-purplish-bg-glow" aria-hidden="true" />
+        {/* Foreground Pixel Title: DSAVIZCO with interactive per-character & segment physics */}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="DSAVIZCO — algorithms, visualizer, compiler"
+          onClick={() => setWaveTrigger((prev) => prev + 1)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setWaveTrigger((prev) => prev + 1);
+            }
+          }}
+          className="dsavizco-pixel-text text-4xl sm:text-6xl md:text-7xl lg:text-[5.25rem] tracking-[0.07em] relative z-10 font-black cursor-pointer focus:outline-none"
+        >
+          {TITLE_CHARS.map((item, idx) => {
+            const isDirectHover = hoveredCharIdx === idx;
+            const isPillarMatch =
+              hoveredPillar !== null && item.pillar === hoveredPillar;
+            const isHighlighted = isDirectHover || isPillarMatch;
+            const isNeighbor =
+              !isHighlighted &&
+              hoveredCharIdx !== null &&
+              Math.abs(hoveredCharIdx - idx) === 1;
 
-        {/* Foreground Pixel Title with authentic pixel text shadow */}
-        <span className="dsavizco-pixel-text text-3xl sm:text-5xl md:text-6xl lg:text-[4.75rem] tracking-wider relative z-10 font-black">
-          DSAVIZCO
-        </span>
+            return (
+              <motion.span
+                key={`${item.char}-${idx}-${waveTrigger}`}
+                onMouseEnter={() => setHoveredCharIdx(idx)}
+                data-hovered={isHighlighted ? "true" : undefined}
+                data-neighbor={isNeighbor ? "true" : undefined}
+                initial={
+                  waveTrigger > 0 ? { y: 0, scale: 1 } : false
+                }
+                animate={{
+                  y: isHighlighted
+                    ? -6
+                    : isNeighbor
+                      ? -3
+                      : waveTrigger > 0
+                        ? [0, -9, 0]
+                        : 0,
+                  scale: isHighlighted
+                    ? 1.07
+                    : isNeighbor
+                      ? 1.03
+                      : waveTrigger > 0
+                        ? [1, 1.08, 1]
+                        : 1,
+                }}
+                transition={
+                  waveTrigger > 0 && !isHighlighted && !isNeighbor
+                    ? {
+                        duration: 0.42,
+                        delay: idx * 0.04,
+                        ease: "easeOut",
+                      }
+                    : {
+                        type: "spring",
+                        stiffness: 420,
+                        damping: 22,
+                      }
+                }
+                className="dsavizco-pixel-char px-[0.015em]"
+              >
+                {item.char}
+              </motion.span>
+            );
+          })}
+        </div>
 
-        {/* Subtitle in clean monospace font matching screenshot */}
-        <span className="font-mono text-xs sm:text-sm tracking-wider text-primary font-semibold mt-1 relative z-10">
-          (algorithms • visualizer • compiler)
-        </span>
+        {/* Subtitle in clean monospace font matching reference screenshot, with interactive theme-aware pillar links */}
+        <div className="font-mono text-xs sm:text-sm md:text-[15px] tracking-[0.08em] text-primary font-semibold mt-2 sm:mt-2.5 relative z-10 inline-flex flex-wrap items-center justify-center gap-x-2 transition-colors duration-300">
+          <span className="text-primary/85 transition-colors duration-300">(</span>
+          {PILLARS.map((pillar, index) => {
+            const isActive = activePillar === pillar.key;
+            return (
+              <React.Fragment key={pillar.key}>
+                <Link
+                  to={pillar.to}
+                  onMouseEnter={() => {
+                    setHoveredPillar(pillar.key);
+                    setHoveredCharIdx(null);
+                  }}
+                  onMouseLeave={() => setHoveredPillar(null)}
+                  className={`relative inline-block transition-all duration-200 cursor-pointer ${
+                    isActive
+                      ? "text-complement -translate-y-[1px] underline decoration-complement decoration-dashed underline-offset-4"
+                      : "text-primary hover:text-complement"
+                  }`}
+                >
+                  {pillar.label}
+                </Link>
+                {index < PILLARS.length - 1 && (
+                  <span
+                    className={`transition-colors duration-300 ${
+                      isActive ? "text-complement" : "text-primary/90"
+                    }`}
+                    aria-hidden="true"
+                  >
+                    &bull;
+                  </span>
+                )}
+              </React.Fragment>
+            );
+          })}
+          <span className="text-primary/85 transition-colors duration-300">)</span>
+        </div>
       </div>
     </div>
   );
 }
-

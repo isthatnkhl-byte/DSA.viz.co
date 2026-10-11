@@ -34,11 +34,16 @@ export interface UserActivityLog {
   createdAt: string;
 }
 
+const memoryReportsStore = new Map<string, AiReportData[]>();
+const memoryChatSessionsStore = new Map<string, ChatSessionData[]>();
+const memoryActivityStore = new Map<string, UserActivityLog[]>();
+
 /**
  * Saves a new AI Diagnostic Report to Firestore for the user
  */
 export async function saveAiReport(userId: string, data: { title: string; totalSubmissions: number; reportData: any }): Promise<AiReportData> {
-  const newReport = {
+  const newReport: AiReportData = {
+    id: `rep-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     userId,
     title: data.title || "AI Algorithmic Diagnostics Report",
     totalSubmissions: data.totalSubmissions || 0,
@@ -46,16 +51,24 @@ export async function saveAiReport(userId: string, data: { title: string; totalS
     createdAt: new Date().toISOString(),
   };
 
-  const docRef = await adminDb
-    .collection('users')
-    .doc(userId)
-    .collection('ai_reports')
-    .add(newReport);
+  const existing = memoryReportsStore.get(userId) || [];
+  memoryReportsStore.set(userId, [newReport, ...existing].slice(0, 50));
 
-  return {
-    ...newReport,
-    id: docRef.id,
-  };
+  try {
+    const { id: _localId, ...payload } = newReport;
+    const docRef = await adminDb
+      .collection('users')
+      .doc(userId)
+      .collection('ai_reports')
+      .add(payload);
+
+    return {
+      ...newReport,
+      id: docRef.id,
+    };
+  } catch {
+    return newReport;
+  }
 }
 
 /**
@@ -71,54 +84,69 @@ export async function getUserAiReports(userId: string): Promise<AiReportData[]> 
       .limit(50)
       .get();
 
-    return snap.docs.map(doc => ({
+    const docs = snap.docs.map(doc => ({
       id: doc.id,
       ...(doc.data() as any),
     }));
-  } catch (error) {
-    console.warn("Error fetching user AI reports from Firestore:", error);
-    return [];
+    if (docs.length > 0) {
+      memoryReportsStore.set(userId, docs);
+      return docs;
+    }
+  } catch {
+    // Fall back to in-memory store
   }
+  return memoryReportsStore.get(userId) || [];
 }
 
 /**
  * Saves or updates a multi-turn chat session in Firestore
  */
 export async function saveChatSession(userId: string, session: { id?: string; title?: string; problemSlug?: string | null; role?: string; messages: any[] }): Promise<ChatSessionData> {
-  const col = adminDb.collection('users').doc(userId).collection('chat_sessions');
   const now = new Date().toISOString();
+  const localId = session.id || `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const localRecord: ChatSessionData = {
+    id: localId,
+    userId,
+    title: session.title || "DSA Socratic Chat",
+    problemSlug: session.problemSlug || null,
+    role: session.role || "interviewer",
+    messages: session.messages || [],
+    createdAt: now,
+    updatedAt: now,
+  };
 
-  if (session.id) {
-    const docRef = col.doc(session.id);
-    const updateData = {
-      title: session.title || "DSA Socratic Chat",
-      problemSlug: session.problemSlug || null,
-      role: session.role || "interviewer",
-      messages: session.messages || [],
-      updatedAt: now,
-    };
-    await docRef.set(updateData, { merge: true });
-    return {
-      id: session.id,
-      userId,
-      ...updateData,
-      createdAt: now,
-    };
-  } else {
-    const newSession = {
-      userId,
-      title: session.title || "DSA Socratic Chat",
-      problemSlug: session.problemSlug || null,
-      role: session.role || "interviewer",
-      messages: session.messages || [],
-      createdAt: now,
-      updatedAt: now,
-    };
-    const docRef = await col.add(newSession);
-    return {
-      ...newSession,
-      id: docRef.id,
-    };
+  const existing = memoryChatSessionsStore.get(userId) || [];
+  const filtered = existing.filter(s => s.id !== localId);
+  memoryChatSessionsStore.set(userId, [localRecord, ...filtered].slice(0, 30));
+
+  try {
+    const col = adminDb.collection('users').doc(userId).collection('chat_sessions');
+    if (session.id) {
+      const docRef = col.doc(session.id);
+      const updateData = {
+        title: session.title || "DSA Socratic Chat",
+        problemSlug: session.problemSlug || null,
+        role: session.role || "interviewer",
+        messages: session.messages || [],
+        updatedAt: now,
+      };
+      await docRef.set(updateData, { merge: true });
+      return {
+        id: session.id,
+        userId,
+        ...updateData,
+        createdAt: now,
+      };
+    } else {
+      const { id: _ignoreId, ...newSession } = localRecord;
+      const docRef = await col.add(newSession);
+      return {
+        ...localRecord,
+        id: docRef.id,
+      };
+    }
+  } catch {
+    return localRecord;
   }
 }
 
@@ -135,21 +163,26 @@ export async function getUserChatSessions(userId: string): Promise<ChatSessionDa
       .limit(30)
       .get();
 
-    return snap.docs.map(doc => ({
+    const docs = snap.docs.map(doc => ({
       id: doc.id,
       ...(doc.data() as any),
     }));
-  } catch (error) {
-    console.warn("Error fetching user chat sessions:", error);
-    return [];
+    if (docs.length > 0) {
+      memoryChatSessionsStore.set(userId, docs);
+      return docs;
+    }
+  } catch {
+    // Fall back to in-memory store
   }
+  return memoryChatSessionsStore.get(userId) || [];
 }
 
 /**
  * Logs an activity event to Firestore
  */
 export async function logUserActivity(userId: string, activity: { type: string; problemSlug?: string | null; metadata?: any }): Promise<UserActivityLog> {
-  const newActivity = {
+  const newActivity: UserActivityLog = {
+    id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     userId,
     type: activity.type,
     problemSlug: activity.problemSlug || null,
@@ -157,16 +190,24 @@ export async function logUserActivity(userId: string, activity: { type: string; 
     createdAt: new Date().toISOString(),
   };
 
-  const docRef = await adminDb
-    .collection('users')
-    .doc(userId)
-    .collection('activity')
-    .add(newActivity);
+  const existing = memoryActivityStore.get(userId) || [];
+  memoryActivityStore.set(userId, [newActivity, ...existing].slice(0, 100));
 
-  return {
-    ...newActivity,
-    id: docRef.id,
-  };
+  try {
+    const { id: _localId, ...payload } = newActivity;
+    const docRef = await adminDb
+      .collection('users')
+      .doc(userId)
+      .collection('activity')
+      .add(payload);
+
+    return {
+      ...newActivity,
+      id: docRef.id,
+    };
+  } catch {
+    return newActivity;
+  }
 }
 
 /**
@@ -182,12 +223,16 @@ export async function getUserActivities(userId: string, limitCount: number = 50)
       .limit(limitCount)
       .get();
 
-    return snap.docs.map(doc => ({
+    const docs = snap.docs.map(doc => ({
       id: doc.id,
       ...(doc.data() as any),
     }));
-  } catch (error) {
-    console.warn("Error fetching user activities:", error);
-    return [];
+    if (docs.length > 0) {
+      memoryActivityStore.set(userId, docs);
+      return docs;
+    }
+  } catch {
+    // Fall back to in-memory store
   }
+  return (memoryActivityStore.get(userId) || []).slice(0, limitCount);
 }

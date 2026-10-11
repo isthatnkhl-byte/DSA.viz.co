@@ -253,7 +253,7 @@ function LfuCacheRenderer({ lfu }: { lfu: LfuCacheState }) {
                 return (
                   <div
                     key={`lfu-key-${k}`}
-                    className={`flex items-center justify-between px-3 py-2 rounded-xl border font-mono text-xs transition-all ${
+                    className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl border font-mono text-xs transition-all ${
                       isActive
                         ? "bg-primary/20 border-primary text-primary font-bold shadow-xs ring-1 ring-primary/50 scale-[1.02]"
                         : isMin
@@ -261,20 +261,20 @@ function LfuCacheRenderer({ lfu }: { lfu: LfuCacheState }) {
                           : "bg-card/80 border-border text-foreground"
                     }`}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground text-[11px]">key:</span>
-                      <strong className="text-foreground text-sm font-black">{k}</strong>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-muted-foreground text-[11px] shrink-0">key:</span>
+                      <strong className="text-foreground text-sm font-black break-all">{k}</strong>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <div className="flex items-center gap-1 text-[11px]">
-                        <span className="text-muted-foreground">val:</span>
-                        <span className="px-1.5 py-0.5 rounded bg-muted text-foreground font-bold">
+                        <span className="text-muted-foreground shrink-0">val:</span>
+                        <span className="px-1.5 py-0.5 rounded bg-muted text-foreground font-bold break-all">
                           {String(item.val)}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-[11px]">
-                        <span className="text-muted-foreground">freq:</span>
+                        <span className="text-muted-foreground shrink-0">freq:</span>
                         <span
                           className={`px-1.5 py-0.5 rounded font-black ${
                             isMin

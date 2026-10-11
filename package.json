@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --external:vite --alias:@tanstack/react-start=./src/lib/react-start-shim.ts --alias:@tanstack/react-start/server=./src/lib/react-start-shim.ts --alias:@=./src --sourcemap --outfile=api/server.cjs && cp api/server.cjs dist/server.cjs",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --external:vite --alias:@tanstack/react-start=./src/lib/react-start-shim.ts --alias:@tanstack/react-start/server=./src/lib/react-start-shim.ts --alias:@=./src --sourcemap --outfile=api/server.cjs && node -e \"require('fs').copyFileSync('api/server.cjs', 'dist/server.cjs')\"",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "test": "tsx --test src/middleware/auth.test.ts src/lib/ai-contracts.test.ts src/lib/simulators.test.ts src/lib/simulators.edge.test.ts src/lib/problems.test.ts src/lib/compiler.test.ts src/lib/openrouter.server.test.ts test/system-pipeline.test.ts test/playback-orchestrator.test.ts test/datasets-and-steps.test.ts test/task-completion-manager.test.ts test/https-enforcement.test.ts",

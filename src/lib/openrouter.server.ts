@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { GoogleGenAI } from "@google/genai";
+import { getActiveRequestUserKeys } from "./user-keys.server";
 
 const env = typeof process !== "undefined" && process?.env ? process.env : {};
 
@@ -15,6 +17,9 @@ const API_TIMEOUT_MS = Number(env["AI_TIMEOUT_MS"]) || 120000;
 export const REVIEW_MODELS = Array.from(
   new Set([
     DEFAULT_GEMINI_MODEL,
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
@@ -34,6 +39,9 @@ export const REVIEW_MODELS = Array.from(
 export const VIZ_MODELS = Array.from(
   new Set([
     DEFAULT_GEMINI_MODEL,
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
@@ -55,6 +63,11 @@ const clean = (val?: string | null): string => {
 };
 
 export function getOpenRouterKey(): string {
+  const reqKeys = getActiveRequestUserKeys();
+  if (reqKeys?.hasPersonalKey) {
+    return clean(reqKeys.openRouterKey || "");
+  }
+
   const env: Record<string, string | undefined> =
     typeof process !== "undefined" && process?.env ? process.env : {};
 
@@ -68,6 +81,11 @@ export function getOpenRouterKey(): string {
 }
 
 export function getOpenAIKey(): string {
+  const reqKeys = getActiveRequestUserKeys();
+  if (reqKeys?.hasPersonalKey) {
+    return clean(reqKeys.openAIKey || "");
+  }
+
   const env: Record<string, string | undefined> =
     typeof process !== "undefined" && process?.env ? process.env : {};
 
@@ -80,6 +98,11 @@ export function getOpenAIKey(): string {
 }
 
 export function getGeminiKey(): string {
+  const reqKeys = getActiveRequestUserKeys();
+  if (reqKeys?.hasPersonalKey) {
+    return clean(reqKeys.geminiKey || "");
+  }
+
   const env: Record<string, string | undefined> =
     typeof process !== "undefined" && process?.env ? process.env : {};
 
@@ -302,13 +325,41 @@ export async function callOpenRouterModel(
 }
 
 export async function callGeminiModel(model: string, key: string, system: string, user: string) {
+  try {
+    const ai = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+    const resp = await ai.models.generateContent({
+      model,
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      config: {
+        systemInstruction: system,
+        responseMimeType: "application/json",
+        maxOutputTokens: 8192,
+      },
+    });
+    const parsed = extractJson(resp.text || "");
+    if (parsed) return parsed;
+  } catch {
+    // Fall through to direct REST fetch below
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
     const url = `${GEMINI_API_BASE_URL}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+    const geminiHeaders = {
+      "Content-Type": "application/json",
+      "User-Agent": "aistudio-build",
+    };
     let res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: geminiHeaders,
       body: JSON.stringify({
         systemInstruction: {
           role: "system",
@@ -326,7 +377,7 @@ export async function callGeminiModel(model: string, key: string, system: string
     if (!res.ok && res.status === 400) {
       res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: geminiHeaders,
         body: JSON.stringify({
           systemInstruction: {
             role: "system",

@@ -1653,45 +1653,49 @@ export function GraphVisualizer({
                     }
                     className="transition-all duration-300"
                   />
-                  {edge.weight !== undefined && (
-                    <g transform={`translate(${midX}, ${midY - 4})`}>
-                      <rect
-                        x="-12"
-                        y="-8"
-                        width="24"
-                        height="16"
-                        rx="4"
-                        className={
-                          isRejectedCycleEdge
-                            ? "fill-rose-950 stroke-rose-400 stroke"
-                            : isRelaxedEdge
-                            ? "fill-amber-950 stroke-amber-400 stroke"
-                            : isSptEdge
-                            ? "fill-emerald-950 stroke-emerald-400 stroke"
-                            : isMstEdge
-                            ? "fill-teal-950 stroke-teal-400 stroke"
-                            : "fill-background/90 stroke-border/60 stroke"
-                        }
-                      />
-                      <text
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        className={`font-mono text-[9px] font-extrabold ${
-                          isRejectedCycleEdge
-                            ? "fill-rose-300"
-                            : isRelaxedEdge
-                            ? "fill-amber-300"
-                            : isSptEdge
-                            ? "fill-emerald-300"
-                            : isMstEdge
-                            ? "fill-teal-300"
-                            : "fill-primary"
-                        }`}
-                      >
-                        {String(edge.weight)}
-                      </text>
-                    </g>
-                  )}
+                  {edge.weight !== undefined && (() => {
+                    const wText = String(edge.weight);
+                    const wBoxW = Math.max(24, wText.length * 6.5 + 10);
+                    return (
+                      <g transform={`translate(${midX}, ${midY - 4})`}>
+                        <rect
+                          x={-wBoxW / 2}
+                          y="-8"
+                          width={wBoxW}
+                          height="16"
+                          rx="4"
+                          className={
+                            isRejectedCycleEdge
+                              ? "fill-rose-950 stroke-rose-400 stroke"
+                              : isRelaxedEdge
+                              ? "fill-amber-950 stroke-amber-400 stroke"
+                              : isSptEdge
+                              ? "fill-emerald-950 stroke-emerald-400 stroke"
+                              : isMstEdge
+                              ? "fill-teal-950 stroke-teal-400 stroke"
+                              : "fill-background/90 stroke-border/60 stroke"
+                          }
+                        />
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          className={`font-mono text-[9px] font-extrabold ${
+                            isRejectedCycleEdge
+                              ? "fill-rose-300"
+                              : isRelaxedEdge
+                              ? "fill-amber-300"
+                              : isSptEdge
+                              ? "fill-emerald-300"
+                              : isMstEdge
+                              ? "fill-teal-300"
+                              : "fill-primary"
+                          }`}
+                        >
+                          {wText}
+                        </text>
+                      </g>
+                    );
+                  })()}
                 </g>
               );
             })}
@@ -1706,12 +1710,13 @@ export function GraphVisualizer({
               const isHovered = hoveredNode === node.id;
 
               const nodeLength = node.id.length;
-              const baseRadius = nodeLength >= 6 ? 24 : nodeLength >= 3 ? 21 : 18;
-              const nodeRadius = isActive ? baseRadius + 3 : isHovered ? baseRadius + 2 : baseRadius;
+              const baseRadius = 19;
+              const nodeRadius = isActive ? baseRadius + 2 : isHovered ? baseRadius + 1 : baseRadius;
+              const capsuleW = Math.max(nodeRadius * 2, nodeLength * 7 + 16);
               const fontSizeClass =
-                nodeLength >= 7
-                  ? "text-[8px]"
-                  : nodeLength >= 4
+                nodeLength >= 8
+                  ? "text-[9px]"
+                  : nodeLength >= 5
                   ? "text-[10px]"
                   : "text-xs";
 
@@ -1729,14 +1734,22 @@ export function GraphVisualizer({
                   onMouseLeave={() => setHoveredNode(null)}
                 >
                   {isActive && (
-                    <circle
-                      r={nodeRadius + 6}
+                    <rect
+                      x={-(capsuleW / 2 + 6)}
+                      y={-(nodeRadius + 6)}
+                      width={capsuleW + 12}
+                      height={(nodeRadius + 6) * 2}
+                      rx={nodeRadius + 6}
                       className="fill-primary/20 stroke-primary/60 animate-ping opacity-60"
                       strokeWidth="1.5"
                     />
                   )}
-                  <circle
-                    r={nodeRadius}
+                  <rect
+                    x={-capsuleW / 2}
+                    y={-nodeRadius}
+                    width={capsuleW}
+                    height={nodeRadius * 2}
+                    rx={nodeRadius}
                     className={`transition-all duration-300 ${
                       isActive
                         ? "fill-primary stroke-primary stroke-2 shadow-lg ring-4 ring-primary/30"
@@ -1766,46 +1779,54 @@ export function GraphVisualizer({
                   </text>
 
                   {/* Distance badge for Shortest Path */}
-                  {activeTab === "shortest-path" && shortestDistVal !== undefined && (
-                    <g transform={`translate(0, ${nodeRadius + 11})`}>
-                      <rect
-                        x="-16"
-                        y="-6"
-                        width="32"
-                        height="13"
-                        rx="6.5"
-                        className="fill-emerald-950/90 stroke-emerald-500/80 stroke"
-                      />
-                      <text
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        className="font-mono text-[9px] font-black fill-emerald-300"
-                      >
-                        {String(shortestDistVal)}
-                      </text>
-                    </g>
-                  )}
+                  {activeTab === "shortest-path" && shortestDistVal !== undefined && (() => {
+                    const dStr = String(shortestDistVal);
+                    const dBoxW = Math.max(32, dStr.length * 6.5 + 12);
+                    return (
+                      <g transform={`translate(0, ${nodeRadius + 11})`}>
+                        <rect
+                          x={-dBoxW / 2}
+                          y="-6"
+                          width={dBoxW}
+                          height="13"
+                          rx="6.5"
+                          className="fill-emerald-950/90 stroke-emerald-500/80 stroke"
+                        />
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          className="font-mono text-[9px] font-black fill-emerald-300"
+                        >
+                          {dStr}
+                        </text>
+                      </g>
+                    );
+                  })()}
 
                   {/* Cut Set / DSU badge for MST */}
-                  {activeTab === "mst" && (isPrimInTree || isPrimUnvisited || dsuRoot !== undefined) && (
-                    <g transform={`translate(0, ${nodeRadius + 11})`}>
-                      <rect
-                        x="-15"
-                        y="-6"
-                        width="30"
-                        height="13"
-                        rx="6.5"
-                        className={isPrimInTree ? "fill-teal-950/90 stroke-teal-400 stroke" : "fill-muted/90 stroke-border stroke"}
-                      />
-                      <text
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        className={`font-mono text-[8px] font-black ${isPrimInTree ? "fill-teal-300" : "fill-muted-foreground"}`}
-                      >
-                        {isPrimInTree ? "S (Tree)" : isPrimUnvisited ? "V \\ S" : `r:${dsuRoot}`}
-                      </text>
-                    </g>
-                  )}
+                  {activeTab === "mst" && (isPrimInTree || isPrimUnvisited || dsuRoot !== undefined) && (() => {
+                    const mstStr = isPrimInTree ? "S (Tree)" : isPrimUnvisited ? "V \\ S" : `r:${dsuRoot}`;
+                    const mstBoxW = Math.max(30, mstStr.length * 5.8 + 10);
+                    return (
+                      <g transform={`translate(0, ${nodeRadius + 11})`}>
+                        <rect
+                          x={-mstBoxW / 2}
+                          y="-6"
+                          width={mstBoxW}
+                          height="13"
+                          rx="6.5"
+                          className={isPrimInTree ? "fill-teal-950/90 stroke-teal-400 stroke" : "fill-muted/90 stroke-border stroke"}
+                        />
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          className={`font-mono text-[8px] font-black ${isPrimInTree ? "fill-teal-300" : "fill-muted-foreground"}`}
+                        >
+                          {mstStr}
+                        </text>
+                      </g>
+                    );
+                  })()}
                 </g>
               );
             })}

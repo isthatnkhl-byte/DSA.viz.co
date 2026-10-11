@@ -433,8 +433,8 @@ export function ArrayVisualizer({
             const displayVal =
               strVal === "2147483647" || strVal === "999999999" || strVal === "Infinity"
                 ? "∞"
-                : strVal.length > 8
-                  ? `${strVal.slice(0, 7)}…`
+                : strVal.length > 24
+                  ? `${strVal.slice(0, 22)}…`
                   : strVal;
 
             // Compute consolidated pointer tag list with vivid background badges and distinct colors
@@ -634,13 +634,14 @@ export function ArrayVisualizer({
             }
 
             const isHasPointers = tags.length > 0;
+            const isLongVal = displayVal.length > 5;
             const cellSizeClass =
               items.length > 18
-                ? "size-10 sm:size-11 text-xs"
+                ? `min-w-10 sm:min-w-11 min-h-10 sm:min-h-11 w-auto px-2 py-1 ${isLongVal ? "text-[11px]" : "text-xs"}`
                 : items.length > 10
-                  ? "size-11 sm:size-12 text-sm"
-                  : "size-12 sm:size-14 text-base";
-            const barWidthClass = items.length > 18 ? "w-8" : items.length > 10 ? "w-9" : "w-10";
+                  ? `min-w-11 sm:min-w-12 min-h-11 sm:min-h-12 w-auto px-2.5 py-1.5 ${isLongVal ? "text-xs" : "text-sm"}`
+                  : `min-w-12 sm:min-w-14 min-h-12 sm:min-h-14 w-auto px-3 py-1.5 ${isLongVal ? "text-xs sm:text-sm" : "text-base"}`;
+            const barWidthClass = items.length > 18 ? "w-full min-w-8 max-w-14" : items.length > 10 ? "w-full min-w-9 max-w-16" : "w-full min-w-10 max-w-20";
 
             return (
               <div
@@ -710,7 +711,7 @@ export function ArrayVisualizer({
                 {/* Element Value Box */}
                 <div
                   title={strVal}
-                  className={`flex ${cellSizeClass} items-center justify-center rounded-2xl border font-mono transition-all duration-300 shadow-sm ${cellStyle} ${
+                  className={`flex ${cellSizeClass} items-center justify-center rounded-2xl border font-mono whitespace-nowrap transition-all duration-300 shadow-sm ${cellStyle} ${
                     motionBlurEnabled ? "viz-cell-glide" : ""
                   }`}
                 >

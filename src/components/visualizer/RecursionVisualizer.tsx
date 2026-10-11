@@ -570,25 +570,29 @@ export function RecursionVisualizer({
                             ⚡ O(1) HIT
                           </text>
                         </g>
-                      ) : edge.decision ? (
-                        <g>
-                          <rect
-                            x={-28}
-                            y={-9}
-                            width={56}
-                            height={16}
-                            rx={3}
-                            className="fill-background/90 stroke-border/70"
-                          />
-                          <text
-                            textAnchor="middle"
-                            y={3}
-                            className="text-[9px] font-mono fill-muted-foreground select-none"
-                          >
-                            {edge.decision.slice(0, 10)}
-                          </text>
-                        </g>
-                      ) : null}
+                      ) : edge.decision ? (() => {
+                        const decText = edge.decision.length > 18 ? `${edge.decision.slice(0, 16)}…` : edge.decision;
+                        const decW = Math.max(56, decText.length * 5.8 + 14);
+                        return (
+                          <g>
+                            <rect
+                              x={-decW / 2}
+                              y={-9}
+                              width={decW}
+                              height={16}
+                              rx={3}
+                              className="fill-background/90 stroke-border/70"
+                            />
+                            <text
+                              textAnchor="middle"
+                              y={3}
+                              className="text-[9px] font-mono fill-muted-foreground select-none"
+                            >
+                              {decText}
+                            </text>
+                          </g>
+                        );
+                      })() : null}
                     </g>
                   </g>
                 );
@@ -606,6 +610,10 @@ export function RecursionVisualizer({
                 const isBacktracked = node.state === "backtracked";
 
                 const nodeRadius = 22;
+                const rawLabel = node.label ? String(node.label) : `d${node.depth}`;
+                const displayNodeLabel = rawLabel.length > 12 ? `${rawLabel.slice(0, 10)}…` : rawLabel;
+                const capsuleW = Math.max(nodeRadius * 2, displayNodeLabel.length * 6.5 + 16);
+                const halfW = capsuleW / 2;
 
                 return (
                   <g
@@ -616,8 +624,12 @@ export function RecursionVisualizer({
                   >
                     {/* Pulsing ring on in-flight calls */}
                     {isInFlight && (
-                      <circle
-                        r={nodeRadius + 6}
+                      <rect
+                        x={-(halfW + 6)}
+                        y={-(nodeRadius + 6)}
+                        width={capsuleW + 12}
+                        height={(nodeRadius + 6) * 2}
+                        rx={nodeRadius + 6}
                         className="stroke-primary/50 fill-primary/10 animate-ping"
                         strokeWidth={1.5}
                       />
@@ -625,8 +637,12 @@ export function RecursionVisualizer({
 
                     {/* Red glow ring on Pruned Node */}
                     {isPrunedRed && (
-                      <circle
-                        r={nodeRadius + 5}
+                      <rect
+                        x={-(halfW + 5)}
+                        y={-(nodeRadius + 5)}
+                        width={capsuleW + 10}
+                        height={(nodeRadius + 5) * 2}
+                        rx={nodeRadius + 5}
                         stroke="#f43f5e"
                         strokeWidth={1.5}
                         strokeDasharray="3 3"
@@ -637,8 +653,12 @@ export function RecursionVisualizer({
 
                     {/* Green glow ring on Completed Subtree */}
                     {isCompletedGreen && (
-                      <circle
-                        r={nodeRadius + 4}
+                      <rect
+                        x={-(halfW + 4)}
+                        y={-(nodeRadius + 4)}
+                        width={capsuleW + 8}
+                        height={(nodeRadius + 4) * 2}
+                        rx={nodeRadius + 4}
                         stroke="#10b981"
                         strokeWidth={1.5}
                         fill="rgba(16, 185, 129, 0.08)"
@@ -647,8 +667,12 @@ export function RecursionVisualizer({
 
                     {/* Cyan glow ring on Memo Cache Hit */}
                     {isMemoHit && (
-                      <circle
-                        r={nodeRadius + 6}
+                      <rect
+                        x={-(halfW + 6)}
+                        y={-(nodeRadius + 6)}
+                        width={capsuleW + 12}
+                        height={(nodeRadius + 6) * 2}
+                        rx={nodeRadius + 6}
                         stroke="#06b6d4"
                         strokeWidth={2}
                         strokeOpacity={0.8}
@@ -656,9 +680,13 @@ export function RecursionVisualizer({
                       />
                     )}
 
-                    {/* Main Node Circle */}
-                    <circle
-                      r={nodeRadius}
+                    {/* Main Node Capsule */}
+                    <rect
+                      x={-halfW}
+                      y={-nodeRadius}
+                      width={capsuleW}
+                      height={nodeRadius * 2}
+                      rx={nodeRadius}
                       className={`transition-colors shadow-md ${
                         isMemoHit
                           ? "fill-cyan-950/80 stroke-cyan-400 stroke-[2.5]"
@@ -677,7 +705,14 @@ export function RecursionVisualizer({
                     {/* Hatch overlay on pruned node */}
                     {isPrunedRed && (
                       <>
-                        <circle r={nodeRadius - 1} fill="url(#pruned-hatch)" />
+                        <rect
+                          x={-(halfW - 1)}
+                          y={-(nodeRadius - 1)}
+                          width={capsuleW - 2}
+                          height={(nodeRadius - 1) * 2}
+                          rx={nodeRadius - 1}
+                          fill="url(#pruned-hatch)"
+                        />
                         {/* Red Diagonal Strike Cross */}
                         <line
                           x1={-12}
@@ -716,7 +751,7 @@ export function RecursionVisualizer({
                       <text
                         textAnchor="middle"
                         dy="0.35em"
-                        className={`text-[11px] font-mono font-bold select-none ${
+                        className={`${displayNodeLabel.length > 6 ? "text-[10px]" : "text-[11px]"} font-mono font-bold select-none ${
                           isPrunedRed
                             ? "fill-rose-400 font-extrabold"
                             : isInFlight
@@ -726,13 +761,13 @@ export function RecursionVisualizer({
                             : "fill-foreground"
                         }`}
                       >
-                        {node.label ? node.label.slice(0, 4) : `d${node.depth}`}
+                        {displayNodeLabel}
                       </text>
                     )}
 
                     {/* Pruned Scissors Badge (Top-Right of Node) */}
                     {isPrunedRed && (
-                      <g transform={`translate(${nodeRadius - 2}, ${-nodeRadius + 2})`}>
+                      <g transform={`translate(${halfW - 2}, ${-nodeRadius + 2})`}>
                         <circle r={8} fill="#f43f5e" stroke="#1e1014" strokeWidth={1.5} />
                         <text
                           textAnchor="middle"
@@ -748,7 +783,7 @@ export function RecursionVisualizer({
 
                     {/* Completed Checkmark Badge (Top-Right of Node) */}
                     {isCompletedGreen && !isMemoHit && (
-                      <g transform={`translate(${nodeRadius - 2}, ${-nodeRadius + 2})`}>
+                      <g transform={`translate(${halfW - 2}, ${-nodeRadius + 2})`}>
                         <circle r={7} fill="#10b981" stroke="#064e3b" strokeWidth={1.2} />
                         <text
                           textAnchor="middle"
@@ -764,7 +799,7 @@ export function RecursionVisualizer({
 
                     {/* Memo Hit Cache Badge (Top-Right of Node) */}
                     {isMemoHit && (
-                      <g transform={`translate(${nodeRadius - 2}, ${-nodeRadius + 2})`}>
+                      <g transform={`translate(${halfW - 2}, ${-nodeRadius + 2})`}>
                         <circle r={8} fill="#06b6d4" stroke="#082f49" strokeWidth={1.5} />
                         <text
                           textAnchor="middle"
@@ -796,14 +831,14 @@ export function RecursionVisualizer({
                       >
                         {isPrunedRed
                           ? node.pruneReason
-                            ? node.pruneReason.slice(0, 14)
+                            ? node.pruneReason.slice(0, 18)
                             : "ABORTED"
                           : isMemoHit
                           ? `Cached: ${node.cachedValue ?? node.returnValue ?? "O(1)"}`
                           : isCompletedGreen && node.returnValue !== undefined
                           ? `Ret: ${node.returnValue}`
                           : node.decision
-                          ? node.decision.slice(0, 12)
+                          ? node.decision.slice(0, 18)
                           : `d=${node.depth}`}
                       </text>
                     </g>

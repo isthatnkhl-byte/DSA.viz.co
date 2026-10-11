@@ -28,13 +28,6 @@ import { CppPackageExplorer } from "@/components/compiler/CppPackageExplorer";
 import {
   CPP_DSA_TEMPLATES,
   PLAIN_CPP_STARTER,
-  PLAIN_CPP_IO_TEMPLATE,
-  PLAIN_C_STARTER,
-  PLAIN_C_IO_TEMPLATE,
-  PLAIN_JAVA_STARTER,
-  PLAIN_JAVA_IO_TEMPLATE,
-  PLAIN_PYTHON_STARTER,
-  PLAIN_PYTHON_IO_TEMPLATE,
   getStarterForLanguage,
   getFastIoTemplateForLanguage,
   getTemplatesForLanguage,
@@ -145,8 +138,8 @@ const LANGUAGE_PRO_TIPS: Record<
   }
 > = {
   cpp: {
-    title: "C++ DSA Pro Tips",
-    subtitle: "Speed patterns for coding interviews & contests",
+    title: "C++ DSA Pro Snippets & Idioms",
+    subtitle: "High-frequency competitive programming & interview patterns",
     tips: [
       {
         title: "⚡ Fast I/O Boilerplate",
@@ -159,20 +152,20 @@ const LANGUAGE_PRO_TIPS: Record<
         desc: "Iterate cleanly over adjacent cells in 2D grid BFS/DFS traversals.",
       },
       {
-        title: "🔢 Modulo 10^9 + 7",
-        code: "const int MOD = 1e9 + 7;\nans = (ans + val) % MOD;",
+        title: "🔢 Modulo 10^9 + 7 Arithmetic",
+        code: "const long long MOD = 1e9 + 7;\nans = (ans + val) % MOD;",
         desc: "Prevents 64-bit integer overflow in combinatorial DP problems.",
       },
       {
-        title: "🗂️ Min-Heap Declaration",
+        title: "🗂️ Min-Heap Priority Queue",
         code: "priority_queue<int, vector<int>, greater<int>> minHeap;",
         desc: "Standard C++ default is Max-Heap. Use greater<int> for Min-Heap.",
       },
     ],
   },
   c: {
-    title: "C DSA Pro Tips",
-    subtitle: "Memory management & pointer discipline",
+    title: "C DSA Pro Snippets & Idioms",
+    subtitle: "Memory management, qsort comparators & pointer discipline",
     tips: [
       {
         title: "⚡ Dynamic Array Allocation",
@@ -180,25 +173,25 @@ const LANGUAGE_PRO_TIPS: Record<
         desc: "Always remember to free heap memory to prevent memory leaks.",
       },
       {
-        title: "🧭 qsort Comparator",
+        title: "🧭 qsort Integer Comparator",
         code: "int cmp(const void* a, const void* b) {\n    return (*(int*)a - *(int*)b);\n}",
-        desc: "qsort uses void pointers. Cast to appropriate pointer type before dereferencing.",
+        desc: "qsort uses void pointers. Cast to int* before dereferencing.",
       },
       {
-        title: "🔢 Fast Scanf / Printf",
-        code: "scanf(\"%d %d\", &a, &b);\nprintf(\"%d\\n\", ans);",
+        title: "🔢 Fast Scanf / Printf Loop",
+        code: "int n;\nwhile (scanf(\"%d\", &n) == 1) {\n    printf(\"%d\\n\", n);\n}",
         desc: "C stdio is inherently fast and ideal for memory-constrained problems.",
       },
       {
-        title: "🗂️ Struct Pointer Shorthand",
-        code: "Node* curr = head;\nint val = curr->data;",
-        desc: "Arrow operator -> is syntactic sugar for (*curr).data.",
+        title: "🗂️ Singly Linked List Node",
+        code: "typedef struct Node {\n    int data;\n    struct Node* next;\n} Node;",
+        desc: "Standard self-referential struct definition for linked lists in C.",
       },
     ],
   },
   java: {
-    title: "Java DSA Pro Tips",
-    subtitle: "JVM performance & collections framework",
+    title: "Java DSA Pro Snippets & Idioms",
+    subtitle: "JVM performance, Collections framework & comparator lambdas",
     tips: [
       {
         title: "⚡ Fast I/O with BufferedReader",
@@ -208,7 +201,7 @@ const LANGUAGE_PRO_TIPS: Record<
       {
         title: "🧭 HashMap Frequency Counter",
         code: "map.put(key, map.getOrDefault(key, 0) + 1);",
-        desc: "Single-line idiom for counting frequencies in O(1).",
+        desc: "Single-line idiom for counting element frequencies in O(1).",
       },
       {
         title: "🔢 Min-Heap vs Max-Heap",
@@ -216,15 +209,15 @@ const LANGUAGE_PRO_TIPS: Record<
         desc: "Default PriorityQueue in Java is Min-Heap. Use reverseOrder() for Max-Heap.",
       },
       {
-        title: "🗂️ Sort Pairs with Lambda",
+        title: "🗂️ Safe Interval Sorting",
         code: "Arrays.sort(intervals, (a, b) -> Integer.compare(a[0], b[0]));",
-        desc: "Use Integer.compare instead of subtraction to avoid 32-bit integer overflow.",
+        desc: "Use Integer.compare instead of subtraction to avoid 32-bit overflow.",
       },
     ],
   },
   python: {
-    title: "Python DSA Pro Tips",
-    subtitle: "Pythonic algorithmic speed & built-ins",
+    title: "Python DSA Pro Snippets & Idioms",
+    subtitle: "Pythonic algorithmic speed, deque, heapq & memoization",
     tips: [
       {
         title: "⚡ Ultra-Fast Standard Input",
@@ -243,7 +236,7 @@ const LANGUAGE_PRO_TIPS: Record<
       },
       {
         title: "🗂️ Automatic DP Memoization",
-        code: "from functools import lru_cache\n@lru_cache(maxsize=None)\ndef dp(i, j): ...",
+        code: "from functools import lru_cache\n@lru_cache(maxsize=None)\ndef dp(i, j):\n    return 0",
         desc: "Converts recursive top-down logic into memoized DP in one line.",
       },
     ],
@@ -321,7 +314,7 @@ function CppCompilerPage() {
           },
         });
       }
-    } catch (e) {
+    } catch {
       toast.error("An error occurred while pushing to GitHub");
     } finally {
       setGithubLoading(false);
@@ -383,22 +376,24 @@ function CppCompilerPage() {
     }
   }, [activeTemplates]);
 
-  // Update AI Buddy context
+  // Update AI Buddy context (debounced so typing in the code editor never triggers extra context re-renders)
   useEffect(() => {
-    const activeCode = mode === "plain" ? plainCode : templateCode;
-    const activeRes = mode === "plain" ? plainResult : templateResult;
-    updateContext({
-      route: "/compiler",
-      problemTitle:
-        mode === "plain"
-          ? `${activeLangConfig.label} DSA Compiler Sandbox`
-          : `${activeLangConfig.label} Template: ${selectedTemplateId}`,
-      userCode: activeCode,
-      compilerOutput: activeRes ? `${activeRes.stdout || ""}\n${activeRes.stderr || ""}`.trim() : undefined,
-    });
+    const timer = setTimeout(() => {
+      const activeCode = mode === "plain" ? plainCode : templateCode;
+      const activeRes = mode === "plain" ? plainResult : templateResult;
+      updateContext({
+        route: "/compiler",
+        problemTitle:
+          mode === "plain"
+            ? `${activeLangConfig.label} DSA Compiler Sandbox`
+            : `${activeLangConfig.label} Template: ${selectedTemplateId}`,
+        userCode: activeCode,
+        compilerOutput: activeRes ? `${activeRes.stdout || ""}\n${activeRes.stderr || ""}`.trim() : undefined,
+      });
+    }, 300);
+    return () => clearTimeout(timer);
   }, [mode, plainCode, templateCode, plainResult, templateResult, selectedTemplateId, activeLangConfig, updateContext]);
 
-  // Auto-persist plain scratchpad
   const updatePlainCode = (newCode: string) => {
     setPlainCode(newCode);
     try {
@@ -418,10 +413,8 @@ function CppCompilerPage() {
     }
   };
 
-  // Language switcher
   const handleSwitchLanguage = (newLang: SupportedLanguage) => {
     if (newLang === language) return;
-    // Save current plain scratchpad before switching
     try {
       localStorage.setItem(activeLangConfig.storageKeyCode, plainCode);
       localStorage.setItem(activeLangConfig.storageKeyStdin, plainStdin);
@@ -461,18 +454,16 @@ function CppCompilerPage() {
     toast.info(`Loaded template: ${tmpl.title}`);
   };
 
-  // Copy template code into plain scratchpad
   const copyTemplateToPlain = () => {
     updatePlainCode(templateCode);
     updatePlainStdin(templateStdin);
     setPlainResult(null);
     setMode("plain");
     toast.success(
-      `Loaded template into Plain ${activeLangConfig.label} Playground! You can now freely edit and execute.`
+      `Copied template to ${activeLangConfig.label} Playground!`
     );
   };
 
-  // Active Code, Stdin, and Execution Result based on selected mode
   const activeCode =
     typeof (mode === "plain" ? plainCode : templateCode) === "string"
       ? mode === "plain"
@@ -512,7 +503,6 @@ function CppCompilerPage() {
     }
   };
 
-  // Execute code against the server endpoint
   const handleExecute = async (overrideStdin?: string) => {
     if (!activeCode.trim()) {
       toast.error(`Please enter some ${activeLangConfig.label} code to run`);
@@ -578,7 +568,6 @@ function CppCompilerPage() {
     toast.info("Console output cleared");
   };
 
-  // Plain mode helpers
   const handleResetPlainStarter = () => {
     const starter = getStarterForLanguage(language);
     updatePlainCode(starter);
@@ -603,6 +592,7 @@ function CppCompilerPage() {
   };
 
   const snapshotRef = useRef<HTMLDivElement>(null);
+  const editorSectionRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExportSnapshot = async () => {
@@ -637,64 +627,63 @@ function CppCompilerPage() {
   const currentProTips = LANGUAGE_PRO_TIPS[language] || LANGUAGE_PRO_TIPS.cpp;
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen flex flex-col bg-background text-foreground pb-16">
       <SiteHeader />
 
-      <main id="main-content" className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8 xl:px-12">
-        {/* Executive Header Banner */}
-        <div className="relative mb-8 overflow-hidden rounded-3xl border border-border/70 bg-card/60 p-6 sm:p-10 backdrop-blur-2xl shadow-xl">
-          {/* Subtle atmospheric ambient glows */}
-          <div className="absolute -left-20 -top-20 size-72 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
-          <div className="absolute -right-20 -bottom-20 size-72 rounded-full bg-accent/20 blur-3xl pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div>
+      <main
+        id="main-content"
+        className="mx-auto w-full max-w-[1680px] flex-1 px-4 py-4 sm:px-6 lg:px-8"
+      >
+        {/* Compact Studio Header & Command Deck — Crisp 2-Tier Layout With Zero Awkward Wrapping */}
+        <div
+          ref={editorSectionRef}
+          className="mb-4 rounded-2xl border-[1.5px] border-dashed border-foreground/25 bg-card/90 px-4 py-3.5 sm:px-5 backdrop-blur-2xl shadow-lg"
+        >
+          {/* Tier 1: Studio Identity, Active Compiler Engine Telemetry & Run Shortcut */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Link
                 to="/problems"
-                className="group mb-2 inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary transition-colors"
+                className="group inline-flex h-8 items-center gap-1.5 rounded-md border border-foreground/20 bg-background/80 px-2.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
               >
-                <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
-                <span>Back to Algorithm Library</span>
+                <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
+                <span>PROBLEMS</span>
               </Link>
-              <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-2">
-                <Terminal className="size-3.5 text-primary" />
-                <span>Zero-Latency Multi-Language Cloud Execution Engine</span>
+
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 items-center justify-center rounded-md bg-primary/15 border border-primary/35 text-primary shrink-0">
+                  <Terminal className="size-4" />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="font-display text-base sm:text-lg font-black tracking-tight text-foreground">
+                    Online Compiler &amp; DSA Studio
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>{activeLangConfig.engine}</span>
+                    <span>•</span>
+                    <span>{activeLangConfig.optimization}</span>
+                  </span>
+                </div>
               </div>
-              <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">
-                Online{" "}
-                <span className="bg-gradient-to-r from-primary via-accent to-emerald-400 bg-clip-text text-transparent">
-                  Compiler &amp; Sandbox
-                </span>
-              </h1>
-              <p className="mt-2 text-sm sm:text-base text-muted-foreground font-sans max-w-2xl leading-relaxed">
-                High-performance sandboxed execution for C++, C, Java, and Python with interactive standard I/O streams, compiler diagnostic traces, GitHub snapshot push, and curated algorithmic templates.
-              </p>
             </div>
 
-            {/* Hardware & Runtime Telemetry Card */}
-            <div className="rounded-2xl border border-border/80 bg-background/80 p-4 font-mono shadow-md backdrop-blur-xl shrink-0 w-full sm:w-auto flex items-center gap-6">
-              <div>
-                <div className="text-[10px] uppercase text-muted-foreground">Compiler Engine</div>
-                <div className="text-xl font-black text-foreground font-display">
-                  {activeLangConfig.engine}
-                </div>
-              </div>
-              <div className="h-10 w-px bg-border/60" />
-              <div>
-                <div className="text-[10px] uppercase text-muted-foreground">Execution Tier</div>
-                <div className="text-xl font-black text-emerald-400 font-display">
-                  {activeLangConfig.optimization}
-                </div>
-              </div>
+            <div className="hidden md:flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+              <span>Write code on the left, pass custom stdin &amp; inspect stdout on the right</span>
+              <span className="text-foreground/30">|</span>
+              <kbd className="rounded border border-foreground/20 bg-background px-1.5 py-0.5 text-[10px] font-bold text-foreground">
+                Ctrl + Enter
+              </kbd>
             </div>
           </div>
 
-          {/* Language Selector Bar */}
-          <div className="mt-8 pt-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-2 bg-background/80 p-1.5 rounded-2xl border border-border/70 shadow-inner">
-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground px-2 flex items-center gap-1.5">
+          {/* Tier 2: Dedicated Single-Line Language Selector + Mode & Boilerplate Toolbar */}
+          <div className="mt-3 pt-3 border-t border-dashed border-foreground/20 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+            {/* Left Box: Single-Row Language Switcher (Never wraps onto 2 lines) */}
+            <div className="inline-flex items-center gap-1 rounded-lg border border-foreground/20 bg-background/90 p-1 overflow-x-auto max-w-full scrollbar-none">
+              <span className="px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5 shrink-0 border-r border-foreground/15 mr-0.5">
                 <Cpu className="size-3.5 text-primary" />
-                <span>Language:</span>
+                <span>LANG</span>
               </span>
               {LANGUAGES.map((lang) => {
                 const isSelected = language === lang.id;
@@ -703,16 +692,18 @@ function CppCompilerPage() {
                     key={lang.id}
                     type="button"
                     onClick={() => handleSwitchLanguage(lang.id)}
-                    className={`flex items-center gap-2 rounded-xl px-3.5 py-1.5 font-mono text-xs font-bold transition-all ${
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 font-mono text-xs font-bold whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                       isSelected
-                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/25 scale-[1.02]"
-                        : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                     }`}
                   >
                     <span>{lang.label}</span>
                     <span
-                      className={`rounded-md px-1.5 py-0.5 text-[9px] ${
-                        isSelected ? "bg-white/20 text-white font-semibold" : "bg-muted text-muted-foreground"
+                      className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold leading-none ${
+                        isSelected
+                          ? "bg-black/20 text-primary-foreground"
+                          : "bg-secondary text-muted-foreground"
                       }`}
                     >
                       {lang.name}
@@ -722,309 +713,172 @@ function CppCompilerPage() {
               })}
             </div>
 
-            {/* Mode Switcher Tabs */}
-            <div className="flex items-center gap-2 bg-background/80 p-1 rounded-2xl border border-border/70 shadow-inner">
-              <button
-                type="button"
-                onClick={() => setMode("plain")}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-xs font-bold transition-all ${
-                  mode === "plain"
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25 scale-[1.02]"
-                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
-                }`}
-              >
-                <Code2 className="size-4" />
-                <span>⚡ Plain {activeLangConfig.label} Playground</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[9px] ${
-                    mode === "plain" ? "bg-white/20 text-white font-semibold" : "bg-muted text-muted-foreground"
+            {/* Right Box: Unified Mode Switcher & Boilerplate Action Group on One Horizontal Line */}
+            <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2">
+              {/* Segmented Mode Toggle: Playground vs Templates */}
+              <div className="inline-flex items-center gap-1 rounded-lg border border-foreground/20 bg-background/90 p-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMode("plain")}
+                  className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 font-mono text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    mode === "plain"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                   }`}
                 >
-                  Custom Code &amp; I/O
-                </span>
-              </button>
+                  <Code2 className="size-3.5" />
+                  <span>Playground</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setMode("templates")}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-xs font-bold transition-all ${
-                  mode === "templates"
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25 scale-[1.02]"
-                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
-                }`}
-              >
-                <BookOpen className="size-4" />
-                <span>📚 {activeLangConfig.label} Templates</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[9px] ${
-                    mode === "templates" ? "bg-white/20 text-white font-semibold" : "bg-muted text-muted-foreground"
+                <button
+                  type="button"
+                  onClick={() => setMode("templates")}
+                  className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 font-mono text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    mode === "templates"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                   }`}
                 >
-                  {activeTemplates.length} Presets
-                </span>
-              </button>
+                  <BookOpen className="size-3.5" />
+                  <span>Templates ({activeTemplates.length})</span>
+                </button>
+              </div>
+
+              {/* Cohesive Boilerplate & Editor Action Box */}
+              {mode === "plain" ? (
+                <div className="inline-flex items-center gap-1 rounded-lg border border-foreground/20 bg-background/90 p-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleResetPlainStarter}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 font-mono text-xs font-semibold text-foreground/90 hover:bg-secondary/80 hover:text-foreground transition-colors whitespace-nowrap cursor-pointer"
+                    title="Reset to standard Hello World starter"
+                  >
+                    <RotateCcw className="size-3.5 text-primary" />
+                    <span>Starter</span>
+                  </button>
+
+                  <div className="h-4 w-px bg-foreground/15" />
+
+                  <button
+                    type="button"
+                    onClick={handleLoadPlainFastIO}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 font-mono text-xs font-semibold text-foreground/90 hover:bg-secondary/80 hover:text-foreground transition-colors whitespace-nowrap cursor-pointer"
+                    title="Load Fast I/O Competitive Programming Boilerplate"
+                  >
+                    <Zap className="size-3.5 text-amber-500" />
+                    <span>Fast I/O</span>
+                  </button>
+
+                  <div className="h-4 w-px bg-foreground/15" />
+
+                  <button
+                    type="button"
+                    onClick={handleClearPlainEditor}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 font-mono text-xs font-semibold text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition-colors whitespace-nowrap cursor-pointer"
+                    title="Clear Editor"
+                  >
+                    <Trash2 className="size-3.5" />
+                    <span className="hidden sm:inline">Clear</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="inline-flex items-center rounded-lg border border-foreground/20 bg-background/90 p-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={copyTemplateToPlain}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary/15 text-primary hover:bg-primary hover:text-primary-foreground px-3 font-mono text-xs font-bold transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    <Copy className="size-3.5" />
+                    <span>Copy to Playground</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Quick Context Actions & Primary Run Bar */}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-            {mode === "plain" ? (
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Primary Prominent Run Button for active language (C++, C, Java, Python) */}
-                <Button
-                  onClick={() => handleExecute()}
-                  disabled={loading}
-                  size="sm"
-                  className="rounded-xl font-mono text-xs font-bold gap-2 bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-                  title={`Execute ${activeLangConfig.label} code (Ctrl + Enter)`}
-                >
-                  {loading ? (
-                    <>
-                      <Zap className="size-3.5 animate-spin" />
-                      <span>RUNNING {activeLangConfig.label.toUpperCase()}...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play className="size-3.5 fill-current" />
-                      <span>RUN {activeLangConfig.label.toUpperCase()} CODE</span>
-                      <kbd className="hidden sm:inline-flex rounded bg-primary-foreground/25 px-1.5 py-0.2 text-[9px] font-mono shadow-inner">
-                        Ctrl+↵
-                      </kbd>
-                    </>
-                  )}
-                </Button>
+          {/* Expandable DSA Algorithm Templates Bar (when in "templates" mode) */}
+          {mode === "templates" && (
+            <div className="mt-3 pt-3 border-t border-dashed border-foreground/20 flex flex-col gap-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <BookOpen className="size-3.5 text-primary" />
+                  <span>Select {activeLangConfig.label} Algorithm Template:</span>
+                </span>
 
-                {/* Prominent Snapshot Export Button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportSnapshot}
-                  disabled={isExporting}
-                  className="rounded-xl font-mono text-xs font-bold gap-1.5 border-purple-500/50 bg-gradient-to-r from-purple-500/15 via-indigo-500/15 to-pink-500/15 text-purple-700 dark:text-purple-300 hover:from-purple-600 hover:via-indigo-600 hover:to-pink-600 hover:text-white hover:border-purple-600 shadow-sm shadow-purple-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  title="Export Code Snapshot (Download styled PNG card)"
-                >
-                  <Camera className="size-3.5 text-purple-600 dark:text-purple-400 group-hover:text-white" />
-                  <span>Snapshot Export</span>
-                </Button>
-
-                {/* Prominent GitHub Export Button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePushToGithub(activeCode)}
-                  disabled={githubLoading || loading}
-                  className="rounded-xl font-mono text-xs font-bold gap-1.5 border-zinc-700/80 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:hover:border-zinc-400 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  title="Push and export active code to GitHub"
-                >
-                  {githubLoading ? (
-                    <Zap className="size-3.5 animate-spin text-amber-400" />
-                  ) : (
-                    <Github className="size-3.5 text-white" />
-                  )}
-                  <span>GitHub Export</span>
-                </Button>
-
-                <div className="h-6 w-px bg-border/60 mx-1 hidden sm:block" />
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResetPlainStarter}
-                  className="rounded-xl font-mono text-xs gap-1.5"
-                >
-                  <RotateCcw className="size-3 text-primary" />
-                  <span>Hello World</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleLoadPlainFastIO}
-                  className="rounded-xl font-mono text-xs gap-1.5"
-                >
-                  <Zap className="size-3 text-amber-400" />
-                  <span>Fast I/O Boilerplate</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearPlainEditor}
-                  className="rounded-xl font-mono text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1.5"
-                >
-                  <Trash2 className="size-3" />
-                  <span>Clear</span>
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Primary Prominent Run Button for templates mode */}
-                <Button
-                  onClick={() => handleExecute()}
-                  disabled={loading}
-                  size="sm"
-                  className="rounded-xl font-mono text-xs font-bold gap-2 bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-                  title={`Execute template in ${activeLangConfig.label} (Ctrl + Enter)`}
-                >
-                  {loading ? (
-                    <>
-                      <Zap className="size-3.5 animate-spin" />
-                      <span>RUNNING {activeLangConfig.label.toUpperCase()}...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play className="size-3.5 fill-current" />
-                      <span>RUN {activeLangConfig.label.toUpperCase()} CODE</span>
-                      <kbd className="hidden sm:inline-flex rounded bg-primary-foreground/25 px-1.5 py-0.2 text-[9px] font-mono shadow-inner">
-                        Ctrl+↵
-                      </kbd>
-                    </>
-                  )}
-                </Button>
-
-                {/* Prominent Snapshot Export Button in templates mode */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportSnapshot}
-                  disabled={isExporting}
-                  className="rounded-xl font-mono text-xs font-bold gap-1.5 border-purple-500/50 bg-gradient-to-r from-purple-500/15 via-indigo-500/15 to-pink-500/15 text-purple-700 dark:text-purple-300 hover:from-purple-600 hover:via-indigo-600 hover:to-pink-600 hover:text-white hover:border-purple-600 shadow-sm shadow-purple-500/15 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  title="Export Code Snapshot (Download styled PNG card)"
-                >
-                  <Camera className="size-3.5 text-purple-600 dark:text-purple-400 group-hover:text-white" />
-                  <span>Snapshot Export</span>
-                </Button>
-
-                {/* Prominent GitHub Export Button in templates mode */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePushToGithub(activeCode)}
-                  disabled={githubLoading || loading}
-                  className="rounded-xl font-mono text-xs font-bold gap-1.5 border-zinc-700/80 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:hover:border-zinc-400 shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  title="Push and export active code to GitHub"
-                >
-                  {githubLoading ? (
-                    <Zap className="size-3.5 animate-spin text-amber-400" />
-                  ) : (
-                    <Github className="size-3.5 text-white" />
-                  )}
-                  <span>GitHub Export</span>
-                </Button>
-
-                <div className="h-6 w-px bg-border/60 mx-1 hidden sm:block" />
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copyTemplateToPlain}
-                  className="rounded-xl font-mono text-xs gap-1.5 text-primary border-primary/40 hover:bg-primary/10"
-                  title="Send current template into your Plain Playground scratchpad"
-                >
-                  <Copy className="size-3" />
-                  <span>Copy to Plain Playground</span>
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Mode-Specific Context Banners */}
-          <div className="mt-6">
-            {mode === "plain" ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/10 px-5 py-4 text-[13px] text-primary/90 shadow-[0_0_15px_-3px_rgba(var(--primary),0.15)] backdrop-blur-sm">
-                <div className="flex items-center gap-3">
-                  <Sparkles className="size-5 shrink-0 text-primary" />
-                  <span className="leading-relaxed">
-                    <strong>Freeform {activeLangConfig.label} Scratchpad:</strong> Write your own arbitrary {activeLangConfig.label} logic,
-                    pass custom inputs in the standard input panel below, and execute with zero restrictions. Your code is automatically persisted in your browser.
-                  </span>
-                </div>
-              </div>
-            ) : (
-              /* DSA Question Templates Selector Bar */
-              <div className="flex flex-col gap-4 rounded-2xl border border-border/50 bg-card/40 p-6 shadow-lg backdrop-blur-2xl animate-fade">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <span className="font-mono text-[13px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <Code2 className="size-4 text-primary" />
-                    <span>Filter {activeLangConfig.label} Algorithms by Topic:</span>
-                  </span>
-
-                  {/* Category Pills */}
-                  <div className="flex flex-wrap gap-2">
-                    {categories.map((cat) => {
-                      const isActive = selectedCategory === cat;
-                      return (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setSelectedCategory(cat)}
-                          className={`rounded-md px-2.5 py-1 font-mono text-xs transition-all ${
-                            isActive
-                              ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                              : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Template Buttons */}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {filteredTemplates.map((tmpl) => {
-                    const isSelected = selectedTemplateId === tmpl.id;
+                <div className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-foreground/15 bg-background/80 p-1">
+                  {categories.map((cat) => {
+                    const isActive = selectedCategory === cat;
                     return (
                       <button
-                        key={tmpl.id}
+                        key={cat}
                         type="button"
-                        onClick={() => loadTemplate(tmpl)}
-                        className={`rounded-lg border px-3 py-1.5 font-mono text-xs font-medium transition-all ${
-                          isSelected
-                            ? "border-primary bg-primary/20 text-primary shadow-xs shadow-primary/20 font-bold scale-[1.02]"
-                            : "border-border/80 bg-background/60 text-muted-foreground hover:bg-card hover:text-foreground"
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`rounded-md px-2.5 py-1 font-mono text-[11px] font-bold transition-all cursor-pointer ${
+                          isActive
+                            ? "bg-primary text-primary-foreground shadow-xs"
+                            : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
                         }`}
                       >
-                        <span>{tmpl.title}</span>
-                        <span
-                          className={`ml-2 text-[9px] px-1.5 py-px rounded ${
-                            tmpl.difficulty === "Easy"
-                              ? "bg-emerald-500/20 text-emerald-400"
-                              : tmpl.difficulty === "Medium"
-                                ? "bg-amber-500/20 text-amber-400"
-                                : "bg-rose-500/20 text-rose-400"
-                          }`}
-                        >
-                          {tmpl.difficulty}
-                        </span>
+                        {cat}
                       </button>
                     );
                   })}
                 </div>
               </div>
-            )}
-          </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                {filteredTemplates.map((tmpl) => {
+                  const isSelected = selectedTemplateId === tmpl.id;
+                  return (
+                    <button
+                      key={tmpl.id}
+                      type="button"
+                      onClick={() => loadTemplate(tmpl)}
+                      className={`shrink-0 rounded-lg border px-3 py-1.5 font-mono text-xs transition-all cursor-pointer ${
+                        isSelected
+                          ? "border-primary bg-primary/20 text-primary font-bold shadow-xs"
+                          : "border-foreground/20 bg-background/90 text-foreground/90 hover:border-primary/40"
+                      }`}
+                    >
+                      <span>{tmpl.title}</span>
+                      <span
+                        className={`ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          tmpl.difficulty === "Easy"
+                            ? "bg-emerald-500/20 text-emerald-500"
+                            : tmpl.difficulty === "Medium"
+                              ? "bg-amber-500/20 text-amber-500"
+                              : "bg-rose-500/20 text-rose-500"
+                        }`}
+                      >
+                        {tmpl.difficulty}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Main Grid: Code Editor & Console (Left 8 cols), Packages & Cheat Sheet (Right 4 cols) */}
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 xl:gap-10 mt-8">
-          {/* Left Column: Code Editor & Output Console */}
-          <div className="flex flex-col gap-8 lg:col-span-8">
-            {/* Code Editor */}
-            <div className="min-h-[600px] h-[calc(100vh-250px)]">
-              <CppCodeEditor
-                code={activeCode}
-                language={language}
-                onChange={setActiveCode}
-                onRun={handleExecute}
-                onExportSnapshot={handleExportSnapshot}
-                onPushToGithub={handlePushToGithub}
-                githubLoading={githubLoading}
-                loading={loading}
-                disabled={loading}
-              />
-            </div>
+        {/* PRIMARY IDE WORKSPACE: Code Sheet (Left) + Input/Output Console (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          {/* Left Pane (7/12 or 8/12): Code Sheet — Comfortable Fixed Viewport Height, Always Visible from Top */}
+          <div className="lg:col-span-7 xl:col-span-8 h-[620px] lg:h-[680px]">
+            <CppCodeEditor
+              code={activeCode}
+              language={language}
+              onChange={setActiveCode}
+              onRun={() => handleExecute()}
+              onExportSnapshot={handleExportSnapshot}
+              onPushToGithub={handlePushToGithub}
+              githubLoading={githubLoading}
+              loading={loading}
+              disabled={loading}
+            />
+          </div>
 
-            {/* Terminal Console with Stdout, Stdin, and Compiler Diagnostics */}
+          {/* Right Pane (5/12 or 4/12): Input (stdin) & Output (stdout) Console Directly Beside Code Sheet */}
+          <div className="lg:col-span-5 xl:col-span-4 h-[620px] lg:h-[680px]">
             <CppConsole
               result={activeResult}
               loading={loading}
@@ -1033,65 +887,88 @@ function CppCompilerPage() {
               language={language}
               onStdinChange={setActiveStdin}
               onClear={handleClearConsole}
-              onRun={handleExecute}
+              onRun={() => handleExecute()}
             />
           </div>
+        </div>
 
-          {/* Right Column: Headers / Packages Explorer & Cheatsheet */}
-          <div className="flex flex-col gap-8 lg:col-span-4">
-            {/* Packages Explorer */}
+        {/* SECONDARY REFERENCE DECK: STL / Library Explorer & High-Contrast Code Snippets Vault */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-8">
+          {/* Left 6 Cols: Interactive STL / Standard Library & Runnable Snippets */}
+          <div className="lg:col-span-6">
             <CppPackageExplorer
               language={language}
               onInsertHeader={handleInsertHeader}
               onLoadSnippet={(snippet) => {
                 setActiveCode(snippet);
                 setActiveResult(null);
+                editorSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
             />
+          </div>
 
-            {/* Language-Specific DSA Cheatsheet Card */}
-            <div className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-card/40 p-5 shadow-lg backdrop-blur-2xl">
+          {/* Right 6 Cols: High-Contrast Language Pro Snippets & Idioms */}
+          <div className="lg:col-span-6 flex flex-col gap-4 rounded-2xl border border-border/80 bg-card/85 p-5 shadow-xl backdrop-blur-2xl">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-accent/30 to-accent/5 border border-accent/20 text-accent shadow-inner">
-                  <Sparkles className="size-4" />
+                <div className="flex size-9 items-center justify-center rounded-xl bg-accent/15 border border-accent/35 text-accent">
+                  <Sparkles className="size-4.5" />
                 </div>
                 <div>
-                  <h3 className="font-mono text-sm font-bold text-foreground tracking-tight">
+                  <h3 className="font-mono text-sm font-bold text-foreground">
                     {currentProTips.title}
                   </h3>
-                  <p className="text-[10px] text-muted-foreground/80 font-medium">
+                  <p className="text-[11px] text-muted-foreground">
                     {currentProTips.subtitle}
                   </p>
                 </div>
               </div>
+              <span className="rounded-full border border-accent/35 bg-accent/15 px-2.5 py-0.5 font-mono text-[10px] font-bold text-accent">
+                1-Click Insert
+              </span>
+            </div>
 
-              <div className="flex flex-col gap-2.5 pt-2 text-xs">
-                {currentProTips.tips.map((tip, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-xl border border-border/70 bg-background/60 p-3 hover:bg-background/90 transition-all shadow-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-primary font-mono text-[11px]">{tip.title}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {currentProTips.tips.map((tip, idx) => (
+                <div
+                  key={idx}
+                  className="flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0b0f19] p-3.5 shadow-md hover:border-primary/50 transition-all"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="font-mono text-xs font-bold text-indigo-300">
+                        {tip.title}
+                      </span>
                       <button
                         type="button"
                         onClick={() => {
-                          setActiveCode(activeCode + (activeCode.endsWith("\n") ? "" : "\n") + tip.code);
-                          toast.success(`Inserted "${tip.title}" snippet into editor`);
+                          setActiveCode(
+                            activeCode + (activeCode.endsWith("\n") ? "" : "\n") + tip.code
+                          );
+                          toast.success(`Inserted "${tip.title}" into Code Sheet`);
+                          editorSectionRef.current?.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                          });
                         }}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-bold text-primary bg-primary/15 hover:bg-primary hover:text-primary-foreground border border-primary/30 transition-all cursor-pointer"
-                        title="Insert code snippet into editor"
+                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[10px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shrink-0 cursor-pointer shadow-xs"
+                        title="Insert snippet into Code Sheet"
                       >
-                        <Plus className="size-3" /> Insert Snippet
+                        <Plus className="size-3" />
+                        <span>Insert</span>
                       </button>
                     </div>
-                    <pre className="mt-2 text-[11px] font-mono font-medium text-foreground bg-card/90 border border-border/70 p-2.5 rounded-lg whitespace-pre-wrap shadow-inner leading-relaxed">
+
+                    <pre className="text-xs font-mono font-medium text-slate-100 bg-[#060911] border border-slate-800/90 p-3 rounded-lg overflow-x-auto leading-relaxed">
                       {tip.code}
                     </pre>
-                    <p className="mt-1.5 text-[10px] text-muted-foreground leading-tight">{tip.desc}</p>
                   </div>
-                ))}
-              </div>
+
+                  <p className="mt-2.5 text-[11px] text-slate-400 leading-snug">
+                    {tip.desc}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1140,7 +1017,7 @@ function CppCompilerPage() {
                             : "cpp"
                     }
                   >
-                    {({ className, style, tokens, getLineProps, getTokenProps }) => (
+                    {({ style, tokens, getLineProps, getTokenProps }) => (
                       <pre
                         className="bg-black/40 border border-white/5 rounded-xl p-6 text-[15px] leading-relaxed font-mono whitespace-pre-wrap"
                         style={{ ...style, backgroundColor: "transparent" }}

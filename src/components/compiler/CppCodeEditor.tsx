@@ -1,19 +1,19 @@
-import React, { useRef, useState, useEffect, useMemo, useCallback } from "react";
+import React, { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import {
   Copy,
   Check,
   Download,
-  RotateCcw,
   Sparkles,
   Maximize2,
   Minimize2,
-  Code,
   Type,
   Palette,
   Play,
   Zap,
   Camera,
   Github,
+  ArrowUpToLine,
+  Code2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -264,53 +264,55 @@ const C_TYPES = new Set([
   "size_t", "int64_t", "uint64_t", "int32_t", "uint32_t", "Node", "ListNode",
 ]);
 
-export const LANGUAGE_SNIPPETS: Record<SupportedLanguage, { label: string; code: string }[]> = {
+export const LANGUAGE_SNIPPETS: Record<
+  SupportedLanguage,
+  { label: string; preview: string; code: string }[]
+> = {
   cpp: [
-    { label: "cout << endl;", code: "cout <<  << endl;" },
-    { label: "cin >>", code: "cin >> ;" },
-    { label: "vector<int>", code: "vector<int> nums;" },
-    { label: "for loop", code: "for (int i = 0; i < n; ++i) {\n    \n}" },
-    { label: "unordered_map", code: "unordered_map<int, int> mp;" },
-    { label: "min-heap", code: "priority_queue<int, vector<int>, greater<int>> minPq;" },
-    { label: "sort()", code: "sort(nums.begin(), nums.end());" },
-    { label: "reverse()", code: "reverse(nums.begin(), nums.end());" },
-    { label: "2D vector", code: "vector<vector<int>> matrix(rows, vector<int>(cols, 0));" },
-    { label: "if-else", code: "if (condition) {\n    \n} else {\n    \n}" },
+    { label: "cout", preview: "cout << x << endl;", code: "cout <<  << endl;" },
+    { label: "cin", preview: "cin >> x;", code: "cin >> ;" },
+    { label: "vector<int>", preview: "vector<int> nums;", code: "vector<int> nums;" },
+    { label: "for-loop", preview: "for(int i=0; i<n; ++i)", code: "for (int i = 0; i < n; ++i) {\n    \n}" },
+    { label: "hash-map", preview: "unordered_map<int,int>", code: "unordered_map<int, int> mp;" },
+    { label: "min-heap", preview: "priority_queue<..., greater>", code: "priority_queue<int, vector<int>, greater<int>> minPq;" },
+    { label: "sort()", preview: "sort(begin, end)", code: "sort(nums.begin(), nums.end());" },
+    { label: "reverse()", preview: "reverse(begin, end)", code: "reverse(nums.begin(), nums.end());" },
+    { label: "2D grid", preview: "vector<vector<int>>", code: "vector<vector<int>> matrix(rows, vector<int>(cols, 0));" },
+    { label: "fast-io", preview: "sync_with_stdio(false)", code: "ios_base::sync_with_stdio(false);\ncin.tie(NULL);" },
   ],
   c: [
-    { label: "printf()", code: 'printf("%d\\n", val);' },
-    { label: "scanf()", code: 'scanf("%d", &val);' },
-    { label: "for loop", code: "for (int i = 0; i < n; i++) {\n    \n}" },
-    { label: "malloc()", code: "int* arr = (int*)malloc(n * sizeof(int));" },
-    { label: "free()", code: "free(arr);" },
-    { label: "struct Node", code: "typedef struct Node {\n    int val;\n    struct Node* next;\n} Node;" },
-    { label: "if-else", code: "if (condition) {\n    \n} else {\n    \n}" },
+    { label: "printf", preview: 'printf("%d\\n", val);', code: 'printf("%d\\n", val);' },
+    { label: "scanf", preview: 'scanf("%d", &val);', code: 'scanf("%d", &val);' },
+    { label: "for-loop", preview: "for(int i=0; i<n; i++)", code: "for (int i = 0; i < n; i++) {\n    \n}" },
+    { label: "malloc", preview: "(int*)malloc(n*sizeof)", code: "int* arr = (int*)malloc(n * sizeof(int));" },
+    { label: "free", preview: "free(arr);", code: "free(arr);" },
+    { label: "struct Node", preview: "typedef struct Node", code: "typedef struct Node {\n    int val;\n    struct Node* next;\n} Node;" },
+    { label: "if-else", preview: "if (...) { } else { }", code: "if (condition) {\n    \n} else {\n    \n}" },
   ],
   java: [
-    { label: "System.out.println()", code: "System.out.println();" },
-    { label: "Scanner sc", code: "Scanner sc = new Scanner(System.in);" },
-    { label: "for loop", code: "for (int i = 0; i < n; i++) {\n    \n}" },
-    { label: "List<Integer>", code: "List<Integer> list = new ArrayList<>();" },
-    { label: "Map<K, V>", code: "Map<Integer, Integer> map = new HashMap<>();" },
-    { label: "PriorityQueue", code: "PriorityQueue<Integer> minHeap = new PriorityQueue<>();" },
-    { label: "Arrays.sort()", code: "Arrays.sort(nums);" },
-    { label: "if-else", code: "if (condition) {\n    \n} else {\n    \n}" },
+    { label: "sout", preview: "System.out.println()", code: "System.out.println();" },
+    { label: "Scanner", preview: "new Scanner(System.in)", code: "Scanner sc = new Scanner(System.in);" },
+    { label: "for-loop", preview: "for(int i=0; i<n; i++)", code: "for (int i = 0; i < n; i++) {\n    \n}" },
+    { label: "ArrayList", preview: "new ArrayList<>()", code: "List<Integer> list = new ArrayList<>();" },
+    { label: "HashMap", preview: "new HashMap<>()", code: "Map<Integer, Integer> map = new HashMap<>();" },
+    { label: "MinHeap", preview: "new PriorityQueue<>()", code: "PriorityQueue<Integer> minHeap = new PriorityQueue<>();" },
+    { label: "Arrays.sort", preview: "Arrays.sort(nums)", code: "Arrays.sort(nums);" },
   ],
   python: [
-    { label: "print()", code: "print()" },
-    { label: "def func():", code: "def solve():\n    pass" },
-    { label: "for loop", code: "for i in range(n):\n    pass" },
-    { label: "list comp", code: "[x for x in nums]" },
-    { label: "seen = {}", code: "seen = {}" },
-    { label: "deque()", code: "queue = deque([])" },
-    { label: "heapq", code: "heapq.heappush(heap, item)" },
-    { label: "if-else", code: "if condition:\n    pass\nelse:\n    pass" },
+    { label: "print", preview: "print(ans)", code: "print()" },
+    { label: "def solve", preview: "def solve():", code: "def solve():\n    pass" },
+    { label: "for-range", preview: "for i in range(n):", code: "for i in range(n):\n    pass" },
+    { label: "list-comp", preview: "[x for x in nums]", code: "[x for x in nums]" },
+    { label: "dict/map", preview: "seen = {}", code: "seen = {}" },
+    { label: "deque", preview: "deque([])", code: "queue = deque([])" },
+    { label: "heappush", preview: "heapq.heappush()", code: "heapq.heappush(heap, item)" },
+    { label: "fast-stdin", preview: "sys.stdin.read", code: "import sys\ninput = sys.stdin.read" },
   ],
 };
 
 // Tokenize source code with rainbow bracket pair levels across C++, C, Java, and Python
 function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[][] {
-  const lines = code.split("\n");
+  const lines = code.replace(/\r\n?/g, "\n").split("\n");
   let bracketDepth = 0;
 
   const isPython = language === "python";
@@ -331,7 +333,6 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
     const tokens: Token[] = [];
     let i = 0;
 
-    // Directives for C / C++ (#include, #define) or Java (import / package)
     if (!isPython) {
       const trimmed = line.trimStart();
       if (trimmed.startsWith("#")) {
@@ -372,19 +373,16 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
       const char = line[i] ?? "";
       const nextChar = line[i + 1] ?? "";
 
-      // Python comments #
       if (isPython && char === "#") {
         tokens.push({ type: "comment", text: line.slice(i) });
         break;
       }
 
-      // C/C++/Java line comment //
       if (!isPython && char === "/" && nextChar === "/") {
         tokens.push({ type: "comment", text: line.slice(i) });
         break;
       }
 
-      // C/C++/Java block comment /* ... */
       if (!isPython && char === "/" && nextChar === "*") {
         const endComment = line.indexOf("*/", i + 2);
         if (endComment !== -1) {
@@ -397,7 +395,6 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
         }
       }
 
-      // String literal "..." or Python """..."""
       if (char === '"') {
         if (isPython && line.slice(i, i + 3) === '"""') {
           tokens.push({ type: "string", text: line.slice(i) });
@@ -424,7 +421,6 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
         continue;
       }
 
-      // Char literal '.' or Python single quoted string '...'
       if (char === "'") {
         if (isPython && line.slice(i, i + 3) === "'''") {
           tokens.push({ type: "string", text: line.slice(i) });
@@ -451,7 +447,6 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
         continue;
       }
 
-      // Rainbow Brackets: ( ) { } [ ]
       if (char === "(" || char === "{" || char === "[") {
         bracketDepth++;
         const level = ((bracketDepth - 1) % 5) + 1;
@@ -469,7 +464,6 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
         continue;
       }
 
-      // Numbers (integers, floats, scientific 1e9, 0LL)
       if (/\d/.test(char) || (char === "." && i + 1 < line.length && /\d/.test(nextChar))) {
         let numStr = "";
         while (i < line.length && /[0-9a-fA-FxX.eE_L]/.test(line[i] ?? "")) {
@@ -480,7 +474,6 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
         continue;
       }
 
-      // Identifiers / Words
       if (/[a-zA-Z_]/.test(char)) {
         let word = "";
         while (i < line.length && /[a-zA-Z0-9_]/.test(line[i] ?? "")) {
@@ -488,7 +481,6 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
           i++;
         }
 
-        // Check next non-whitespace char for function call '('
         let isFuncCall = false;
         let lookAhead = i;
         while (lookAhead < line.length && /\s/.test(line[lookAhead] ?? "")) {
@@ -512,7 +504,6 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
         continue;
       }
 
-      // Operators: <<, >>, ++, --, ->, ==, !=, <=, >=, &&, ||, ::
       if (/[+\-*/%=<>!&|^~?:;.,]/.test(char)) {
         let op = char;
         i++;
@@ -524,17 +515,12 @@ function tokenizeCode(code: string, language: SupportedLanguage = "cpp"): Token[
         continue;
       }
 
-      // Whitespace and other characters
       tokens.push({ type: "plain", text: char });
       i++;
     }
 
     return tokens;
   });
-}
-
-function tokenizeCpp(code: string): Token[][] {
-  return tokenizeCode(code, "cpp");
 }
 
 // Token CSS classes based on active theme
@@ -761,12 +747,17 @@ export function CppCodeEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
 
   const [copied, setCopied] = useState(false);
   const [fontSize, setFontSize] = useState<number>(14);
   const [theme, setTheme] = useState<EditorTheme>("system");
   const [cursorLine, setCursorLine] = useState<number>(1);
+  const [cursorCol, setCursorCol] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Normalize any CRLF to LF so DOM textarea.selectionStart and string offsets match 1:1
+  const normalizedCode = useMemo(() => code.replace(/\r\n?/g, "\n"), [code]);
 
   const effectiveTheme: EditorTheme = useMemo(() => {
     if (theme === "system") {
@@ -779,8 +770,11 @@ export function CppCodeEditor({
     return ["paper-light", "github-light", "solarized-light"].includes(effectiveTheme);
   }, [effectiveTheme]);
 
+  // Exact pixel line height so gutter, highlight backdrop, and textarea never drift
+  const lineHeightPx = useMemo(() => Math.round(fontSize * 1.75), [fontSize]);
+
   // Sync scroll between textarea, highlighter, and line numbers
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     if (!textareaRef.current) return;
     const { scrollTop, scrollLeft } = textareaRef.current;
     if (highlightRef.current) {
@@ -790,18 +784,69 @@ export function CppCodeEditor({
     if (lineNumbersRef.current) {
       lineNumbersRef.current.scrollTop = scrollTop;
     }
-  };
+  }, []);
 
-  // Update cursor line index
-  const updateCursorLine = () => {
-    if (!textareaRef.current) return;
-    const pos = textareaRef.current.selectionStart;
-    const linesBefore = code.slice(0, pos).split("\n").length;
-    setCursorLine(linesBefore);
-  };
+  // Update cursor line & column index strictly from live DOM textarea.value (or explicit override)
+  // so it never slices a stale React `code` prop closure while typing!
+  const updateCursorPosition = useCallback((overrideText?: string, overridePos?: number) => {
+    const textarea = textareaRef.current;
+    if (!textarea && overrideText === undefined) return;
+    const liveText = overrideText ?? textarea?.value ?? "";
+    const pos = overridePos ?? textarea?.selectionStart ?? 0;
+    const clampedPos = Math.max(0, Math.min(pos, liveText.length));
+    const textBefore = liveText.slice(0, clampedPos);
+    const linesBefore = textBefore.split("\n");
+    setCursorLine(linesBefore.length);
+    const currentLineText = linesBefore[linesBefore.length - 1] ?? "";
+    setCursorCol(currentLineText.length + 1);
+  }, []);
+
+  const scrollToTop = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.scrollTop = 0;
+      textareaRef.current.scrollLeft = 0;
+    }
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = 0;
+      highlightRef.current.scrollLeft = 0;
+    }
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = 0;
+    }
+    setCursorLine(1);
+    setCursorCol(1);
+  }, []);
+
+  // Synchronously restore cursor selection after programmatic edits (Tab, Enter, auto-close brackets, snippets)
+  // and keep cursorLine locked to the live textarea selection after every render commit
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    if (pendingSelectionRef.current !== null) {
+      const { start, end } = pendingSelectionRef.current;
+      pendingSelectionRef.current = null;
+      textarea.selectionStart = start;
+      textarea.selectionEnd = end;
+      updateCursorPosition(textarea.value, start);
+      handleScroll();
+    } else if (typeof document !== "undefined" && document.activeElement === textarea) {
+      updateCursorPosition(textarea.value, textarea.selectionStart);
+    }
+  }, [normalizedCode, updateCursorPosition, handleScroll]);
+
+  // When language changes or code is replaced externally while textarea is not focused, reset scroll to top so line 1 is always visible
+  useEffect(() => {
+    if (typeof document !== "undefined" && document.activeElement !== textareaRef.current) {
+      scrollToTop();
+    }
+  }, [language, normalizedCode, scrollToTop]);
 
   // Tokenize code
-  const tokenizedLines = useMemo(() => tokenizeCode(code, language), [code, language]);
+  const tokenizedLines = useMemo(
+    () => tokenizeCode(normalizedCode, language),
+    [normalizedCode, language]
+  );
   const lineCount = tokenizedLines.length;
 
   // Handle Tab key, auto-closing brackets, and auto-indentation on Enter
@@ -825,23 +870,24 @@ export function CppCodeEditor({
       const before = value.substring(0, selectionStart);
       const after = value.substring(selectionEnd);
       const newCode = before + tabSpace + after;
+      const nextPos = selectionStart + tabSpace.length;
+      pendingSelectionRef.current = { start: nextPos, end: nextPos };
       onChange(newCode);
-
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = selectionStart + tabSpace.length;
-        updateCursorLine();
-      }, 0);
+      updateCursorPosition(newCode, nextPos);
       return;
     }
 
-    // Enter key -> Auto-indent matching previous line or increment for {
+    // Enter key -> Auto-indent matching previous line or increment for { or :
     if (e.key === "Enter") {
       const lineStart = value.lastIndexOf("\n", selectionStart - 1) + 1;
       const currentLine = value.substring(lineStart, selectionStart);
       const matchIndent = currentLine.match(/^\s*/);
       let indent = matchIndent ? matchIndent[0] : "";
 
-      if (currentLine.trimEnd().endsWith("{")) {
+      if (
+        currentLine.trimEnd().endsWith("{") ||
+        (language === "python" && currentLine.trimEnd().endsWith(":"))
+      ) {
         indent += "    ";
       }
 
@@ -849,12 +895,10 @@ export function CppCodeEditor({
       const before = value.substring(0, selectionStart);
       const after = value.substring(selectionEnd);
       const newCode = before + "\n" + indent + after;
+      const nextPos = selectionStart + 1 + indent.length;
+      pendingSelectionRef.current = { start: nextPos, end: nextPos };
       onChange(newCode);
-
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = selectionStart + 1 + indent.length;
-        updateCursorLine();
-      }, 0);
+      updateCursorPosition(newCode, nextPos);
       return;
     }
 
@@ -873,20 +917,19 @@ export function CppCodeEditor({
       const before = value.substring(0, selectionStart);
       const after = value.substring(selectionEnd);
       const newCode = before + e.key + closeChar + after;
+      const nextPos = selectionStart + 1;
+      pendingSelectionRef.current = { start: nextPos, end: nextPos };
       onChange(newCode);
-
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
-        updateCursorLine();
-      }, 0);
+      updateCursorPosition(newCode, nextPos);
       return;
     }
 
     // Skip over closing bracket if typed directly
     if ([")", "}", "]", '"', "'"].includes(e.key) && value[selectionStart] === e.key) {
       e.preventDefault();
-      textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
-      updateCursorLine();
+      const nextPos = selectionStart + 1;
+      textarea.selectionStart = textarea.selectionEnd = nextPos;
+      updateCursorPosition(value, nextPos);
       return;
     }
   };
@@ -894,7 +937,7 @@ export function CppCodeEditor({
   // Copy code to clipboard
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(normalizedCode);
       setCopied(true);
       toast.success("Code copied to clipboard!");
       setTimeout(() => setCopied(false), 2000);
@@ -913,7 +956,7 @@ export function CppCodeEditor({
     };
     const ext = extensionMap[language] || "cpp";
     const filename = language === "java" ? "Main.java" : `solution.${ext}`;
-    const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([normalizedCode], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -925,7 +968,7 @@ export function CppCodeEditor({
 
   // Format code (Simple auto-indentation)
   const handleFormat = () => {
-    const lines = code.split("\n");
+    const lines = normalizedCode.split("\n");
     let indentLevel = 0;
     const formatted = lines
       .map((raw) => {
@@ -956,16 +999,15 @@ export function CppCodeEditor({
     if (!textarea) return;
 
     const { selectionStart, selectionEnd, value } = textarea;
+    const cleanSnippet = snippet.replace(/\r\n?/g, "\n");
     const before = value.substring(0, selectionStart);
     const after = value.substring(selectionEnd);
-    const newCode = before + snippet + after;
+    const newCode = before + cleanSnippet + after;
+    const nextPos = selectionStart + cleanSnippet.length;
+    pendingSelectionRef.current = { start: nextPos, end: nextPos };
     onChange(newCode);
-
-    setTimeout(() => {
-      textarea.focus();
-      textarea.selectionStart = textarea.selectionEnd = selectionStart + snippet.length;
-      updateCursorLine();
-    }, 0);
+    textarea.focus();
+    updateCursorPosition(newCode, nextPos);
   };
 
   const themeClasses = THEME_CLASSES[effectiveTheme];
@@ -975,53 +1017,61 @@ export function CppCodeEditor({
 
   return (
     <div
-      className={`group flex flex-col h-full rounded-2xl border transition-all duration-500 overflow-hidden ${
+      className={`group flex flex-col h-full rounded-2xl border transition-colors duration-300 overflow-hidden ${
         isFullscreen
           ? "fixed inset-4 z-[100] bg-background/95 border-primary/50 shadow-[0_0_80px_-15px_rgba(var(--primary),0.3)] backdrop-blur-2xl"
-          : `${themeBg} border-border/60 hover:border-primary/40 shadow-xl hover:shadow-[0_8px_30px_-12px_rgba(var(--primary),0.2)]`
+          : `${themeBg} border-border/80 shadow-xl`
       }`}
     >
-      {/* Top Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-card/40 backdrop-blur-md px-4 py-3 relative z-10">
-        {/* Editor Title & Status + Direct Run Button */}
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 text-primary shadow-inner font-black text-xs font-mono">
-            {language === "cpp" ? "C++" : language === "c" ? "C" : language === "java" ? "Java" : "Py"}
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2.5">
-              <span className="font-mono text-[13px] font-bold text-foreground/90">
-                {language === "cpp" ? "main.cpp" : language === "c" ? "main.c" : language === "java" ? "Main.java" : "main.py"}
-              </span>
-              <span className="rounded-full bg-primary/15 border border-primary/30 px-2 py-0.5 font-mono text-[9px] font-black tracking-wider uppercase text-primary shadow-[0_0_10px_-2px_rgba(var(--primary),0.4)]">
-                {language === "cpp" ? "C++20" : language === "c" ? "C17" : language === "java" ? "Java 25" : "Python 3.12"}
-              </span>
+      {/* Top IDE Toolbar */}
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5 shrink-0 ${
+          isThemeLight
+            ? "border-[#e6decb] bg-[#f4efe4]/90 text-[#1c1917]"
+            : "border-slate-800 bg-slate-900/90 text-slate-100"
+        }`}
+      >
+        {/* Editor File Tab & Status + Primary Run Button */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 items-center justify-center rounded-xl bg-primary/20 border border-primary/40 text-primary font-black text-xs font-mono">
+              {language === "cpp" ? "C++" : language === "c" ? "C" : language === "java" ? "Java" : "Py"}
             </div>
-            <span className="text-[10px] text-muted-foreground/80 font-mono tracking-tight mt-0.5">
-              Line {cursorLine} <span className="opacity-50 mx-1">•</span> {code.length} chars
-            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs sm:text-[13px] font-bold">
+                  {language === "cpp" ? "main.cpp" : language === "c" ? "main.c" : language === "java" ? "Main.java" : "main.py"}
+                </span>
+                <span className="rounded-md bg-primary/15 border border-primary/35 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-primary">
+                  {language === "cpp" ? "C++20" : language === "c" ? "C17" : language === "java" ? "Java 25" : "Python 3.12"}
+                </span>
+              </div>
+              <div className="font-mono text-[10px] opacity-75">
+                Ln {cursorLine}, Col {cursorCol} • {lineCount} lines
+              </div>
+            </div>
           </div>
 
-          {/* Quick Run & Export Action Buttons */}
-          <div className="flex items-center gap-2">
+          {/* Primary Run & Export Buttons */}
+          <div className="flex items-center gap-1.5">
             {onRun && (
               <Button
                 onClick={() => onRun()}
                 disabled={loading || disabled}
                 size="sm"
-                className="h-9 gap-2 rounded-xl px-4 font-mono text-[11px] font-bold shadow-lg shadow-primary/25 transition-all duration-300 hover:scale-105 hover:shadow-primary/40 active:scale-95 bg-primary text-primary-foreground border border-primary-foreground/10 cursor-pointer"
+                className="h-8 gap-1.5 rounded-xl px-3.5 font-mono text-[11px] font-bold shadow-md shadow-primary/20 bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95 transition-all cursor-pointer"
                 title={`Run ${langLabel} Code (Ctrl + Enter)`}
               >
                 {loading ? (
                   <>
-                    <Zap className="size-4 animate-spin" />
-                    <span className="tracking-wide">RUNNING {langLabel.toUpperCase()}...</span>
+                    <Zap className="size-3.5 animate-spin" />
+                    <span>RUNNING...</span>
                   </>
                 ) : (
                   <>
-                    <Play className="size-4 fill-current" />
-                    <span className="tracking-wide">RUN {langLabel.toUpperCase()} CODE</span>
-                    <kbd className="hidden sm:flex items-center justify-center rounded bg-primary-foreground/25 px-1.5 py-0.5 text-[9px] font-mono opacity-100 ml-1 shadow-inner">
+                    <Play className="size-3.5 fill-current" />
+                    <span>RUN {langLabel.toUpperCase()}</span>
+                    <kbd className="hidden sm:inline-flex items-center rounded bg-primary-foreground/20 px-1.5 py-0.2 text-[9px] font-mono">
                       Ctrl+↵
                     </kbd>
                   </>
@@ -1034,13 +1084,11 @@ export function CppCodeEditor({
                 onClick={onExportSnapshot}
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 rounded-xl px-3.5 font-mono text-[11px] font-bold transition-all duration-300 hover:scale-105 active:scale-95 border-purple-500/60 bg-gradient-to-r from-purple-500/20 via-indigo-500/20 to-pink-500/20 text-purple-700 dark:text-purple-300 hover:from-purple-600 hover:via-indigo-600 hover:to-pink-600 hover:text-white hover:border-purple-600 shadow-md shadow-purple-500/15 group cursor-pointer"
-                title="Export Code Snapshot (Download styled PNG card)"
+                className="h-8 gap-1.5 rounded-xl px-2.5 font-mono text-[11px] font-bold border-purple-500/50 bg-purple-500/15 text-purple-400 hover:bg-purple-600 hover:text-white transition-all cursor-pointer"
+                title="Export Styled Code Snapshot PNG"
               >
-                <Camera className="size-4 text-purple-600 dark:text-purple-400 group-hover:text-white transition-colors" />
-                <span className="inline-flex tracking-wide font-bold">
-                  <span className="hidden md:inline">EXPORT </span>SNAPSHOT
-                </span>
+                <Camera className="size-3.5" />
+                <span className="hidden xl:inline">Snapshot</span>
               </Button>
             )}
 
@@ -1050,165 +1098,205 @@ export function CppCodeEditor({
                 disabled={githubLoading || disabled}
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 rounded-xl px-3.5 font-mono text-[11px] font-bold transition-all duration-300 hover:scale-105 active:scale-95 border-zinc-700/80 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-white hover:border-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:hover:border-zinc-400 shadow-md shadow-black/25 cursor-pointer"
-                title="Export / Push code to GitHub repository"
+                className="h-8 gap-1.5 rounded-xl px-2.5 font-mono text-[11px] font-bold border-slate-700 bg-slate-800 text-slate-100 hover:bg-slate-700 transition-all cursor-pointer"
+                title="Push code to GitHub repository"
               >
                 {githubLoading ? (
-                  <Zap className="size-4 animate-spin text-amber-400" />
+                  <Zap className="size-3.5 animate-spin text-amber-400" />
                 ) : (
-                  <Github className="size-4 text-white" />
+                  <Github className="size-3.5" />
                 )}
-                <span className="inline-flex tracking-wide font-bold">
-                  <span className="hidden md:inline">PUSH TO </span>GITHUB
-                </span>
+                <span className="hidden xl:inline">GitHub</span>
               </Button>
             )}
           </div>
         </div>
 
-        {/* Action Controls & Customizers */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        {/* Editor Appearance & Utility Controls */}
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* Theme Picker */}
-          <div className="flex items-center gap-1 rounded-lg border border-border/60 bg-background/80 px-2 py-1">
-            <Palette className="size-3.5 text-muted-foreground" />
+          <div
+            className={`flex items-center gap-1 rounded-lg border px-2 py-1 ${
+              isThemeLight
+                ? "border-stone-300 bg-white text-stone-800"
+                : "border-slate-700 bg-slate-950/90 text-slate-200"
+            }`}
+          >
+            <Palette className="size-3 text-primary" />
             <select
               value={theme}
               onChange={(e) => setTheme(e.target.value as EditorTheme)}
               aria-label="Editor Theme"
-              className="bg-transparent font-mono text-xs text-foreground focus:outline-none cursor-pointer"
+              className="bg-transparent font-mono text-[11px] focus:outline-none cursor-pointer"
             >
-              <option value="system">Auto ({isLight ? "Light Paper" : "Dark Studio"})</option>
-              <optgroup label="Light Themes">
-                <option value="paper-light">Warm Paper (Crème)</option>
-                <option value="github-light">GitHub Light</option>
-                <option value="solarized-light">Solarized Light</option>
-              </optgroup>
-              <optgroup label="Dark Themes">
+              <option value="system" className="bg-slate-900 text-slate-100">
+                Auto ({isLight ? "Light Paper" : "Dark Studio"})
+              </option>
+              <optgroup label="Dark Themes" className="bg-slate-900 text-slate-100">
                 <option value="dark-studio">Studio Dark</option>
-                <option value="cyber-neon">Cyber Neon</option>
+                <option value="github-dark">GitHub Dark</option>
                 <option value="dracula">Dracula</option>
                 <option value="monokai">Monokai Pro</option>
-                <option value="github-dark">GitHub Dark</option>
+                <option value="cyber-neon">Cyber Neon</option>
                 <option value="nord">Nordic Frost</option>
+              </optgroup>
+              <optgroup label="Light Themes" className="bg-slate-900 text-slate-100">
+                <option value="paper-light">Warm Paper</option>
+                <option value="github-light">GitHub Light</option>
+                <option value="solarized-light">Solarized Light</option>
               </optgroup>
             </select>
           </div>
 
           {/* Font Size Selector */}
-          <div className="flex items-center gap-1 rounded-lg border border-border/60 bg-background/80 px-2 py-1">
-            <Type className="size-3.5 text-muted-foreground" />
+          <div
+            className={`flex items-center gap-1 rounded-lg border px-2 py-1 ${
+              isThemeLight
+                ? "border-stone-300 bg-white text-stone-800"
+                : "border-slate-700 bg-slate-950/90 text-slate-200"
+            }`}
+          >
+            <Type className="size-3 text-primary" />
             <select
               value={fontSize}
               onChange={(e) => setFontSize(Number(e.target.value))}
               aria-label="Font Size"
-              className="bg-transparent font-mono text-xs text-foreground focus:outline-none cursor-pointer"
+              className="bg-transparent font-mono text-[11px] focus:outline-none cursor-pointer"
             >
-              <option value={12}>12px</option>
-              <option value={13}>13px</option>
-              <option value={14}>14px (Default)</option>
-              <option value={15}>15px</option>
-              <option value={16}>16px</option>
-              <option value={18}>18px</option>
+              <option value={12} className="bg-slate-900 text-slate-100">12px</option>
+              <option value={13} className="bg-slate-900 text-slate-100">13px</option>
+              <option value={14} className="bg-slate-900 text-slate-100">14px</option>
+              <option value={15} className="bg-slate-900 text-slate-100">15px</option>
+              <option value={16} className="bg-slate-900 text-slate-100">16px</option>
+              <option value={18} className="bg-slate-900 text-slate-100">18px</option>
             </select>
           </div>
 
           {/* Format Code */}
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={handleFormat}
-            title="Auto Indent / Format"
-            className="h-8 px-2.5 text-xs text-muted-foreground hover:bg-primary/10 hover:text-primary active:scale-95"
+            title="Auto-Indent / Format Code"
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition-colors cursor-pointer ${
+              isThemeLight
+                ? "border-stone-300 bg-white text-stone-800 hover:border-primary hover:text-primary"
+                : "border-slate-700 bg-slate-950/80 text-slate-200 hover:border-primary hover:text-primary"
+            }`}
           >
-            <Sparkles className="mr-1 size-3.5 text-primary" />
+            <Sparkles className="size-3 text-primary" />
             <span className="hidden sm:inline">Format</span>
-          </Button>
+          </button>
 
           {/* Copy Button */}
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={handleCopy}
             title="Copy source code"
-            className="h-8 px-2.5 text-xs text-muted-foreground hover:bg-primary/10 hover:text-primary active:scale-95"
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-semibold transition-colors cursor-pointer ${
+              isThemeLight
+                ? "border-stone-300 bg-white text-stone-800 hover:border-primary hover:text-primary"
+                : "border-slate-700 bg-slate-950/80 text-slate-200 hover:border-primary hover:text-primary"
+            }`}
           >
             {copied ? (
               <>
-                <Check className="mr-1 size-3.5 text-success" />
-                <span className="text-success">Copied</span>
+                <Check className="size-3 text-emerald-500" />
+                <span className="text-emerald-500">Copied</span>
               </>
             ) : (
               <>
-                <Copy className="mr-1 size-3.5" />
+                <Copy className="size-3" />
                 <span className="hidden sm:inline">Copy</span>
               </>
             )}
-          </Button>
+          </button>
 
           {/* Download File */}
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={handleDownload}
             title={`Download .${langExt} file`}
-            className="h-8 px-2 text-xs text-muted-foreground hover:bg-secondary active:scale-95"
+            className={`inline-flex items-center justify-center rounded-lg border p-1.5 transition-colors cursor-pointer ${
+              isThemeLight
+                ? "border-stone-300 bg-white text-stone-800 hover:border-primary hover:text-primary"
+                : "border-slate-700 bg-slate-950/80 text-slate-200 hover:border-primary hover:text-primary"
+            }`}
           >
             <Download className="size-3.5" />
-          </Button>
+          </button>
 
           {/* Fullscreen Toggle */}
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={() => setIsFullscreen(!isFullscreen)}
             title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Editor"}
-            className="h-8 px-2 text-xs text-muted-foreground hover:bg-secondary active:scale-95"
+            className={`inline-flex items-center justify-center rounded-lg border p-1.5 transition-colors cursor-pointer ${
+              isThemeLight
+                ? "border-stone-300 bg-white text-stone-800 hover:border-primary hover:text-primary"
+                : "border-slate-700 bg-slate-950/80 text-slate-200 hover:border-primary hover:text-primary"
+            }`}
           >
             {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Quick Snippets Bar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/70 bg-muted/40 dark:bg-card/70 px-4 py-2.5 backdrop-blur-md overflow-x-auto scrollbar-thin">
-        <div className="flex items-center gap-1.5 rounded-lg bg-primary/15 border border-primary/30 px-2.5 py-1 text-[11px] font-mono font-bold uppercase tracking-wider text-primary shadow-xs shrink-0">
-          <Sparkles className="size-3.5 text-primary" />
-          <span>Code Snippets:</span>
+      {/* High-Contrast Quick Code Snippets Bar */}
+      <div
+        className={`flex items-center gap-2 border-b px-3.5 py-2 overflow-x-auto scrollbar-thin shrink-0 ${
+          isThemeLight
+            ? "border-[#e6decb] bg-[#efe9dc] text-[#1c1917]"
+            : "border-slate-800 bg-[#111827] text-slate-100"
+        }`}
+      >
+        <div className="flex items-center gap-1.5 rounded-lg bg-primary/20 border border-primary/40 px-2.5 py-1 text-[10px] font-mono font-extrabold uppercase tracking-wider text-primary shrink-0">
+          <Code2 className="size-3.5 text-primary" />
+          <span>1-Click Snippets:</span>
         </div>
+
         {(LANGUAGE_SNIPPETS[language] || LANGUAGE_SNIPPETS.cpp).map((snip) => (
           <button
             key={snip.label}
             type="button"
             onClick={() => insertSnippet(snip.code)}
-            title={`Insert snippet:\n${snip.code}`}
-            className="group inline-flex items-center gap-1.5 rounded-lg bg-background border border-border/80 hover:border-primary hover:bg-primary/15 hover:text-primary px-3 py-1 font-mono text-[11px] font-semibold text-foreground transition-all shrink-0 active:scale-95 shadow-xs hover:shadow-sm cursor-pointer"
+            title={`Click to insert at cursor:\n${snip.code}`}
+            className={`group/snip inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-[11px] transition-all shrink-0 active:scale-95 cursor-pointer ${
+              isThemeLight
+                ? "border-stone-300 bg-white text-stone-900 hover:border-primary hover:bg-primary/10 shadow-2xs"
+                : "border-slate-700 bg-slate-900 text-slate-100 hover:border-primary hover:bg-primary/20 shadow-2xs"
+            }`}
           >
-            <span className="text-primary/70 font-bold group-hover:text-primary text-[11px]">+</span>
-            <span>{snip.label}</span>
+            <span className="font-extrabold text-primary">+ {snip.label}</span>
+            <span
+              className={`hidden md:inline rounded px-1.5 py-0.2 text-[10px] ${
+                isThemeLight
+                  ? "bg-stone-100 text-stone-600"
+                  : "bg-slate-950 text-slate-300"
+              }`}
+            >
+              {snip.preview}
+            </span>
           </button>
         ))}
       </div>
 
-      {/* Editor Body: Line numbers + Synchronized Highlight Overlay + Textarea */}
-      <div
-        className="relative flex flex-1 overflow-hidden h-full"
-        style={{
-          minHeight: isFullscreen ? "calc(100vh - 120px)" : "100%",
-        }}
-      >
-        {/* Line Numbers Column */}
+      {/* Editor Body: Line Numbers Gutter + Synchronized Syntax Overlay + Textarea */}
+      <div className="relative flex flex-1 min-h-0 overflow-hidden">
+        {/* Line Numbers Gutter */}
         <div
           ref={lineNumbersRef}
           aria-hidden="true"
-          className={`select-none overflow-hidden border-r py-5 pl-4 pr-3 text-right font-mono transition-all shrink-0 ${
+          className={`select-none overflow-hidden border-r text-right font-mono shrink-0 ${
             isThemeLight
-              ? "bg-[#f8f5ef]/80 border-[#e6decb] text-[#78716c]/70 shadow-[inset_-4px_0_10px_-6px_rgba(0,0,0,0.05)]"
-              : "border-border/30 bg-black/40 text-muted-foreground/50 shadow-[inset_-4px_0_10px_-6px_rgba(0,0,0,0.3)] backdrop-blur-md"
+              ? "bg-[#f5f0e6] border-[#e6decb] text-[#78716c]"
+              : "border-slate-800/80 bg-[#070a12] text-slate-500"
           }`}
           style={{
             fontSize: `${fontSize}px`,
-            lineHeight: "1.6rem",
-            width: `${Math.max(38, String(lineCount).length * 10 + 20)}px`,
+            lineHeight: `${lineHeightPx}px`,
+            paddingTop: "16px",
+            paddingBottom: "64px",
+            width: `${Math.max(48, String(lineCount).length * 10 + 28)}px`,
           }}
         >
           {Array.from({ length: lineCount }).map((_, idx) => {
@@ -1217,12 +1305,16 @@ export function CppCodeEditor({
             return (
               <div
                 key={`ln-${lineNum}`}
-                className={`transition-colors leading-[1.6rem] ${
+                style={{
+                  height: `${lineHeightPx}px`,
+                  lineHeight: `${lineHeightPx}px`,
+                }}
+                className={`pr-3 pl-2 transition-colors ${
                   isCurrent
-                    ? "font-bold text-primary"
-                    : isThemeLight
-                    ? "text-[#a8a29e]"
-                    : "text-muted-foreground/40"
+                    ? isThemeLight
+                      ? "bg-amber-500/20 font-black text-amber-800 shadow-[inset_3px_0_0_0_#d97706]"
+                      : "bg-indigo-500/25 font-black text-indigo-300 shadow-[inset_3px_0_0_0_#818cf8]"
+                    : ""
                 }`}
               >
                 {lineNum}
@@ -1231,106 +1323,145 @@ export function CppCodeEditor({
           })}
         </div>
 
-        {/* Code Content Container */}
-        <div className="relative flex-1 overflow-hidden">
-          {/* Syntax Highlighted Backdrop Overlay */}
+        {/* Code Content Viewport */}
+        <div className="relative flex-1 min-w-0 min-h-0 overflow-hidden">
+          {/* Syntax Highlighted Backdrop Overlay (overflow-hidden so scrollbars never mismatch textarea) */}
           <div
             ref={highlightRef}
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 overflow-auto py-4 px-4 font-mono select-none"
+            className="pointer-events-none absolute inset-0 overflow-hidden font-mono select-none"
             style={{
               fontSize: `${fontSize}px`,
-              lineHeight: "1.6rem",
+              lineHeight: `${lineHeightPx}px`,
               tabSize: 4,
               whiteSpace: "pre",
               wordWrap: "normal",
             }}
           >
-            {tokenizedLines.map((lineTokens, lineIdx) => {
-              const lineNum = lineIdx + 1;
-              const isCurrent = lineNum === cursorLine;
-              return (
-                <div
-                  key={`hl-line-${lineIdx}`}
-                  className={`min-h-[1.6rem] leading-[1.6rem] ${
-                    isCurrent
-                      ? isThemeLight
-                        ? "bg-[#ede4cf]/70 -mx-4 px-4 rounded-xs"
-                        : "bg-primary/5 -mx-4 px-4 rounded-xs"
-                      : ""
-                  }`}
-                >
-                  {lineTokens.length === 0 ||
-                  (lineTokens.length === 1 && lineTokens[0]?.text === "") ? (
-                    <span>&nbsp;</span>
-                  ) : (
-                    lineTokens.map((token, tokIdx) => {
-                      const colorClass = themeClasses[token.type] || themeClasses.plain;
-                      return (
-                        <span key={`tok-${lineIdx}-${tokIdx}`} className={colorClass}>
-                          {token.text}
-                        </span>
-                      );
-                    })
-                  )}
-                </div>
-              );
-            })}
+            <div
+              className="min-w-full w-max"
+              style={{
+                paddingTop: "16px",
+                paddingBottom: "64px",
+              }}
+            >
+              {tokenizedLines.map((lineTokens, lineIdx) => {
+                const lineNum = lineIdx + 1;
+                const isCurrent = lineNum === cursorLine;
+                return (
+                  <div
+                    key={`hl-line-${lineIdx}`}
+                    style={{
+                      height: `${lineHeightPx}px`,
+                      lineHeight: `${lineHeightPx}px`,
+                    }}
+                    className={`px-4 min-w-full ${
+                      isCurrent
+                        ? isThemeLight
+                          ? "bg-amber-500/16"
+                          : "bg-indigo-500/18"
+                        : ""
+                    }`}
+                  >
+                    {lineTokens.length === 0 ||
+                    (lineTokens.length === 1 && lineTokens[0]?.text === "") ? (
+                      <span>&nbsp;</span>
+                    ) : (
+                      lineTokens.map((token, tokIdx) => {
+                        const colorClass = themeClasses[token.type] || themeClasses.plain;
+                        return (
+                          <span key={`tok-${lineIdx}-${tokIdx}`} className={colorClass}>
+                            {token.text}
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Interactive Textarea on Top (transparent text for caret & selection) */}
           <textarea
             ref={textareaRef}
-            value={code}
+            value={normalizedCode}
+            wrap="off"
             onChange={(e) => {
-              onChange(e.target.value);
-              updateCursorLine();
+              const nextVal = e.target.value;
+              const nextPos = e.target.selectionStart ?? 0;
+              onChange(nextVal);
+              updateCursorPosition(nextVal, nextPos);
             }}
             onScroll={handleScroll}
             onKeyDown={handleKeyDown}
-            onClick={updateCursorLine}
-            onKeyUp={updateCursorLine}
+            onClick={() => updateCursorPosition()}
+            onKeyUp={() => updateCursorPosition()}
+            onSelect={() => updateCursorPosition()}
+            onFocus={() => updateCursorPosition()}
             disabled={disabled}
             spellCheck={false}
             autoCapitalize="off"
             autoComplete="off"
             autoCorrect="off"
-            aria-label="C++ Code Editor"
-            className={`absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent py-4 px-4 font-mono text-transparent focus:outline-none ${
+            aria-label={`${langLabel} Code Editor`}
+            className={`absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent px-4 font-mono text-transparent focus:outline-none ${
               isThemeLight
-                ? "caret-[#1c1917] selection:bg-[#cbd5e1] selection:text-transparent"
-                : "caret-primary selection:bg-primary/30 selection:text-transparent"
+                ? "caret-[#1c1917] selection:bg-amber-500/25 selection:text-transparent"
+                : "caret-indigo-400 selection:bg-indigo-500/30 selection:text-transparent"
             }`}
             style={{
               fontSize: `${fontSize}px`,
-              lineHeight: "1.6rem",
+              lineHeight: `${lineHeightPx}px`,
+              paddingTop: "16px",
+              paddingBottom: "64px",
               tabSize: 4,
               whiteSpace: "pre",
               wordWrap: "normal",
+              overflowWrap: "normal",
             }}
           />
         </div>
       </div>
 
       {/* Editor Footer Status Bar */}
-      <div className="flex items-center justify-between border-t border-border/50 bg-muted/40 dark:bg-black/40 px-4 py-2 font-mono text-[11px] text-muted-foreground">
+      <div
+        className={`flex items-center justify-between border-t px-4 py-1.5 font-mono text-[11px] shrink-0 ${
+          isThemeLight
+            ? "border-[#e6decb] bg-[#f4efe4] text-[#57534e]"
+            : "border-slate-800 bg-[#070a12] text-slate-400"
+        }`}
+      >
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1.5 font-semibold">
             <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Ready</span>
+            <span>Ln {cursorLine}, Col {cursorCol}</span>
           </span>
-          <span className="hidden sm:inline text-border">|</span>
-          <span className="hidden sm:inline">UTF-8</span>
-          <span className="hidden sm:inline text-border">|</span>
-          <span className="hidden sm:inline">Spaces: 4</span>
+          <span className="hidden sm:inline opacity-40">|</span>
+          <span className="hidden sm:inline">{lineCount} lines ({code.length} chars)</span>
+          <span className="hidden md:inline opacity-40">|</span>
+          <span className="hidden md:inline">UTF-8 • 4 Spaces</span>
         </div>
 
         <div className="flex items-center gap-2">
-          <span>Shortcuts:</span>
-          <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+          <button
+            type="button"
+            onClick={scrollToTop}
+            className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold hover:text-primary transition-colors cursor-pointer"
+            title="Scroll Code Sheet to Line 1"
+          >
+            <ArrowUpToLine className="size-3 text-primary" />
+            <span>Top (Line 1)</span>
+          </button>
+          <span className="opacity-40">|</span>
+          <span className="hidden sm:inline">Run:</span>
+          <kbd
+            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+              isThemeLight ? "bg-stone-200 text-stone-800" : "bg-slate-800 text-slate-200"
+            }`}
+          >
             Ctrl+Enter
           </kbd>
-          <span>Run</span>
         </div>
       </div>
     </div>

@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "motion/react";
 import { Sparkles, X, MessageSquare, Lightbulb, Compass, Code2 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { useChat } from "@/context/ChatContext";
+import { useAuth } from "@/hooks/useAuth";
 import { VizcoBuddyAvatar, type VizcoMood } from "@/components/brand/VizcoBuddyAvatar";
 
 export function VizcoBuddy() {
   const { isOpen, openChat, activeContext } = useChat();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
   const [bubbleDismissed, setBubbleDismissed] = useState(false);
   const [mood, setMood] = useState<VizcoMood>("idle");
@@ -121,6 +126,11 @@ export function VizcoBuddy() {
   const handlePointerUp = (e: React.PointerEvent) => {
     const dist = Math.hypot(e.clientX - dragStartPos.current.x, e.clientY - dragStartPos.current.y);
     if (dist < 6 && !isDragging.current) {
+      if (!user) {
+        toast.info("Sign in with Google to chat with Vizco Buddy.");
+        navigate({ to: "/auth" });
+        return;
+      }
       // Clean click: Open Chatbox in clouds
       setHasInteracted(true);
       openChat();
@@ -163,6 +173,11 @@ export function VizcoBuddy() {
               className="absolute bottom-full mb-3 right-0 sm:-right-4 flex items-center gap-2 rounded-2xl border border-primary/30 bg-card/95 px-3 py-2 text-foreground shadow-xl shadow-black/25 backdrop-blur-xl transition-all hover:border-primary/60 cursor-pointer min-w-[210px] max-w-[270px]"
               onClick={(e) => {
                 e.stopPropagation();
+                if (!user) {
+                  toast.info("Sign in with Google to chat with Vizco Buddy.");
+                  navigate({ to: "/auth" });
+                  return;
+                }
                 openChat({ customPrompt: bubbleData.prompt });
               }}
             >

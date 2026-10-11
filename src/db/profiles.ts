@@ -3,7 +3,8 @@ import path from 'path';
 import { adminDb } from '../lib/firebase-admin';
 import { getCache, setCache, deleteCache } from '../lib/redis-cache';
 
-const PROFILES_FILE = path.join(process.cwd(), '.data', 'profiles.json');
+const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.join(process.cwd(), '.data');
+const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
 const memoryProfileStore = new Map<string, any>();
 
 // Load persistent profiles if present

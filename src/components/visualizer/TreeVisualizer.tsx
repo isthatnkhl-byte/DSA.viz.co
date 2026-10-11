@@ -1538,75 +1538,92 @@ export function TreeVisualizer({
                     </g>
 
                     {/* Segment Node Range Badge */}
-                    {nodeRange && (
-                      <g transform="translate(0, -26)">
-                        <rect
-                          x="-18"
-                          y="-6.5"
-                          width="36"
-                          height="13"
-                          rx="4"
-                          className={
-                            isFullOverlap
-                              ? "fill-emerald-950/90 stroke-emerald-500 stroke"
-                            : isPartialOverlap
-                              ? "fill-amber-950/90 stroke-amber-500 stroke"
-                              : "fill-background/90 stroke-border/70 stroke"
-                          }
-                        />
-                        <text
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          className={`font-mono text-[8px] font-bold ${
-                            isFullOverlap
-                              ? "fill-emerald-300 font-extrabold"
+                    {nodeRange && (() => {
+                      const rangeText = `[${nodeRange[0]},${nodeRange[1]}]`;
+                      const rangeW = Math.max(36, rangeText.length * 5.5 + 10);
+                      return (
+                        <g transform="translate(0, -26)">
+                          <rect
+                            x={-rangeW / 2}
+                            y="-6.5"
+                            width={rangeW}
+                            height="13"
+                            rx="4"
+                            className={
+                              isFullOverlap
+                                ? "fill-emerald-950/90 stroke-emerald-500 stroke"
                               : isPartialOverlap
-                                ? "fill-amber-300 font-bold"
-                                : "fill-muted-foreground"
-                          }`}
-                        >
-                          [{nodeRange[0]},{nodeRange[1]}]
-                        </text>
-                      </g>
-                    )}
-
-                    {/* Main Node Circle */}
-                    <circle
-                      r="19"
-                      filter={isCurrent ? "url(#active-node-glow)" : undefined}
-                      className={`transition-all duration-300 ${
-                        isBstViolation
-                          ? "fill-rose-600 stroke-rose-400 stroke-2 text-white"
-                          : isLcaMeet
-                            ? "fill-emerald-600 stroke-emerald-300 stroke-2 text-white"
-                            : isCurrent
-                              ? "fill-primary stroke-primary/90 stroke-2 text-primary-foreground"
-                              : isFullOverlap
-                                ? "fill-emerald-600 stroke-emerald-400 stroke-2 text-white"
+                                ? "fill-amber-950/90 stroke-amber-500 stroke"
+                                : "fill-background/90 stroke-border/70 stroke"
+                            }
+                          />
+                          <text
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            className={`font-mono text-[8px] font-bold ${
+                              isFullOverlap
+                                ? "fill-emerald-300 font-extrabold"
                                 : isPartialOverlap
-                                  ? "fill-amber-600/30 stroke-amber-400 stroke-2 text-amber-200"
-                                  : isVisited
-                                    ? "fill-accent/20 stroke-accent/70 stroke-2 text-accent"
-                                    : "fill-card stroke-border stroke-2 text-foreground hover:stroke-muted-foreground"
-                      }`}
-                    />
+                                  ? "fill-amber-300 font-bold"
+                                  : "fill-muted-foreground"
+                            }`}
+                          >
+                            {rangeText}
+                          </text>
+                        </g>
+                      );
+                    })()}
 
-                    {/* Node Value */}
-                    <text
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      className={`font-mono text-xs font-bold select-none ${
-                        isCurrent || isFullOverlap || isLcaMeet || isBstViolation
-                          ? "fill-primary-foreground font-extrabold"
-                          : isPartialOverlap
-                            ? "fill-amber-300 font-bold"
-                            : isVisited
-                              ? "fill-accent font-semibold"
-                              : "fill-foreground"
-                      }`}
-                    >
-                      {toText(node.val)}
-                    </text>
+                    {/* Main Node Circle / Dynamic Capsule */}
+                    {(() => {
+                      const valText = toText(node.val);
+                      const baseR = 19;
+                      const capsuleW = Math.max(baseR * 2, valText.length * 7 + 16);
+                      return (
+                        <>
+                          <rect
+                            x={-capsuleW / 2}
+                            y={-baseR}
+                            width={capsuleW}
+                            height={baseR * 2}
+                            rx={baseR}
+                            filter={isCurrent ? "url(#active-node-glow)" : undefined}
+                            className={`transition-all duration-300 ${
+                              isBstViolation
+                                ? "fill-rose-600 stroke-rose-400 stroke-2 text-white"
+                                : isLcaMeet
+                                  ? "fill-emerald-600 stroke-emerald-300 stroke-2 text-white"
+                                  : isCurrent
+                                    ? "fill-primary stroke-primary/90 stroke-2 text-primary-foreground"
+                                    : isFullOverlap
+                                      ? "fill-emerald-600 stroke-emerald-400 stroke-2 text-white"
+                                      : isPartialOverlap
+                                        ? "fill-amber-600/30 stroke-amber-400 stroke-2 text-amber-200"
+                                        : isVisited
+                                          ? "fill-accent/20 stroke-accent/70 stroke-2 text-accent"
+                                          : "fill-card stroke-border stroke-2 text-foreground hover:stroke-muted-foreground"
+                            }`}
+                          />
+
+                          {/* Node Value */}
+                          <text
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            className={`font-mono ${valText.length > 6 ? "text-[10px]" : "text-xs"} font-bold select-none ${
+                              isCurrent || isFullOverlap || isLcaMeet || isBstViolation
+                                ? "fill-primary-foreground font-extrabold"
+                                : isPartialOverlap
+                                  ? "fill-amber-300 font-bold"
+                                  : isVisited
+                                    ? "fill-accent font-semibold"
+                                    : "fill-foreground"
+                            }`}
+                          >
+                            {valText}
+                          </text>
+                        </>
+                      );
+                    })()}
 
                     {/* Node Index Chip & Level */}
                     <text

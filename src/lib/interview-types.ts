@@ -56,12 +56,42 @@ export interface CameraTrackingState {
   lastViolationTimestamp?: string;
 }
 
+export type InterviewFlowStage = "clarify" | "approach" | "implement" | "verify";
+
+export type InterviewerCoachingAction =
+  | "general"
+  | "clarify_constraints"
+  | "pitch_approach"
+  | "dry_run"
+  | "complexity_check"
+  | "progressive_hint";
+
+export interface InterviewerResponseResult {
+  spokenText: string;
+  writtenNote: string;
+  suggestedStage?: InterviewFlowStage;
+  detectedComplexity?: {
+    time: string;
+    space: string;
+  };
+  followUpPrompt?: string;
+  hintLevel?: number;
+}
+
 export interface ConversationalTranscriptItem {
   id: string;
   timestamp: string;
   speaker: "candidate" | "interviewer";
   text: string;
-  type?: "speech" | "hint" | "evaluation" | "greeting" | "question";
+  type?: "speech" | "hint" | "evaluation" | "greeting" | "question" | "coaching";
+  stage?: InterviewFlowStage;
+  coachingAction?: InterviewerCoachingAction;
+  followUpPrompt?: string;
+  detectedComplexity?: {
+    time: string;
+    space: string;
+  };
+  hintLevel?: number;
 }
 
 export interface VoiceEngineSettings {
@@ -102,3 +132,26 @@ export interface InterviewScorecardResult {
   questionSubmissions?: QuestionSubmissionSnapshot[];
   audioRecordingUrl?: string;
 }
+
+export interface InterviewSampleTestCaseResult {
+  caseIndex: number;
+  input: string;
+  expectedOutput: string;
+  actualOutput: string;
+  passed: boolean;
+  runtimeMs: number;
+  explanation?: string;
+  isCustom?: boolean;
+}
+
+export interface InterviewSampleRunResponse {
+  status: "passed" | "failed" | "compile_error" | "incomplete";
+  summaryMessage: string;
+  compilerOutput?: string;
+  estimatedTimeComplexity?: string;
+  estimatedSpaceComplexity?: string;
+  passedCount: number;
+  totalCount: number;
+  cases: InterviewSampleTestCaseResult[];
+}
+

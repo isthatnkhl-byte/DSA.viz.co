@@ -144,19 +144,19 @@ export const ReviewCard = memo(function ReviewCard({
 
       {/* Complexity Meters */}
       <div className="grid grid-cols-2 gap-3 text-center">
-        <div className="rounded-xl border border-border/60 bg-background/60 p-3 shadow-xs">
+        <div className="rounded-xl border border-border/60 bg-background/60 p-3 shadow-xs min-w-0">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Time Complexity
           </div>
-          <div className="mt-0.5 font-mono text-base font-bold text-primary">
+          <div className="mt-0.5 font-mono text-sm sm:text-base font-bold text-primary break-words">
             {result.complexity?.time ?? "—"}
           </div>
         </div>
-        <div className="rounded-xl border border-border/60 bg-background/60 p-3 shadow-xs">
+        <div className="rounded-xl border border-border/60 bg-background/60 p-3 shadow-xs min-w-0">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Space Complexity
           </div>
-          <div className="mt-0.5 font-mono text-base font-bold text-accent">
+          <div className="mt-0.5 font-mono text-sm sm:text-base font-bold text-accent break-words">
             {result.complexity?.space ?? "—"}
           </div>
         </div>
@@ -172,21 +172,21 @@ export const ReviewCard = memo(function ReviewCard({
       {/* Praise & Nudge callouts */}
       <div className="flex flex-col gap-2.5">
         {result.praise && (
-          <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3.5 text-xs leading-relaxed text-foreground shadow-xs shadow-emerald-500/10">
+          <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3.5 text-xs leading-relaxed text-foreground shadow-xs shadow-emerald-500/10 break-words">
             <CheckCircle2 className="size-4 shrink-0 text-emerald-400 mt-0.5" />
-            <div>
+            <div className="min-w-0">
               <strong className="text-emerald-300 font-extrabold tracking-wide">Strong Habits: </strong>
-              <span className="text-foreground/95">{result.praise}</span>
+              <span className="text-foreground/95 break-words">{result.praise}</span>
             </div>
           </div>
         )}
 
         {result.nudge && (
-          <div className="flex items-start gap-2.5 rounded-xl border border-primary/40 bg-primary/10 p-3.5 text-xs leading-relaxed text-foreground shadow-xs shadow-primary/10">
+          <div className="flex items-start gap-2.5 rounded-xl border border-primary/40 bg-primary/10 p-3.5 text-xs leading-relaxed text-foreground shadow-xs shadow-primary/10 break-words">
             <TrendingUp className="size-4 shrink-0 text-primary mt-0.5" />
-            <div>
+            <div className="min-w-0">
               <strong className="text-primary font-extrabold tracking-wide">Optimization Nudge: </strong>
-              <span className="text-foreground/95">{result.nudge}</span>
+              <span className="text-foreground/95 break-words">{result.nudge}</span>
             </div>
           </div>
         )}
@@ -194,7 +194,7 @@ export const ReviewCard = memo(function ReviewCard({
 
       {/* Structured Markdown Review */}
       {result.review && (
-        <div className="prose prose-sm dark:prose-invert max-w-none border-t border-border/60 pt-3.5 text-xs leading-relaxed text-muted-foreground [&_code]:rounded [&_code]:bg-background/90 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-foreground [&_strong]:text-foreground">
+        <div className="prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden border-t border-border/60 pt-3.5 text-xs leading-relaxed text-muted-foreground [&_code]:rounded [&_code]:bg-background/90 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-foreground [&_code]:break-words [&_pre]:max-w-full [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-border/70 [&_pre]:bg-background/80 [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:whitespace-pre-wrap [&_pre_code]:break-words [&_strong]:text-foreground">
           <ReactMarkdown>{result.review}</ReactMarkdown>
         </div>
       )}

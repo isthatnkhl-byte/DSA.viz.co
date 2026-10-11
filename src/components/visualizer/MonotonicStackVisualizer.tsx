@@ -890,25 +890,31 @@ export function MonotonicStackVisualizer({
                         />
 
                         {/* Midpoint Observation Label with Distance */}
-                        <g transform={`translate(${(fromX + toX) / 2}, 22)`}>
-                          <rect
-                            x="-48"
-                            y="-9"
-                            width="96"
-                            height="18"
-                            rx="4"
-                            className="fill-background/95 stroke-border"
-                          />
-                          <text
-                            textAnchor="middle"
-                            dy="0.32em"
-                            className={`text-[9px] font-mono font-bold ${
-                              isHit ? "fill-amber-400" : "fill-emerald-400"
-                            }`}
-                          >
-                            {isHit ? `RAY HIT (dist: ${dist})` : `BOUNDED ≤ (dist: ${dist})`}
-                          </text>
-                        </g>
+                        {(() => {
+                          const rayLabelText = isHit ? `RAY HIT (dist: ${dist})` : `BOUNDED ≤ (dist: ${dist})`;
+                          const rayRectW = Math.max(96, rayLabelText.length * 5.8 + 14);
+                          return (
+                            <g transform={`translate(${(fromX + toX) / 2}, 22)`}>
+                              <rect
+                                x={-rayRectW / 2}
+                                y="-9"
+                                width={rayRectW}
+                                height="18"
+                                rx="4"
+                                className="fill-background/95 stroke-border"
+                              />
+                              <text
+                                textAnchor="middle"
+                                dy="0.32em"
+                                className={`text-[9px] font-mono font-bold ${
+                                  isHit ? "fill-amber-400" : "fill-emerald-400"
+                                }`}
+                              >
+                                {rayLabelText}
+                              </text>
+                            </g>
+                          );
+                        })()}
                       </g>
                     );
                   })}
@@ -944,7 +950,7 @@ export function MonotonicStackVisualizer({
                   }}
                   onMouseEnter={() => setInteractiveHoverIdx(idx)}
                   onMouseLeave={() => setInteractiveHoverIdx(null)}
-                  className="flex-1 flex flex-col items-center h-full justify-end min-w-[42px] max-w-[68px] cursor-pointer group select-none relative"
+                  className="flex-1 flex flex-col items-center h-full justify-end min-w-[44px] w-auto px-1 cursor-pointer group select-none relative"
                 >
                   {/* Traversal Pointer Beacon & Badges */}
                   <div className="h-7 flex items-center justify-center mb-1 text-[9px] font-mono font-bold">
@@ -998,7 +1004,7 @@ export function MonotonicStackVisualizer({
                   {/* Vertical Bar with Dynamic Height and Shading */}
                   <div
                     style={{ height: `${heightPct}%` }}
-                    className={`w-full rounded-t-xl transition-all duration-300 flex flex-col items-center justify-start pt-2 border-t border-x relative group-hover:scale-102 ${
+                    className={`w-full px-1.5 rounded-t-xl transition-all duration-300 flex flex-col items-center justify-start pt-2 border-t border-x relative group-hover:scale-102 ${
                       isCurrent
                         ? "bg-primary/25 border-primary ring-2 ring-primary/50 shadow-md"
                         : isPoppedTarget
@@ -1014,7 +1020,7 @@ export function MonotonicStackVisualizer({
                   >
                     {/* Value label inside the bar top */}
                     <span
-                      className={`text-[12px] font-mono font-bold ${
+                      className={`text-[12px] font-mono font-bold whitespace-nowrap ${
                         isCurrent
                           ? "text-primary"
                           : isPoppedTarget
@@ -1088,7 +1094,7 @@ export function MonotonicStackVisualizer({
                   return (
                     <div
                       key={`res-${rIdx}`}
-                      className={`flex flex-col items-center justify-center min-w-[38px] px-1.5 py-1 rounded-md font-mono text-[11px] border transition-all ${
+                      className={`flex flex-col items-center justify-center min-w-[38px] w-auto px-2 py-1 rounded-md font-mono text-[11px] whitespace-nowrap border transition-all ${
                         isCurrent
                           ? "ring-2 ring-primary border-primary bg-primary/20 text-primary font-bold"
                           : isResolved

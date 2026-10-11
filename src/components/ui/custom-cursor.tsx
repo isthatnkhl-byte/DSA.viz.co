@@ -30,15 +30,29 @@ export function CustomCursor() {
     document.documentElement.classList.add("has-custom-cursor");
 
     let rafId: number | null = null;
+    let lastTarget: EventTarget | null = null;
 
     // Fluid secondary aura interpolation (cozy ambient glow that floats gently behind)
+    // Automatically sleeps when the aura catches up to the pointer so idle pages use 0% CPU/GPU
     const animateAura = () => {
       const targetX = mousePos.current.x;
       const targetY = mousePos.current.y;
+      const dx = targetX - auraPos.current.x;
+      const dy = targetY - auraPos.current.y;
+
+      if (Math.abs(dx) < 0.15 && Math.abs(dy) < 0.15) {
+        auraPos.current.x = targetX;
+        auraPos.current.y = targetY;
+        if (auraRef.current) {
+          auraRef.current.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
+        }
+        rafId = null;
+        return;
+      }
 
       // Silky lerp (0.32 gives an organic, responsive trailing feel)
-      auraPos.current.x += (targetX - auraPos.current.x) * 0.32;
-      auraPos.current.y += (targetY - auraPos.current.y) * 0.32;
+      auraPos.current.x += dx * 0.32;
+      auraPos.current.y += dy * 0.32;
 
       if (auraRef.current) {
         auraRef.current.style.transform = `translate3d(${auraPos.current.x}px, ${auraPos.current.y}px, 0)`;
@@ -48,7 +62,7 @@ export function CustomCursor() {
     };
 
     // ZERO-LATENCY Direct Mouse Tracking
-    const onPointerMove = (e: PointerEvent | MouseEvent) => {
+    const onPointerMove = (e: PointerEvent) => {
       const x = e.clientX;
       const y = e.clientY;
 
@@ -73,24 +87,31 @@ export function CustomCursor() {
         auraPos.current.y = y;
       }
 
-      // Check element under cursor for rich contextual feedback
-      const target = e.target as HTMLElement | null;
-      if (target) {
-        const isClickable = !!target.closest(
-          "a, button, [role='button'], select, label, .cursor-pointer, [data-interactive='true']"
-        );
-        const isTextInput = !!target.closest(
-          "input, textarea, [contenteditable='true'], .monaco-editor, pre code"
-        );
+      if (rafId === null) {
+        rafId = requestAnimationFrame(animateAura);
+      }
 
-        if (isClickable !== isHoveringRef.current) {
-          isHoveringRef.current = isClickable;
-          setIsHovering(isClickable);
-        }
+      // Check element under cursor for rich contextual feedback only when target element changes
+      if (e.target !== lastTarget) {
+        lastTarget = e.target;
+        const target = e.target as HTMLElement | null;
+        if (target && typeof target.closest === "function") {
+          const isClickable = !!target.closest(
+            "a, button, [role='button'], select, label, .cursor-pointer, [data-interactive='true']"
+          );
+          const isTextInput = !!target.closest(
+            "input, textarea, [contenteditable='true'], .monaco-editor, pre code"
+          );
 
-        if (isTextInput !== isTextTargetRef.current) {
-          isTextTargetRef.current = isTextInput;
-          setIsTextTarget(isTextInput);
+          if (isClickable !== isHoveringRef.current) {
+            isHoveringRef.current = isClickable;
+            setIsHovering(isClickable);
+          }
+
+          if (isTextInput !== isTextTargetRef.current) {
+            isTextTargetRef.current = isTextInput;
+            setIsTextTarget(isTextInput);
+          }
         }
       }
     };
@@ -109,19 +130,15 @@ export function CustomCursor() {
     const onMouseUp = () => setIsClicking(false);
 
     window.addEventListener("pointermove", onPointerMove, { passive: true });
-    window.addEventListener("mousemove", onPointerMove, { passive: true });
     document.addEventListener("mouseleave", onMouseLeave, { passive: true });
     document.addEventListener("mouseenter", onMouseEnter, { passive: true });
     window.addEventListener("mousedown", onMouseDown, { passive: true });
     window.addEventListener("mouseup", onMouseUp, { passive: true });
 
-    rafId = requestAnimationFrame(animateAura);
-
     return () => {
       document.documentElement.classList.remove("has-custom-cursor");
-      if (rafId) cancelAnimationFrame(rafId);
+      if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("mousemove", onPointerMove);
       document.removeEventListener("mouseleave", onMouseLeave);
       document.removeEventListener("mouseenter", onMouseEnter);
       window.removeEventListener("mousedown", onMouseDown);

@@ -14,7 +14,27 @@ import { runSecureCpp, runSecureCode } from './src/lib/compiler/index';
 import { fetchLeetCodeStats } from './src/lib/leetcode-service';
 import { statementForSlug } from './src/lib/statements';
 import localStatementsJson from './src/data/statements.json';
-import { evaluateInterviewTier, generateInterviewScorecard, generateInterviewerResponse } from './src/lib/interview-evaluator.server';
+import {
+  evaluateInterviewTier,
+  generateInterviewScorecard,
+  generateInterviewerResponse,
+  runInterviewSampleTests,
+} from './src/lib/interview-evaluator.server';
+import {
+  runProblemSampleTests,
+  submitProblemSolution,
+} from './src/lib/leetcode-judge.server';
+import {
+  attachUserKeyVaultContext,
+  getUserKeyVaultStatus,
+  saveUserApiKeyToVault,
+  deleteUserApiKeyFromVault,
+} from './src/lib/user-keys.server';
+import {
+  getGeminiKey,
+  getOpenAIKey,
+  getOpenRouterKey,
+} from './src/lib/openrouter.server';
 
 
 import path from "path";
@@ -27,6 +47,21 @@ import { z } from 'zod';
 import dotenv from "dotenv";
 
 dotenv.config();
+
+process.on("uncaughtException", (err: any) => {
+  if (err?.message?.includes("Could not load the default credentials")) {
+    console.warn("⚠️ [Local Dev]: Google Cloud ADC not configured locally; skipping background Firestore gRPC sync.");
+    return;
+  }
+  console.error("Uncaught Exception:", err);
+});
+
+process.on("unhandledRejection", (reason: any) => {
+  if (reason?.message?.includes("Could not load the default credentials")) {
+    return;
+  }
+  console.error("Unhandled Rejection:", reason);
+});
 
 
 const cleanSecretEnv = (val?: string | null): string => {
@@ -91,10 +126,10 @@ const API_ENDPOINTS = [
   "/statement", "/review", "/solve", "/explain", "/compile", "/profile",
   "/sync-leetcode", "/submissions", "/auth", "/debug-token", "/github",
   "/chat", "/chat-sessions", "/interview-evaluate", "/interview-scorecard",
-  "/interview-respond", "/livekit-token",
-  "/generate-plan", "/verify-trace", "/visualize-dataset", "/playground-review",
+  "/interview-respond", "/interview-run-tests", "/problem-run-tests", "/problem-submit",
+  "/livekit-token", "/generate-plan", "/verify-trace", "/visualize-dataset", "/playground-review",
   "/code-diff-nudge", "/rate-submission", "/generate-mistakes-report",
-  "/user-reports", "/compiler", "/health", "/debug"
+  "/user-reports", "/compiler", "/health", "/debug", "/user-keys"
 ];
 app.use((req, _res, next) => {
   const pathname = req.url.split("?")[0];
@@ -145,6 +180,48 @@ const cleanupExpiredNonces = () => {
 setInterval(cleanupExpiredNonces, 5 * 60 * 1000).unref();
 
 app.use("/api/", apiLimiter);
+// Per-request User API Key Vault Context (AES-256-GCM decrypted strictly in backend memory)
+app.use("/api/", attachUserKeyVaultContext);
+
+// --- User-Specific Encrypted API Key Vault Endpoints (Zero Frontend Exposure) ---
+app.get("/api/user-keys/status", requireAuth, async (req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const status = await getUserKeyVaultStatus(req);
+    return res.json(status);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Failed to read key vault status" });
+  }
+});
+
+app.post("/api/user-keys", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const { apiKey, provider, verify } = req.body || {};
+    const result = await saveUserApiKeyToVault(req, res, {
+      apiKey: typeof apiKey === "string" ? apiKey : "",
+      provider: typeof provider === "string" ? provider : undefined,
+      verify: verify !== false,
+    });
+    if (!result.ok) {
+      return res.status(400).json({ error: result.error || "Invalid API key" });
+    }
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Failed to store API key securely" });
+  }
+});
+
+app.delete("/api/user-keys", requireAuth, async (req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const provider = (req.body?.provider || req.query?.provider || "all") as any;
+    const status = await deleteUserApiKeyFromVault(req, provider);
+    return res.json({ ok: true, status });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Failed to remove API key from vault" });
+  }
+});
 
 
 const cleanEnv = (val?: string | null): string => {
@@ -152,19 +229,11 @@ const cleanEnv = (val?: string | null): string => {
   return val.trim().replace(/^["']|["']$/g, "").trim();
 };
 
-// Server-side Gemini AI Client
+// Server-side Gemini AI Client (prioritizes current user's decrypted personal key from AsyncLocalStorage)
 function getGeminiClient(): GoogleGenAI {
-  const apiKey = cleanEnv(
-    process.env.GEMINI_API_KEY ||
-    process.env.VITE_GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY
-  );
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is missing.");
-  }
+  const apiKey = getGeminiKey();
   return new GoogleGenAI({
-    apiKey,
+    apiKey: apiKey || "unconfigured_gemini_key",
     httpOptions: {
       headers: {
         "User-Agent": "aistudio-build",
@@ -175,7 +244,7 @@ function getGeminiClient(): GoogleGenAI {
 
 /**
  * Robust Gemini model invoker with multi-model failover sequence.
- * Resilient against temporary 503 (model high demand) and 429 (quota spikes).
+ * Uses the user's personal API key (Gemini, OpenAI, or OpenRouter) first when configured.
  */
 async function generateContentWithFallback(
   ai: GoogleGenAI,
@@ -185,38 +254,42 @@ async function generateContentWithFallback(
     config?: any;
   }
 ): Promise<{ text: string; modelUsed: string }> {
-  const candidateModels = [
-    preferredModel,
-    "gemini-3.6-flash",
-    "gemini-3.8-flash",
-    "gemini-3.5-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-flash-latest",
-    "gemini-3.7-flash",
-  ].filter((m, i, arr) => m && arr.indexOf(m) === i);
-
+  const geminiKey = getGeminiKey();
   let lastError: any = null;
-  for (const model of candidateModels) {
-    try {
-      const resp = await ai.models.generateContent({
-        model,
-        contents: params.contents,
-        config: params.config,
-      });
-      return {
-        text: resp.text || "",
-        modelUsed: model,
-      };
-    } catch (err: any) {
-      lastError = err;
-      const status = err?.status || err?.code || (err?.error && err?.error?.code);
-      console.log(`[Gemini Fallback] Model ${model} returned (${status}): ${err?.message || err}. Attempting fallback candidate...`);
+
+  if (geminiKey) {
+    const candidateModels = [
+      preferredModel,
+      "gemini-3.6-flash",
+      "gemini-3.8-flash",
+      "gemini-3.5-flash",
+      "gemini-3.1-flash-lite",
+      "gemini-flash-latest",
+      "gemini-3.7-flash",
+    ].filter((m, i, arr) => m && arr.indexOf(m) === i);
+
+    for (const model of candidateModels) {
+      try {
+        const resp = await ai.models.generateContent({
+          model,
+          contents: params.contents,
+          config: params.config,
+        });
+        return {
+          text: resp.text || "",
+          modelUsed: model,
+        };
+      } catch (err: any) {
+        lastError = err;
+        const status = err?.status || err?.code || (err?.error && err?.error?.code);
+        console.log(`[Gemini Fallback] Model ${model} returned (${status}): ${err?.message || err}. Attempting fallback candidate...`);
+      }
     }
   }
 
-  // Attempt OpenAI fallback if available
-  const openAIKey = (typeof process !== "undefined" && (process.env?.OPENAI_API_KEY || process.env?.OPEN_AI_API_KEY)) || "";
-  const openRouterKey = (typeof process !== "undefined" && (process.env?.OPENROUTER_API_KEY || process.env?.OPEN_ROUTER_API_KEY || process.env?.VITE_OPENROUTER_API_KEY)) || "";
+  // Attempt OpenAI or OpenRouter fallback using user's personal key (or server fallback)
+  const openAIKey = getOpenAIKey();
+  const openRouterKey = getOpenRouterKey();
 
   if (openAIKey || openRouterKey) {
     try {
@@ -548,54 +621,6 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-// Debug endpoint to check environment variables (Non-production diagnostics only)
-app.get("/api/debug/env", (_req: Request, res: Response) => {
-  if (process.env.NODE_ENV === "production") {
-    return res.status(404).json({ error: "Endpoint not available in production" });
-  }
-  const gemini = !!cleanEnv(
-    process.env.GEMINI_API_KEY ||
-    process.env.VITE_GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY
-  );
-  const openrouter = !!cleanEnv(
-    process.env.OPENROUTER_API_KEY ||
-    process.env.VITE_OPENROUTER_API_KEY ||
-    process.env.OPEN_ROUTER_API_KEY ||
-    process.env.VITE_OPEN_ROUTER_API_KEY ||
-    process.env.Openrouterapi ||
-    process.env.VITE_Openrouterapi
-  );
-  res.json({
-    gemini,
-    openrouter,
-    github: !!(process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID),
-    firebase: !!(process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID),
-    livekit: !!(cleanEnv(process.env.LIVEKIT_API_KEY) && cleanEnv(process.env.LIVEKIT_API_SECRET)),
-    nodeEnv: process.env.NODE_ENV,
-  });
-});
-
-// API: Test Gemini API key (Non-production diagnostics only)
-app.get("/api/test-gemini", async (_req: Request, res: Response) => {
-  if (process.env.NODE_ENV === "production") {
-    return res.status(404).json({ error: "Endpoint not available in production" });
-  }
-  try {
-    const ai = getGeminiClient();
-    const result = await generateContentWithFallback(ai, "gemini-3.6-flash", {
-      contents: [{ role: "user", parts: [{ text: "Respond with the word 'OK' to confirm the API key is working." }] }],
-      config: { maxOutputTokens: 10, temperature: 0.1 }
-    });
-    console.log("TEST GEMINI RESULT TEXT:", result.text);
-    console.log("TEST GEMINI FULL RESULT:", JSON.stringify(result, null, 2));
-    return res.json({ success: true, text: result.text || "Empty text", modelUsed: result.modelUsed });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err?.message || String(err) });
-  }
-});
-
 // API: Get problem statement
 app.get("/api/statement", async (req: Request, res: Response) => {
   try {
@@ -650,7 +675,7 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
     // Privacy: Never return raw or encrypted githubToken to client
     const { githubToken, ...safeProfile } = (profile || {}) as any;
     
-    const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.name || req.user.email?.split("@")[0] || "Explorer";
+    const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.name || req.user.email?.split("@")[0] || "Authenticated User";
     const cleanAvatar = safeProfile?.avatarUrl || safeProfile?.avatar_url || req.user.picture || user?.avatarUrl || null;
     const cleanLcUsername = safeProfile?.leetcodeUsername || safeProfile?.leetcode_username || null;
     const cleanLcStats = safeProfile?.leetcodeStats || safeProfile?.leetcode_stats || null;
@@ -689,8 +714,8 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
     res.json({
       uid: req.user.uid,
       email: req.user.email,
-      displayName: req.user.name || req.user.email?.split("@")[0] || "Explorer",
-      display_name: req.user.name || req.user.email?.split("@")[0] || "Explorer",
+      displayName: req.user.name || req.user.email?.split("@")[0] || "Authenticated User",
+      display_name: req.user.name || req.user.email?.split("@")[0] || "Authenticated User",
       avatarUrl: req.user.picture || null,
       avatar_url: req.user.picture || null,
       githubConnected: false,
@@ -879,7 +904,7 @@ app.delete("/api/submissions/:id", requireAuth, async (req: any, res) => {
 // ---------------------
 
 // API: Multi-turn Chatbot endpoint with Socratic Interviewer & Firestore access
-app.post("/api/chat", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/chat", requireAuth, aiLimiter, async (req: any, res: Response) => {
   try {
     const {
       messages = [],
@@ -895,18 +920,12 @@ app.post("/api/chat", aiLimiter, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Messages array is required." });
     }
 
-    // Optional user authentication via Bearer token to enrich with Firestore submissions
-    let authenticatedUid: string | null = null;
+    const authenticatedUid: string | null = req.user?.uid || null;
     let userSubmissionsContext = "";
     let userProfileContext = "";
 
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
+    if (authenticatedUid) {
       try {
-        const idToken = authHeader.split("Bearer ")[1];
-        const decoded = await adminAuth.verifyIdToken(idToken);
-        authenticatedUid = decoded.uid;
-
         // Fetch user's recent submissions and profile from Firestore to allow rating submissions & analyzing activity
         const [recentSubs, profile] = await Promise.all([
           getSubmissions(authenticatedUid).catch(() => []),
@@ -921,10 +940,10 @@ app.post("/api/chat", aiLimiter, async (req: Request, res: Response) => {
         }
 
         if (profile) {
-          userProfileContext = `\n[USER PROFILE METRICS]: Display Name: ${profile.displayName || 'Explorer'}, LeetCode Username: ${profile.leetcodeUsername || 'Not connected'}`;
+          userProfileContext = `\n[USER PROFILE METRICS]: Display Name: ${profile.displayName || req.user?.name || 'Authenticated User'}, LeetCode Username: ${profile.leetcodeUsername || 'Not connected'}`;
         }
       } catch (authErr) {
-        // Token invalid or expired; continue without user-specific persistence
+        // Continue if Firestore enrichment fails
       }
     }
 
@@ -1138,7 +1157,7 @@ ${userSubmissionsContext}`.trim();
 });
 
 // API: Code Diff & Interviewer Nudge Panel Endpoint
-app.post("/api/code-diff-nudge", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/code-diff-nudge", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       code = "",
@@ -1226,7 +1245,7 @@ Return a strictly valid JSON object matching this schema:
 });
 
 // API: Rate Submission Endpoint
-app.post("/api/rate-submission", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/rate-submission", requireAuth, aiLimiter, async (req: any, res: Response) => {
   try {
     const {
       code = "",
@@ -1278,12 +1297,9 @@ Return a strictly valid JSON object matching this schema:
     const ratingData = JSON.parse(text || "{}");
 
     // If user is authenticated and submissionId provided, update rating in Firestore
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ") && submissionId) {
+    if (req.user?.uid && submissionId) {
       try {
-        const idToken = authHeader.split("Bearer ")[1];
-        const decoded = await adminAuth.verifyIdToken(idToken);
-        const subDoc = adminDb.collection("users").doc(decoded.uid).collection("submissions").doc(submissionId);
+        const subDoc = adminDb.collection("users").doc(req.user.uid).collection("submissions").doc(submissionId);
         await subDoc.set({
           rating: ratingData.overallScore,
           ratingGrade: ratingData.grade,
@@ -1315,7 +1331,7 @@ Return a strictly valid JSON object matching this schema:
 });
 
 // API: Live Interview - Evaluate Solution Tier
-app.post("/api/interview-evaluate", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/interview-evaluate", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { question, tier, code, language, transcript, previousTiers } = req.body;
     if (!question || !tier || !code) {
@@ -1338,26 +1354,118 @@ app.post("/api/interview-evaluate", aiLimiter, async (req: Request, res: Respons
   }
 });
 
-// API: Live Interview - Conversational Interviewer Response
-app.post("/api/interview-respond", aiLimiter, async (req: Request, res: Response) => {
+// API: Live Interview - Conversational Interviewer Response & Socratic Coaching
+app.post("/api/interview-respond", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
-    const { question, tier, code, candidateSpeech, transcriptHistory } = req.body;
-    if (!candidateSpeech) {
-      return res.status(400).json({ error: "Missing candidateSpeech field." });
+    const {
+      question,
+      tier,
+      code,
+      language,
+      candidateSpeech,
+      transcriptHistory,
+      interviewStage,
+      coachingAction,
+      hintLevel,
+    } = req.body;
+    if (!candidateSpeech && !coachingAction) {
+      return res.status(400).json({ error: "Missing candidateSpeech or coachingAction field." });
     }
 
     const response = await generateInterviewerResponse({
       question,
       tier: tier || "bruteForce",
       code: code || "",
-      candidateSpeech,
+      language: language || "cpp",
+      candidateSpeech: candidateSpeech || "",
       transcriptHistory,
+      interviewStage,
+      coachingAction,
+      hintLevel,
     });
 
     return res.json(response);
   } catch (error: any) {
     console.error("Interview respond error:", error);
     return res.status(500).json({ error: "Failed to generate interviewer response." });
+  }
+});
+
+// API: Live Interview - Run Sample Tests & Dry-Run Trace
+app.post("/api/interview-run-tests", requireAuth, apiLimiter, async (req: Request, res: Response) => {
+  try {
+    const { question, code, language, customInput } = req.body;
+    if (!question) {
+      return res.status(400).json({ error: "Missing question object for sample test execution." });
+    }
+
+    const result = await runInterviewSampleTests({
+      question,
+      code: code || "",
+      language: language || "cpp",
+      customInput,
+    });
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error("Interview sample test runner error:", error);
+    return res.status(500).json({ error: "Failed to run interview sample tests." });
+  }
+});
+
+// API: LeetCode-Style Editor — Run 3 Sample Testcases (+ Custom Testcase)
+app.post("/api/problem-run-tests", requireAuth, apiLimiter, async (req: Request, res: Response) => {
+  try {
+    const { slug, title, difficulty, topics, statement, code, language, sampleCases, customInput } = req.body || {};
+    if (!slug && !title) {
+      return res.status(400).json({ error: "Missing problem slug or title for sample test execution." });
+    }
+
+    const result = await runProblemSampleTests({
+      slug: String(slug || "problem"),
+      title: String(title || slug || "Problem"),
+      difficulty: difficulty ? String(difficulty) : "Medium",
+      topics: Array.isArray(topics) ? topics : [],
+      statement: statement ? String(statement) : undefined,
+      code: String(code || ""),
+      language: String(language || "python"),
+      sampleCases: Array.isArray(sampleCases) ? sampleCases : undefined,
+      customInput: customInput ? String(customInput) : undefined,
+    });
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error("Problem sample test runner error:", error);
+    return res.status(500).json({ error: error?.message || "Failed to execute sample testcases." });
+  }
+});
+
+// API: LeetCode-Style Editor — Submit Code against AI Testcase Suite
+app.post("/api/problem-submit", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+  try {
+    const { slug, title, difficulty, topics, statement, code, language, preverifiedRunResult } = req.body || {};
+    if (!slug && !title) {
+      return res.status(400).json({ error: "Missing problem slug or title for submission judge." });
+    }
+
+    const result = await submitProblemSolution({
+      slug: String(slug || "problem"),
+      title: String(title || slug || "Problem"),
+      difficulty: difficulty ? String(difficulty) : "Medium",
+      topics: Array.isArray(topics) ? topics : [],
+      statement: statement ? String(statement) : undefined,
+      code: String(code || ""),
+      language: String(language || "python"),
+      preverifiedRunResult:
+        preverifiedRunResult && typeof preverifiedRunResult === "object"
+          ? preverifiedRunResult
+          : undefined,
+    });
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error("Problem submit judge error:", error);
+    return res.status(500).json({ error: error?.message || "Failed to evaluate submission." });
   }
 });
 
@@ -1403,7 +1511,7 @@ function generateLiveKitAccessToken(
 }
 
 // API: Live Interview - LiveKit WebRTC Access Token for Real-Time AI Voice Interviewer
-app.all("/api/livekit-token", (req: Request, res: Response) => {
+app.all("/api/livekit-token", requireAuth, (req: Request, res: Response) => {
   try {
     const apiKey = cleanEnv(process.env.LIVEKIT_API_KEY);
     const apiSecret = cleanEnv(process.env.LIVEKIT_API_SECRET);
@@ -1442,7 +1550,7 @@ app.all("/api/livekit-token", (req: Request, res: Response) => {
 });
 
 // API: Live Interview - Generate Comprehensive Scorecard
-app.post("/api/interview-scorecard", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/interview-scorecard", requireAuth, aiLimiter, async (req: any, res: Response) => {
   try {
     const {
       question,
@@ -1450,6 +1558,7 @@ app.post("/api/interview-scorecard", aiLimiter, async (req: Request, res: Respon
       betterCode,
       optimalCode,
       tiersCompleted,
+      questionSubmissions,
       confidenceMetrics,
       proctoringMetrics,
       elapsedSeconds,
@@ -1465,6 +1574,7 @@ app.post("/api/interview-scorecard", aiLimiter, async (req: Request, res: Respon
       betterCode: betterCode || "",
       optimalCode: optimalCode || "",
       tiersCompleted: Array.isArray(tiersCompleted) ? tiersCompleted : [],
+      questionSubmissions: Array.isArray(questionSubmissions) ? questionSubmissions : undefined,
       confidenceMetrics: confidenceMetrics || {
         overallConfidenceScore: 8.0,
         vocalSteadinessScore: 8.0,
@@ -1486,20 +1596,7 @@ app.post("/api/interview-scorecard", aiLimiter, async (req: Request, res: Respon
       elapsedSeconds: elapsedSeconds || 300,
     });
 
-    // Optional: Log interview scorecard in Firestore for authenticated user
-    let userId: string | null = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      try {
-        const token = authHeader.split("Bearer ")[1];
-        if (token && adminAuth) {
-          const decoded = await adminAuth.verifyIdToken(token);
-          userId = decoded.uid;
-        }
-      } catch {
-        // Token verification failed or expired, continue silently
-      }
-    }
+    const userId: string | null = req.user?.uid || null;
 
     if (userId && adminDb) {
       try {
@@ -1524,19 +1621,9 @@ app.post("/api/interview-scorecard", aiLimiter, async (req: Request, res: Respon
 });
 
 // API: Generate Common Mistakes & Diagnostics Report from Profile
-app.post("/api/generate-mistakes-report", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/generate-mistakes-report", requireAuth, aiLimiter, async (req: any, res: Response) => {
   try {
-    let userId: string | null = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      try {
-        const idToken = authHeader.split("Bearer ")[1];
-        const decoded = await adminAuth.verifyIdToken(idToken);
-        userId = decoded.uid;
-      } catch (e) {
-        // Not authenticated
-      }
-    }
+    const userId: string | null = req.user?.uid || null;
 
     // Retrieve user submissions from Firestore if authenticated
     let userSubmissions: any[] = [];
@@ -1855,7 +1942,7 @@ const compilerExecuteSchema = z.object({
 });
 
 // AI Review Endpoint (Stage 1: Pure Review & Complexity Analysis)
-app.post("/api/review", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/review", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const parsed = reviewInputSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -1870,7 +1957,7 @@ app.post("/api/review", aiLimiter, async (req: Request, res: Response) => {
 });
 
 // AI Dataset Plan Endpoint (Stage 2: Data Structure Selection, 3 Datasets & Step Plan)
-app.post("/api/generate-plan", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/generate-plan", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const parsed = datasetPlanInputSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -1885,7 +1972,7 @@ app.post("/api/generate-plan", aiLimiter, async (req: Request, res: Response) =>
 });
 
 // AI Dataset Visualization Endpoint (Stage 3: Marker Dictionary & Step Synchronization)
-app.post("/api/visualize-dataset", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/visualize-dataset", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const parsed = datasetVizInputSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -1903,7 +1990,7 @@ app.post("/api/visualize-dataset", aiLimiter, async (req: Request, res: Response
 });
 
 // AI Trace Verification Endpoint
-app.post("/api/verify-trace", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/verify-trace", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { processVerifyDatasetTrace } = await import("./src/lib/review.functions.js");
     const result = await processVerifyDatasetTrace(req.body);
@@ -1915,7 +2002,7 @@ app.post("/api/verify-trace", aiLimiter, async (req: Request, res: Response) => 
 });
 
 // AI Playground Review Endpoint
-app.post("/api/playground-review", aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/playground-review", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const parsed = playgroundReviewInputSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -1930,7 +2017,7 @@ app.post("/api/playground-review", aiLimiter, async (req: Request, res: Response
 });
 
 // C++ Sandboxed Online Compiler Endpoint with Concurrency Guard & Rate Limiting
-app.post("/api/compiler/execute", compilerLimiter, async (req: Request, res: Response) => {
+app.post("/api/compiler/execute", requireAuth, compilerLimiter, async (req: Request, res: Response) => {
   const parsed = compilerExecuteSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -2356,8 +2443,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`DSA.viz Workspace & Intelligence Platform running at http://0.0.0.0:${PORT}`);
+  app.listen(PORT, () => {
+    console.log(`DSA.viz Workspace & Intelligence Platform running at http://localhost:${PORT}`);
   });
 }
 

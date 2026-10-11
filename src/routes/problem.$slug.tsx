@@ -322,7 +322,6 @@ function ProblemPage() {
     if (!pseudocode.trim() || !problem) return;
     setLoading(true);
     setResult(null);
-    setSaved(false);
     try {
       const res = await apiReviewPseudocode({
         slug: problem.slug,
@@ -335,38 +334,47 @@ function ProblemPage() {
       setResult(res);
       setActiveDatasetId(res.active_dataset_id ?? res.datasets?.[0]?.id ?? "dataset_1");
       persist(pseudocode, res);
-      setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
 
+      // Sync review submission directly to Firebase Firestore + backend API
       if (user) {
+        const subPayload = {
+          slug: problem.slug,
+          title: problem.title,
+          difficulty: problem.difficulty,
+          code: pseudocode.trim(),
+          pseudocode: pseudocode.trim(),
+          lang: "pseudocode",
+          classification: res.classification || "Incomplete",
+          timeComplexity: res.complexity?.time || null,
+          spaceComplexity: res.complexity?.space || null,
+          praise: res.praise || null,
+          nudge: res.nudge || null,
+          review: res.review || null,
+          createdAt: new Date().toISOString(),
+        };
         try {
-          const submissionData = {
-            slug: problem.slug,
-            title: problem.title,
-            difficulty: problem.difficulty,
-            code: pseudocode.trim(),
-            status: res.classification,
-            review: res.review,
-            complexity: res.complexity,
-          };
-          const saveResRaw = await fetch("/api/submissions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify(submissionData)
-          });
-          const saveRes = { ok: saveResRaw.ok };
+          const { saveUserSubmission } = await import("@/lib/firestore-service");
+          const currentAuthUser = getAuth().currentUser;
+          if (currentAuthUser) {
+            await saveUserSubmission(currentAuthUser.uid, subPayload).catch(() => {});
+          }
+          if (token) {
+            await fetch("/api/submissions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify(subPayload),
+            }).catch(() => {});
+          }
+          setSaved(true);
           queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
           queryClient.invalidateQueries({ queryKey: ["profileStats"] });
           queryClient.invalidateQueries({ queryKey: ["submissions"] });
-          if (saveRes && (saveRes as any).ok === false) {
-            console.warn("Save submission issue:", (saveRes as any).error);
-          } else {
-            setSaved(true);
-            toast.success("Attempt saved to your profile dashboard");
-          }
-        } catch (saveErr) {
-          console.error("Failed to save attempt:", saveErr);
+        } catch {
+          // Non-blocking telemetry persistence
         }
       }
+
+      setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
     } catch (err) {
       console.error("Problem submission review failed:", err);
       const msg =
@@ -377,7 +385,85 @@ function ProblemPage() {
     } finally {
       setLoading(false);
     }
-  }, [pseudocode, problem, user, token, queryClient, persist]);
+  }, [pseudocode, problem, persist, user, token, queryClient]);
+
+  const handleAcceptedCodeSubmit = useCallback(
+    async (
+      verdict: import("@/lib/leetcode-testcases").LeetCodeSubmitResponse,
+      submittedCode: string,
+      language: string
+    ) => {
+      if (!problem || verdict.status !== "Accepted") return;
+      if (!user || !token) {
+        toast.info("Sign in to record Accepted solutions on your permanent profile dashboard.");
+        return;
+      }
+      try {
+        const submissionData = {
+          slug: problem.slug,
+          title: problem.title,
+          difficulty: problem.difficulty,
+          code: submittedCode.trim(),
+          pseudocode: submittedCode.trim(),
+          lang: language,
+          language,
+          classification: "Optimal",
+          status: "Optimal",
+          timeTakenMs: verdict.runtimeMs || null,
+          timeComplexity: verdict.timeComplexity || null,
+          spaceComplexity: verdict.spaceComplexity || null,
+          review: `${verdict.summaryMessage} • Runtime: ${verdict.runtimeMs} ms (Beats ${verdict.runtimePercentile}%) • Memory: ${verdict.memoryMb} MB (Beats ${verdict.memoryPercentile}%). ${verdict.aiInterviewerNotes}`,
+          complexity: {
+            time: verdict.timeComplexity,
+            space: verdict.spaceComplexity,
+          },
+          createdAt: new Date().toISOString(),
+        };
+
+        try {
+          const { saveUserSubmission } = await import("@/lib/firestore-service");
+          const currentAuthUser = getAuth().currentUser;
+          if (currentAuthUser) {
+            await saveUserSubmission(currentAuthUser.uid, submissionData).catch(() => {});
+          }
+        } catch {
+          // Continue with server API write
+        }
+
+        const saveResRaw = await fetch("/api/submissions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(submissionData),
+        });
+        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["profileStats"] });
+        queryClient.invalidateQueries({ queryKey: ["submissions"] });
+        if (saveResRaw.ok) {
+          setSaved(true);
+          toast.success("Marked as Solved on your Profile!");
+        }
+      } catch (saveErr) {
+        console.error("Failed to save Accepted submission:", saveErr);
+      }
+    },
+    [problem, user, token, queryClient]
+  );
+
+  const handleSyncCodeToVisualizer = useCallback(
+    (editorCode: string) => {
+      if (!editorCode.trim()) {
+        toast.error("Write your code in the editor first before syncing to the visualizer.");
+        return;
+      }
+      setPseudocode(editorCode);
+      persist(editorCode, result);
+      toast.success(
+        "Synced editor code to the Algorithm Visualizer! Click 'Review & Step-by-Step Trace' to animate it."
+      );
+      reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    [persist, result]
+  );
 
   const sessionStore = useSessionContextStore();
 
@@ -1473,16 +1559,16 @@ def solve(input_data):
             stageMode === "expanded" ? "lg:col-span-12 xl:col-span-3" : ""
           }`}
         >
-          <div className="rounded-3xl border border-border/70 bg-card/60 p-6 shadow-sm backdrop-blur-md flex flex-col gap-3">
+          <div className="rounded-3xl border border-border/70 bg-card/60 p-5 shadow-sm backdrop-blur-md flex flex-col gap-3">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
                 <Code2 className="size-4 text-primary" />
                 <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
-                  Integrated Code Editor (VS Code / Monaco)
+                  LeetCode Judge &amp; Code Editor
                 </h3>
               </div>
-              <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 font-mono text-[10px] font-bold text-primary">
-                Multi-Language (Python, C++, JS)
+              <span className="rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 font-mono text-[10px] font-bold text-emerald-400">
+                Run (3 Cases) • Submit (Stress Suite)
               </span>
             </div>
 
@@ -1494,9 +1580,15 @@ def solve(input_data):
               githubLoading={githubLoading}
               problemTitle={problem.title}
               problemSlug={problem.slug}
+              problemDifficulty={problem.difficulty}
+              problemTopics={problem.topics}
+              problemStatement={statement}
               defaultLanguage="python"
-              height="380px"
+              height="340px"
               showSubmitButton={false}
+              enableLeetCodeJudge={true}
+              onAcceptedSubmit={handleAcceptedCodeSubmit}
+              onSyncToVisualizer={handleSyncCodeToVisualizer}
             />
           </div>
 

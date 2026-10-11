@@ -1,54 +1,68 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter, useLocation } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
-
-// Publicly accessible paths allowed without an active authenticated session
-const PUBLIC_PATHS = new Set(["/auth", "/terms", "/privacy", "/cookies"]);
+import { ShieldCheck, Lock } from "lucide-react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const router = useRouter();
   const location = useLocation();
+  const navigate = useNavigate();
 
-  const isPublicRoute = PUBLIC_PATHS.has(location.pathname);
-  const isAuthenticated = Boolean(user && user.uid && user.uid !== "guest-developer");
-  const [initialLoading, setInitialLoading] = useState(true);
+  const rawPathname = location.pathname || "/";
+  const pathname = rawPathname === "/" ? "/" : rawPathname.replace(/\/+$/, "");
+  const isPublicRoute = pathname === "/" || pathname === "/auth";
 
   useEffect(() => {
-    if (!loading) {
-      if (!isAuthenticated && !isPublicRoute) {
-        // Enforce authorized login across the website
-        const redirectParam = location.pathname && location.pathname !== "/" ? { redirect: location.pathname } : undefined;
-        router.navigate({ to: "/auth", search: redirectParam });
-      } else if (isAuthenticated && location.pathname === "/auth") {
-        // Already authenticated, redirect away from login page to target or home
-        const redirectParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("redirect") : null;
-        const target = redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//") ? redirectParam : "/";
-        router.navigate({ to: target as any });
-      }
-      setInitialLoading(false);
+    if (!loading && !user && !isPublicRoute) {
+      const target = `${location.pathname}${location.searchStr || ""}`;
+      navigate({
+        to: "/auth",
+        search: { redirect: target } as any,
+        replace: true,
+      });
     }
-  }, [isAuthenticated, loading, isPublicRoute, location.pathname, router]);
+  }, [loading, user, isPublicRoute, location.pathname, location.searchStr, navigate]);
 
-  // Allow public routes
   if (isPublicRoute) {
     return <>{children}</>;
   }
 
-  // Show loading spinner while verifying authorization
-  if (loading || initialLoading) {
+  if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="size-8 animate-spin text-primary" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-4">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-border/80 bg-card/90 px-8 py-7 shadow-xl backdrop-blur-md">
+          <div className="flex size-12 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/30">
+            <ShieldCheck className="size-6 animate-pulse" />
+          </div>
+          <div className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-foreground">
+            Verifying Google Security Session
+          </div>
+          <p className="text-[11px] font-mono text-muted-foreground">
+            Validating encrypted OAuth token...
+          </p>
+        </div>
       </div>
     );
   }
 
-  // If unauthorized, block rendering while redirecting
-  if (!isAuthenticated) {
-    return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-4">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-border/80 bg-card/90 px-8 py-7 shadow-xl backdrop-blur-md">
+          <div className="flex size-12 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/30">
+            <Lock className="size-6" />
+          </div>
+          <div className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-foreground">
+            Authentication Required
+          </div>
+          <p className="text-[11px] font-mono text-muted-foreground">
+            Redirecting to Google Sign-In...
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
 }
+

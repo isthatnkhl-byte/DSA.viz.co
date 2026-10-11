@@ -74,13 +74,10 @@ test('requireAuth - rejects forged unverified JWT payload without signature bypa
   assert.match(responseBody.error, /Unauthorized/);
 });
 
-test('requireAuth - accepts gated mock user header strictly in test environment', async () => {
-  const previousEnv = process.env.NODE_ENV;
-  process.env.NODE_ENV = 'test';
-
+test('requireAuth - rejects local-dev-token and mock user header bypasses', async () => {
   const req = {
     headers: {
-      authorization: 'Bearer valid_mock_bearer_token',
+      authorization: 'Bearer local-dev-token',
       'x-test-mock-user-id': 'test_engineer_42',
       'x-test-mock-email': 'dev@dsaviz.internal',
     },
@@ -104,9 +101,7 @@ test('requireAuth - accepts gated mock user header strictly in test environment'
 
   await requireAuth(req, res, next);
 
-  assert.equal(nextCalled, true);
-  assert.equal(statusCode, 0);
-  assert.equal(req.user?.uid, 'test_engineer_42');
-
-  process.env.NODE_ENV = previousEnv;
+  assert.equal(nextCalled, false);
+  assert.equal(statusCode, 401);
+  assert.equal(req.user, undefined);
 });

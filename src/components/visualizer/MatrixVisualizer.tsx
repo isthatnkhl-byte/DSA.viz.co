@@ -756,7 +756,16 @@ export function MatrixVisualizer({
       >
         {matrix.length === 0 ? (
           <span className="font-mono text-sm text-muted-foreground">Empty grid</span>
-        ) : (
+        ) : (() => {
+          let maxCellChars = 3;
+          for (const r of matrix) {
+            for (const cellVal of r.slice(0, cols)) {
+              const s = cellVal !== undefined && cellVal !== null ? toText(cellVal) : "";
+              if (s.length > maxCellChars) maxCellChars = s.length;
+            }
+          }
+          const dynamicCellWidthPx = Math.max(48, Math.min(160, maxCellChars * 8 + 22));
+          return (
           <div className="flex flex-col gap-2">
             {/* Column Indices Header */}
             <div className="flex gap-2 pl-9">
@@ -769,7 +778,8 @@ export function MatrixVisualizer({
                 return (
                   <div
                     key={`col-idx-${c}`}
-                    className={`w-12 text-center font-mono text-[11px] font-bold transition-all ${
+                    style={{ width: `${dynamicCellWidthPx}px` }}
+                    className={`shrink-0 text-center font-mono text-[11px] font-bold transition-all ${
                       isColMarked
                         ? "text-rose-400 font-black scale-110"
                         : isQueenCol
@@ -797,7 +807,7 @@ export function MatrixVisualizer({
                 <div key={`row-${r}`} className="flex items-center gap-2">
                   {/* Row Index Label */}
                   <span
-                    className={`w-7 text-right pr-1 font-mono text-[11px] font-bold transition-all ${
+                    className={`w-7 shrink-0 text-right pr-1 font-mono text-[11px] font-bold transition-all ${
                       isRowMarked
                         ? "text-rose-400 font-black scale-110"
                         : isQueenRow
@@ -937,7 +947,8 @@ export function MatrixVisualizer({
                     return (
                       <div
                         key={`cell-${r}-${c}`}
-                        className={`relative flex size-12 flex-col items-center justify-center rounded-xl border font-mono transition-all duration-300 select-none ${
+                        style={{ width: `${dynamicCellWidthPx}px` }}
+                        className={`relative flex min-h-12 shrink-0 px-1.5 py-1 flex-col items-center justify-center rounded-xl border font-mono whitespace-nowrap transition-all duration-300 select-none ${
                           isQueen
                             ? "z-20 scale-110 border-amber-400 bg-amber-500 text-slate-950 shadow-xl shadow-amber-500/50 ring-4 ring-amber-300 font-black animate-bounce-short"
                             : isConflictCell
@@ -1167,7 +1178,8 @@ export function MatrixVisualizer({
               );
             })}
           </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Visited Set & Coordinates Explorer */}

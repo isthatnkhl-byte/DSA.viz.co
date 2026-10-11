@@ -320,7 +320,7 @@ export function VariableWatchTable({
       </div>
 
       {showRawJson ? (
-        <pre className="max-h-56 overflow-auto rounded-xl border border-border/60 bg-background/90 p-3 font-mono text-[11px] text-muted-foreground shadow-inner">
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-border/60 bg-background/90 p-3 font-mono text-[11px] text-muted-foreground shadow-inner">
           {JSON.stringify(currentStep, null, 2)}
         </pre>
       ) : (
@@ -343,15 +343,15 @@ export function VariableWatchTable({
                     v.hasChanged ? "bg-primary/5 font-semibold" : ""
                   }`}
                 >
-                  <td className="py-1.5 px-3 font-mono font-bold text-foreground">
+                  <td className="py-1.5 px-3 font-mono font-bold text-foreground break-words">
                     {v.name}
                   </td>
                   <td className="py-1.5 px-2 text-[10px] text-muted-foreground">
                     {v.type}
                   </td>
-                  <td className="py-1.5 px-3">
+                  <td className="py-1.5 px-3 break-words">
                     <span
-                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 ${
+                      className={`inline-flex flex-wrap items-center gap-1 rounded-md px-1.5 py-0.5 break-all ${
                         v.hasChanged
                           ? "bg-primary/20 text-primary font-bold border border-primary/30 animate-pulse"
                           : "text-foreground"
@@ -359,14 +359,14 @@ export function VariableWatchTable({
                     >
                       {v.currentValue}
                       {v.deltaDir === "up" && (
-                        <ArrowUpRight className="size-3 text-emerald-400" />
+                        <ArrowUpRight className="size-3 text-emerald-400 shrink-0" />
                       )}
                       {v.deltaDir === "down" && (
-                        <ArrowDownRight className="size-3 text-amber-400" />
+                        <ArrowDownRight className="size-3 text-amber-400 shrink-0" />
                       )}
                     </span>
                   </td>
-                  <td className="py-1.5 px-3 text-muted-foreground/70">
+                  <td className="py-1.5 px-3 text-muted-foreground/70 break-all">
                     {v.prevValue}
                   </td>
                   <td className="py-1.5 px-2 text-center">

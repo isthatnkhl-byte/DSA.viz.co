@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/context/ChatContext";
+import { getAuth } from "firebase/auth";
 import { toast } from "sonner";
 
 export interface InterviewerNudge {
@@ -85,9 +86,14 @@ export function ProblemDiffNudgePanel({
 
     setLoading(true);
     try {
+      const auth = getAuth();
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
       const res = await fetch("/api/code-diff-nudge", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           code: effectiveCode,
           pseudocode,

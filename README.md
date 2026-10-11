@@ -1,454 +1,356 @@
 <div align="center">
 
-# ⚡ DSA.viz.co
+<kbd>INDEX 01 &nbsp;·&nbsp; 1,500+ ALGORITHMS &nbsp;·&nbsp; STEP-BY-STEP VISUALIZER &nbsp;·&nbsp; C++20 SANDBOX</kbd>
 
-### _Next-Generation Algorithmic Visualization, Socratic AI Interviewer & Sandboxed Execution Platform_
+<h1>⚡ DSA.viz.co — Master Algorithms by Seeing How They Think</h1>
 
-<br/>
+<p>
+  <b>The Interactive Neo-Brutalist Print-Tech Platform for Frame-by-Frame Algorithm Visualization, Dynamic Multi-Testcase Judging, Socratic AI Mentorship, and Proctored FAANG Mock Interviews.</b>
+</p>
 
-[![Live Production](https://img.shields.io/badge/Live%20Platform-dsa--viz.co-10b981?style=for-the-badge&logo=vercel&logoColor=white)](https://dsa-viz.co)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8%20Strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React 19](https://img.shields.io/badge/React-19.2%20Concurrent-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Express 5](https://img.shields.io/badge/Express-5.2%20REST-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
-[![Google Gemini API](https://img.shields.io/badge/Google%20Gemini-3.8%20Flash%20%7C%203.1%20Pro-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
-[![Security Posture](https://img.shields.io/badge/Security-Zero%20Trust%20Hardened-emerald?style=for-the-badge&logo=shield&logoColor=white)](#-enterprise-security--zero-trust-architecture)
-[![Automated Tests](<https://img.shields.io/badge/Tests-145%20Passing%20(100%25)-success?style=for-the-badge&logo=node.js&logoColor=white>)](https://nodejs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+<p>
+  <a href="https://github.com/isthatnkhl-byte/DSA.viz.co"><img src="https://img.shields.io/badge/DSA.viz.co-LIVE%20ENGINE-7C3AED?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Engine" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.8%20Strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript 5.8" /></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19.2%20Concurrent-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19.2" /></a>
+  <a href="https://expressjs.com/"><img src="https://img.shields.io/badge/Express-5.2%20Zero--Trust-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express 5.2" /></a>
+  <a href="https://ai.google.dev/"><img src="https://img.shields.io/badge/Gemini%203.8%20%2B%20OpenRouter-Multi--Model%20Race-D97706?style=for-the-badge&logo=google&logoColor=white" alt="Gemini AI" /></a>
+  <a href="#-zero-trust-security--google-oauth-architecture"><img src="https://img.shields.io/badge/Security-Google%20OAuth%20%2B%20HSTS%20Preload-10B981?style=for-the-badge&logo=shield&logoColor=white" alt="Zero Trust Security" /></a>
+</p>
 
-<br/>
+<br />
 
-<a href="https://dsa-viz.co">
-  <img src="public/og-image.png" alt="DSA.viz.co Platform Hero Banner" width="94%" style="border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.1);" />
+<a href="https://github.com/isthatnkhl-byte/DSA.viz.co">
+  <img src="public/og-image.jpg" alt="DSA.viz.co — Master algorithms by seeing how they think" width="100%" />
 </a>
 
-<br/><br/>
+<br /><br />
 
-**DSA.viz.co** is an enterprise-grade algorithmic mastery and technical interview preparation ecosystem. It bridges the gap between abstract algorithmic syntax and physical spatial intuition through deterministic frame-by-frame animations, live Socratic FAANG mock interviews, isolated compiler sandboxes, and multi-model AI racing.
-
-[🌐 Live Platform](https://dsa-viz.co) • [✨ Key Innovations](#-key-innovations--platform-features) • [🏛 System Architecture](#-system-architecture) • [📊 Visualization Engine](#-multi-datastructure-visualization-matrix) • [🎙️ Proctored Live Interview](#-proctored-live-interview-simulator) • [🛡️ Security Architecture](#-enterprise-security--zero-trust-architecture) • [🚀 Quickstart](#-getting-started--local-development) • [💼 Resume Highlights](#-faang-resume-ready-engineering-bullets)
+<p>
+  <a href="#-interactive-platform-tour"><b>🎛️ Interactive Tour</b></a> &nbsp;•&nbsp;
+  <a href="#-dynamic-multi-testcase-judge-engine"><b>⚖️ Dynamic Judge</b></a> &nbsp;•&nbsp;
+  <a href="#-curated-dsa-sheets--telemetry-profile"><b>📚 DSA Sheets & Profile</b></a> &nbsp;•&nbsp;
+  <a href="#-multi-datastructure-visualization-engine"><b>📊 11 Visualizers</b></a> &nbsp;•&nbsp;
+  <a href="#-system-architecture--execution-flow"><b>🏛️ Architecture</b></a> &nbsp;•&nbsp;
+  <a href="#-zero-trust-security--google-oauth-architecture"><b>🛡️ Security Vault</b></a> &nbsp;•&nbsp;
+  <a href="#-quickstart--vercel-deployment"><b>🚀 Quickstart & Deploy</b></a>
+</p>
 
 </div>
 
 ---
 
-## 🧭 Table of Contents
+## 🎛️ Interactive Platform Tour
 
-- [📌 Executive Overview](#-executive-overview)
-- [✨ Key Innovations & Platform Features](#-key-innovations--platform-features)
-- [🏛 System Architecture & Data Flow](#-system-architecture)
-- [📊 Multi-Datastructure Visualization Matrix](#-multi-datastructure-visualization-matrix)
-- [🎙️ Proctored Live Interview Simulator](#-proctored-live-interview-simulator)
-- [🤖 Multi-Model AI Racing & Failover Pipeline](#-multi-model-ai-racing--failover-pipeline)
-- [🛡️ Enterprise Security & Zero-Trust Architecture](#-enterprise-security--zero-trust-architecture)
-- [🛠 Tech Stack & Engineering Foundations](#-tech-stack--ecosystem)
-- [📁 Repository Blueprint](#-repository-blueprint)
-- [🚀 Getting Started & Local Development](#-getting-started--local-development)
-- [🧪 Automated Test Suite & Quality Assurance](#-automated-test-suite--quality-assurance)
-- [💼 FAANG-Resume-Ready Engineering Bullets](#-faang-resume-ready-engineering-bullets)
-- [📄 License & Authorship](#-license--authorship)
+> [!TIP]
+> **Click any module below** to expand its interactive architectural walkthrough, live UI states, and invariant mechanics.
+
+<details open>
+<summary><b>01 · 🎨 Neo-Brutalist Print-Tech Landing Stage & 12-Theme CMYK Calibration</b> <i>(Click to toggle)</i></summary>
+<br />
+
+The landing experience (`/` — publicly visible, with zero-trust authentication gating on all interactive actions) is engineered around a tactile **Print-Tech Editorial** aesthetic with corner registration bullseyes (`+`), halftone dot-matrix frames, and an interactive **12-Theme OKLCH Color Calibration Bar** that dynamically re-inks the entire platform:
+
+| Swatch Code | Theme Name | Primary Ink (`--primary`) | Complementary Accent (`--complement`) | Visual Character |
+| :---: | :--- | :--- | :--- | :--- |
+| `VI` | **Purple (Default)** | Electric Violet `oklch(0.62 0.24 292)` | Warm Amber-Gold `oklch(0.75 0.17 75)` | High-contrast editorial print |
+| `C` | **Cyan** | Process Cyan `oklch(0.64 0.18 208)` | Coral Vermilion `oklch(0.64 0.21 32)` | Blueprint engineering |
+| `M` | **Rose** | Process Magenta `oklch(0.62 0.24 348)` | Mint Emerald `oklch(0.72 0.17 162)` | Swiss poster typography |
+| `Y` | **Solar** | Solar Gold `oklch(0.78 0.19 75)` | Deep Ultramarine `oklch(0.55 0.22 268)` | High-luminance laboratory |
+| `K` | **Obsidian** | Carbon Ink `oklch(0.22 0.02 260)` | Signal Orange `oklch(0.68 0.21 42)` | Monochrome brutalist |
+| `EM` | **Emerald** | Forest Emerald `oklch(0.62 0.19 158)` | Warm Magenta `oklch(0.64 0.22 340)` | Terminal telemetry |
+| `CY` | **Cyberpunk** | Neon Fuchsia `oklch(0.64 0.27 328)` | Acid Cyan `oklch(0.78 0.16 198)` | Synthwave night ops |
+
+</details>
+
+<details>
+<summary><b>02 · ⚖️ Dynamic Multi-Testcase AI + Sandbox LeetCode Judge (1,500+ Problems)</b> <i>(Click to toggle)</i></summary>
+<br />
+
+Unlike static platforms that hardcode answers for a handful of problems, **DSA.viz.co** dynamically evaluates any of its **1,500+ problems** across **C++, C, Java, Python, JavaScript, TypeScript, and Pseudocode**:
+
+1. **Canonical Sample & Hidden Edge-Case Generation (`src/lib/leetcode-testcases.ts`)**: Automatically extracts problem-specific sample inputs/outputs and synthesizes boundary test cases.
+2. **Real Sandbox Execution + Deterministic Trace Verification (`src/lib/leetcode-judge.server.ts`)**:
+   - Executes candidate solutions against every test case (`Case 1`, `Case 2`, `Case 3`, plus custom user inputs).
+   - Returns per-case **Input**, **Your Output**, **Expected Output**, **Runtime (ms)**, and **Diff Diagnostics**.
+3. **Strict Promotion Gate**: Only when **all test cases pass** (`allPassed === true`) does the submission unlock one-click **Submit & Persist to Cloud Profile + GitHub Sync**.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ ✅ ACCEPTED · 3/3 Test Cases Passed · Runtime: 2 ms · Optimal: O(m · n)          │
+├──────────────┬──────────────┬──────────────┬─────────────────────────────────────┤
+│ [✓ Case 1]   │ [✓ Case 2]   │ [✓ Case 3]   │ [+ Custom Testcase]                 │
+├──────────────┴──────────────┴──────────────┴─────────────────────────────────────┤
+│ INPUT                                                                            │
+│ grid = [[1,1,0,0],[1,1,0,0],[0,0,1,0],[0,0,0,1]]                                 │
+│                                                                                  │
+│ YOUR OUTPUT (1 ms)                         EXPECTED OUTPUT                       │
+│ 4                                          4                                     │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+</details>
+
+<details>
+<summary><b>03 · 📚 Overhauled DSA Sheets Command Center (Search + Random Unsolved Spotlight)</b> <i>(Click to toggle)</i></summary>
+<br />
+
+A unified mastery workspace (`/sheets`) featuring curated roadmaps (**Striver SDE Sheet**, **NeetCode 150**, **Blind 75**, **Grind 75**, **Love Babbar 450**) with:
+
+- **Global Cross-Sheet Search (`/` shortcut)**: Type any problem title, slug, or topic tag to search across all sheets simultaneously—even if the problem belongs to another sheet or topic filter—with one-click **"Search All Sheets"** expansion.
+- **🎲 Random Unsolved Spotlight Banner**: Clicking **Random Unsolved** selects an unsolved problem, auto-expands its parent category, scrolls smoothly into view, and launches a dedicated **Spotlight Action Card** with direct **Solve in Compiler** and **Open Visualizer** actions.
+- **Live Firebase Cloud Sync**: Automatically merges problems you've solved in the DSA.viz Judge with your manual checklist and starred bookmarks.
+
+</details>
+
+<details>
+<summary><b>04 · 👤 Unified Profile & Telemetry Dashboard (`/profile`)</b> <i>(Click to toggle)</i></summary>
+<br />
+
+Both the Dashboard and Profile have been unified into a single real-time **Algorithmic Telemetry Command Center** (`/profile`) backed by Firebase Firestore + LeetCode GraphQL + GitHub OAuth:
+
+- **Real-Time KPI Bento Grid**: Solved Count, Optimal Rate %, Current & Best Daily Streak, Average Runtime, and Topic Mastery Breakdown.
+- **Unified 52-Week Activity Heatmap**: Combines your on-platform DSA.viz submissions with synced LeetCode submission calendars.
+- **Interactive Submission Replay Vault**: Click any past submission to inspect your exact code, AI complexity audit, and replay the **saved step-by-step animation trace** right inside your profile.
+- **One-Click GitHub Solution Sync**: Automatically commits accepted solutions to your `LeetCode-Solutions` repository with AES-256-GCM encrypted OAuth tokens.
+
+</details>
+
+<details>
+<summary><b>05 · 🎙️ Proctored FAANG Live Mock Interview Suite (`/live-interview`)</b> <i>(Click to toggle)</i></summary>
+<br />
+
+Simulates a real 45-minute technical interview with a staff-level AI interviewer:
+
+- **3-Tier Progressive Complexity Gate**:
+  - **Tier 1 (Brute Force)**: Establish a working baseline and verify edge cases.
+  - **Tier 2 (Better / Space-Time Tradeoff)**: Optimize time complexity using auxiliary data structures.
+  - **Tier 3 (Optimal In-Place)**: Achieve optimal asymptotic time & space bounds.
+- **Live Voice & Camera Proctoring**: Real-time WebAudio frequency telemetry, focus/tab-switch lockdown monitoring, and a full **FAANG Hiring Committee Scorecard** upon completion.
+
+</details>
+
+<details>
+<summary><b>06 · 🔐 Zero-Knowledge AES-256-GCM Personal API Key Vault (`KEY VAULT`)</b> <i>(Click to toggle)</i></summary>
+<br />
+
+Want to run unlimited AI evaluations with your own **Google Gemini (`AIza...`)**, **OpenRouter (`sk-or-...`)**, or **OpenAI (`sk-...`)** key?
+
+- **Zero Browser Storage**: Keys are never stored in `localStorage` or exposed to client JavaScript after submission.
+- **AES-256-GCM Authenticated Encryption**: Keys are encrypted in backend memory using a scrypt-derived master key with the user's `ownerId` bound as Additional Authenticated Data (`AAD`), so ciphertexts cannot be transplanted across users.
+- **Live Provider Verification**: Every key is live-tested against its provider before being sealed into the vault, returning only an irreversible masked hint (e.g. `AIza••••••••9x2Q`).
+
+</details>
 
 ---
 
-## 📌 Executive Overview
+## 📊 Multi-Datastructure Visualization Engine
 
-Traditional algorithmic practice on platforms like LeetCode or HackerRank forces developers to run mental simulations of complex memory states—tracking pointer reassignments, recursion stack allocations, boundary invariants, and dynamic programming state transitions purely in their head.
+Every problem on **DSA.viz.co** automatically selects the optimal spatial renderer from **11 specialized canvas engines**:
 
-**DSA.viz.co transforms this paradigm into an interactive spatial playground:**
-
-1. **Draft in Any Language:** Write logic in natural pseudocode or production languages (Python, C++, Java, JavaScript, TypeScript, Go, Rust).
-2. **Instant Spatial Deconstruction:** Watch your code come to life in a scrubbable, step-by-step visual canvas with deterministic data structure representations.
-3. **Live Socratic Mentorship:** An AI interviewer guides your invariant reasoning with thought-provoking questions, never spoiling solutions prematurely.
-4. **Proctored FAANG Simulation:** Practice with live webcam/microphone volume telemetry, realistic human voice synthesis, and multi-tier complexity goals (Brute Force $\rightarrow$ Better $\rightarrow$ Optimal).
-5. **Zero-Trust Sandboxed Execution:** Run C++, Python, and JavaScript without executing untrusted code on the host server.
-
----
-
-## ✨ Key Innovations & Platform Features
-
-### 1. 🎙️ Proctored Live Mock Interview Engine
-
-- **3-Tier Progressive Objectives:** Candidates must conquer Tier 1 (Brute Force $O(N^2)$), advance to Tier 2 (Space-Time Tradeoff $O(N)$ with memory), and finalize Tier 3 (Optimal In-Place $O(1)$).
-- **Realistic Voicepack Synthesis:** High-fidelity speech synthesis offering multiple distinct interviewer personas (Google Staff Engineer, Meta Systems Lead, Patient Mentor).
-- **Hardware Telemetry & Volume Monitoring:** Real-time Web Audio API frequency analysis powering responsive microphone and camera level monitors.
-- **Privacy-First Hardware Processing:** Web camera and microphone streams are evaluated exclusively in the browser realm; no biometric or media packets ever leave the client.
-
-### 2. 🎬 Scrubbable Step-by-Step Playback Orchestrator
-
-- **Bidirectional Timeline Scrubbing:** Rewind, pause, single-step forward, or jump across algorithmic execution frames.
-- **Breakpoint Detection & Line Wrapping:** Set execution breakpoints directly on pseudocode lines and watch the engine halt precisely when invariants trigger.
-- **Variable Transition Badges:** Visual badges dynamically light up to highlight state mutations, array pointer swaps, and stack pushes/pops.
-
-### 3. 🧠 Multi-Persona Gemini Socratic AI Coach
-
-- **5 Configurable Personas:**
-  - **Socratic Technical Interviewer:** Challenges edge-case assumptions (empty inputs, integer overflows, duplicate keys) without disclosing answers.
-  - **General CS Coach:** Comprehensive explanations, proofs, and production implementations in multiple languages with detached problem context.
-  - **Simulation Step Guide:** Deconstructs specific variable transitions for the active animation frame.
-  - **Algorithmic Submission Rater:** Detailed scores (1–10), space-time asymptotic proofs, and code cleanliness grades (S/A/B/C/D).
-  - **Code Diagnostics & Mistakes Lint:** Identifies subtle typing mistakes, off-by-one boundary bugs, and infinite loop conditions.
-- **Mathematical Unicode Normalization:** Automated pipeline that translates raw unescaped LaTeX equations into crisp Unicode notation (`O(N log N)`, `≤`, `≥`, `≠`, `×`, `·`, `√n`).
-
-### 4. 🧮 Tolerant Custom Dataset Ingestion
-
-- Ingests test cases without rigid JSON syntax barriers.
-- Automatically parses space-delimited numbers (`1 2 3 4`), comma lists (`[10, 20, 30]`), multiline matrices (`[[1,2],[3,4]]`), and tree null nodes (`[1, null, 2, 3]`).
-
-### 5. ⚡ Remote Sandboxed Compiler (C++, Python, JS, TS)
-
-- Fast execution via Compiler Explorer (Godbolt) and Wandbox isolated Linux micro-sandboxes.
-- **16-Header Standard Package Explorer:** Live documentation for `<vector>`, `<algorithm>`, `<unordered_map>`, `<queue>`, `<stack>`, `<set>`, `<cmath>`, `<numeric>`, and more.
-- Sub-second execution metrics displaying exact execution duration (ms), exit codes, and standard error streams.
+| Engine | Target Algorithmic Patterns | Interactive Visual Telemetry |
+| :--- | :--- | :--- |
+| **`ArrayVisualizer`** | Two Pointers, Sliding Window, Binary Search, Quick/Merge Sort | Proportional bar heights, `L` / `R` / `mid` pointer badges, active window bounding boxes, swap arcs |
+| **`MatrixVisualizer`** | 2D Grid DFS/BFS, Flood Fill, Island Counting, Shortest Path | Coordinate `(r, c)` cursor, 4-way directional arrows, visited cell states, island cluster coloring |
+| **`TreeVisualizer`** | Binary Tree DFS/BFS, BST Validation, LCA, Serialization | Hierarchical SVG node layout, recursive call-stack breadcrumbs, active parent-child edge pulses |
+| **`GraphVisualizer`** | Dijkstra, Kahn's Topological Sort, Union-Find, Cycle Detection | Force-directed & layered node topology, edge weights, in-degree badges, visited frontier glow |
+| **`DpTableVisualizer`** | 1D/2D Knapsack, LCS, Edit Distance, Coin Change | Memoization grid, dependency arrows (`dp[i-1][j-1] → dp[i][j]`), recurrence formula readout |
+| **`MonotonicStackVisualizer`** | Next Greater Element, Largest Rectangle in Histogram, Daily Temps | Vertical LIFO canister, push/pop animations, monotonic invariant violation highlights |
+| **`StackQueueVisualizer`** | Valid Parentheses, BFS Level-Order Queue, Sliding Window Deque | Dual LIFO/FIFO lanes, head/tail markers, operation history badges |
+| **`HashMapVisualizer`** | Two Sum, Group Anagrams, Subarray Sum Equals K, Frequency Maps | Key-value bucket slots, hash lookup flashes, collision/update counters |
+| **`BinaryHeapVisualizer`** | Top-K Elements, Median Finder, Merge K Sorted Lists | Synchronized dual view: Complete Binary Tree SVG + underlying 0-indexed Heap Array |
+| **`RecursionVisualizer`** | Backtracking, Permutations, Subsets, N-Queens, Memoized DFS | Live call-tree expansion, stack frame depth meter, base-case return value propagation |
+| **`DesignDataStructureVisualizer`** | LRU Cache, LFU Cache, Trie (Prefix Tree), MinStack | Composite state inspector showing doubly-linked list order + hash map pointers simultaneously |
 
 ---
 
-## 🏛 System Architecture
+## 🏛️ System Architecture & Execution Flow
+
+### 1. End-to-End Request & Zero-Trust Auth Pipeline
 
 ```mermaid
-flowchart TD
-    subgraph ClientLayer["Frontend Realm (React 19 + TanStack Router + Tailwind v4)"]
-        UI["DSA.viz Interface & Navigation"]
-        Monaco["Monaco Editor (Custom Keybindings & Multi-Language)"]
-        Canvas["Multi-DS Canvas Visualizer"]
-        InterviewRoom["Proctored Mock Interview Suite (WebCam & Audio)"]
-        PlaybackControls["Playback Orchestrator (Clamping, Scrubber, Breakpoints)"]
-        CoachModal["Gemini Socratic AI Assistant (5 Personas)"]
+flowchart TB
+    subgraph Browser["🌐 Client Realm (React 19 + TanStack Router + Tailwind v4)"]
+        Landing["Public Landing Stage (/)\nLive Hero Preview + Interaction Gate"]
+        AuthPage["Google OAuth Gate (/auth)\nFirebase Popup + Redirect Fallback"]
+        Workspace["Protected Workspaces\n/problems · /sheets · /playground · /compiler · /live-interview · /profile"]
+        KeyVaultModal["API Key Vault Modal\nZero-Frontend-Storage BYOK"]
     end
 
-    subgraph ServerLayer["Secure Server Realm (Express 5.2 + Node.js)"]
-        SecurityHeaders["HTTP Hardening (CSP, X-Frame-Options, HSTS, NoSniff)"]
-        RateGate["Rate Limiters (apiLimiter, aiLimiter, compilerLimiter)"]
-        AuthMiddleware["requireAuth Middleware (Firebase Admin JWT Verification)"]
-        Routes["API Endpoints (/chat, /review, /interview, /compiler, /github)"]
+    subgraph EdgeSecurity["🛡️ Express 5.2 Security & Auth Perimeter"]
+        HTTPS["httpsEnforcer\n301 Redirect + 2-Year HSTS Preload"]
+        Headers["securityHeadersMiddleware\nCSP + COOP + CORP + NoSniff"]
+        AuthGate["requireAuth Middleware\nFirebase Admin + RS256 JWKS Verification"]
+        VaultCtx["attachUserKeyVaultContext\nAsyncLocalStorage Per-Request Decryption"]
     end
 
-    subgraph IntelligenceEngine["AI Orchestration & Normalization"]
-        ModelRace["Gemini 3.8 / 3.5 / 3.1 Model Racing Engine"]
-        OpenRouterFallback["OpenRouter Redundant Multi-Model Pool"]
-        ASTNormalizer["AI Contract Validator & Invariant Heuristic Engine"]
-        MathSanitizer["LaTeX to Unicode Mathematical Normalizer"]
+    subgraph CoreEngines["⚙️ Backend Intelligence & Execution Engines"]
+        Judge["LeetCode Multi-Testcase Judge\nSample + Hidden Boundary Runner"]
+        AIRace["Multi-Model AI Racing Engine\nGemini 3.8/2.5 Flash ↔ OpenRouter ↔ OpenAI"]
+        Compiler["Isolated Cloud Compiler\nGodbolt GCC 14.1 / Java 21 / Python 3.12 + Wandbox"]
+        Sync["Telemetry Sync Engine\nFirestore + LeetCode GraphQL + GitHub REST"]
     end
 
-    subgraph SandboxedExecution["Isolated Remote Container Sandboxes"]
-        Godbolt["Compiler Explorer API (GCC 14.1 / Clang)"]
-        Wandbox["Wandbox Linux Micro-Containers (Python 3.12 / Node.js 20)"]
-    end
-
-    subgraph PersistenceLayer["Secure Cloud Infrastructure"]
-        Firestore[("Cloud Firestore (Owner-Locked User Data & Submissions)")]
-        FirebaseAuth["Firebase Auth (Google OAuth & Cryptographic Tokens)"]
-        GitHubAPI["GitHub REST API (LeetCode Repo Sync)"]
-    end
-
-    UI --> SecurityHeaders --> RateGate --> AuthMiddleware --> Routes
-    Monaco --> Routes
-    InterviewRoom --> Routes
-    CoachModal --> Routes
-
-    Routes --> ModelRace
-    ModelRace -->|Primary| IntelligenceEngine
-    ModelRace -.->|429/503 Quota Failover| OpenRouterFallback
-    IntelligenceEngine --> MathSanitizer --> ClientLayer
-    IntelligenceEngine --> ASTNormalizer --> Canvas
-
-    Routes --> SandboxedExecution
-    SandboxedExecution --> Godbolt
-    SandboxedExecution --> Wandbox
-
-    AuthMiddleware <--> FirebaseAuth
-    Routes <--> Firestore
-    Routes <--> GitHubAPI
+    Landing -->|Click Any Action / Route| AuthPage
+    AuthPage -->|Verified Google ID Token| Workspace
+    Workspace -->|Bearer JWT| HTTPS --> Headers --> AuthGate --> VaultCtx
+    KeyVaultModal -->|AES-256-GCM Seal| VaultCtx
+    VaultCtx --> Judge & AIRace & Compiler & Sync
 ```
 
----
-
-## 📊 Multi-Datastructure Visualization Matrix
-
-| Data Structure Category          | Visualization Paradigm                         | Active Visual Indicators & Invariants                                                                                                                                             |
-| :------------------------------- | :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Singly & Doubly Linked Lists** | Node cards linked with directional pointers    | Multi-pointer badges (`dummy`, `slow`, `fast`, `curr`, `prev`, `next`), pointer redirection arcs, node creation/deletion pulses, cycle detection loops.                           |
-| **2D Matrix & Island Grids**     | Dynamic grid coordinate canvas                 | Active coordinates `(r, c)`, visited set overlays, 4-way recursive direction vectors (`UP`, `DOWN`, `LEFT`, `RIGHT`), dynamic island cluster coloration, real-time area counters. |
-| **Binary Trees & BSTs**          | Hierarchical SVG tree geometry                 | Current node indicator, DFS recursive call stack trace, BFS FIFO queue buffer, branch traversal pulses, null pointer leaves.                                                      |
-| **1D & 2D Dynamic Programming**  | Interactive state-transition matrix            | Active cell `dp[i][j]`, dependency arrow vectors highlighting subproblem origins, base-case highlights, recurrence formula step notes.                                            |
-| **Monotonic Stacks & Queues**    | Vertical LIFO canister / Horizontal FIFO lanes | Push/Pop particle transitions, top-of-stack pointers, sightline raycasts, invariant checks (strictly increasing/decreasing).                                                      |
-| **Two-Pointer Arrays & Windows** | Scaled bar charts with bounding overlays       | Left (`L`), Right (`R`), and Mid (`M`) pointer markers, dynamic sliding window boxes, element comparison glows, in-place swap animations.                                         |
-| **Trie (Prefix Trees)**          | Radial & branch-down character graph           | Character insertion paths, search prefix matches, terminal word boundary badges.                                                                                                  |
-| **Heaps & Priority Queues**      | Complete binary tree & array duality           | Bubble-up and sift-down node swaps, min/max invariant verification, heapify boundary indicators.                                                                                  |
-
----
-
-## 🎙️ Proctored Live Interview Simulator
-
-The Live Interview suite recreates the pressure and rigor of a real Big-Tech technical interview:
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 🔴 LIVE CODING ASSESSMENT — Two Sum (Tier 3: In-Place Optimal)             │
-├───────────────────────────────────┬─────────────────────────────────────────┤
-│ 📹 Candidate Video Feed           │ 💻 Monaco Editor (C++ / Python / JS / TS)│
-│ [Webcam Feed (Local Browser Only)]│ class Solution {                        │
-│ 🎙️ Mic Level: [████████░░]        │ public:                                 │
-│ 🔒 Privacy: 100% On-Device Stream │     vector<int> twoSum(vector<int>& n) {│
-├───────────────────────────────────┼─────────────────────────────────────────┤
-│ 🧑‍💼 FAANG Interviewer Feedback     │ 🧪 Automated Test Harness Results       │
-│ "Notice what happens when you use │ [✓] Test 1: [2,7,11,15], target=9 (2ms) │
-│ a hash map versus sorting first.   │ [✓] Test 2: [3,2,4], target=6    (1ms)  │
-│ How does that change your space    │ [✓] Test 3: [3,3], target=6      (1ms)  │
-│ complexity bound?"                │ All 3 Test Cases Passed (Optimal)       │
-└───────────────────────────────────┴─────────────────────────────────────────┘
-```
-
-- **Socratic Progression:** The interviewer assesses not just the code, but invariant comprehension, edge cases (empty array, duplicate values, extreme integers), and asymptotic complexity.
-- **Instant GitHub Sync:** Upon successfully completing a problem, sync your solution directly to your personal GitHub repository (`LeetCode-Solutions`) with automated commit messages and complexity statistics.
-
----
-
-## 🤖 Multi-Model AI Racing & Failover Pipeline
-
-To prevent high-traffic rate limits ($429$) or cloud outage disruptions ($503$), DSA.viz incorporates a multi-tier racing and failover engine:
+### 2. Dynamic Code Judging & Promotion Lifecycle
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor Candidate as User Editor
-    participant Server as DSA.viz Engine
-    participant Gemini38 as Gemini 3.8 Flash
-    participant Gemini35 as Gemini 3.5 Flash
-    participant OpenRouter as OpenRouter Secondary Pool
-    participant Fallback as Local Heuristic Engine
-
-    Candidate->>Server: Request Pseudocode / Socratic Review
-    Server->>Gemini38: Primary Dispatch (Preferred Model)
-    alt Gemini 3.8 Responds
-        Gemini38-->>Server: 200 OK + Structured Steps
-    else 429 Quota or 503 Overloaded
-        Server->>Gemini35: Fallback Dispatch Candidate
-        alt Gemini 3.5 Responds
-            Gemini35-->>Server: 200 OK
-        else Secondary Provider Failure
-            Server->>OpenRouter: Race Secondary DeepSeek / Claude Pool
-            alt OpenRouter Responds
-                OpenRouter-->>Server: 200 OK
-            else All External AI Offline
-                Server->>Fallback: Deploy Local AST Heuristic Engine
-                Fallback-->>Server: Deterministic Invariant Diagnostics
-            end
-        end
-    end
-    Server->>>Candidate: Normalized Visualizer Trace & Socratic Review
+stateDiagram-v2
+    [*] --> WriteCode: Select Language (C++ / Java / Python / JS / TS)
+    WriteCode --> RunSampleTests: Click "Run Code"
+    RunSampleTests --> SandboxExecution: Execute against Sample + Custom Testcases
+    SandboxExecution --> DiffDiagnostics: Any Test Case Fails ❌
+    DiffDiagnostics --> WriteCode: Inspect Input / Expected / Actual + AI Invariant Coach
+    SandboxExecution --> AllTestsPassed: All Test Cases Pass ✅
+    AllTestsPassed --> SubmitSolution: Unlock & Click "Submit"
+    SubmitSolution --> CloudPersistence: Save to Firestore + Update Profile Heatmap & Streak
+    CloudPersistence --> GitHubPush: Optional 1-Click Push to LeetCode-Solutions Repo
+    GitHubPush --> [*]
 ```
 
 ---
 
-## 🛡️ Enterprise Security & Zero-Trust Architecture
+## 🛡️ Zero-Trust Security & Google OAuth Architecture
 
-DSA.viz follows strict security-in-depth principles:
+**DSA.viz.co** is hardened for production deployment with defense-in-depth controls across every layer:
 
-### 1. Zero Host Code Execution (RCE Immunity)
-
-- **Problem:** Conventional online judges using Node's standard `vm` module are vulnerable to prototype escapes (`this.constructor.constructor('return process')()`).
-- **DSA.viz Solution:** Host-level `vm` execution has been completely removed. All non-browser code execution (C++, Python, JS/TS) is dispatched exclusively to isolated, ephemeral Linux micro-containers (Wandbox / Godbolt) configured with strict timeouts, CPU quotas, and memory ceilings.
-
-### 2. Broken Object-Level Authorization (BOLA/IDOR) Elimination
-
-- **Firestore Security Rules:** User profiles, submission histories, AI diagnostic reports, and chat transcripts are locked strictly to the document owner (`request.auth.uid == userId`). No authenticated user can view or enumerate another user's email or encrypted credentials.
-
-### 3. Server-Client Secret Isolation
-
-- Server secrets (`GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GITHUB_CLIENT_SECRET`, `ENCRYPTION_KEY`) never share prefixes with public Vite bundle variables. Build-time inlining of sensitive server secrets into browser JavaScript bundles is strictly blocked.
-
-### 4. Cryptographic Token Protection
-
-- Connected GitHub OAuth tokens are encrypted using **AES-256-GCM** with authenticated verification tags (`iv:ciphertext:authTag`).
-- Ephemeral, cryptographically secure keys (`crypto.randomBytes(32)`) protect development environments, while production requires explicit high-entropy keys.
-
-### 5. Content Security & Input Sanitization
-
-- Problem statements rendered through Markdown are passed through **DOMPurify** before reaching `rehype-raw`, stripping dangerous `<script>`, `onerror`, `onload`, and `javascript:` URIs.
-- Production HTTP headers enforce `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, and `Strict-Transport-Security`.
-
----
-
-## 🛠 Tech Stack & Ecosystem
-
-```
-Frontend:
-├── Framework: React 19.2 (Concurrent Rendering & Transitions)
-├── Router: TanStack Router 1.170 (100% Type-Safe Route Hierarchy)
-├── State & Cache: TanStack Query v5 (Optimistic Updates & Query Caching)
-├── Styling: Tailwind CSS v4.2 (OKLCH Color Spaces, Container Queries)
-├── Code Editor: Monaco Editor (@monaco-editor/react with Custom Keymaps)
-├── Motion: Motion 13 (High-Performance Hardware-Accelerated Animations)
-├── Charts: Recharts 2.15 (Heatmaps, Progress Radars & Velocity Graphs)
-└── Icons: Lucide React (Clean, Accessible Iconography)
-
-Backend & Server:
-├── Runtime: Node.js 22 LTS / Express 5.2 REST Engine
-├── AI Clients: Google GenAI SDK (@google/genai — Gemini 3.8 & 3.1 Pro)
-├── Cloud Database: Firebase Admin 14 & Cloud Firestore
-├── Authentication: Firebase Auth (Google OAuth 2.0 & Session JWTs)
-├── Encryption: Node Crypto (AES-256-GCM Token Encryption)
-├── Code Sanitization: DOMPurify 3.4 & Rehype Raw
-└── Rate Limiting: express-rate-limit 8.7 (Tiered Limiter Matrix)
-
-Tooling & Quality:
-├── Bundler: Vite 8.2 & esbuild (Sub-second HMR & Node Bundles)
-├── Type Checking: TypeScript 5.8 (Strict Zero-Error Config)
-├── Linting & Formatting: ESLint 9 & Prettier 3
-└── Testing: Native Node.js Test Runner (node:test & node:assert)
-```
+| Security Layer | Implementation File | Protection Enforced |
+| :--- | :--- | :--- |
+| **Mandatory Google Sign-In Gate** | [`src/context/AuthContext.tsx`](src/context/AuthContext.tsx), [`src/components/AuthGuard.tsx`](src/components/AuthGuard.tsx) | No guest/explorer bypass personas. Only `/` and `/auth` render when signed out; clicking any link, button, or tool redirects to `/auth?redirect=<sanitized_path>`. |
+| **Cryptographic JWT Verification** | [`src/middleware/auth.ts`](src/middleware/auth.ts) | Every `/api/*` endpoint (except `/api/health`) enforces [`requireAuth`](src/middleware/auth.ts), validating RS256 signatures, `iss`, `aud`, `exp`, and `sub`. |
+| **Strict HTTPS & HSTS Preload** | [`src/middleware/security.ts`](src/middleware/security.ts), [`vercel.json`](vercel.json) | 301 permanent redirect to `https://` on all non-loopback hosts, `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`, and CSP `upgrade-insecure-requests`. |
+| **AES-256-GCM Secret Vault** | [`src/lib/user-keys.server.ts`](src/lib/user-keys.server.ts) | User API keys and GitHub OAuth tokens are encrypted with `aes-256-gcm` + per-record random IV + `ownerId` Additional Authenticated Data (`AAD`) and bound to `HttpOnly; SameSite=Strict; Secure` signed cookies. |
+| **Isolated Remote Code Execution** | [`src/lib/compiler/index.ts`](src/lib/compiler/index.ts) | Untrusted C/C++/Java/Python code never runs in a host `vm`; execution is dispatched to isolated Godbolt and Wandbox sandboxes with strict CPU and memory limits. |
 
 ---
 
 ## 📁 Repository Blueprint
 
-```
+```text
 DSA.viz.co/
-├── api/                       # Vercel serverless deployment entrypoints & server bundle
-│   ├── index.js               # Serverless handler router
-│   └── server.cjs             # Bundled Node.js backend
-├── public/                    # Static distribution assets
-│   ├── favicon.svg            # Scalable algorithmic logo
-│   ├── og-image.png           # 1280x720 OpenGraph link preview banner
-│   └── robots.txt             # Search crawler directives
+├── api/
+│   ├── index.js                         # Vercel Serverless Function entrypoint
+│   └── server.cjs                       # Bundled production Express + AI + Judge server
+├── public/
+│   ├── og-image.jpg                     # 16:9 Neo-Brutalist Landing Page OpenGraph cover
+│   ├── og-image.png                     # High-DPI banner preview
+│   └── favicon.svg                      # 3D < [ • • ] / > mascot icon
 ├── src/
-│   ├── components/            # Reusable modular UI components
-│   │   ├── chat/              # GeminiChatbot (5 Personas, Context Dismissal)
-│   │   ├── compiler/          # C++ Code Editor, Package Explorer, Console
-│   │   ├── dashboard/         # Heatmaps, Velocity Charts, Submission Lists
-│   │   ├── editor/            # MonacoCodeEditor with language selector
-│   │   ├── problem/           # Visualizer Canvas, Pseudocode Trace, ReviewCard
-│   │   ├── ui/                # Accessible primitives (Radix UI + Tailwind)
-│   │   └── visualizer/        # Specialized canvas engines (Grid, Tree, DP, Stack)
-│   ├── context/               # AuthContext, ChatContext, Application state
-│   ├── data/                  # 1500+ Curated problem statements & test cases
-│   ├── db/                    # Firestore Admin database connectors
-│   ├── hooks/                 # Custom React hooks (useAuth, useReview, useLeetCode)
-│   ├── lib/                   # Core business logic & simulation engines
-│   │   ├── ai-contracts.ts    # Invariant normalization & validation schemas
-│   │   ├── compiler/          # Sandboxed execution dispatch (Godbolt / Wandbox)
-│   │   ├── formatMath.ts      # LaTeX to Unicode mathematical converter
-│   │   ├── problems.ts        # Problem registry and 3-tier canonical dataset generator
-│   │   ├── server-interview-evaluator.ts # Sandboxed interview code runner
-│   │   └── simulators.ts      # 50+ Deterministic algorithmic ground-truth simulators
-│   └── routes/                # TanStack file-based route definitions
-├── firestore.rules            # Hardened Firestore security rules (Owner-only access)
-├── server.ts                  # Express 5 full-stack API server
-├── vercel.json                # Vercel routing rules & security headers
-└── package.json               # Dependencies, scripts, and build pipeline
+│   ├── components/
+│   │   ├── AuthGuard.tsx                # Zero-trust client route guard
+│   │   ├── ApiKeyVaultModal.tsx         # AES-256-GCM BYOK modal UI
+│   │   ├── SiteHeader.tsx               # Navigation, theme picker, Key Vault & Auth controls
+│   │   ├── compiler/                    # C/C++/Java/Python IDE, console & STL explorer
+│   │   ├── editor/
+│   │   │   ├── MonacoCodeEditor.tsx     # Multi-language Monaco editor
+│   │   │   └── LeetCodeTestDrawer.tsx   # Per-testcase runner & diff diagnostic drawer
+│   │   ├── landing/                     # Neo-Brutalist Print-Tech Hero & live showcase
+│   │   └── visualizer/                  # 11 specialized data-structure canvas engines
+│   ├── context/
+│   │   └── AuthContext.tsx              # Firebase Google OAuth session & profile provider
+│   ├── db/                              # Firestore + Redis + /tmp/.data persistence layer
+│   ├── lib/
+│   │   ├── leetcode-judge.server.ts     # Dynamic multi-testcase AI + sandbox judge
+│   │   ├── leetcode-testcases.ts        # Canonical testcase & signature extractor
+│   │   ├── openrouter.server.ts         # Multi-model racing & failover engine
+│   │   └── user-keys.server.ts          # AES-256-GCM backend API key vault
+│   ├── middleware/
+│   │   ├── auth.ts                      # RS256 Google OAuth bearer token verifier
+│   │   └── security.ts                  # HTTPS enforcer, HSTS, CSP, COOP & CORP headers
+│   └── routes/
+│       ├── index.tsx                    # Public landing page with interaction gate
+│       ├── auth.tsx                     # Google Sign-In portal with safe redirect handling
+│       ├── sheets.tsx                   # Overhauled DSA Sheets hub with spotlight randomizer
+│       ├── compiler.tsx                 # Multi-language sandbox IDE
+│       ├── live-interview.tsx           # 3-Tier proctored FAANG mock interview room
+│       ├── problem.$slug.tsx            # Problem workspace, visualizer & testcase judge
+│       └── _authenticated/
+│           └── profile.tsx              # Unified Profile + Dashboard telemetry hub
+├── server.ts                            # Full-stack Express 5 API & Vite middleware server
+├── vercel.json                          # Vercel serverless routing, maxDuration=60 & headers
+└── package.json                         # Build scripts, dependencies & test runner
 ```
 
 ---
 
-## 🚀 Getting Started & Local Development
+## 🚀 Quickstart & Vercel Deployment
 
-### Prerequisites
-
-- **Node.js**: `v20.x` or higher (recommended: `v22.x LTS`)
-- **npm**: `v10.x` or higher
-- **Google Gemini API Key**: Obtain a free key from [Google AI Studio](https://aistudio.google.com/)
-
-### Step-by-Step Setup
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/isthatnkhl-byte/DSA.viz.co.git
-   cd DSA.viz.co
-   ```
-
-2. **Install dependencies:**
-
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment variables:**
-   Create a `.env` file in the project root:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   Populate your keys:
-
-   ```env
-   # 🔒 Server Secrets (Never prefix with VITE_)
-   GEMINI_API_KEY="your_gemini_api_key_here"
-   OPENROUTER_API_KEY="your_openrouter_api_key_here"
-   GITHUB_CLIENT_ID="your_github_oauth_client_id"
-   GITHUB_CLIENT_SECRET="your_github_oauth_client_secret"
-   ENCRYPTION_KEY="your_32_character_aes_encryption_key"
-
-   # 🌐 Public Client Configuration (Firebase)
-   VITE_FIREBASE_API_KEY="your_firebase_api_key"
-   VITE_FIREBASE_AUTH_DOMAIN="your_firebase_auth_domain"
-   VITE_FIREBASE_PROJECT_ID="your_firebase_project_id"
-   VITE_FIREBASE_STORAGE_BUCKET="your_firebase_storage_bucket"
-   VITE_FIREBASE_MESSAGING_SENDER_ID="your_messaging_sender_id"
-   VITE_FIREBASE_APP_ID="your_firebase_app_id"
-   ```
-
-4. **Launch the development server:**
-   ```bash
-   npm run dev
-   ```
-   Navigate to [http://localhost:3000](http://localhost:3000) to view the platform.
-
----
-
-## 🧪 Automated Test Suite & Quality Assurance
-
-DSA.viz maintains a robust, zero-regression test suite with **145 automated tests** covering security boundaries, compiler dispatch, AI contract normalizers, and playback lifecycles:
+<details open>
+<summary><b>💻 Local Development Setup (3 Minutes)</b></summary>
+<br />
 
 ```bash
-# Run the complete automated test suite
-npm test
+# 1. Clone the repository
+git clone https://github.com/isthatnkhl-byte/DSA.viz.co.git
+cd DSA.viz.co
 
-# Verify strict TypeScript type compliance (0 errors)
+# 2. Install dependencies
+npm install
+
+# 3. Copy the environment template and fill in your keys
+cp .env.example .env
+
+# 4. Start the full-stack development server (Express 5 + Vite HMR on http://localhost:3000)
+npm run dev
+```
+
+</details>
+
+<details>
+<summary><b>☁️ Deploying to Vercel (Production Checklist)</b></summary>
+<br />
+
+1. **Import Repository on Vercel**:
+   - Connect `https://github.com/isthatnkhl-byte/DSA.viz.co.git` in the [Vercel Dashboard](https://vercel.com/new).
+   - Vercel automatically detects [`vercel.json`](vercel.json) (`buildCommand: "npm run build"`, `outputDirectory: "dist"`, `functions.api/index.js.maxDuration: 60`).
+2. **Configure Environment Variables in Vercel (`Settings → Environment Variables`)**:
+   - **Server Secrets** *(never prefix with `VITE_`)*:
+     - `GEMINI_API_KEY` — Google Gemini API key
+     - `OPENROUTER_API_KEY` — OpenRouter fallback key (optional)
+     - `ENCRYPTION_KEY` — 32+ character secret for AES-256-GCM vault encryption
+     - `GITHUB_CLIENT_ID` & `GITHUB_CLIENT_SECRET` — GitHub OAuth credentials
+     - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` — LiveKit voice interview credentials (optional)
+   - **Public Client Firebase Config**:
+     - `VITE_FIREBASE_API_KEY`
+     - `VITE_FIREBASE_AUTH_DOMAIN`
+     - `VITE_FIREBASE_PROJECT_ID`
+     - `VITE_FIREBASE_STORAGE_BUCKET`
+     - `VITE_FIREBASE_MESSAGING_SENDER_ID`
+     - `VITE_FIREBASE_APP_ID`
+3. **Authorize Your Vercel Domain in Firebase**:
+   - In **Firebase Console → Authentication → Settings → Authorized domains**, add your `.vercel.app` or custom production domain so Google Sign-In popups are permitted.
+
+</details>
+
+<details>
+<summary><b>🧪 Verification & Automated Test Commands</b></summary>
+<br />
+
+```bash
+# Typecheck the entire frontend & backend (0 errors)
 npm run lint
 
-# Build production assets (Vite client + esbuild backend)
+# Run the security, auth, simulator, and pipeline test suite
+npm test
+
+# Build production client assets (dist/) and serverless bundle (api/server.cjs)
 npm run build
 ```
 
-```
-Test Coverage Summary:
-✔ AI Model Failover & Alias Resolution       (6 tests)
-✔ Mathematical LaTeX to Unicode Sanitizer    (5 tests)
-✔ Algorithmic Contract Normalization         (12 tests)
-✔ 50+ Deterministic Ground-Truth Simulators   (64 tests)
-✔ Edge-Case Boundary Ingestion               (14 tests)
-✔ Playback Orchestrator (Clamping, Scrubber) (5 tests)
-✔ End-to-End System Pipelines                (9 tests)
-✔ Authentication & Security Isolation        (4 tests)
-───────────────────────────────────────────────────────
-Total: 145 Tests Passing (100% Pass Rate) | Execution: ~8.9s
-```
+</details>
 
 ---
-
-## 💼 FAANG-Resume-Ready Engineering Bullets
-
-Highlighting high-impact engineering accomplishments from this repository:
-
-- **Architected Full-Stack Algorithmic Learning Ecosystem:** Engineered a high-concurrency platform visualizing 1,500+ LeetCode problems, integrating React 19 concurrent rendering, TanStack Router, and Express 5 REST services.
-- **Engineered Resilient Multi-Model AI Racing Pipeline:** Built a multi-tier fallback architecture leveraging Google Gemini 3.8 Flash, 3.5 Flash, and OpenRouter, eliminating user downtime caused by provider rate-limits ($429$) and service spikes ($503$).
-- **Eliminated Remote Code Execution (RCE) via Isolated Sandboxing:** Replaced unsafe Node.js host execution with an isolated remote container architecture (Godbolt GCC 14.1 / Wandbox), safely executing untrusted candidate code with strict CPU, memory, and runtime bounds.
-- **Enforced Zero-Trust Security & BOLA/IDOR Elimination:** Hardened Cloud Firestore security rules with document-owner validation (`request.auth.uid == userId`), eliminating unauthorized data access and securing user OAuth credentials with AES-256-GCM.
-- **Implemented Socratic AI Mentoring Engine:** Designed a multi-persona prompt architecture with automated LaTeX-to-Unicode mathematical conversion and dynamic context detachment for open-ended algorithmic reasoning.
-- **Developed High-Performance Spatial Visualizers:** Built 8 specialized visualizer engines for 2D Grid DFS/BFS, Multi-Pointer Linked Lists, Dynamic Programming matrices, and Monotonic Stacks with interactive timeline scrubbing.
-
----
-
-## 📄 License & Authorship
-
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
 
 <div align="center">
 
-Built with precision and passion by **[Nikhil](https://github.com/isthatnkhl-byte)** and the **DSA.viz** open-source community.
+**Built with precision by [Nikhil (`@isthatnkhl-byte`)](https://github.com/isthatnkhl-byte)**  
+*Master algorithms by seeing how they think.*
 
-[![GitHub Stars](https://img.shields.io/github/stars/isthatnkhl-byte/DSA.viz.co?style=social)](https://github.com/isthatnkhl-byte/DSA.viz.co)
-[![GitHub Forks](https://img.shields.io/github/forks/isthatnkhl-byte/DSA.viz.co?style=social)](https://github.com/isthatnkhl-byte/DSA.viz.co/fork)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-isthatnkhl--byte%2FDSA.viz.co-181717?style=for-the-badge&logo=github)](https://github.com/isthatnkhl-byte/DSA.viz.co)
 
 </div>

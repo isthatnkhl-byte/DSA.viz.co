@@ -13,7 +13,7 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/((?!api/|assets/|favicon.ico|robots.txt).*|$)",
+      "source": "/((?!api/|assets/|og-image\\.jpg|og-image\\.png|favicon.*|apple-touch-icon\\.png|robots\\.txt).*|$)",
       "destination": "/index.html"
     }
   ],

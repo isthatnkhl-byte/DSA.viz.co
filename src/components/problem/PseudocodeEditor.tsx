@@ -8,7 +8,7 @@ interface PseudocodeEditorProps {
   onSubmit: () => void;
   loading: boolean;
   onInsertStarter: () => void;
-  onPushToGithub?: (code: string) => void;
+  onPushToGithub?: (code: string, lang?: string) => void;
   githubLoading?: boolean;
 }
 
@@ -219,7 +219,7 @@ export const PseudocodeEditor = memo(function PseudocodeEditor({
               type="button"
               onClick={() => {
                 flushChanges();
-                onPushToGithub(localCode);
+                onPushToGithub(localCode, "pseudocode");
               }}
               disabled={githubLoading || !localCode.trim()}
               variant="outline"

@@ -39,6 +39,10 @@ import { apiReviewPseudocode, apiGenerateDatasetsAndPlan, apiGenerateDatasetViz,
 import { saveSubmission, getProfileStats } from "@/lib/submissions.functions";
 import { toast } from "sonner";
 import { useSessionContextStore } from "@/hooks/useSessionContextStore";
+import {
+  pushSolutionToGithub,
+  resumePendingGithubPushIfPresent,
+} from "@/lib/github-sync";
 
 import { ProblemHeader } from "@/components/problem/ProblemHeader";
 import { ProblemStatementTab } from "@/components/problem/ProblemStatementTab";
@@ -147,52 +151,29 @@ function ProblemPage() {
   });
   
   const [githubLoading, setGithubLoading] = useState(false);
-  const handlePushToGithub = async (codeStr: string) => {
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
-    const isConnected =
-      !!(profileStats?.profile as any)?.githubConnected ||
-      !!(profileStats?.profile as any)?.githubToken ||
-      (typeof window !== "undefined" && currentUser && localStorage.getItem(`dsa_viz_github_connected_${currentUser.uid}`) === "true");
 
-    if (!isConnected) {
-      toast.error("Please connect your GitHub account in your Profile first.");
-      return;
-    }
-    
+  useEffect(() => {
+    void resumePendingGithubPushIfPresent();
+  }, [user?.uid]);
+
+  const handlePushToGithub = async (codeStr: string, lang = "python") => {
     setGithubLoading(true);
     try {
-      const token = await currentUser?.getIdToken();
-      const clientStoredToken =
-        (profileStats?.profile as any)?.githubToken ||
-        (typeof window !== "undefined" && currentUser && localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)) ||
-        undefined;
-
-      const res = await fetch("/api/github/push", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          code: codeStr,
-          titleSlug: problem?.slug,
-          lang: "cpp", // Default to C++ as requested
-          githubToken: clientStoredToken
-        })
+      const result = await pushSolutionToGithub({
+        code: codeStr,
+        titleSlug: problem?.slug || "solution",
+        lang,
+        fallbackProfileToken: (profileStats?.profile as any)?.githubToken || null,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to push to GitHub");
-      } else {
+      if (result.ok && result.url) {
         toast.success("Successfully pushed solution to GitHub!", {
           action: {
             label: "View",
-            onClick: () => window.open(data.url, "_blank")
-          }
+            onClick: () => window.open(result.url, "_blank"),
+          },
         });
       }
-    } catch (e) {
+    } catch {
       toast.error("An error occurred while pushing to GitHub");
     } finally {
       setGithubLoading(false);

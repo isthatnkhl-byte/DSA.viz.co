@@ -112,6 +112,251 @@ function decryptToken(text: string): string | null {
   }
 }
 
+const GH_TOKEN_COOKIE_NAME = "dsaviz_gh_token";
+const GH_OAUTH_BEARER_COOKIE_NAME = "dsaviz_gh_oauth_bearer";
+
+function parseRequestCookies(cookieHeader?: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!cookieHeader) return out;
+  for (const pair of cookieHeader.split(";")) {
+    const eqIdx = pair.indexOf("=");
+    if (eqIdx === -1) continue;
+    const k = pair.slice(0, eqIdx).trim();
+    const v = pair.slice(eqIdx + 1).trim();
+    if (k) {
+      try {
+        out[k] = decodeURIComponent(v);
+      } catch {
+        out[k] = v;
+      }
+    }
+  }
+  return out;
+}
+
+interface GithubCookieSession {
+  uid: string;
+  githubToken: string; // encryptedToken (iv:cipher:tag)
+  githubUsername?: string | null;
+  githubAvatar?: string | null;
+  githubUrl?: string | null;
+}
+
+function setGithubSessionCookie(req: Request, res: Response, data: GithubCookieSession): void {
+  try {
+    const sealed = encryptToken(JSON.stringify(data));
+    const isSecure =
+      process.env.NODE_ENV === "production" ||
+      req.secure ||
+      req.headers["x-forwarded-proto"] === "https";
+    const parts = [
+      `${GH_TOKEN_COOKIE_NAME}=${encodeURIComponent(sealed)}`,
+      "Path=/",
+      "HttpOnly",
+      "SameSite=Lax",
+      `Max-Age=${60 * 60 * 24 * 90}`,
+    ];
+    if (isSecure) parts.push("Secure");
+    res.append("Set-Cookie", parts.join("; "));
+  } catch {
+    // Non-fatal cookie write
+  }
+}
+
+function getGithubSessionCookie(req: Request, expectedUid: string): GithubCookieSession | null {
+  try {
+    const cookies = parseRequestCookies(req.headers.cookie);
+    const raw = cookies[GH_TOKEN_COOKIE_NAME];
+    if (!raw) return null;
+    const decrypted = decryptToken(raw);
+    if (!decrypted) return null;
+    const parsed = JSON.parse(decrypted) as GithubCookieSession;
+    if (!parsed || parsed.uid !== expectedUid || !parsed.githubToken) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearGithubSessionCookie(req: Request, res: Response): void {
+  const isSecure =
+    process.env.NODE_ENV === "production" ||
+    req.secure ||
+    req.headers["x-forwarded-proto"] === "https";
+  const parts = [
+    `${GH_TOKEN_COOKIE_NAME}=`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ];
+  if (isSecure) parts.push("Secure");
+  res.append("Set-Cookie", parts.join("; "));
+}
+
+function setGithubOAuthBearerCookie(req: Request, res: Response, bearerToken: string): void {
+  try {
+    const sealed = encryptToken(bearerToken);
+    const isSecure =
+      process.env.NODE_ENV === "production" ||
+      req.secure ||
+      req.headers["x-forwarded-proto"] === "https";
+    const parts = [
+      `${GH_OAUTH_BEARER_COOKIE_NAME}=${encodeURIComponent(sealed)}`,
+      "Path=/",
+      "HttpOnly",
+      "SameSite=Lax",
+      "Max-Age=600",
+    ];
+    if (isSecure) parts.push("Secure");
+    res.append("Set-Cookie", parts.join("; "));
+  } catch {
+    // Non-fatal
+  }
+}
+
+function getGithubOAuthBearerCookie(req: Request): string | null {
+  try {
+    const cookies = parseRequestCookies(req.headers.cookie);
+    const raw = cookies[GH_OAUTH_BEARER_COOKIE_NAME];
+    if (!raw) return null;
+    return decryptToken(raw);
+  } catch {
+    return null;
+  }
+}
+
+function extractRequestBearerToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.split("Bearer ")[1]?.trim();
+  if (!token || token === "undefined" || token === "null" || token === "local-dev-token") {
+    return null;
+  }
+  return token;
+}
+
+function getFirestoreProjectAndDb(): { projectId: string; databaseId: string } {
+  const projectId =
+    cleanSecretEnv(process.env.VITE_FIREBASE_PROJECT_ID) ||
+    cleanSecretEnv(process.env.FIREBASE_PROJECT_ID) ||
+    "gen-lang-client-0937971784";
+  const databaseId =
+    cleanSecretEnv(process.env.VITE_FIREBASE_DATABASE_ID) ||
+    "ai-studio-f73f5b28-1f90-4a8e-a450-12a34f569c0d";
+  return { projectId, databaseId };
+}
+
+async function fetchGithubProfileFromFirestoreRest(
+  uid: string,
+  bearerToken: string | null
+): Promise<{
+  githubToken: string | null;
+  githubConnected: boolean;
+  githubUsername: string | null;
+  githubAvatar: string | null;
+  githubUrl: string | null;
+} | null> {
+  if (!uid || !bearerToken) return null;
+  const { projectId, databaseId } = getFirestoreProjectAndDb();
+  const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId
+  )}/databases/${encodeURIComponent(databaseId)}/documents/users/${encodeURIComponent(uid)}`;
+  try {
+    const res = await fetch(docUrl, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${bearerToken}` },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as any;
+    const fields = data?.fields;
+    if (!fields) return null;
+    const githubToken = fields.githubToken?.stringValue || null;
+    const githubUsername =
+      fields.githubUsername?.stringValue || fields.github_username?.stringValue || null;
+    const githubAvatar =
+      fields.githubAvatar?.stringValue || fields.github_avatar?.stringValue || null;
+    const githubUrl =
+      fields.githubUrl?.stringValue ||
+      (githubUsername ? `https://github.com/${githubUsername}` : null);
+    const githubConnected = Boolean(
+      fields.githubConnected?.booleanValue ||
+        fields.github_connected?.booleanValue ||
+        githubToken ||
+        githubUsername
+    );
+    return {
+      githubToken,
+      githubConnected,
+      githubUsername,
+      githubAvatar,
+      githubUrl,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function saveGithubProfileToFirestoreRest(
+  uid: string,
+  bearerToken: string | null,
+  data: {
+    githubToken: string | null;
+    githubConnected: boolean;
+    githubUsername: string | null;
+    githubAvatar: string | null;
+    githubUrl: string | null;
+  }
+): Promise<void> {
+  if (!uid || !bearerToken) return;
+  const { projectId, databaseId } = getFirestoreProjectAndDb();
+  const maskFields = [
+    "githubToken",
+    "githubConnected",
+    "github_connected",
+    "githubUsername",
+    "github_username",
+    "githubAvatar",
+    "github_avatar",
+    "githubUrl",
+    "updatedAt",
+  ];
+  const maskQuery = maskFields.map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join("&");
+  const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId
+  )}/databases/${encodeURIComponent(databaseId)}/documents/users/${encodeURIComponent(
+    uid
+  )}?${maskQuery}`;
+
+  const toFirestoreStrOrNull = (val: string | null) =>
+    val ? { stringValue: val } : { nullValue: null };
+
+  try {
+    await fetch(docUrl, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${bearerToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fields: {
+          githubToken: toFirestoreStrOrNull(data.githubToken),
+          githubConnected: { booleanValue: data.githubConnected },
+          github_connected: { booleanValue: data.githubConnected },
+          githubUsername: toFirestoreStrOrNull(data.githubUsername),
+          github_username: toFirestoreStrOrNull(data.githubUsername),
+          githubAvatar: toFirestoreStrOrNull(data.githubAvatar),
+          github_avatar: toFirestoreStrOrNull(data.githubAvatar),
+          githubUrl: toFirestoreStrOrNull(data.githubUrl),
+          updatedAt: { stringValue: new Date().toISOString() },
+        },
+      }),
+    });
+  } catch {
+    // Non-blocking Firestore REST write
+  }
+}
+
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -661,34 +906,97 @@ app.get("/api/statement", async (req: Request, res: Response) => {
 app.get("/api/profile", requireAuth, async (req: any, res) => {
   try {
     const uid = req.user.uid;
+    const bearerToken = extractRequestBearerToken(req);
+    const ghCookie = getGithubSessionCookie(req, uid);
     const cacheKey = `profile:${uid}`;
 
-    // 1. Try Redis cache first
+    // 1. Try Redis cache first (merging live cookie token if present)
     const cached = await getCache<any>(cacheKey);
-    if (cached) {
+    if (cached && (cached.githubToken || !ghCookie?.githubToken)) {
       return res.json(cached);
     }
 
     const user = await getOrCreateUser(uid, req.user.email || null).catch(() => null);
     const profile = await getProfile(uid).catch(() => null);
-    
-    // Privacy: Never return raw or encrypted githubToken to client
-    const { githubToken, ...safeProfile } = (profile || {}) as any;
-    
-    const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.name || req.user.email?.split("@")[0] || "Authenticated User";
-    const cleanAvatar = safeProfile?.avatarUrl || safeProfile?.avatar_url || req.user.picture || user?.avatarUrl || null;
-    const cleanLcUsername = safeProfile?.leetcodeUsername || safeProfile?.leetcode_username || null;
+    const { githubToken: memoryToken, ...safeProfile } = (profile || {}) as any;
+
+    let fsGithub: Awaited<ReturnType<typeof fetchGithubProfileFromFirestoreRest>> = null;
+    if (!memoryToken && !ghCookie?.githubToken && bearerToken) {
+      fsGithub = await fetchGithubProfileFromFirestoreRest(uid, bearerToken);
+    }
+
+    // Encrypted token (AES-256-GCM ciphertext only, never raw plaintext)
+    const resolvedEncryptedToken =
+      memoryToken || ghCookie?.githubToken || fsGithub?.githubToken || null;
+
+    if (resolvedEncryptedToken && !ghCookie?.githubToken) {
+      setGithubSessionCookie(req, res, {
+        uid,
+        githubToken: resolvedEncryptedToken,
+        githubUsername:
+          safeProfile?.githubUsername ||
+          ghCookie?.githubUsername ||
+          fsGithub?.githubUsername ||
+          null,
+        githubAvatar:
+          safeProfile?.githubAvatar ||
+          ghCookie?.githubAvatar ||
+          fsGithub?.githubAvatar ||
+          null,
+        githubUrl:
+          safeProfile?.githubUrl || ghCookie?.githubUrl || fsGithub?.githubUrl || null,
+      });
+    }
+
+    const cleanDisplayName =
+      safeProfile?.displayName ||
+      safeProfile?.display_name ||
+      user?.displayName ||
+      user?.display_name ||
+      req.user.name ||
+      req.user.email?.split("@")[0] ||
+      "Authenticated User";
+    const cleanAvatar =
+      safeProfile?.avatarUrl ||
+      safeProfile?.avatar_url ||
+      req.user.picture ||
+      user?.avatarUrl ||
+      null;
+    const cleanLcUsername =
+      safeProfile?.leetcodeUsername || safeProfile?.leetcode_username || null;
     const cleanLcStats = safeProfile?.leetcodeStats || safeProfile?.leetcode_stats || null;
-    const cleanGithubConnected = !!(safeProfile?.githubConnected || githubToken);
-    const cleanGithubUsername = safeProfile?.githubUsername || safeProfile?.github_username || null;
-    const cleanGithubAvatar = safeProfile?.githubAvatar || safeProfile?.github_avatar || null;
-    const cleanGithubUrl = safeProfile?.githubUrl || (cleanGithubUsername ? `https://github.com/${cleanGithubUsername}` : null);
+    const cleanGithubUsername =
+      safeProfile?.githubUsername ||
+      safeProfile?.github_username ||
+      ghCookie?.githubUsername ||
+      fsGithub?.githubUsername ||
+      null;
+    const cleanGithubAvatar =
+      safeProfile?.githubAvatar ||
+      safeProfile?.github_avatar ||
+      ghCookie?.githubAvatar ||
+      fsGithub?.githubAvatar ||
+      null;
+    const cleanGithubUrl =
+      safeProfile?.githubUrl ||
+      ghCookie?.githubUrl ||
+      fsGithub?.githubUrl ||
+      (cleanGithubUsername ? `https://github.com/${cleanGithubUsername}` : null);
+    const cleanGithubConnected = Boolean(
+      resolvedEncryptedToken ||
+        safeProfile?.githubConnected ||
+        ghCookie?.githubToken ||
+        fsGithub?.githubConnected ||
+        cleanGithubUsername
+    );
 
     const payload = {
       uid,
       email: req.user.email,
       ...user,
       ...safeProfile,
+      githubToken: resolvedEncryptedToken,
+      githubTokenConfigured: Boolean(resolvedEncryptedToken),
       githubConnected: cleanGithubConnected,
       github_connected: cleanGithubConnected,
       githubUsername: cleanGithubUsername,
@@ -719,6 +1027,7 @@ app.get("/api/profile", requireAuth, async (req: any, res) => {
       avatarUrl: req.user.picture || null,
       avatar_url: req.user.picture || null,
       githubConnected: false,
+      githubTokenConfigured: false,
       createdAt: new Date().toISOString(),
     });
   }
@@ -2066,29 +2375,50 @@ app.get("/api/github/url", requireAuth, (req: any, res) => {
   const uid = req.user.uid;
   const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
   const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
-  
+
   if (!clientId || !secret) {
     return res.status(500).json({
-      error: "GitHub OAuth is not configured on the server. Please configure GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in your environment settings.",
-      configured: false
+      error:
+        "GitHub OAuth is not configured on the server. Please configure GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in your environment settings.",
+      configured: false,
     });
   }
 
+  // Persist short-lived Firebase Bearer token in HttpOnly cookie so /api/github/callback can write directly to Firestore REST API
+  const bearerToken = extractRequestBearerToken(req);
+  if (bearerToken) {
+    setGithubOAuthBearerCookie(req, res, bearerToken);
+  }
+
   // Construct canonical redirect URI
-  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim() || "https";
-  const host = (req.headers["x-forwarded-host"] as string)?.split(",")[0]?.trim() || req.headers.host;
-  const clientOrigin = typeof req.query.origin === "string" && req.query.origin.startsWith("http")
-    ? req.query.origin.replace(/\/+$/, "")
-    : null;
+  const proto =
+    (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim() || "https";
+  const host =
+    (req.headers["x-forwarded-host"] as string)?.split(",")[0]?.trim() || req.headers.host;
+  const clientOrigin =
+    typeof req.query.origin === "string" && req.query.origin.startsWith("http")
+      ? req.query.origin.replace(/\/+$/, "")
+      : null;
   const origin = clientOrigin || req.headers.origin || `${proto}://${host}`;
   const redirectUri = `${origin}/api/github/callback`;
-  
+
+  const rawReturnTo = typeof req.query.returnTo === "string" ? req.query.returnTo.trim() : "";
+  const returnTo =
+    rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") ? rawReturnTo : "/profile";
+
   // Nonce + Expiry (10 minutes) for tamper-proof, single-use state
   const nonce = crypto.randomBytes(16).toString("hex");
   const issuedAt = Date.now();
   const expiresAt = issuedAt + 10 * 60 * 1000;
-  
-  const payload = JSON.stringify({ uid, redirectUri, nonce, issuedAt, expiresAt });
+
+  const payload = JSON.stringify({
+    uid,
+    redirectUri,
+    returnTo,
+    nonce,
+    issuedAt,
+    expiresAt,
+  });
   const hmac = crypto.createHmac("sha256", secret);
   hmac.update(payload);
   const signature = hmac.digest("hex");
@@ -2098,7 +2428,7 @@ app.get("/api/github/url", requireAuth, (req: any, res) => {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: "public_repo",
+    scope: "repo",
     state: state,
   });
 
@@ -2121,25 +2451,33 @@ app.get("/api/github/callback", async (req, res) => {
   let nonce: string;
   let expiresAt: number;
   let redirectUri: string | undefined;
+  let returnTo = "/profile";
 
   try {
     const decodedWrapper = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
     const { payload, signature } = decodedWrapper;
-    
+
     // 1. Verify HMAC cryptographic signature
     const hmac = crypto.createHmac("sha256", secret);
     hmac.update(payload);
     const expectedSignature = hmac.digest("hex");
-    
+
     if (signature !== expectedSignature) {
       return res.status(403).send("State signature mismatch - possible CSRF attack");
     }
-    
+
     const decoded = JSON.parse(payload);
     uid = decoded.uid;
     nonce = decoded.nonce;
     expiresAt = decoded.expiresAt;
     redirectUri = decoded.redirectUri;
+    if (
+      typeof decoded.returnTo === "string" &&
+      decoded.returnTo.startsWith("/") &&
+      !decoded.returnTo.startsWith("//")
+    ) {
+      returnTo = decoded.returnTo;
+    }
 
     // 2. Verify state expiration
     if (Date.now() > expiresAt) {
@@ -2158,21 +2496,21 @@ app.get("/api/github/callback", async (req, res) => {
   try {
     const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
     const clientSecret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
-    
+
     const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        Accept: "application/json",
       },
       body: JSON.stringify({
         client_id: clientId,
         client_secret: clientSecret,
         code,
         ...(redirectUri ? { redirect_uri: redirectUri } : {}),
-      })
+      }),
     });
-    
+
     const tokenData = await tokenRes.json();
     if (tokenData.error) {
       console.error("GitHub token exchange error:", tokenData);
@@ -2183,17 +2521,18 @@ app.get("/api/github/callback", async (req, res) => {
     if (!accessToken) {
       return res.status(400).send("No access token returned by GitHub");
     }
-    
+
     // Fetch GitHub user profile info (username, avatar, url)
-    let ghUsername = null;
-    let ghAvatar = null;
-    let ghUrl = null;
+    let ghUsername: string | null = null;
+    let ghAvatar: string | null = null;
+    let ghUrl: string | null = null;
     try {
       const userRes = await fetch("https://api.github.com/user", {
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "User-Agent": "DSA-viz-App",
-          "Accept": "application/vnd.github.v3+json",
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
         },
       });
       if (userRes.ok) {
@@ -2206,7 +2545,7 @@ app.get("/api/github/callback", async (req, res) => {
       console.warn("Could not fetch GitHub user info:", ghErr);
     }
 
-    // Encrypt and persist token
+    // Encrypt and persist token across all 4 layers (server memory, HttpOnly cookie, Firestore REST API, and client sync)
     const encryptedToken = encryptToken(accessToken);
     await updateProfile(uid, {
       githubToken: encryptedToken,
@@ -2216,15 +2555,49 @@ app.get("/api/github/callback", async (req, res) => {
       githubUrl: ghUrl,
     });
 
+    setGithubSessionCookie(req, res, {
+      uid,
+      githubToken: encryptedToken,
+      githubUsername: ghUsername,
+      githubAvatar: ghAvatar,
+      githubUrl: ghUrl,
+    });
+
+    const oauthBearer = getGithubOAuthBearerCookie(req);
+    if (oauthBearer) {
+      await saveGithubProfileToFirestoreRest(uid, oauthBearer, {
+        githubToken: encryptedToken,
+        githubConnected: true,
+        githubUsername: ghUsername,
+        githubAvatar: ghAvatar,
+        githubUrl: ghUrl,
+      });
+    }
+
     // Invalidate Redis profile cache so fresh data is loaded
     await deleteCache(`profile:${uid}`).catch(() => {});
+
+    const syncPayloadBase64 = Buffer.from(
+      JSON.stringify({
+        uid,
+        githubConnected: true,
+        githubToken: encryptedToken,
+        githubUsername: ghUsername,
+        githubAvatar: ghAvatar,
+        githubUrl: ghUrl,
+      })
+    ).toString("base64url");
+
+    const redirectWithSync = `${returnTo}${
+      returnTo.includes("#") ? "&" : "#"
+    }gh_sync=${encodeURIComponent(syncPayloadBase64)}`;
 
     res.send(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>GitHub Connected</title>
-          <meta http-equiv="refresh" content="0; url=/profile" />
+          <meta http-equiv="refresh" content="1; url=${redirectWithSync}" />
           <style>
             body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; }
             .card { text-align: center; padding: 2rem; background: #1e293b; border-radius: 1rem; border: 1px solid #334155; }
@@ -2233,24 +2606,40 @@ app.get("/api/github/callback", async (req, res) => {
         <body>
           <div class="card">
             <h3>GitHub Connected Successfully!</h3>
-            <p>Redirecting back to your profile...</p>
+            <p>Syncing token &amp; returning to your workspace...</p>
           </div>
           <script>
             try {
+              var uid = ${JSON.stringify(uid)};
+              var encryptedToken = ${JSON.stringify(encryptedToken)};
+              var ghUsername = ${JSON.stringify(ghUsername)};
+              var ghAvatar = ${JSON.stringify(ghAvatar)};
+              var ghUrl = ${JSON.stringify(ghUrl)};
+              var targetUrl = ${JSON.stringify(redirectWithSync)};
+
+              if (typeof localStorage !== 'undefined' && uid) {
+                if (encryptedToken) localStorage.setItem('dsa_viz_github_token_' + uid, encryptedToken);
+                if (ghUsername) localStorage.setItem('dsa_viz_github_username_' + uid, ghUsername);
+                if (ghAvatar) localStorage.setItem('dsa_viz_github_avatar_' + uid, ghAvatar);
+                localStorage.setItem('dsa_viz_github_connected_' + uid, 'true');
+              }
+
               if (window.opener && !window.opener.closed) {
-                window.opener.postMessage({
-                  type: 'GITHUB_AUTH_SUCCESS',
+                var msgPayload = {
                   githubConnected: true,
-                  githubToken: ${JSON.stringify(encryptedToken)},
-                  githubUsername: ${JSON.stringify(ghUsername)},
-                  githubAvatar: ${JSON.stringify(ghAvatar)}
-                }, '*');
-                setTimeout(() => window.close(), 400);
+                  githubToken: encryptedToken,
+                  githubUsername: ghUsername,
+                  githubAvatar: ghAvatar,
+                  githubUrl: ghUrl
+                };
+                window.opener.postMessage(Object.assign({ type: 'GITHUB_AUTH_SUCCESS' }, msgPayload), '*');
+                window.opener.postMessage(Object.assign({ type: 'GITHUB_CONNECTED' }, msgPayload), '*');
+                setTimeout(function() { window.close(); }, 300);
               } else {
-                window.location.replace('/profile');
+                window.location.replace(targetUrl);
               }
             } catch (e) {
-              window.location.replace('/profile');
+              window.location.replace(${JSON.stringify(redirectWithSync)});
             }
           </script>
         </body>
@@ -2265,6 +2654,8 @@ app.get("/api/github/callback", async (req, res) => {
 app.post("/api/github/disconnect", requireAuth, async (req: any, res) => {
   try {
     const uid = req.user.uid;
+    const bearerToken = extractRequestBearerToken(req);
+    clearGithubSessionCookie(req, res);
     await updateProfile(uid, {
       githubToken: null,
       githubConnected: false,
@@ -2272,6 +2663,15 @@ app.post("/api/github/disconnect", requireAuth, async (req: any, res) => {
       githubAvatar: null,
       githubUrl: null,
     });
+    if (bearerToken) {
+      await saveGithubProfileToFirestoreRest(uid, bearerToken, {
+        githubToken: null,
+        githubConnected: false,
+        githubUsername: null,
+        githubAvatar: null,
+        githubUrl: null,
+      });
+    }
     await deleteCache(`profile:${uid}`).catch(() => {});
     res.json({ success: true });
   } catch (error) {
@@ -2282,12 +2682,12 @@ app.post("/api/github/disconnect", requireAuth, async (req: any, res) => {
 app.post("/api/github/push", requireAuth, async (req: any, res) => {
   try {
     const pushSchema = z.object({
-      code: z.string().max(50000, "Code is too large"),
+      code: z.string().min(1, "Code cannot be empty").max(50000, "Code is too large"),
       titleSlug: z.string().max(255),
       lang: z.string().max(50),
-      githubToken: z.string().optional()
+      githubToken: z.string().optional(),
     });
-    
+
     const parsed = pushSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid payload", details: parsed.error.format() });
@@ -2295,116 +2695,248 @@ app.post("/api/github/push", requireAuth, async (req: any, res) => {
     const { code, titleSlug, lang, githubToken: clientToken } = parsed.data;
 
     const uid = req.user.uid;
-    
+    const bearerToken = extractRequestBearerToken(req);
+    const ghCookie = getGithubSessionCookie(req, uid);
     const profile = await getProfile(uid).catch(() => null);
-    const rawToken = profile?.githubToken || clientToken;
-    
+
+    // Multi-source encrypted/raw token resolution (Client -> Cookie -> Server Memory -> Firestore REST API)
+    const candidateTokens: string[] = [];
+    if (clientToken && typeof clientToken === "string" && clientToken.trim()) {
+      candidateTokens.push(clientToken.trim());
+    }
+    if (ghCookie?.githubToken) {
+      candidateTokens.push(ghCookie.githubToken);
+    }
+    if (profile?.githubToken) {
+      candidateTokens.push(profile.githubToken);
+    }
+
     let githubToken: string | null = null;
-    if (rawToken) {
-      githubToken = decryptToken(rawToken);
-      if (!githubToken && (rawToken.startsWith("ghp_") || rawToken.startsWith("github_pat_") || rawToken.startsWith("gho_"))) {
-        githubToken = rawToken;
+    let encryptedGithubToken: string | null = null;
+
+    const tryResolveRawToken = (raw: string): { plain: string; encrypted: string } | null => {
+      const dec = decryptToken(raw);
+      if (dec) {
+        return { plain: dec, encrypted: raw };
+      }
+      if (
+        raw.startsWith("ghp_") ||
+        raw.startsWith("github_pat_") ||
+        raw.startsWith("gho_") ||
+        raw.startsWith("ghu_")
+      ) {
+        return { plain: raw, encrypted: encryptToken(raw) };
+      }
+      return null;
+    };
+
+    for (const candidate of candidateTokens) {
+      const resolved = tryResolveRawToken(candidate);
+      if (resolved) {
+        githubToken = resolved.plain;
+        encryptedGithubToken = resolved.encrypted;
+        break;
       }
     }
 
-    if (!githubToken) {
-      return res.status(401).json({ error: "GitHub account not connected. Please connect your GitHub account in your Profile." });
+    // Fallback 4: Read directly from Firebase Cloud Firestore REST API using caller's Bearer token
+    if (!githubToken && bearerToken) {
+      const fsGithub = await fetchGithubProfileFromFirestoreRest(uid, bearerToken);
+      if (fsGithub?.githubToken) {
+        const resolved = tryResolveRawToken(fsGithub.githubToken);
+        if (resolved) {
+          githubToken = resolved.plain;
+          encryptedGithubToken = resolved.encrypted;
+        }
+      }
     }
 
-    // Keep profile updated if client supplied token
-    if (clientToken && (!profile?.githubToken || profile.githubToken !== clientToken)) {
-      await updateProfile(uid, { githubToken: clientToken, githubConnected: true }).catch(() => {});
+    if (!githubToken || !encryptedGithubToken) {
+      return res.status(401).json({
+        error:
+          "GitHub authorization token needs to be refreshed. Reconnecting your GitHub session...",
+        code: "GITHUB_TOKEN_REFRESH_REQUIRED",
+      });
     }
 
     const extMap: Record<string, string> = {
-      "cpp": "cpp",
-      "java": "java",
-      "python": "py",
-      "python3": "py",
-      "javascript": "js",
-      "typescript": "ts"
+      cpp: "cpp",
+      c: "c",
+      java: "java",
+      python: "py",
+      python3: "py",
+      javascript: "js",
+      typescript: "ts",
+      pseudocode: "md",
+      markdown: "md",
     };
-    const ext = extMap[lang] || "txt";
+    const normalizedLang = String(lang || "cpp").toLowerCase().trim();
+    const ext = extMap[normalizedLang] || "txt";
+    const cleanSlug =
+      String(titleSlug || "solution")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-_]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "solution";
     const repoName = "LeetCode-Solutions";
-    const path = `${titleSlug}/${titleSlug}.${ext}`;
-    const message = `Add solution for ${titleSlug}`;
+    const path = `${cleanSlug}/${cleanSlug}.${ext}`;
+    const message = `Add ${normalizedLang.toUpperCase()} solution for ${cleanSlug} via DSA.viz.co`;
 
-    const githubHeaders = {
-      "Authorization": `Bearer ${githubToken}`,
+    const githubHeaders: Record<string, string> = {
+      Authorization: `Bearer ${githubToken}`,
       "User-Agent": "DSA-viz-co-App/1.0",
-      "Accept": "application/vnd.github.v3+json"
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
     };
 
-    // 1. Get GitHub Username
+    // 1. Get GitHub Username & verify token validity
     const userRes = await fetch("https://api.github.com/user", {
-      headers: githubHeaders
+      headers: githubHeaders,
     });
-    const userData = await userRes.json();
+    const userData = await userRes.json().catch(() => ({}));
     if (!userRes.ok) {
       console.error("GitHub user fetch error:", userData);
-      return res.status(400).json({ error: userData.message || "Invalid or expired GitHub token. Please reconnect GitHub in Profile." });
+      if (userRes.status === 401) {
+        clearGithubSessionCookie(req, res);
+        return res.status(401).json({
+          error:
+            "Your GitHub token has expired or been revoked. Reconnecting your GitHub account...",
+          code: "GITHUB_TOKEN_REFRESH_REQUIRED",
+        });
+      }
+      return res.status(400).json({
+        error:
+          userData.message ||
+          "Invalid or expired GitHub token. Please reconnect GitHub in Profile.",
+      });
     }
-    const owner = userData.login;
+    const owner: string = userData.login;
+    const ownerAvatar: string | null = userData.avatar_url || null;
+    const ownerUrl: string | null = userData.html_url || `https://github.com/${owner}`;
+
+    // Synchronize verified token & metadata across cookie, memory, and Firestore
+    setGithubSessionCookie(req, res, {
+      uid,
+      githubToken: encryptedGithubToken,
+      githubUsername: owner,
+      githubAvatar: ownerAvatar,
+      githubUrl: ownerUrl,
+    });
+    await updateProfile(uid, {
+      githubToken: encryptedGithubToken,
+      githubConnected: true,
+      githubUsername: owner,
+      githubAvatar: ownerAvatar,
+      githubUrl: ownerUrl,
+    }).catch(() => {});
+    if (bearerToken) {
+      saveGithubProfileToFirestoreRest(uid, bearerToken, {
+        githubToken: encryptedGithubToken,
+        githubConnected: true,
+        githubUsername: owner,
+        githubAvatar: ownerAvatar,
+        githubUrl: ownerUrl,
+      }).catch(() => {});
+    }
 
     // 2. Check if repo exists, create if not
     let repoRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
-      headers: githubHeaders
+      headers: githubHeaders,
     });
     let defaultBranch = "main";
     if (repoRes.status === 404) {
-      repoRes = await fetch("https://api.github.com/user/repos", {
+      const createRes = await fetch("https://api.github.com/user/repos", {
         method: "POST",
         headers: { ...githubHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({
           name: repoName,
-          description: "My LeetCode solutions synced automatically with DSA.viz.co",
+          description: "My LeetCode & DSA solutions synced automatically with DSA.viz.co",
           private: false,
-          auto_init: true
-        })
+          auto_init: true,
+        }),
       });
-      if (!repoRes.ok) {
-        const repoErr = await repoRes.json().catch(() => ({}));
-        return res.status(500).json({ error: repoErr.message || "Failed to create repository" });
+      if (!createRes.ok) {
+        const repoErr = await createRes.json().catch(() => ({}));
+        // If 422 because repo already exists (e.g. private repo), continue to push
+        if (createRes.status !== 422) {
+          return res.status(500).json({
+            error: repoErr.message || "Failed to create LeetCode-Solutions repository on GitHub",
+          });
+        }
+      } else {
+        const createdRepoData = await createRes.json().catch(() => ({}));
+        if (createdRepoData?.default_branch) {
+          defaultBranch = createdRepoData.default_branch;
+        }
+        // Wait briefly for GitHub's initial commit to settle
+        await new Promise((r) => setTimeout(r, 1500));
       }
-      // wait a bit for initialization
-      await new Promise(r => setTimeout(r, 2000));
     } else if (repoRes.ok) {
       const repoData = await repoRes.json().catch(() => ({}));
-      if (repoData.default_branch) {
+      if (repoData?.default_branch) {
         defaultBranch = repoData.default_branch;
       }
     }
 
     // 3. Check if file exists to get SHA (for updates)
-    let sha: string | undefined = undefined;
-    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path}`, {
-      headers: githubHeaders
-    });
-    if (fileRes.ok) {
-      const fileData = await fileRes.json().catch(() => null);
-      if (fileData?.sha) sha = fileData.sha;
-    }
+    const fetchExistingFileSha = async (branchName?: string): Promise<string | undefined> => {
+      const query = branchName ? `?ref=${encodeURIComponent(branchName)}` : "";
+      const fileRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repoName}/contents/${path}${query}`,
+        { headers: githubHeaders }
+      );
+      if (fileRes.ok) {
+        const fileData = await fileRes.json().catch(() => null);
+        if (fileData?.sha) return fileData.sha;
+      }
+      return undefined;
+    };
 
-    // 4. Create/Update file
-    const content = Buffer.from(code).toString("base64");
-    const pushRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path}`, {
-      method: "PUT",
-      headers: { ...githubHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        content,
-        sha,
-        branch: defaultBranch
-      })
-    });
+    let sha = await fetchExistingFileSha(defaultBranch);
+
+    // 4. Create/Update file (with automatic retry on 409/422 or uninitialized branch)
+    const content = Buffer.from(code, "utf8").toString("base64");
+    const putFile = async (targetSha?: string, includeBranch = true) => {
+      return fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path}`, {
+        method: "PUT",
+        headers: { ...githubHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          content,
+          ...(targetSha ? { sha: targetSha } : {}),
+          ...(includeBranch && defaultBranch ? { branch: defaultBranch } : {}),
+        }),
+      });
+    };
+
+    let pushRes = await putFile(sha, true);
+    if (!pushRes.ok && (pushRes.status === 409 || pushRes.status === 422 || pushRes.status === 404)) {
+      await new Promise((r) => setTimeout(r, 1200));
+      sha = await fetchExistingFileSha();
+      pushRes = await putFile(sha, false);
+    }
 
     if (!pushRes.ok) {
       const err = await pushRes.json().catch(() => ({ message: "Unknown error" }));
-      return res.status(500).json({ error: "Failed to push code: " + (err.message || pushRes.statusText) });
+      return res.status(500).json({
+        error: "Failed to push code to GitHub: " + (err.message || pushRes.statusText),
+      });
     }
 
-    res.json({ success: true, url: `https://github.com/${owner}/${repoName}/blob/${defaultBranch}/${path}` });
+    const pushData = await pushRes.json().catch(() => ({}));
+    const htmlUrl =
+      pushData?.content?.html_url ||
+      `https://github.com/${owner}/${repoName}/blob/${defaultBranch}/${path}`;
 
+    res.json({
+      success: true,
+      url: htmlUrl,
+      repoUrl: `https://github.com/${owner}/${repoName}`,
+      owner,
+      repoName,
+      path,
+      encryptedGithubToken,
+    });
   } catch (error: any) {
     console.error("GitHub push error:", error);
     res.status(500).json({ error: error?.message || "Failed to push to GitHub" });

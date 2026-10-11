@@ -39,7 +39,7 @@ export interface MonacoCodeEditorProps {
   onExportSnapshot?: () => void;
   loading?: boolean;
   disabled?: boolean;
-  onPushToGithub?: (code: string) => void;
+  onPushToGithub?: (code: string, language?: SupportedLanguage) => void;
   githubLoading?: boolean;
   problemTitle?: string;
   problemSlug?: string;
@@ -628,7 +628,7 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
             <Button
               type="button"
               size="sm"
-              onClick={() => onPushToGithub(code)}
+              onClick={() => onPushToGithub(code, language)}
               disabled={githubLoading || !code.trim()}
               variant="outline"
               className="h-7 gap-1.5 px-2.5 font-mono text-[11px] font-bold border-border shadow-2xs hover:bg-muted/50 cursor-pointer"

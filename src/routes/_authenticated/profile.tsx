@@ -66,6 +66,13 @@ import { problems, problemBySlug } from "@/lib/problems";
 import { LeetCodeHeatmap } from "@/components/dashboard/LeetCodeHeatmap";
 import { AiMistakesSection } from "@/components/dashboard/AiMistakesSection";
 import { ApiKeyVaultManager } from "@/components/ApiKeyVaultModal";
+import {
+  connectGithubWithPopupOrRedirect,
+  consumeGithubSyncFromHash,
+  persistGithubAuthToClient,
+  pushSolutionToGithub,
+  resumePendingGithubPushIfPresent,
+} from "@/lib/github-sync";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/profile")({
@@ -137,6 +144,7 @@ function ProfilePage() {
     return null;
   });
   const [isConnectingGithub, setIsConnectingGithub] = useState(false);
+  const [isPushingGithub, setIsPushingGithub] = useState(false);
   const [isSyncingFirebase, setIsSyncingFirebase] = useState(false);
   const [lastFirebaseSyncAt, setLastFirebaseSyncAt] = useState<string | null>(null);
 
@@ -216,6 +224,8 @@ function ProfilePage() {
       const auth = getAuth();
       const currentUser = auth.currentUser;
       const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
+
+      const hashGithub = await consumeGithubSyncFromHash(currentUser?.uid);
 
       let clientProfile: any = null;
       let clientSubs: any[] = [];
@@ -310,6 +320,7 @@ function ProfilePage() {
           : null;
 
       const effectiveGithubUsername =
+        hashGithub?.githubUsername ||
         clientProfile?.githubUsername ||
         clientProfile?.github_username ||
         serverProfile?.githubUsername ||
@@ -320,6 +331,7 @@ function ProfilePage() {
         null;
 
       const effectiveGithubAvatar =
+        hashGithub?.githubAvatar ||
         clientProfile?.githubAvatar ||
         clientProfile?.github_avatar ||
         serverProfile?.githubAvatar ||
@@ -329,19 +341,28 @@ function ProfilePage() {
           : null) ||
         null;
 
-      const isGithubConnected =
-        !!clientProfile?.githubConnected ||
-        !!clientProfile?.githubToken ||
-        !!serverProfile?.githubConnected ||
-        !!serverProfile?.githubToken ||
-        !!effectiveGithubUsername ||
-        localConnected ||
-        !!localToken;
-
       const effectiveGithubToken =
-        clientProfile?.githubToken || serverProfile?.githubToken || localToken || null;
+        hashGithub?.githubToken ||
+        clientProfile?.githubToken ||
+        serverProfile?.githubToken ||
+        localToken ||
+        null;
+
+      const isGithubConnected =
+        !!hashGithub?.githubConnected ||
+        !!effectiveGithubToken ||
+        !!clientProfile?.githubConnected ||
+        !!serverProfile?.githubConnected ||
+        !!effectiveGithubUsername ||
+        localConnected;
+
+      if (typeof window !== "undefined" && currentUser && effectiveGithubToken) {
+        localStorage.setItem(`dsa_viz_github_token_${currentUser.uid}`, effectiveGithubToken);
+        localStorage.setItem(`dsa_viz_github_connected_${currentUser.uid}`, "true");
+      }
 
       const effectiveGithubUrl =
+        hashGithub?.githubUrl ||
         clientProfile?.githubUrl ||
         serverProfile?.githubUrl ||
         (effectiveGithubUsername ? `https://github.com/${effectiveGithubUsername}` : null);
@@ -467,6 +488,7 @@ function ProfilePage() {
           (clientProfile.displayName !== effectiveDisplayName ||
             clientProfile.leetcodeUsername !== effectiveLcUsername ||
             clientProfile.githubUsername !== effectiveGithubUsername ||
+            (effectiveGithubToken && clientProfile.githubToken !== effectiveGithubToken) ||
             Boolean(clientProfile.githubConnected) !== isGithubConnected ||
             clientProfile.solvedCount !== solved.size ||
             clientProfile.optimalCount !== optimal.size ||
@@ -484,6 +506,7 @@ function ProfilePage() {
             leetcode_stats: effectiveLcStats,
             githubConnected: isGithubConnected,
             github_connected: isGithubConnected,
+            ...(effectiveGithubToken ? { githubToken: effectiveGithubToken } : {}),
             githubUsername: effectiveGithubUsername,
             github_username: effectiveGithubUsername,
             githubAvatar: effectiveGithubAvatar,
@@ -529,6 +552,7 @@ function ProfilePage() {
           leetcode_stats: data.profile.leetcodeStats || null,
           githubConnected: Boolean(data.profile.githubConnected),
           github_connected: Boolean(data.profile.githubConnected),
+          ...(data.profile.githubToken ? { githubToken: data.profile.githubToken } : {}),
           githubUsername: data.profile.githubUsername || null,
           github_username: data.profile.githubUsername || null,
           githubAvatar: data.profile.githubAvatar || null,
@@ -632,39 +656,29 @@ function ProfilePage() {
   };
 
   useEffect(() => {
+    void resumePendingGithubPushIfPresent().then(() => {
+      queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+    });
+
     const handleMessage = async (event: MessageEvent) => {
-      if (event.data?.type === "GITHUB_AUTH_SUCCESS") {
+      const msgType = event.data?.type;
+      if (msgType === "GITHUB_AUTH_SUCCESS" || msgType === "GITHUB_CONNECTED") {
         const auth = getAuth();
         const currentUser = auth.currentUser;
         if (currentUser) {
-          try {
-            const ghUsername = event.data?.githubUsername || null;
-            const ghAvatar = event.data?.githubAvatar || null;
-            const ghToken = event.data?.githubToken || null;
-            const ghUrl = ghUsername ? `https://github.com/${ghUsername}` : null;
-
-            await updateUserProfile(currentUser.uid, {
-              githubConnected: true,
-              github_connected: true,
-              ...(ghToken ? { githubToken: ghToken } : {}),
-              ...(ghUsername ? { githubUsername: ghUsername, github_username: ghUsername } : {}),
-              ...(ghAvatar ? { githubAvatar: ghAvatar, github_avatar: ghAvatar } : {}),
-              ...(ghUrl ? { githubUrl: ghUrl } : {}),
-            }).catch(() => {});
-
-            if (ghToken) {
-              localStorage.setItem(`dsa_viz_github_token_${currentUser.uid}`, ghToken);
-            }
-            if (ghUsername) {
-              localStorage.setItem(`dsa_viz_github_username_${currentUser.uid}`, ghUsername);
-            }
-            if (ghAvatar) {
-              localStorage.setItem(`dsa_viz_github_avatar_${currentUser.uid}`, ghAvatar);
-            }
-            localStorage.setItem(`dsa_viz_github_connected_${currentUser.uid}`, "true");
-          } catch (e) {
-            console.warn("Could not save GitHub metadata to client Firestore:", e);
-          }
+          const ghUsername = event.data?.githubUsername || null;
+          const ghAvatar = event.data?.githubAvatar || null;
+          const ghToken = event.data?.githubToken || null;
+          const ghUrl =
+            event.data?.githubUrl || (ghUsername ? `https://github.com/${ghUsername}` : null);
+          await persistGithubAuthToClient(currentUser.uid, {
+            uid: currentUser.uid,
+            githubConnected: true,
+            githubToken: ghToken,
+            githubUsername: ghUsername,
+            githubAvatar: ghAvatar,
+            githubUrl: ghUrl,
+          });
         }
         toast.success("GitHub connected & synced to Firebase!");
         queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
@@ -679,26 +693,79 @@ function ProfilePage() {
   const handleConnectGithub = async () => {
     setIsConnectingGithub(true);
     try {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      const currentToken = currentUser ? await currentUser.getIdToken().catch(() => token) : token;
-
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const res = await fetch(`/api/github/url?origin=${encodeURIComponent(origin)}`, {
-        headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok || !d.url) {
-        throw new Error(
-          d.error || "GitHub authorization is not configured or unavailable on the server."
-        );
+      const res = await connectGithubWithPopupOrRedirect({ returnTo: "/profile" });
+      if (res.connected) {
+        toast.success("GitHub account connected & encrypted token synced!");
+        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+        await refetch();
       }
-
-      window.location.href = d.url;
     } catch (e: any) {
       console.error("GitHub connect error:", e);
       toast.error(e?.message || "Failed to initiate GitHub connect");
+    } finally {
       setIsConnectingGithub(false);
+    }
+  };
+
+  const handlePushLatestToGithub = async () => {
+    setIsPushingGithub(true);
+    try {
+      const subs: any[] = Array.isArray(data?.submissions) ? data.submissions : [];
+      const latestWithCode = subs.find(
+        (s) =>
+          (typeof s?.code === "string" && s.code.trim().length > 0) ||
+          (typeof s?.pseudocode === "string" && s.pseudocode.trim().length > 0)
+      );
+
+      let codeToPush: string;
+      let slugToPush: string;
+      let langToPush: string;
+
+      if (latestWithCode) {
+        codeToPush = String(latestWithCode.code || latestWithCode.pseudocode).trim();
+        slugToPush = String(latestWithCode.slug || latestWithCode.title || "solution");
+        langToPush = String(
+          latestWithCode.language ||
+            latestWithCode.lang ||
+            (latestWithCode.code ? "cpp" : "pseudocode")
+        );
+      } else {
+        const handle = data?.profile?.githubUsername || user?.displayName || "developer";
+        slugToPush = "README";
+        langToPush = "markdown";
+        codeToPush = [
+          "# LeetCode & DSA Solutions — Synced via DSA.viz.co",
+          "",
+          `Maintained by **@${handle}** using [DSA.viz.co](https://dsa-viz-co.vercel.app).`,
+          "",
+          `- **Total Solved**: ${Number(data?.solved || 0)} on DSA.viz`,
+          `- **Optimal Verdicts**: ${Number(data?.optimal || 0)}`,
+          `- **Last Synced**: ${new Date().toISOString()}`,
+          "",
+        ].join("\n");
+      }
+
+      const result = await pushSolutionToGithub({
+        code: codeToPush,
+        titleSlug: slugToPush,
+        lang: langToPush,
+        fallbackProfileToken: data?.profile?.githubToken || null,
+      });
+
+      if (result.ok && result.url) {
+        toast.success(`Pushed ${slugToPush} to your LeetCode-Solutions GitHub repo!`, {
+          action: {
+            label: "View on GitHub",
+            onClick: () => window.open(result.url, "_blank"),
+          },
+        });
+        queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+        await refetch();
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to push to GitHub");
+    } finally {
+      setIsPushingGithub(false);
     }
   };
 
@@ -1091,8 +1158,8 @@ function ProfilePage() {
       rows.push({
         label: `GH @${String(profile?.githubUsername || "LINKED").toUpperCase().slice(0, 12)}`,
         detail: "REPO PUSH: ACTIVE",
-        actionLabel: "SYNC ↗",
-        onClick: handleConnectGithub,
+        actionLabel: "PUSH ↗",
+        onClick: () => void handlePushLatestToGithub(),
       });
     }
 
@@ -3110,9 +3177,13 @@ function ProfilePage() {
                             <div className="font-mono text-xs font-bold text-foreground truncate">
                               {profile.githubUsername ? `@${profile.githubUsername}` : "GitHub Linked"}
                             </div>
-                            {profile.githubUrl && (
+                            {(profile.githubUsername || profile.githubUrl) && (
                               <a
-                                href={profile.githubUrl}
+                                href={
+                                  profile.githubUsername
+                                    ? `https://github.com/${profile.githubUsername}/LeetCode-Solutions`
+                                    : profile.githubUrl
+                                }
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground hover:text-foreground"
@@ -3125,10 +3196,21 @@ function ProfilePage() {
                         </div>
                       </div>
 
+                      <Button
+                        onClick={() => void handlePushLatestToGithub()}
+                        disabled={isPushingGithub || isConnectingGithub}
+                        className="w-full h-8 gap-2 font-mono text-[11px] font-bold bg-[#21341d] text-[#edf3e8] hover:bg-[#21341d]/90 dark:bg-primary dark:text-primary-foreground cursor-pointer"
+                      >
+                        <Github className="size-3.5" />
+                        <span>
+                          {isPushingGithub ? "PUSHING TO GITHUB…" : "PUSH / SYNC TO GITHUB"}
+                        </span>
+                      </Button>
+
                       <div className="flex items-center gap-2">
                         <Button
                           onClick={handleConnectGithub}
-                          disabled={isConnectingGithub}
+                          disabled={isConnectingGithub || isPushingGithub}
                           variant="outline"
                           size="sm"
                           className="flex-1 h-8 font-mono text-[11px]"
@@ -3137,7 +3219,7 @@ function ProfilePage() {
                         </Button>
                         <Button
                           onClick={handleDisconnectGithub}
-                          disabled={isConnectingGithub}
+                          disabled={isConnectingGithub || isPushingGithub}
                           variant="ghost"
                           size="sm"
                           className="h-8 font-mono text-[11px] text-destructive hover:bg-destructive/10"
@@ -3153,7 +3235,7 @@ function ProfilePage() {
                       className="w-full h-9 gap-2 font-mono text-xs font-bold bg-[#21341d] text-[#edf3e8] hover:bg-[#21341d]/90 dark:bg-primary dark:text-primary-foreground cursor-pointer"
                     >
                       <Github className="size-4" />
-                      <span>{isConnectingGithub ? "REDIRECTING…" : "CONNECT GITHUB ACCOUNT"}</span>
+                      <span>{isConnectingGithub ? "CONNECTING…" : "CONNECT GITHUB ACCOUNT"}</span>
                     </Button>
                   )}
                 </div>

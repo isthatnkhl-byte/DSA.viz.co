@@ -38,6 +38,10 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
 import { useChat } from "@/context/ChatContext";
+import {
+  pushSolutionToGithub,
+  resumePendingGithubPushIfPresent,
+} from "@/lib/github-sync";
 
 export const Route = createFileRoute("/compiler")({
   head: () => ({
@@ -264,62 +268,6 @@ function CppCompilerPage() {
   );
 
   const [githubLoading, setGithubLoading] = useState(false);
-  const handlePushToGithub = async (codeStr: string) => {
-    if (!profileStats?.profile) {
-      toast.error("Please log in to push to GitHub.");
-      return;
-    }
-    const isConnected =
-      !!(profileStats.profile as any).githubConnected || !!(profileStats.profile as any).githubToken;
-    if (!isConnected) {
-      toast.error("Please connect your GitHub account in your Profile first.");
-      return;
-    }
-
-    setGithubLoading(true);
-    try {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      const authToken = await currentUser?.getIdToken();
-
-      const clientStoredToken =
-        (typeof window !== "undefined" &&
-          currentUser &&
-          localStorage.getItem(`dsa_viz_github_token_${currentUser.uid}`)) ||
-        undefined;
-
-      const titleSlug = `${language}-sandbox`;
-
-      const res = await fetch("/api/github/push", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          code: codeStr,
-          titleSlug,
-          lang: language,
-          githubToken: clientStoredToken,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to push to GitHub");
-      } else {
-        toast.success(`Successfully pushed ${activeLangConfig.label} code to GitHub!`, {
-          action: {
-            label: "View",
-            onClick: () => window.open(data.url, "_blank"),
-          },
-        });
-      }
-    } catch {
-      toast.error("An error occurred while pushing to GitHub");
-    } finally {
-      setGithubLoading(false);
-    }
-  };
 
   // Active workspace mode: "plain" (freeform scratchpad) vs "templates" (guided DSA questions)
   const [mode, setMode] = useState<CompilerMode>("plain");
@@ -337,6 +285,40 @@ function CppCompilerPage() {
   const [templateCode, setTemplateCode] = useState<string>(defaultTemplate.code);
   const [templateStdin, setTemplateStdin] = useState<string>(defaultTemplate.defaultStdin || "");
   const [templateResult, setTemplateResult] = useState<CompilerExecutionResult | null>(null);
+
+  useEffect(() => {
+    void resumePendingGithubPushIfPresent();
+  }, [user?.uid]);
+
+  const handlePushToGithub = async (codeStr: string) => {
+    setGithubLoading(true);
+    try {
+      const titleSlug =
+        mode === "templates" && selectedTemplateId
+          ? selectedTemplateId
+          : `${language}-sandbox`;
+
+      const result = await pushSolutionToGithub({
+        code: codeStr,
+        titleSlug,
+        lang: language,
+        fallbackProfileToken: (profileStats?.profile as any)?.githubToken || null,
+      });
+
+      if (result.ok && result.url) {
+        toast.success(`Successfully pushed ${activeLangConfig.label} code to GitHub!`, {
+          action: {
+            label: "View",
+            onClick: () => window.open(result.url, "_blank"),
+          },
+        });
+      }
+    } catch {
+      toast.error("An error occurred while pushing to GitHub");
+    } finally {
+      setGithubLoading(false);
+    }
+  };
 
   // Loading state for server execution
   const [loading, setLoading] = useState(false);

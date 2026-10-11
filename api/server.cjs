@@ -290434,6 +290434,186 @@ function decryptToken(text) {
     return null;
   }
 }
+var GH_TOKEN_COOKIE_NAME = "dsaviz_gh_token";
+var GH_OAUTH_BEARER_COOKIE_NAME = "dsaviz_gh_oauth_bearer";
+function parseRequestCookies(cookieHeader) {
+  const out = {};
+  if (!cookieHeader) return out;
+  for (const pair of cookieHeader.split(";")) {
+    const eqIdx = pair.indexOf("=");
+    if (eqIdx === -1) continue;
+    const k = pair.slice(0, eqIdx).trim();
+    const v = pair.slice(eqIdx + 1).trim();
+    if (k) {
+      try {
+        out[k] = decodeURIComponent(v);
+      } catch {
+        out[k] = v;
+      }
+    }
+  }
+  return out;
+}
+function setGithubSessionCookie(req, res, data) {
+  try {
+    const sealed = encryptToken(JSON.stringify(data));
+    const isSecure = process.env.NODE_ENV === "production" || req.secure || req.headers["x-forwarded-proto"] === "https";
+    const parts = [
+      `${GH_TOKEN_COOKIE_NAME}=${encodeURIComponent(sealed)}`,
+      "Path=/",
+      "HttpOnly",
+      "SameSite=Lax",
+      `Max-Age=${60 * 60 * 24 * 90}`
+    ];
+    if (isSecure) parts.push("Secure");
+    res.append("Set-Cookie", parts.join("; "));
+  } catch {
+  }
+}
+function getGithubSessionCookie(req, expectedUid) {
+  try {
+    const cookies = parseRequestCookies(req.headers.cookie);
+    const raw = cookies[GH_TOKEN_COOKIE_NAME];
+    if (!raw) return null;
+    const decrypted = decryptToken(raw);
+    if (!decrypted) return null;
+    const parsed = JSON.parse(decrypted);
+    if (!parsed || parsed.uid !== expectedUid || !parsed.githubToken) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function clearGithubSessionCookie(req, res) {
+  const isSecure = process.env.NODE_ENV === "production" || req.secure || req.headers["x-forwarded-proto"] === "https";
+  const parts = [
+    `${GH_TOKEN_COOKIE_NAME}=`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0"
+  ];
+  if (isSecure) parts.push("Secure");
+  res.append("Set-Cookie", parts.join("; "));
+}
+function setGithubOAuthBearerCookie(req, res, bearerToken) {
+  try {
+    const sealed = encryptToken(bearerToken);
+    const isSecure = process.env.NODE_ENV === "production" || req.secure || req.headers["x-forwarded-proto"] === "https";
+    const parts = [
+      `${GH_OAUTH_BEARER_COOKIE_NAME}=${encodeURIComponent(sealed)}`,
+      "Path=/",
+      "HttpOnly",
+      "SameSite=Lax",
+      "Max-Age=600"
+    ];
+    if (isSecure) parts.push("Secure");
+    res.append("Set-Cookie", parts.join("; "));
+  } catch {
+  }
+}
+function getGithubOAuthBearerCookie(req) {
+  try {
+    const cookies = parseRequestCookies(req.headers.cookie);
+    const raw = cookies[GH_OAUTH_BEARER_COOKIE_NAME];
+    if (!raw) return null;
+    return decryptToken(raw);
+  } catch {
+    return null;
+  }
+}
+function extractRequestBearerToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.split("Bearer ")[1]?.trim();
+  if (!token || token === "undefined" || token === "null" || token === "local-dev-token") {
+    return null;
+  }
+  return token;
+}
+function getFirestoreProjectAndDb() {
+  const projectId2 = cleanSecretEnv(process.env.VITE_FIREBASE_PROJECT_ID) || cleanSecretEnv(process.env.FIREBASE_PROJECT_ID) || "gen-lang-client-0937971784";
+  const databaseId2 = cleanSecretEnv(process.env.VITE_FIREBASE_DATABASE_ID) || "ai-studio-f73f5b28-1f90-4a8e-a450-12a34f569c0d";
+  return { projectId: projectId2, databaseId: databaseId2 };
+}
+async function fetchGithubProfileFromFirestoreRest(uid, bearerToken) {
+  if (!uid || !bearerToken) return null;
+  const { projectId: projectId2, databaseId: databaseId2 } = getFirestoreProjectAndDb();
+  const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId2
+  )}/databases/${encodeURIComponent(databaseId2)}/documents/users/${encodeURIComponent(uid)}`;
+  try {
+    const res = await fetch(docUrl, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${bearerToken}` }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const fields = data?.fields;
+    if (!fields) return null;
+    const githubToken = fields.githubToken?.stringValue || null;
+    const githubUsername = fields.githubUsername?.stringValue || fields.github_username?.stringValue || null;
+    const githubAvatar = fields.githubAvatar?.stringValue || fields.github_avatar?.stringValue || null;
+    const githubUrl = fields.githubUrl?.stringValue || (githubUsername ? `https://github.com/${githubUsername}` : null);
+    const githubConnected = Boolean(
+      fields.githubConnected?.booleanValue || fields.github_connected?.booleanValue || githubToken || githubUsername
+    );
+    return {
+      githubToken,
+      githubConnected,
+      githubUsername,
+      githubAvatar,
+      githubUrl
+    };
+  } catch {
+    return null;
+  }
+}
+async function saveGithubProfileToFirestoreRest(uid, bearerToken, data) {
+  if (!uid || !bearerToken) return;
+  const { projectId: projectId2, databaseId: databaseId2 } = getFirestoreProjectAndDb();
+  const maskFields = [
+    "githubToken",
+    "githubConnected",
+    "github_connected",
+    "githubUsername",
+    "github_username",
+    "githubAvatar",
+    "github_avatar",
+    "githubUrl",
+    "updatedAt"
+  ];
+  const maskQuery = maskFields.map((f3) => `updateMask.fieldPaths=${encodeURIComponent(f3)}`).join("&");
+  const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId2
+  )}/databases/${encodeURIComponent(databaseId2)}/documents/users/${encodeURIComponent(
+    uid
+  )}?${maskQuery}`;
+  const toFirestoreStrOrNull = (val) => val ? { stringValue: val } : { nullValue: null };
+  try {
+    await fetch(docUrl, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${bearerToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        fields: {
+          githubToken: toFirestoreStrOrNull(data.githubToken),
+          githubConnected: { booleanValue: data.githubConnected },
+          github_connected: { booleanValue: data.githubConnected },
+          githubUsername: toFirestoreStrOrNull(data.githubUsername),
+          github_username: toFirestoreStrOrNull(data.githubUsername),
+          githubAvatar: toFirestoreStrOrNull(data.githubAvatar),
+          github_avatar: toFirestoreStrOrNull(data.githubAvatar),
+          githubUrl: toFirestoreStrOrNull(data.githubUrl),
+          updatedAt: { stringValue: (/* @__PURE__ */ new Date()).toISOString() }
+        }
+      })
+    });
+  } catch {
+  }
+}
 var app = (0, import_express.default)();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -290919,27 +291099,47 @@ app.get("/api/statement", async (req, res) => {
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
     const uid = req.user.uid;
+    const bearerToken = extractRequestBearerToken(req);
+    const ghCookie = getGithubSessionCookie(req, uid);
     const cacheKey = `profile:${uid}`;
     const cached3 = await getCache(cacheKey);
-    if (cached3) {
+    if (cached3 && (cached3.githubToken || !ghCookie?.githubToken)) {
       return res.json(cached3);
     }
     const user = await getOrCreateUser(uid, req.user.email || null).catch(() => null);
     const profile = await getProfile(uid).catch(() => null);
-    const { githubToken, ...safeProfile } = profile || {};
+    const { githubToken: memoryToken, ...safeProfile } = profile || {};
+    let fsGithub = null;
+    if (!memoryToken && !ghCookie?.githubToken && bearerToken) {
+      fsGithub = await fetchGithubProfileFromFirestoreRest(uid, bearerToken);
+    }
+    const resolvedEncryptedToken = memoryToken || ghCookie?.githubToken || fsGithub?.githubToken || null;
+    if (resolvedEncryptedToken && !ghCookie?.githubToken) {
+      setGithubSessionCookie(req, res, {
+        uid,
+        githubToken: resolvedEncryptedToken,
+        githubUsername: safeProfile?.githubUsername || ghCookie?.githubUsername || fsGithub?.githubUsername || null,
+        githubAvatar: safeProfile?.githubAvatar || ghCookie?.githubAvatar || fsGithub?.githubAvatar || null,
+        githubUrl: safeProfile?.githubUrl || ghCookie?.githubUrl || fsGithub?.githubUrl || null
+      });
+    }
     const cleanDisplayName = safeProfile?.displayName || safeProfile?.display_name || user?.displayName || user?.display_name || req.user.name || req.user.email?.split("@")[0] || "Authenticated User";
     const cleanAvatar = safeProfile?.avatarUrl || safeProfile?.avatar_url || req.user.picture || user?.avatarUrl || null;
     const cleanLcUsername = safeProfile?.leetcodeUsername || safeProfile?.leetcode_username || null;
     const cleanLcStats = safeProfile?.leetcodeStats || safeProfile?.leetcode_stats || null;
-    const cleanGithubConnected = !!(safeProfile?.githubConnected || githubToken);
-    const cleanGithubUsername = safeProfile?.githubUsername || safeProfile?.github_username || null;
-    const cleanGithubAvatar = safeProfile?.githubAvatar || safeProfile?.github_avatar || null;
-    const cleanGithubUrl = safeProfile?.githubUrl || (cleanGithubUsername ? `https://github.com/${cleanGithubUsername}` : null);
+    const cleanGithubUsername = safeProfile?.githubUsername || safeProfile?.github_username || ghCookie?.githubUsername || fsGithub?.githubUsername || null;
+    const cleanGithubAvatar = safeProfile?.githubAvatar || safeProfile?.github_avatar || ghCookie?.githubAvatar || fsGithub?.githubAvatar || null;
+    const cleanGithubUrl = safeProfile?.githubUrl || ghCookie?.githubUrl || fsGithub?.githubUrl || (cleanGithubUsername ? `https://github.com/${cleanGithubUsername}` : null);
+    const cleanGithubConnected = Boolean(
+      resolvedEncryptedToken || safeProfile?.githubConnected || ghCookie?.githubToken || fsGithub?.githubConnected || cleanGithubUsername
+    );
     const payload = {
       uid,
       email: req.user.email,
       ...user,
       ...safeProfile,
+      githubToken: resolvedEncryptedToken,
+      githubTokenConfigured: Boolean(resolvedEncryptedToken),
       githubConnected: cleanGithubConnected,
       github_connected: cleanGithubConnected,
       githubUsername: cleanGithubUsername,
@@ -290968,6 +291168,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       avatarUrl: req.user.picture || null,
       avatar_url: req.user.picture || null,
       githubConnected: false,
+      githubTokenConfigured: false,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     });
   }
@@ -292163,15 +292364,28 @@ app.get("/api/github/url", requireAuth, (req, res) => {
       configured: false
     });
   }
+  const bearerToken = extractRequestBearerToken(req);
+  if (bearerToken) {
+    setGithubOAuthBearerCookie(req, res, bearerToken);
+  }
   const proto = req.headers["x-forwarded-proto"]?.split(",")[0]?.trim() || "https";
   const host = req.headers["x-forwarded-host"]?.split(",")[0]?.trim() || req.headers.host;
   const clientOrigin = typeof req.query.origin === "string" && req.query.origin.startsWith("http") ? req.query.origin.replace(/\/+$/, "") : null;
   const origin = clientOrigin || req.headers.origin || `${proto}://${host}`;
   const redirectUri = `${origin}/api/github/callback`;
+  const rawReturnTo = typeof req.query.returnTo === "string" ? req.query.returnTo.trim() : "";
+  const returnTo = rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") ? rawReturnTo : "/profile";
   const nonce = import_crypto2.default.randomBytes(16).toString("hex");
   const issuedAt = Date.now();
   const expiresAt = issuedAt + 10 * 60 * 1e3;
-  const payload = JSON.stringify({ uid, redirectUri, nonce, issuedAt, expiresAt });
+  const payload = JSON.stringify({
+    uid,
+    redirectUri,
+    returnTo,
+    nonce,
+    issuedAt,
+    expiresAt
+  });
   const hmac2 = import_crypto2.default.createHmac("sha256", secret);
   hmac2.update(payload);
   const signature = hmac2.digest("hex");
@@ -292180,7 +292394,7 @@ app.get("/api/github/url", requireAuth, (req, res) => {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: "public_repo",
+    scope: "repo",
     state
   });
   const authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
@@ -292199,6 +292413,7 @@ app.get("/api/github/callback", async (req, res) => {
   let nonce;
   let expiresAt;
   let redirectUri;
+  let returnTo = "/profile";
   try {
     const decodedWrapper = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
     const { payload, signature } = decodedWrapper;
@@ -292213,6 +292428,9 @@ app.get("/api/github/callback", async (req, res) => {
     nonce = decoded.nonce;
     expiresAt = decoded.expiresAt;
     redirectUri = decoded.redirectUri;
+    if (typeof decoded.returnTo === "string" && decoded.returnTo.startsWith("/") && !decoded.returnTo.startsWith("//")) {
+      returnTo = decoded.returnTo;
+    }
     if (Date.now() > expiresAt) {
       return res.status(400).send("OAuth state expired. Please initiate GitHub login again.");
     }
@@ -292230,7 +292448,7 @@ app.get("/api/github/callback", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        Accept: "application/json"
       },
       body: JSON.stringify({
         client_id: clientId,
@@ -292254,9 +292472,10 @@ app.get("/api/github/callback", async (req, res) => {
     try {
       const userRes = await fetch("https://api.github.com/user", {
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "User-Agent": "DSA-viz-App",
-          "Accept": "application/vnd.github.v3+json"
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28"
         }
       });
       if (userRes.ok) {
@@ -292276,14 +292495,42 @@ app.get("/api/github/callback", async (req, res) => {
       githubAvatar: ghAvatar,
       githubUrl: ghUrl
     });
+    setGithubSessionCookie(req, res, {
+      uid,
+      githubToken: encryptedToken,
+      githubUsername: ghUsername,
+      githubAvatar: ghAvatar,
+      githubUrl: ghUrl
+    });
+    const oauthBearer = getGithubOAuthBearerCookie(req);
+    if (oauthBearer) {
+      await saveGithubProfileToFirestoreRest(uid, oauthBearer, {
+        githubToken: encryptedToken,
+        githubConnected: true,
+        githubUsername: ghUsername,
+        githubAvatar: ghAvatar,
+        githubUrl: ghUrl
+      });
+    }
     await deleteCache(`profile:${uid}`).catch(() => {
     });
+    const syncPayloadBase64 = Buffer.from(
+      JSON.stringify({
+        uid,
+        githubConnected: true,
+        githubToken: encryptedToken,
+        githubUsername: ghUsername,
+        githubAvatar: ghAvatar,
+        githubUrl: ghUrl
+      })
+    ).toString("base64url");
+    const redirectWithSync = `${returnTo}${returnTo.includes("#") ? "&" : "#"}gh_sync=${encodeURIComponent(syncPayloadBase64)}`;
     res.send(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>GitHub Connected</title>
-          <meta http-equiv="refresh" content="0; url=/profile" />
+          <meta http-equiv="refresh" content="1; url=${redirectWithSync}" />
           <style>
             body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; }
             .card { text-align: center; padding: 2rem; background: #1e293b; border-radius: 1rem; border: 1px solid #334155; }
@@ -292292,24 +292539,40 @@ app.get("/api/github/callback", async (req, res) => {
         <body>
           <div class="card">
             <h3>GitHub Connected Successfully!</h3>
-            <p>Redirecting back to your profile...</p>
+            <p>Syncing token &amp; returning to your workspace...</p>
           </div>
           <script>
             try {
+              var uid = ${JSON.stringify(uid)};
+              var encryptedToken = ${JSON.stringify(encryptedToken)};
+              var ghUsername = ${JSON.stringify(ghUsername)};
+              var ghAvatar = ${JSON.stringify(ghAvatar)};
+              var ghUrl = ${JSON.stringify(ghUrl)};
+              var targetUrl = ${JSON.stringify(redirectWithSync)};
+
+              if (typeof localStorage !== 'undefined' && uid) {
+                if (encryptedToken) localStorage.setItem('dsa_viz_github_token_' + uid, encryptedToken);
+                if (ghUsername) localStorage.setItem('dsa_viz_github_username_' + uid, ghUsername);
+                if (ghAvatar) localStorage.setItem('dsa_viz_github_avatar_' + uid, ghAvatar);
+                localStorage.setItem('dsa_viz_github_connected_' + uid, 'true');
+              }
+
               if (window.opener && !window.opener.closed) {
-                window.opener.postMessage({
-                  type: 'GITHUB_AUTH_SUCCESS',
+                var msgPayload = {
                   githubConnected: true,
-                  githubToken: ${JSON.stringify(encryptedToken)},
-                  githubUsername: ${JSON.stringify(ghUsername)},
-                  githubAvatar: ${JSON.stringify(ghAvatar)}
-                }, '*');
-                setTimeout(() => window.close(), 400);
+                  githubToken: encryptedToken,
+                  githubUsername: ghUsername,
+                  githubAvatar: ghAvatar,
+                  githubUrl: ghUrl
+                };
+                window.opener.postMessage(Object.assign({ type: 'GITHUB_AUTH_SUCCESS' }, msgPayload), '*');
+                window.opener.postMessage(Object.assign({ type: 'GITHUB_CONNECTED' }, msgPayload), '*');
+                setTimeout(function() { window.close(); }, 300);
               } else {
-                window.location.replace('/profile');
+                window.location.replace(targetUrl);
               }
             } catch (e) {
-              window.location.replace('/profile');
+              window.location.replace(${JSON.stringify(redirectWithSync)});
             }
           </script>
         </body>
@@ -292323,6 +292586,8 @@ app.get("/api/github/callback", async (req, res) => {
 app.post("/api/github/disconnect", requireAuth, async (req, res) => {
   try {
     const uid = req.user.uid;
+    const bearerToken = extractRequestBearerToken(req);
+    clearGithubSessionCookie(req, res);
     await updateProfile(uid, {
       githubToken: null,
       githubConnected: false,
@@ -292330,6 +292595,15 @@ app.post("/api/github/disconnect", requireAuth, async (req, res) => {
       githubAvatar: null,
       githubUrl: null
     });
+    if (bearerToken) {
+      await saveGithubProfileToFirestoreRest(uid, bearerToken, {
+        githubToken: null,
+        githubConnected: false,
+        githubUsername: null,
+        githubAvatar: null,
+        githubUrl: null
+      });
+    }
     await deleteCache(`profile:${uid}`).catch(() => {
     });
     res.json({ success: true });
@@ -292340,7 +292614,7 @@ app.post("/api/github/disconnect", requireAuth, async (req, res) => {
 app.post("/api/github/push", requireAuth, async (req, res) => {
   try {
     const pushSchema = external_exports.object({
-      code: external_exports.string().max(5e4, "Code is too large"),
+      code: external_exports.string().min(1, "Code cannot be empty").max(5e4, "Code is too large"),
       titleSlug: external_exports.string().max(255),
       lang: external_exports.string().max(50),
       githubToken: external_exports.string().optional()
@@ -292351,98 +292625,207 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
     }
     const { code, titleSlug, lang, githubToken: clientToken } = parsed.data;
     const uid = req.user.uid;
+    const bearerToken = extractRequestBearerToken(req);
+    const ghCookie = getGithubSessionCookie(req, uid);
     const profile = await getProfile(uid).catch(() => null);
-    const rawToken = profile?.githubToken || clientToken;
+    const candidateTokens = [];
+    if (clientToken && typeof clientToken === "string" && clientToken.trim()) {
+      candidateTokens.push(clientToken.trim());
+    }
+    if (ghCookie?.githubToken) {
+      candidateTokens.push(ghCookie.githubToken);
+    }
+    if (profile?.githubToken) {
+      candidateTokens.push(profile.githubToken);
+    }
     let githubToken = null;
-    if (rawToken) {
-      githubToken = decryptToken(rawToken);
-      if (!githubToken && (rawToken.startsWith("ghp_") || rawToken.startsWith("github_pat_") || rawToken.startsWith("gho_"))) {
-        githubToken = rawToken;
+    let encryptedGithubToken = null;
+    const tryResolveRawToken = (raw) => {
+      const dec = decryptToken(raw);
+      if (dec) {
+        return { plain: dec, encrypted: raw };
+      }
+      if (raw.startsWith("ghp_") || raw.startsWith("github_pat_") || raw.startsWith("gho_") || raw.startsWith("ghu_")) {
+        return { plain: raw, encrypted: encryptToken(raw) };
+      }
+      return null;
+    };
+    for (const candidate of candidateTokens) {
+      const resolved = tryResolveRawToken(candidate);
+      if (resolved) {
+        githubToken = resolved.plain;
+        encryptedGithubToken = resolved.encrypted;
+        break;
       }
     }
-    if (!githubToken) {
-      return res.status(401).json({ error: "GitHub account not connected. Please connect your GitHub account in your Profile." });
+    if (!githubToken && bearerToken) {
+      const fsGithub = await fetchGithubProfileFromFirestoreRest(uid, bearerToken);
+      if (fsGithub?.githubToken) {
+        const resolved = tryResolveRawToken(fsGithub.githubToken);
+        if (resolved) {
+          githubToken = resolved.plain;
+          encryptedGithubToken = resolved.encrypted;
+        }
+      }
     }
-    if (clientToken && (!profile?.githubToken || profile.githubToken !== clientToken)) {
-      await updateProfile(uid, { githubToken: clientToken, githubConnected: true }).catch(() => {
+    if (!githubToken || !encryptedGithubToken) {
+      return res.status(401).json({
+        error: "GitHub authorization token needs to be refreshed. Reconnecting your GitHub session...",
+        code: "GITHUB_TOKEN_REFRESH_REQUIRED"
       });
     }
     const extMap = {
-      "cpp": "cpp",
-      "java": "java",
-      "python": "py",
-      "python3": "py",
-      "javascript": "js",
-      "typescript": "ts"
+      cpp: "cpp",
+      c: "c",
+      java: "java",
+      python: "py",
+      python3: "py",
+      javascript: "js",
+      typescript: "ts",
+      pseudocode: "md",
+      markdown: "md"
     };
-    const ext = extMap[lang] || "txt";
+    const normalizedLang = String(lang || "cpp").toLowerCase().trim();
+    const ext = extMap[normalizedLang] || "txt";
+    const cleanSlug = String(titleSlug || "solution").trim().toLowerCase().replace(/[^a-z0-9-_]+/g, "-").replace(/^-+|-+$/g, "") || "solution";
     const repoName = "LeetCode-Solutions";
-    const path9 = `${titleSlug}/${titleSlug}.${ext}`;
-    const message2 = `Add solution for ${titleSlug}`;
+    const path9 = `${cleanSlug}/${cleanSlug}.${ext}`;
+    const message2 = `Add ${normalizedLang.toUpperCase()} solution for ${cleanSlug} via DSA.viz.co`;
     const githubHeaders = {
-      "Authorization": `Bearer ${githubToken}`,
+      Authorization: `Bearer ${githubToken}`,
       "User-Agent": "DSA-viz-co-App/1.0",
-      "Accept": "application/vnd.github.v3+json"
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28"
     };
     const userRes = await fetch("https://api.github.com/user", {
       headers: githubHeaders
     });
-    const userData = await userRes.json();
+    const userData = await userRes.json().catch(() => ({}));
     if (!userRes.ok) {
       console.error("GitHub user fetch error:", userData);
-      return res.status(400).json({ error: userData.message || "Invalid or expired GitHub token. Please reconnect GitHub in Profile." });
+      if (userRes.status === 401) {
+        clearGithubSessionCookie(req, res);
+        return res.status(401).json({
+          error: "Your GitHub token has expired or been revoked. Reconnecting your GitHub account...",
+          code: "GITHUB_TOKEN_REFRESH_REQUIRED"
+        });
+      }
+      return res.status(400).json({
+        error: userData.message || "Invalid or expired GitHub token. Please reconnect GitHub in Profile."
+      });
     }
     const owner = userData.login;
+    const ownerAvatar = userData.avatar_url || null;
+    const ownerUrl = userData.html_url || `https://github.com/${owner}`;
+    setGithubSessionCookie(req, res, {
+      uid,
+      githubToken: encryptedGithubToken,
+      githubUsername: owner,
+      githubAvatar: ownerAvatar,
+      githubUrl: ownerUrl
+    });
+    await updateProfile(uid, {
+      githubToken: encryptedGithubToken,
+      githubConnected: true,
+      githubUsername: owner,
+      githubAvatar: ownerAvatar,
+      githubUrl: ownerUrl
+    }).catch(() => {
+    });
+    if (bearerToken) {
+      saveGithubProfileToFirestoreRest(uid, bearerToken, {
+        githubToken: encryptedGithubToken,
+        githubConnected: true,
+        githubUsername: owner,
+        githubAvatar: ownerAvatar,
+        githubUrl: ownerUrl
+      }).catch(() => {
+      });
+    }
     let repoRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
       headers: githubHeaders
     });
     let defaultBranch = "main";
     if (repoRes.status === 404) {
-      repoRes = await fetch("https://api.github.com/user/repos", {
+      const createRes = await fetch("https://api.github.com/user/repos", {
         method: "POST",
         headers: { ...githubHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({
           name: repoName,
-          description: "My LeetCode solutions synced automatically with DSA.viz.co",
+          description: "My LeetCode & DSA solutions synced automatically with DSA.viz.co",
           private: false,
           auto_init: true
         })
       });
-      if (!repoRes.ok) {
-        const repoErr = await repoRes.json().catch(() => ({}));
-        return res.status(500).json({ error: repoErr.message || "Failed to create repository" });
+      if (!createRes.ok) {
+        const repoErr = await createRes.json().catch(() => ({}));
+        if (createRes.status !== 422) {
+          return res.status(500).json({
+            error: repoErr.message || "Failed to create LeetCode-Solutions repository on GitHub"
+          });
+        }
+      } else {
+        const createdRepoData = await createRes.json().catch(() => ({}));
+        if (createdRepoData?.default_branch) {
+          defaultBranch = createdRepoData.default_branch;
+        }
+        await new Promise((r2) => setTimeout(r2, 1500));
       }
-      await new Promise((r2) => setTimeout(r2, 2e3));
     } else if (repoRes.ok) {
       const repoData = await repoRes.json().catch(() => ({}));
-      if (repoData.default_branch) {
+      if (repoData?.default_branch) {
         defaultBranch = repoData.default_branch;
       }
     }
-    let sha = void 0;
-    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path9}`, {
-      headers: githubHeaders
-    });
-    if (fileRes.ok) {
-      const fileData = await fileRes.json().catch(() => null);
-      if (fileData?.sha) sha = fileData.sha;
+    const fetchExistingFileSha = async (branchName) => {
+      const query = branchName ? `?ref=${encodeURIComponent(branchName)}` : "";
+      const fileRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repoName}/contents/${path9}${query}`,
+        { headers: githubHeaders }
+      );
+      if (fileRes.ok) {
+        const fileData = await fileRes.json().catch(() => null);
+        if (fileData?.sha) return fileData.sha;
+      }
+      return void 0;
+    };
+    let sha = await fetchExistingFileSha(defaultBranch);
+    const content = Buffer.from(code, "utf8").toString("base64");
+    const putFile = async (targetSha, includeBranch = true) => {
+      return fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path9}`, {
+        method: "PUT",
+        headers: { ...githubHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: message2,
+          content,
+          ...targetSha ? { sha: targetSha } : {},
+          ...includeBranch && defaultBranch ? { branch: defaultBranch } : {}
+        })
+      });
+    };
+    let pushRes = await putFile(sha, true);
+    if (!pushRes.ok && (pushRes.status === 409 || pushRes.status === 422 || pushRes.status === 404)) {
+      await new Promise((r2) => setTimeout(r2, 1200));
+      sha = await fetchExistingFileSha();
+      pushRes = await putFile(sha, false);
     }
-    const content = Buffer.from(code).toString("base64");
-    const pushRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path9}`, {
-      method: "PUT",
-      headers: { ...githubHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: message2,
-        content,
-        sha,
-        branch: defaultBranch
-      })
-    });
     if (!pushRes.ok) {
       const err = await pushRes.json().catch(() => ({ message: "Unknown error" }));
-      return res.status(500).json({ error: "Failed to push code: " + (err.message || pushRes.statusText) });
+      return res.status(500).json({
+        error: "Failed to push code to GitHub: " + (err.message || pushRes.statusText)
+      });
     }
-    res.json({ success: true, url: `https://github.com/${owner}/${repoName}/blob/${defaultBranch}/${path9}` });
+    const pushData = await pushRes.json().catch(() => ({}));
+    const htmlUrl = pushData?.content?.html_url || `https://github.com/${owner}/${repoName}/blob/${defaultBranch}/${path9}`;
+    res.json({
+      success: true,
+      url: htmlUrl,
+      repoUrl: `https://github.com/${owner}/${repoName}`,
+      owner,
+      repoName,
+      path: path9,
+      encryptedGithubToken
+    });
   } catch (error61) {
     console.error("GitHub push error:", error61);
     res.status(500).json({ error: error61?.message || "Failed to push to GitHub" });

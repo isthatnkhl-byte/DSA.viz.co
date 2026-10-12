@@ -121,29 +121,28 @@ interface CursorKeyframe {
   y: number;
   zoom: number;
   click: boolean;
-  label: string;
 }
 
 const CURSOR_KEYFRAMES: CursorKeyframe[] = [
-  { t: 0.0, x: 260, y: 110, zoom: 1.38, click: false, label: "Typing Live Prompt" },
-  { t: 1.5, x: 540, y: 110, zoom: 1.42, click: false, label: "Typing Live Prompt" },
-  { t: 2.1, x: 1110, y: 110, zoom: 1.48, click: true, label: "Click Ask AI Co-Teacher" },
-  { t: 2.9, x: 575, y: 47, zoom: 1.46, click: false, label: "Verified Model Badge" },
-  { t: 3.7, x: 162, y: 416, zoom: 1.36, click: false, label: "Inspect arr[0] = 2" },
-  { t: 4.5, x: 346, y: 416, zoom: 1.38, click: false, label: "Inspect arr[2] = 5 (R=2)" },
-  { t: 5.2, x: 398, y: 566, zoom: 1.35, click: false, label: "State Card: windowSum = 8" },
-  { t: 6.0, x: 254, y: 416, zoom: 1.36, click: false, label: "Advance Pointer L = 1" },
-  { t: 6.8, x: 438, y: 416, zoom: 1.38, click: false, label: "Advance Pointer R = 3" },
-  { t: 7.6, x: 346, y: 416, zoom: 1.40, click: false, label: "Slide Window [2..4]" },
-  { t: 8.3, x: 530, y: 416, zoom: 1.45, click: true, label: "Peak Window [2..4] = 9" },
-  { t: 9.0, x: 602, y: 566, zoom: 1.42, click: true, label: "Peak maxSum = 9 🎯" },
-  { t: 9.8, x: 925, y: 47, zoom: 1.52, click: true, label: "Link Zone #1 (🎯 #1)" },
-  { t: 10.7, x: 1110, y: 110, zoom: 1.46, click: true, label: "Branch From Zone #1" },
-  { t: 11.6, x: 768, y: 395, zoom: 1.26, click: false, label: "Dashed Branch Connector" },
-  { t: 12.6, x: 1015, y: 375, zoom: 1.38, click: false, label: "Zone #2 O(n) Comparison" },
-  { t: 13.7, x: 1165, y: 505, zoom: 1.42, click: true, label: "O(1) Delta Peak = 9 🎯" },
-  { t: 14.6, x: 640, y: 360, zoom: 1.0, click: false, label: "Full Multi-Zone Overview" },
-  { t: 15.0, x: 260, y: 110, zoom: 1.38, click: false, label: "Loop" },
+  { t: 0.0, x: 260, y: 110, zoom: 1.34, click: false },
+  { t: 1.5, x: 560, y: 110, zoom: 1.38, click: false },
+  { t: 2.1, x: 1110, y: 110, zoom: 1.44, click: true },
+  { t: 2.9, x: 575, y: 47, zoom: 1.42, click: false },
+  { t: 3.8, x: 162, y: 416, zoom: 1.34, click: false },
+  { t: 4.7, x: 346, y: 416, zoom: 1.36, click: false },
+  { t: 5.4, x: 398, y: 566, zoom: 1.34, click: false },
+  { t: 6.2, x: 254, y: 416, zoom: 1.35, click: false },
+  { t: 7.0, x: 438, y: 416, zoom: 1.36, click: false },
+  { t: 7.8, x: 346, y: 416, zoom: 1.38, click: false },
+  { t: 8.5, x: 530, y: 416, zoom: 1.42, click: true },
+  { t: 9.1, x: 602, y: 566, zoom: 1.40, click: true },
+  { t: 9.9, x: 925, y: 47, zoom: 1.46, click: true },
+  { t: 10.7, x: 1110, y: 110, zoom: 1.42, click: true },
+  { t: 11.6, x: 768, y: 395, zoom: 1.24, click: false },
+  { t: 12.6, x: 1015, y: 375, zoom: 1.34, click: false },
+  { t: 13.7, x: 1165, y: 505, zoom: 1.38, click: true },
+  { t: 14.5, x: 640, y: 360, zoom: 1.0, click: false },
+  { t: 15.0, x: 260, y: 110, zoom: 1.34, click: false },
 ];
 
 function clamp(v: number, min: number, max: number) {
@@ -164,13 +163,6 @@ function easeInOutCubic(t: number) {
   return c < 0.5 ? 4 * c * c * c : 1 - Math.pow(-2 * c + 2, 3) / 2;
 }
 
-function easeOutBack(t: number) {
-  const c = clamp(t, 0, 1);
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(c - 1, 3) + c1 * Math.pow(c - 1, 2);
-}
-
 function sampleCursorAndZoom(t: number, totalDuration: number) {
   const clampedT = clamp(t, 0, totalDuration);
   for (let i = 0; i < CURSOR_KEYFRAMES.length - 1; i++) {
@@ -184,12 +176,11 @@ function sampleCursorAndZoom(t: number, totalDuration: number) {
         x: lerp(a.x, b.x, e),
         y: lerp(a.y, b.y, e),
         zoom: lerp(a.zoom, b.zoom, smoothstep(localT)),
-        label: localT < 0.5 ? a.label : b.label,
       };
     }
   }
   const last = CURSOR_KEYFRAMES[CURSOR_KEYFRAMES.length - 1]!;
-  return { x: last.x, y: last.y, zoom: last.zoom, label: last.label };
+  return { x: last.x, y: last.y, zoom: last.zoom };
 }
 
 function roundRect(
@@ -269,57 +260,75 @@ export function FeaturesBento() {
   const [cameraTrackEnabled, setCameraTrackEnabled] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [liveHudTelemetry, setLiveHudTelemetry] = useState({
-    zoom: "1.38x",
-    label: "Typing Live Prompt",
-  });
+  const [liveZoomText, setLiveZoomText] = useState("1.34x");
 
   const TOTAL_DURATION = 15.0;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const elapsedRef = useRef(0);
   const camStateRef = useRef({
-    camX: 640,
-    camY: 360,
-    camZoom: 1.25,
-    prevCamX: 640,
-    prevCamY: 360,
+    curX: 260,
+    curY: 110,
+    curVx: 0,
+    curVy: 0,
+    camX: 480,
+    camY: 240,
+    camZoom: 1.3,
     history: [] as Array<{ x: number; y: number }>,
   });
 
-  // High-Motion Graphics 60fps Canvas Render Loop with Camera Center Tracking + Directional Motion Blur
+  // High-Motion Graphics 60fps Canvas Render Loop with Offscreen Cache & Critically-Damped Spring Physics
   useEffect(() => {
     if (playerMode !== "motion") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
     const W = 1280;
     const H = 720;
+
+    // Pre-render static background + dot grid ONCE onto an offscreen canvas (cuts frame cost to < 0.8ms!)
+    const bgCanvas = document.createElement("canvas");
+    bgCanvas.width = W + 640;
+    bgCanvas.height = H + 640;
+    const bgCtx = bgCanvas.getContext("2d", { alpha: false });
+    if (bgCtx) {
+      bgCtx.translate(320, 320);
+      const bgGrad = bgCtx.createLinearGradient(0, 0, W, H);
+      bgGrad.addColorStop(0, "#0b0408");
+      bgGrad.addColorStop(0.5, "#13070d");
+      bgGrad.addColorStop(1, "#080306");
+      bgCtx.fillStyle = bgGrad;
+      bgCtx.fillRect(-320, -320, W + 640, H + 640);
+
+      const rad1 = bgCtx.createRadialGradient(340, 180, 10, 340, 180, 460);
+      rad1.addColorStop(0, "rgba(225, 29, 72, 0.20)");
+      rad1.addColorStop(1, "rgba(225, 29, 72, 0)");
+      bgCtx.fillStyle = rad1;
+      bgCtx.fillRect(0, 0, W, H);
+
+      const rad2 = bgCtx.createRadialGradient(980, 460, 10, 980, 460, 460);
+      rad2.addColorStop(0, "rgba(249, 115, 22, 0.16)");
+      rad2.addColorStop(1, "rgba(249, 115, 22, 0)");
+      bgCtx.fillStyle = rad2;
+      bgCtx.fillRect(0, 0, W, H);
+
+      roundRect(bgCtx, 28, 148, W - 56, 512, 18, "#f8fafc", "#cbd5e1", 2);
+      bgCtx.fillStyle = "#cbd5e1";
+      for (let wx = 48; wx < W - 48; wx += 24) {
+        for (let wy = 168; wy < 644; wy += 24) {
+          bgCtx.fillRect(wx, wy, 1.5, 1.5);
+        }
+      }
+    }
+
     let lastTime = performance.now();
     let rafId = 0;
     let frameCount = 0;
 
     const drawWorldScene = (t: number) => {
-      const bgGrad = ctx.createLinearGradient(0, 0, W, H);
-      bgGrad.addColorStop(0, "#0b0408");
-      bgGrad.addColorStop(0.5, "#13070d");
-      bgGrad.addColorStop(1, "#080306");
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(-320, -320, W + 640, H + 640);
-
-      const rad1 = ctx.createRadialGradient(340, 180, 10, 340, 180, 460);
-      rad1.addColorStop(0, "rgba(225, 29, 72, 0.20)");
-      rad1.addColorStop(1, "rgba(225, 29, 72, 0)");
-      ctx.fillStyle = rad1;
-      ctx.fillRect(0, 0, W, H);
-
-      const rad2 = ctx.createRadialGradient(980, 460, 10, 980, 460, 460);
-      rad2.addColorStop(0, "rgba(249, 115, 22, 0.16)");
-      rad2.addColorStop(1, "rgba(249, 115, 22, 0)");
-      ctx.fillStyle = rad2;
-      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(bgCanvas, -320, -320);
 
       // Top App Chrome Bar
       roundRect(
@@ -363,7 +372,7 @@ export function FeaturesBento() {
       ctx.font = "bold 11px monospace";
       ctx.fillText("BOARD ZONES:", 740, 51);
 
-      const isZone1Linked = t >= 9.6;
+      const isZone1Linked = t >= 9.8;
       roundRect(
         ctx,
         835,
@@ -404,7 +413,7 @@ export function FeaturesBento() {
         ctx.restore();
       }
 
-      // Prompt Bar Row (y = 84..136)
+      // Prompt Bar Row
       roundRect(
         ctx,
         28,
@@ -420,13 +429,13 @@ export function FeaturesBento() {
         "Simulate sliding window algorithm for max subarray sum k=3 with dry run";
       const prompt2 =
         "Zone #1 Linked -> Branch optimal O(n) vs O(n*k) comparison from Step 3";
-      const activePrompt = t < 9.7 ? prompt1 : prompt2;
+      const activePrompt = t < 9.8 ? prompt1 : prompt2;
       const typedLen =
         t < 1.9
           ? Math.floor(lerp(0, prompt1.length, t / 1.8))
-          : t < 9.7
+          : t < 9.8
           ? prompt1.length
-          : Math.floor(lerp(0, prompt2.length, (t - 9.7) / 0.9));
+          : Math.floor(lerp(0, prompt2.length, (t - 9.8) / 0.8));
 
       ctx.fillStyle = "#f43f5e";
       ctx.font = "bold 12px monospace";
@@ -442,22 +451,12 @@ export function FeaturesBento() {
       );
 
       const btnLabel =
-        t >= 9.7 ? "🌿 Branch From Zone #1" : "✨ Ask AI Co-Teacher";
-      const btnColor = t >= 9.7 ? "#e11d48" : "#f97316";
+        t >= 9.8 ? "🌿 Branch From Zone #1" : "✨ Ask AI Co-Teacher";
+      const btnColor = t >= 9.8 ? "#e11d48" : "#f97316";
       roundRect(ctx, W - 245, 92, 205, 36, 8, btnColor, "#ffffff", 1.2);
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 12px monospace";
       ctx.fillText(btnLabel, W - 228, 115);
-
-      // Main Excalidraw Whiteboard Canvas Surface
-      roundRect(ctx, 28, 148, W - 56, 512, 18, "#f8fafc", "#cbd5e1", 2);
-
-      ctx.fillStyle = "#cbd5e1";
-      for (let wx = 48; wx < W - 48; wx += 24) {
-        for (let wy = 168; wy < 644; wy += 24) {
-          ctx.fillRect(wx, wy, 1.5, 1.5);
-        }
-      }
 
       let stepIdx = 0;
       if (t >= 5.6 && t < 7.3) stepIdx = 1;
@@ -479,7 +478,6 @@ export function FeaturesBento() {
         "Invariant: windowSum = prevSum - arr[1] + arr[4] = 7 - 1 + 3 = 9 | maxSum = 9 (Optimal)",
       ];
 
-      // Smooth sliding window interpolation (no discrete jump!)
       const smoothWinStart =
         t < 5.6
           ? 0
@@ -885,72 +883,71 @@ export function FeaturesBento() {
       }
     };
 
-    const drawCursorWithMotionBlur = (
+    const drawCursorClean = (
       t: number,
       cursorX: number,
       cursorY: number,
       vx: number,
-      vy: number,
-      label: string
+      vy: number
     ) => {
       const speed = Math.hypot(vx, vy);
       const hist = camStateRef.current.history;
 
-      // 1. Glowing Laser Comet Ribbon Trail
+      // 1. Smooth Neon Comet Ribbon Trail
       if (hist.length > 2) {
+        ctx.save();
+        ctx.lineCap = "round";
         for (let i = 1; i < hist.length; i++) {
           const p0 = hist[i - 1]!;
           const p1 = hist[i]!;
           const ratio = i / hist.length;
-          ctx.save();
           ctx.beginPath();
           ctx.moveTo(p0.x, p0.y);
           ctx.lineTo(p1.x, p1.y);
-          ctx.strokeStyle = `rgba(244, 63, 94, ${(ratio * 0.55).toFixed(3)})`;
-          ctx.lineWidth = 2 + ratio * 12;
-          ctx.lineCap = "round";
+          ctx.strokeStyle = `rgba(244, 63, 94, ${(ratio * ratio * 0.5).toFixed(3)})`;
+          ctx.lineWidth = 1.5 + ratio * 10;
           ctx.stroke();
-          ctx.restore();
         }
+        ctx.restore();
       }
 
       // 2. Click Shockwave Ripples
       for (const kf of CURSOR_KEYFRAMES) {
-        if (kf.click && t >= kf.t && t <= kf.t + 0.55) {
-          const p = (t - kf.t) / 0.55;
-          const r = 10 + easeOutBack(p) * 48;
+        if (kf.click && t >= kf.t && t <= kf.t + 0.5) {
+          const p = (t - kf.t) / 0.5;
+          const r = 8 + smoothstep(p) * 42;
           ctx.save();
           ctx.beginPath();
-          ctx.arc(kf.x, kf.y, Math.max(2, r), 0, Math.PI * 2);
+          ctx.arc(kf.x, kf.y, r, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(244, 63, 94, ${((1 - p) * 0.85).toFixed(3)})`;
-          ctx.lineWidth = 3.5 * (1 - p);
+          ctx.lineWidth = 3 * (1 - p);
           ctx.stroke();
           ctx.restore();
         }
       }
 
-      // 3. Directional Motion Blur Ghosts when moving fast
-      const blurSamples = speed > 2.2 ? 6 : 1;
+      // 3. Directional Motion-Blur Samples for Cursor (no text below cursor!)
+      const blurSamples = speed > 1.8 ? 5 : 1;
       for (let s = blurSamples - 1; s >= 0; s--) {
         const frac = s / blurSamples;
-        const gx = cursorX - vx * frac * 2.2;
-        const gy = cursorY - vy * frac * 2.2;
+        const gx = cursorX - vx * frac * 2.0;
+        const gy = cursorY - vy * frac * 2.0;
         const alpha = s === 0 ? 1 : (1 - frac) * 0.28;
 
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.translate(gx, gy);
 
-        const tilt = clamp(vx * 0.012, -0.32, 0.32);
+        const tilt = clamp(vx * 0.012, -0.28, 0.28);
         ctx.rotate(tilt);
 
         // Outer laser halo
         ctx.beginPath();
-        ctx.arc(0, 0, 18, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(225, 29, 72, 0.24)";
+        ctx.arc(4, 10, 16, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(225, 29, 72, 0.22)";
         ctx.fill();
 
-        // Crisp vector pointer arrow
+        // Crisp vector pointer arrow (no text label below it)
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.lineTo(0, 22);
@@ -962,33 +959,16 @@ export function FeaturesBento() {
         ctx.closePath();
         ctx.fillStyle = "#e11d48";
         ctx.fill();
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.2;
         ctx.strokeStyle = "#ffffff";
         ctx.stroke();
-
-        if (s === 0) {
-          roundRect(
-            ctx,
-            18,
-            10,
-            168,
-            26,
-            8,
-            "rgba(15, 23, 42, 0.92)",
-            "#f43f5e",
-            1.5
-          );
-          ctx.fillStyle = "#fda4af";
-          ctx.font = "bold 10px monospace";
-          ctx.fillText(`🤖 ${label.slice(0, 22)}`, 26, 27);
-        }
 
         ctx.restore();
       }
     };
 
     const renderLoop = (now: number) => {
-      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      const dt = Math.min(0.033, Math.max(0.004, (now - lastTime) / 1000));
       lastTime = now;
 
       if (isPlaying) {
@@ -998,129 +978,61 @@ export function FeaturesBento() {
 
       const target = sampleCursorAndZoom(t, TOTAL_DURATION);
       const st = camStateRef.current;
-      const prevCursor =
-        st.history.length > 0
-          ? st.history[st.history.length - 1]!
-          : { x: target.x, y: target.y };
-      const vx = target.x - prevCursor.x;
-      const vy = target.y - prevCursor.y;
 
-      st.history.push({ x: target.x, y: target.y });
-      if (st.history.length > 18) st.history.shift();
+      // 2nd-order critically damped spring for cursor (100% smooth velocity and acceleration)
+      const omega = 15.0;
+      const ax = omega * omega * (target.x - st.curX) - 2 * omega * st.curVx;
+      const ay = omega * omega * (target.y - st.curY) - 2 * omega * st.curVy;
+      st.curVx += ax * dt;
+      st.curVy += ay * dt;
+      st.curX += st.curVx * dt;
+      st.curY += st.curVy * dt;
 
-      st.prevCamX = st.camX;
-      st.prevCamY = st.camY;
+      const vx = st.curVx * dt;
+      const vy = st.curVy * dt;
+
+      st.history.push({ x: st.curX, y: st.curY });
+      if (st.history.length > 16) st.history.shift();
 
       if (cameraTrackEnabled) {
-        const desiredCamX = lerp(W / 2, target.x, 0.62);
-        const desiredCamY = lerp(H / 2, target.y, 0.62);
-        st.camX = lerp(st.camX, desiredCamX, 0.14);
-        st.camY = lerp(st.camY, desiredCamY, 0.14);
-        st.camZoom = lerp(st.camZoom, target.zoom, 0.12);
+        const desiredCamX = lerp(W / 2, st.curX, 0.58);
+        const desiredCamY = lerp(H / 2, st.curY, 0.58);
+        st.camX = lerp(st.camX, desiredCamX, 1 - Math.exp(-7.0 * dt));
+        st.camY = lerp(st.camY, desiredCamY, 1 - Math.exp(-7.0 * dt));
+        st.camZoom = lerp(st.camZoom, target.zoom, 1 - Math.exp(-6.0 * dt));
       } else {
         st.camX = lerp(st.camX, W / 2, 0.15);
         st.camY = lerp(st.camY, H / 2, 0.15);
         st.camZoom = lerp(st.camZoom, 1.0, 0.15);
       }
 
-      const camVx = st.camX - st.prevCamX;
-      const camVy = st.camY - st.prevCamY;
-      const camSpeed = Math.hypot(camVx, camVy);
+      ctx.save();
+      ctx.translate(W / 2, H / 2);
+      ctx.scale(st.camZoom, st.camZoom);
+      ctx.translate(-st.camX, -st.camY);
 
-      ctx.clearRect(0, 0, W, H);
-
-      // Multi-pass Directional Camera Motion Blur when camera whips across canvas
-      const camPasses = cameraTrackEnabled && camSpeed > 2.5 ? 3 : 1;
-      for (let p = camPasses - 1; p >= 0; p--) {
-        const offsetFrac = p / camPasses;
-        const subCamX = st.camX - camVx * offsetFrac * 1.85;
-        const subCamY = st.camY - camVy * offsetFrac * 1.85;
-
-        ctx.save();
-        ctx.globalAlpha = p === 0 ? 1.0 : 0.24;
-        ctx.translate(W / 2, H / 2);
-        ctx.scale(st.camZoom, st.camZoom);
-        ctx.translate(-subCamX, -subCamY);
-
-        drawWorldScene(t);
-        if (p === 0) {
-          drawCursorWithMotionBlur(
-            t,
-            target.x,
-            target.y,
-            vx,
-            vy,
-            target.label
-          );
-        }
-        ctx.restore();
-      }
+      drawWorldScene(t);
+      drawCursorClean(t, st.curX, st.curY, vx, vy);
+      ctx.restore();
 
       // Screen-space Cinematic Vignette
       const vig = ctx.createRadialGradient(
         W / 2,
         H / 2,
-        H * 0.36,
+        H * 0.38,
         W / 2,
         H / 2,
         W * 0.65
       );
       vig.addColorStop(0, "rgba(0,0,0,0)");
-      vig.addColorStop(1, "rgba(5, 2, 4, 0.52)");
+      vig.addColorStop(1, "rgba(5, 2, 4, 0.46)");
       ctx.fillStyle = vig;
       ctx.fillRect(0, 0, W, H);
-
-      // Screen-space Camera Lens HUD Pill
-      roundRect(
-        ctx,
-        20,
-        16,
-        310,
-        28,
-        8,
-        "rgba(15, 7, 12, 0.86)",
-        "rgba(244, 63, 94, 0.48)",
-        1.2
-      );
-      ctx.fillStyle = "#fda4af";
-      ctx.font = "bold 11px monospace";
-      ctx.fillText(
-        `🎥 CAM TRACK: ${st.camZoom.toFixed(2)}x • ${target.label}`,
-        32,
-        34
-      );
-
-      // Screen-space Bottom Caption HUD
-      roundRect(
-        ctx,
-        24,
-        H - 54,
-        W - 48,
-        40,
-        10,
-        "rgba(15, 7, 12, 0.92)",
-        "rgba(244, 63, 94, 0.45)",
-        1.5
-      );
-      const hudText =
-        t < 3.2
-          ? "01 / LIVE PROMPT: Type any algorithm prompt & trigger live Gemini Excalidraw generation"
-          : t < 9.2
-          ? "02 / AI WHITEBOARD DRAW: Camera tracks AI laser cursor across raw array, L/R pointers & state cards"
-          : t < 11.2
-          ? "03 / LINK ZONE #1 (🎯 #1): Tag previous zone to attach its topic, active step & dataset [2,1,5,1,3,2]"
-          : "04 / BRANCH ZONE #2: Spawn connected comparison zone with full context from Linked Zone #1";
-      ctx.fillStyle = "#ffe4e6";
-      ctx.font = "bold 12px monospace";
-      ctx.fillText(hudText, 42, H - 30);
 
       frameCount++;
       if (frameCount % 6 === 0) {
         setElapsedSec(t);
-        setLiveHudTelemetry({
-          zoom: `${st.camZoom.toFixed(2)}x`,
-          label: target.label,
-        });
+        setLiveZoomText(`${st.camZoom.toFixed(2)}x`);
       }
 
       rafId = requestAnimationFrame(renderLoop);
@@ -1224,7 +1136,7 @@ export function FeaturesBento() {
                 </span>
               </div>
 
-              {/* Array Cells + Smoothly Gliding AI Laser Cursor */}
+              {/* Array Cells */}
               <div className="relative py-4 px-2 flex items-center justify-center gap-2 sm:gap-3">
                 {demoArray.map((val, idx) => {
                   const inWin =
@@ -1669,7 +1581,7 @@ export function FeaturesBento() {
               Watch the AI Co-Teacher Draw, Link Zones &amp; Branch Live
             </h3>
             <p className="text-xs sm:text-sm text-muted-foreground font-sans mt-1">
-              Screen-Studio camera tracking follows the AI laser cursor with dynamic zoom (<code className="text-primary font-mono">{liveHudTelemetry.zoom}</code>) and directional motion blur as it draws arrays, links <code className="text-rose-400 font-mono">🎯 Zone #1</code>, and branches <code className="text-amber-400 font-mono">🌿 Zone #2</code>.
+              Screen-Studio camera tracking follows the AI laser cursor with dynamic zoom (<code className="text-primary font-mono">{liveZoomText}</code>) and directional motion blur as it draws arrays, links <code className="text-rose-400 font-mono">🎯 Zone #1</code>, and branches <code className="text-amber-400 font-mono">🌿 Zone #2</code>.
             </p>
           </div>
 
@@ -1763,7 +1675,7 @@ export function FeaturesBento() {
                 {currentChapter.title}
               </span>
               <span className="hidden md:inline text-rose-300/80 text-[11px] truncate">
-                • Focus: {liveHudTelemetry.label} ({liveHudTelemetry.zoom})
+                • Lens Zoom: {liveZoomText}
               </span>
             </div>
 

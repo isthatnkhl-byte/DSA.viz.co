@@ -28,9 +28,13 @@ import { ApiKeyVaultButton } from "@/components/ApiKeyVaultModal";
 
 interface SiteHeaderProps {
   hideBrandLogo?: boolean;
+  isVisible?: boolean;
 }
 
-export function SiteHeader({ hideBrandLogo = false }: SiteHeaderProps = {}) {
+export function SiteHeader({
+  hideBrandLogo = false,
+  isVisible = true,
+}: SiteHeaderProps = {}) {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const [navDrawerOpen, setNavDrawerOpen] = useState(false);
@@ -72,9 +76,17 @@ export function SiteHeader({ hideBrandLogo = false }: SiteHeaderProps = {}) {
     };
   }, [navDrawerOpen]);
 
+  const headerVisible = isVisible || navDrawerOpen || searchModalOpen;
+
   return (
     <>
-      <header className="sticky top-0 z-40 w-full bg-[#221E1C] text-[#EAE6DF] transition-all duration-300 shadow-md">
+      <header
+        className={`sticky top-0 z-50 w-full bg-[#221E1C] text-[#EAE6DF] transition-opacity duration-300 shadow-md ${
+          headerVisible
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
+        }`}
+      >
         {/* Top Deck: Print-Tech Industrial Bar with Dynamic Theme Bottom Rule */}
         <div className="border-b-2 border-primary bg-[#221E1C] transition-colors duration-300">
           <div className="mx-auto flex min-h-14 sm:min-h-16 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8 gap-3 py-2">

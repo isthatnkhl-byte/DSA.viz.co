@@ -192,14 +192,24 @@ export function LandingPage() {
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
-    if (target.closest('[data-allow-guest="true"]')) return;
+    if (
+      target.closest('[data-allow-guest="true"]') ||
+      target.closest('[data-modal-overlay="true"]')
+    ) {
+      return;
+    }
 
     const interactiveEl = target.closest(
       'a, button, input, select, textarea, [role="button"], [role="radio"], [role="slider"], [role="tab"]'
     ) as HTMLElement | null;
 
     if (!interactiveEl) return;
-    if (interactiveEl.closest('[data-allow-guest="true"]')) return;
+    if (
+      interactiveEl.closest('[data-allow-guest="true"]') ||
+      interactiveEl.closest('[data-modal-overlay="true"]')
+    ) {
+      return;
+    }
 
     const anchor = target.closest("a") as HTMLAnchorElement | null;
     const href = anchor?.getAttribute("href") || "";
@@ -240,23 +250,11 @@ export function LandingPage() {
       onClickCapture={handleUnauthenticatedInteraction}
       onChangeCapture={handleUnauthenticatedInteraction}
     >
-      {/* 1. Global Navigation Header — Visible initially & on complete; invisible during DSA -> VIZ -> CO spotlight */}
-      <motion.div
-        initial={false}
-        animate={{
-          opacity: isNavbarAndHeroVisible ? 1 : 0,
-        }}
-        transition={{
-          duration: 0.34,
-          delay: isNavbarAndHeroVisible ? 0 : 0.06,
-          ease: [0.22, 1, 0.36, 1],
-        }}
-        className={`sticky top-0 w-full z-50 ${
-          isNavbarAndHeroVisible ? "pointer-events-auto" : "pointer-events-none"
-        }`}
-      >
-        <SiteHeader hideBrandLogo={isLogoDetached} />
-      </motion.div>
+      {/* 1. Global Navigation Header — Rendered directly without any wrapper div (identical to /compiler and all other pages) */}
+      <SiteHeader
+        hideBrandLogo={isLogoDetached}
+        isVisible={isNavbarAndHeroVisible}
+      />
 
       <main id="main-content" className="flex-1">
         {/* 2. Static Hero Section */}

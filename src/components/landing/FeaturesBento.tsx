@@ -255,31 +255,28 @@ export function FeaturesBento() {
     "array" | "hashmap" | "tree" | "grid2d"
   >("array");
 
-  // Motion-Graphics Overview Video Player state
-  const [playerMode, setPlayerMode] = useState<"motion" | "video">("motion");
-  const [cameraTrackEnabled, setCameraTrackEnabled] = useState(true);
+  // Motion-Graphics Overview Video Player state (defaults to clean 1.0x wide view without camera shift/blur)
+  const [cameraTrackEnabled, setCameraTrackEnabled] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [liveZoomText, setLiveZoomText] = useState("1.34x");
+  const [liveZoomText, setLiveZoomText] = useState("1.00x");
 
   const TOTAL_DURATION = 15.0;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const elapsedRef = useRef(0);
   const camStateRef = useRef({
     curX: 260,
     curY: 110,
     curVx: 0,
     curVy: 0,
-    camX: 480,
-    camY: 240,
-    camZoom: 1.3,
+    camX: 640,
+    camY: 360,
+    camZoom: 1.0,
     history: [] as Array<{ x: number; y: number }>,
   });
 
   // High-Motion Graphics 60fps Canvas Render Loop with Offscreen Cache & Critically-Damped Spring Physics
   useEffect(() => {
-    if (playerMode !== "motion") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d", { alpha: false });
@@ -1040,7 +1037,7 @@ export function FeaturesBento() {
 
     rafId = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, playerMode, cameraTrackEnabled]);
+  }, [isPlaying, cameraTrackEnabled]);
 
   const activeStep =
     LIVE_WHITEBOARD_STEPS[activeStepIdx] ?? LIVE_WHITEBOARD_STEPS[2]!;
@@ -1062,10 +1059,6 @@ export function FeaturesBento() {
     const nextT = target.timeRange[0] + 0.05;
     elapsedRef.current = nextT;
     setElapsedSec(nextT);
-    if (playerMode === "video" && videoRef.current) {
-      videoRef.current.currentTime = target.timeRange[0];
-      videoRef.current.play().catch(() => {});
-    }
   };
 
   return (
@@ -1574,96 +1567,45 @@ export function FeaturesBento() {
             <div className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-500/15 px-3 py-1 text-[11px] font-mono font-bold text-rose-300 mb-2">
               <Film className="size-3.5 text-rose-400" />
               <span>
-                60FPS CAMERA-TRACKED MOTION GRAPHICS OVERVIEW • DIRECTIONAL MOTION BLUR
+                60FPS AI WHITEBOARD MOTION GRAPHICS SHOWCASE
               </span>
             </div>
             <h3 className="text-2xl sm:text-3xl font-display font-black text-foreground">
               Watch the AI Co-Teacher Draw, Link Zones &amp; Branch Live
             </h3>
             <p className="text-xs sm:text-sm text-muted-foreground font-sans mt-1">
-              Screen-Studio camera tracking follows the AI laser cursor with dynamic zoom (<code className="text-primary font-mono">{liveZoomText}</code>) and directional motion blur as it draws arrays, links <code className="text-rose-400 font-mono">🎯 Zone #1</code>, and branches <code className="text-amber-400 font-mono">🌿 Zone #2</code>.
+              Interactive 60fps vector motion graphics showcasing live prompt typing, Excalidraw array and pointer generation, linking <code className="text-rose-400 font-mono">🎯 Zone #1</code>, and branching <code className="text-amber-400 font-mono">🌿 Zone #2</code> with full context.
             </p>
           </div>
 
-          {/* Mode Switcher + Camera Tracking Toggle + Download Video Button */}
+          {/* Camera Tracking & Focus/Blur Toggle Button (Defaults to OFF) */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {playerMode === "motion" && (
-              <button
-                type="button"
-                onClick={() => setCameraTrackEnabled((v) => !v)}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 font-mono text-xs font-bold transition-all ${
-                  cameraTrackEnabled
-                    ? "border-rose-500/60 bg-rose-500/20 text-rose-200 shadow-xs"
-                    : "border-border/80 bg-secondary/50 text-muted-foreground hover:text-foreground"
-                }`}
-                title="Toggle Dynamic Camera Center Tracking & Motion Blur Zoom"
-              >
-                <Camera className="size-3.5 text-rose-400" />
-                <span>Cam Zoom &amp; Blur: {cameraTrackEnabled ? "ON" : "OFF"}</span>
-              </button>
-            )}
-
-            <div className="inline-flex rounded-xl border border-border/80 bg-secondary/60 p-1 font-mono text-xs">
-              <button
-                type="button"
-                onClick={() => setPlayerMode("motion")}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                  playerMode === "motion"
-                    ? "bg-primary text-primary-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                ✨ 60fps Motion Canvas
-              </button>
-              <button
-                type="button"
-                onClick={() => setPlayerMode("video")}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                  playerMode === "video"
-                    ? "bg-primary text-primary-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                🎬 WebM Video File
-              </button>
-            </div>
-
-            <a
-              href="/videos/ai-whiteboard-overview.webm"
-              download="dsa-viz-ai-whiteboard-overview.webm"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-border/80 bg-secondary/50 hover:bg-secondary px-3 py-2 font-mono text-xs font-bold text-foreground transition-colors"
+            <button
+              type="button"
+              onClick={() => setCameraTrackEnabled((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 font-mono text-xs font-bold transition-all ${
+                cameraTrackEnabled
+                  ? "border-rose-500/60 bg-rose-500/20 text-rose-200 shadow-xs"
+                  : "border-border/80 bg-secondary/50 text-muted-foreground hover:text-foreground"
+              }`}
+              title="Toggle Dynamic Camera Center Tracking & Motion Blur Zoom"
             >
-              <Download className="size-3.5 text-primary" />
-              <span>Download .webm</span>
-            </a>
+              <Camera className="size-3.5 text-rose-400" />
+              <span>Camera Zoom &amp; Focus: {cameraTrackEnabled ? "ON" : "OFF"}</span>
+            </button>
           </div>
         </div>
 
         {/* Widescreen 16:9 Motion-Graphics Viewport */}
         <div className="mt-6 relative rounded-2xl border border-rose-500/35 bg-[#070305] overflow-hidden shadow-2xl">
-          {playerMode === "video" ? (
-            <div className="relative w-full aspect-video bg-black flex items-center justify-center">
-              <video
-                ref={videoRef}
-                src="/videos/ai-whiteboard-overview.webm"
-                className="w-full h-full object-contain"
-                autoPlay
-                loop
-                muted
-                playsInline
-                controls
-              />
-            </div>
-          ) : (
-            <div className="relative w-full aspect-video bg-[#070305]">
-              <canvas
-                ref={canvasRef}
-                width={1280}
-                height={720}
-                className="w-full h-full block object-contain"
-              />
-            </div>
-          )}
+          <div className="relative w-full aspect-video bg-[#070305]">
+            <canvas
+              ref={canvasRef}
+              width={1280}
+              height={720}
+              className="w-full h-full block object-contain"
+            />
+          </div>
 
           {/* Interactive Timeline Scrubber Bar Below Canvas */}
           <div className="border-t border-rose-500/30 bg-[#12070d]/95 px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs">

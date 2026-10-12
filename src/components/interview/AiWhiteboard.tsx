@@ -145,51 +145,28 @@ export function AiWhiteboard({
   const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [activePresetId, setActivePresetId] =
-    useState<WhiteboardPresetId | null>("two_pointers");
+    useState<WhiteboardPresetId | null>(null);
 
-  // Bounded Simulation Zones Registry (each simulation has its own dynamically placed non-overlapping area!)
-  const [zonesHistory, setZonesHistory] = useState<AiWhiteboardLesson[]>(() => {
-    const initialRaw: AiWhiteboardLesson = {
-      ...buildExcalidrawTwoPointersLesson([1, 3, 5, 8, 12, 17, 21], 17),
-      id: "initial_boot_preset",
-      aiSource: "preset",
-      modelUsed: "Offline Preset",
-    };
-    const initialZoned = wrapLessonInBoundedZone(initialRaw, {
-      zoneId: "zone_1",
-      zoneIndex: 0,
-      originX: 40,
-      originY: 40,
-    });
-    return [initialZoned];
-  });
+  // Bounded Simulation Zones Registry (starts completely clean: no hardcoded initial boot preset!)
+  const [zonesHistory, setZonesHistory] = useState<AiWhiteboardLesson[]>([]);
   const zonesHistoryRef = useRef<AiWhiteboardLesson[]>(zonesHistory);
   zonesHistoryRef.current = zonesHistory;
 
   // Tracks each zone's current step frame index so all zones remain deterministically rendered on the board
-  const zoneStepMapRef = useRef<Map<string, number>>(
-    new Map([["zone_1", 0]])
-  );
+  const zoneStepMapRef = useRef<Map<string, number>>(new Map());
 
   const [activeZoneIdx, setActiveZoneIdx] = useState<number>(0);
 
-  const activeLesson =
+  const activeLesson: AiWhiteboardLesson | null =
     zonesHistory[activeZoneIdx] ??
     zonesHistory[zonesHistory.length - 1] ??
-    wrapLessonInBoundedZone(
-      {
-        ...buildExcalidrawTwoPointersLesson([1, 3, 5, 8, 12, 17, 21], 17),
-        aiSource: "preset",
-        modelUsed: "Offline Preset",
-      },
-      { zoneId: "zone_1", zoneIndex: 0, originX: 40, originY: 40 }
-    );
+    null;
 
   // AI Query & Multi-Step Simulation State
   const [aiQueryInput, setAiQueryInput] = useState("");
   const [isGeneratingAiLesson, setIsGeneratingAiLesson] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
-  const [isPlayingSteps, setIsPlayingSteps] = useState(true);
+  const [isPlayingSteps, setIsPlayingSteps] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [autoVoiceNarrate, setAutoVoiceNarrate] = useState<boolean>(false);
   const [isListeningVoiceQuery, setIsListeningVoiceQuery] =
@@ -199,7 +176,7 @@ export function AiWhiteboard({
     useState<string>("2, 4, 7, 11, 15, 19");
   const [customTargetInput, setCustomTargetInput] = useState<string>("18");
   const [aiStatusText, setAiStatusText] = useState<string>(
-    "AI Co-Teacher ready — click any preset or ask a query to dynamically place a new simulation in a clean board region"
+    "Clean whiteboard ready — ask AI to simulate any algorithm, choose a preset above, or draw freely"
   );
 
   // User Drag-Selection Context on the Excalidraw Whiteboard
@@ -225,7 +202,7 @@ export function AiWhiteboard({
   const missingFilesRef = useRef<Map<string, number>>(new Map());
   const tooBigRef = useRef<Set<string>>(new Set());
   const recognitionRef = useRef<any>(null);
-  const zoneCounterRef = useRef<number>(1);
+  const zoneCounterRef = useRef<number>(0);
   const speechTimerRef = useRef<number>(0);
   const audioWatchdogTimerRef = useRef<number>(0);
   const stepTokenRef = useRef<number>(0);
@@ -247,7 +224,9 @@ export function AiWhiteboard({
   const settledAtTargetRef = useRef<boolean>(false);
 
   const currentFrame =
-    activeLesson.frames[stepIndex] || activeLesson.frames[0];
+    activeLesson
+      ? activeLesson.frames[stepIndex] || activeLesson.frames[0]
+      : null;
 
   // Immediately stops any active or pending browser voice narration so voices NEVER overlap
   const stopAllVoiceNarration = useCallback(() => {
@@ -588,11 +567,7 @@ export function AiWhiteboard({
           ? prevZones.findIndex((z) => z.zoneId === selCtx.linkedZone?.zoneId)
           : -1;
 
-      const replaceInitialBootPlaceholder =
-        takeoverZoneIdx < 0 &&
-        prevZones.length === 1 &&
-        prevZones[0]?.id === "initial_boot_preset" &&
-        !selCtx;
+      const isCleanBoard = takeoverZoneIdx < 0 && prevZones.length === 0;
 
       const hasSelContext =
         Boolean(selCtx?.linkedZone) ||
@@ -632,7 +607,7 @@ export function AiWhiteboard({
         originX = targetZone.zoneBounds?.x ?? 40;
         originY = targetZone.zoneBounds?.y ?? 40;
         connectedFromBounds = undefined;
-      } else if (replaceInitialBootPlaceholder) {
+      } else if (isCleanBoard) {
         zoneCounterRef.current = 1;
         zoneId = "zone_1";
         zoneIndex = 0;
@@ -673,8 +648,6 @@ export function AiWhiteboard({
       const updated =
         takeoverZoneIdx >= 0
           ? prevZones.map((z, idx) => (idx === takeoverZoneIdx ? wrapped : z))
-          : replaceInitialBootPlaceholder
-          ? [wrapped]
           : [...prevZones, wrapped];
       const newActiveIdx =
         takeoverZoneIdx >= 0 ? takeoverZoneIdx : updated.length - 1;
@@ -723,7 +696,9 @@ export function AiWhiteboard({
 
   // Notify parent when lesson or step changes
   useEffect(() => {
-    onLessonStateChange?.(activeLesson, stepIndex);
+    if (activeLesson) {
+      onLessonStateChange?.(activeLesson, stepIndex);
+    }
   }, [activeLesson, stepIndex, onLessonStateChange]);
 
   // Dynamically load @excalidraw/excalidraw on the client
@@ -827,7 +802,7 @@ export function AiWhiteboard({
 
   // Whenever stepIndex or activeLesson changes, initialize the step's cursor path, voice token, and scene
   useEffect(() => {
-    if (!excalidrawAPI || !excalidrawModule || !currentFrame) return;
+    if (!excalidrawAPI || !excalidrawModule || !activeLesson || !currentFrame) return;
 
     const nextToken = stepTokenRef.current + 1;
     stepTokenRef.current = nextToken;
@@ -1005,7 +980,7 @@ export function AiWhiteboard({
     currentFrame,
     activeZoneIdx,
     stepIndex,
-    activeLesson.frames.length,
+    activeLesson?.frames.length,
     isPlayingSteps,
     isAiTeaching,
     playbackSpeed,
@@ -1019,7 +994,7 @@ export function AiWhiteboard({
    * 2. The current step's voice narration (if active) has completely finished speaking!
    */
   useEffect(() => {
-    if (!isPlayingSteps) return;
+    if (!isPlayingSteps || !activeLesson) return;
     const syncTimer = window.setInterval(() => {
       // 1. Wait until the AI cursor has finished traversing all waypoints for this step
       if (!cursorPassDoneRef.current) return;
@@ -1047,7 +1022,7 @@ export function AiWhiteboard({
       });
     }, 120);
     return () => window.clearInterval(syncTimer);
-  }, [isPlayingSteps, autoVoiceNarrate, activeLesson.frames.length]);
+  }, [isPlayingSteps, autoVoiceNarrate, activeLesson?.frames.length]);
 
   // Flush local user drawings to server (ported from Agentic-Hub-office flush())
   const flushChanges = useCallback(() => {
@@ -1246,11 +1221,13 @@ export function AiWhiteboard({
             )}]`
           : "Explain and simulate the selected diagram step by step");
 
-      const currentActiveZoneContext = buildLinkedZoneContextFromLesson(
-        activeLesson,
-        activeZoneIdx,
-        stepIndex
-      );
+      const currentActiveZoneContext = activeLesson
+        ? buildLinkedZoneContextFromLesson(
+            activeLesson,
+            activeZoneIdx,
+            stepIndex
+          )
+        : null;
 
       setActivePresetId(null);
       setIsGeneratingAiLesson(true);
@@ -1309,14 +1286,10 @@ export function AiWhiteboard({
             const isInPlaceTakeover =
               effectiveMode === "takeover" &&
               Boolean(activeSel?.linkedZone?.zoneId);
-            const willReplaceBoot =
-              !isInPlaceTakeover &&
-              zonesHistoryRef.current.length === 1 &&
-              zonesHistoryRef.current[0]?.id === "initial_boot_preset" &&
-              !activeSel;
+            const isClean = zonesHistoryRef.current.length === 0;
             const targetZoneNum = isInPlaceTakeover
               ? activeSel?.linkedZone?.zoneNumber ?? 1
-              : willReplaceBoot
+              : isClean
               ? 1
               : zonesHistoryRef.current.length + 1;
             spawnBoundedSimulationZone(enrichedLesson, {
@@ -1353,14 +1326,10 @@ export function AiWhiteboard({
       // Deterministic instant fallback (selection-aware!)
       const isInPlaceTakeover =
         effectiveMode === "takeover" && Boolean(activeSel?.linkedZone?.zoneId);
-      const willReplaceBoot =
-        !isInPlaceTakeover &&
-        zonesHistoryRef.current.length === 1 &&
-        zonesHistoryRef.current[0]?.id === "initial_boot_preset" &&
-        !activeSel;
+      const isClean = zonesHistoryRef.current.length === 0;
       const nextNum = isInPlaceTakeover
         ? activeSel?.linkedZone?.zoneNumber ?? 1
-        : willReplaceBoot
+        : isClean
         ? 1
         : zonesHistoryRef.current.length + 1;
       const fallback: AiWhiteboardLesson = {
@@ -1578,35 +1547,33 @@ export function AiWhiteboard({
     toast.success(`📦 Spawned ${lesson.topic} in Zone #${nextZoneNumber}!`);
   };
 
-  // Clear all simulation zones and reset to a fresh Zone #1
+  // Clear all simulation zones and reset to a clean board
   const handleResetAllZones = () => {
     stopAllVoiceNarration();
-    zoneCounterRef.current = 1;
-    zoneStepMapRef.current = new Map([["zone_1", 0]]);
-    setActivePresetId("two_pointers");
-    const fresh = wrapLessonInBoundedZone(
-      {
-        ...buildExcalidrawTwoPointersLesson([1, 3, 5, 8, 12, 17, 21], 17),
-        id: "initial_boot_preset",
-        aiSource: "preset",
-        modelUsed: "Offline Preset",
-      },
-      { zoneId: "zone_1", zoneIndex: 0, originX: 40, originY: 40 }
-    );
+    zoneCounterRef.current = 0;
+    zoneStepMapRef.current = new Map();
+    setActivePresetId(null);
     if (excalidrawAPI) {
       excalidrawAPI.updateScene({ elements: [] });
     }
     knownElementsRef.current.clear();
-    zonesHistoryRef.current = [fresh];
-    setZonesHistory([fresh]);
+    zonesHistoryRef.current = [];
+    setZonesHistory([]);
     setActiveZoneIdx(0);
     setStepIndex(0);
-    setIsPlayingSteps(true);
-    if (fresh.frames[0]) {
-      injectZoneFrameIntoExcalidraw(fresh.zoneId, fresh.frames[0].elements, true);
-    }
+    setIsPlayingSteps(false);
+    setSelectionContext({
+      selectedElements: [],
+      bounds: null,
+      extractedNumbers: [],
+      extractedTexts: [],
+      linkedZone: null,
+    });
+    setAiStatusText(
+      "Clean whiteboard ready — ask AI to simulate any algorithm, choose a preset above, or draw freely"
+    );
     onClearBoard?.();
-    toast.info("Cleared whiteboard and reset to Zone #1");
+    toast.info("Cleared whiteboard — canvas is clean");
   };
 
   // Export current scene JSON
@@ -1619,8 +1586,8 @@ export function AiWhiteboard({
         type: "excalidraw",
         version: 2,
         source: "https://dsa.viz.co/ai-learning",
-        lessonTopic: activeLesson.topic,
-        lessonBadge: activeLesson.badge,
+        lessonTopic: activeLesson?.topic ?? "Clean Whiteboard",
+        lessonBadge: activeLesson?.badge ?? "Whiteboard",
         elements,
         appState: {
           viewBackgroundColor: "#ffffff",
@@ -1632,7 +1599,7 @@ export function AiWhiteboard({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${activeLesson.id || "ai-whiteboard"}-scene.excalidraw`;
+      a.download = `${activeLesson?.id || "ai-whiteboard"}-scene.excalidraw`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success("Exported .excalidraw whiteboard file!");
@@ -1845,6 +1812,12 @@ export function AiWhiteboard({
             <span>Board Zones ({zonesHistory.length})</span>
           </span>
 
+          {zonesHistory.length === 0 && (
+            <span className="text-[11px] font-bold text-slate-500 italic px-1">
+              Canvas clean • Ask AI or select a topic to spawn Zone #1
+            </span>
+          )}
+
           {zonesHistory.map((z, zIdx) => {
             const isCurrentZone = zIdx === activeZoneIdx;
             const isLinkedZone =
@@ -1922,7 +1895,7 @@ export function AiWhiteboard({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {!hasActiveSelection && (
+          {!hasActiveSelection && activeLesson && (
             <button
               type="button"
               onClick={() => {
@@ -1951,7 +1924,8 @@ export function AiWhiteboard({
           <button
             type="button"
             onClick={handleFitAllZones}
-            className="px-2.5 py-0.5 rounded-lg font-mono text-[10px] font-black flex items-center gap-1 cursor-pointer shrink-0 transition hover:bg-amber-200"
+            disabled={zonesHistory.length === 0}
+            className="px-2.5 py-0.5 rounded-lg font-mono text-[10px] font-black flex items-center gap-1 cursor-pointer shrink-0 transition hover:bg-amber-200 disabled:opacity-40 disabled:pointer-events-none"
             style={{
               background: "#ffd166",
               color: "#2b2d42",
@@ -2312,37 +2286,44 @@ export function AiWhiteboard({
           data-testid="whiteboard-model-badge"
           className="absolute top-3 right-14 z-30 pointer-events-none flex items-center gap-2 px-3 py-1.5 rounded-xl font-mono text-[11px] font-black shadow-md"
           style={{
-            background:
-              activeLesson.aiSource === "gemini_live"
+            background: activeLesson
+              ? activeLesson.aiSource === "gemini_live"
                 ? "#d1fae5"
                 : activeLesson.aiSource === "deterministic_fallback"
                 ? "#ffe4e6"
-                : "#fef3c7",
-            color:
-              activeLesson.aiSource === "gemini_live"
+                : "#fef3c7"
+              : "#f1f5f9",
+            color: activeLesson
+              ? activeLesson.aiSource === "gemini_live"
                 ? "#065f46"
                 : activeLesson.aiSource === "deterministic_fallback"
                 ? "#9f1239"
-                : "#92400e",
-            border:
-              activeLesson.aiSource === "gemini_live"
+                : "#92400e"
+              : "#475569",
+            border: activeLesson
+              ? activeLesson.aiSource === "gemini_live"
                 ? "2px solid #059669"
                 : activeLesson.aiSource === "deterministic_fallback"
                 ? "2px solid #e11d48"
-                : "2px solid #d97706",
+                : "2px solid #d97706"
+              : "2px solid #94a3b8",
             boxShadow: "0 3px 0 #2b2d42",
           }}
         >
           <span>
-            {activeLesson.aiSource === "gemini_live"
-              ? `🟢 MODEL: ${activeLesson.modelUsed || "gemini-flash-lite-latest"} (LIVE API)`
-              : activeLesson.aiSource === "deterministic_fallback"
-              ? `⚠️ MODEL: ${activeLesson.modelUsed || "OFFLINE FALLBACK"}${
-                  activeLesson.fallbackReason
-                    ? ` — ${activeLesson.fallbackReason}`
-                    : ""
-                }`
-              : `📦 MODEL: ${activeLesson.modelUsed || "OFFLINE PRESET"} (Click "Spawn AI Simulation" for Live AI)`}
+            {activeLesson ? (
+              activeLesson.aiSource === "gemini_live"
+                ? `🟢 MODEL: ${activeLesson.modelUsed || "gemini-flash-lite-latest"} (LIVE API)`
+                : activeLesson.aiSource === "deterministic_fallback"
+                ? `⚠️ MODEL: ${activeLesson.modelUsed || "OFFLINE FALLBACK"}${
+                    activeLesson.fallbackReason
+                      ? ` — ${activeLesson.fallbackReason}`
+                      : ""
+                  }`
+                : `📦 MODEL: ${activeLesson.modelUsed || "OFFLINE PRESET"} (Click "Spawn AI Simulation" for Live AI)`
+            ) : (
+              "✨ CANVAS CLEAN • READY FOR DRAWING OR AI"
+            )}
           </span>
         </div>
 
@@ -2370,7 +2351,7 @@ export function AiWhiteboard({
               appState: {
                 viewBackgroundColor: "#ffffff",
               },
-              scrollToContent: true,
+              scrollToContent: false,
             }}
             onChange={handleExcalidrawChange}
             isCollaborating={true}
@@ -2449,10 +2430,29 @@ export function AiWhiteboard({
             type="button"
             onClick={() => {
               stopAllVoiceNarration();
+              setStepIndex(0);
+              setIsPlayingSteps(false);
+            }}
+            disabled={!activeLesson}
+            className="p-1.5 rounded-lg font-bold cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+            style={{
+              background: "#ffffff",
+              border: "2px solid #2b2d42",
+              color: "#2b2d42",
+            }}
+            title="Restart Simulation in Current Zone"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              stopAllVoiceNarration();
               setStepIndex((p) => Math.max(0, p - 1));
             }}
-            disabled={stepIndex === 0}
-            className="px-2 py-1 rounded-lg font-extrabold flex items-center gap-1 cursor-pointer disabled:opacity-40"
+            disabled={!activeLesson || stepIndex === 0}
+            className="px-2 py-1 rounded-lg font-extrabold flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
             style={{
               background: "#ffffff",
               border: "2px solid #2b2d42",
@@ -2466,6 +2466,7 @@ export function AiWhiteboard({
           <button
             type="button"
             onClick={() => {
+              if (!activeLesson) return;
               if (isPlayingSteps) {
                 stopAllVoiceNarration();
               }
@@ -2474,7 +2475,8 @@ export function AiWhiteboard({
               }
               setIsPlayingSteps(!isPlayingSteps);
             }}
-            className="px-3 py-1 rounded-lg font-black flex items-center gap-1 cursor-pointer"
+            disabled={!activeLesson}
+            className="px-3 py-1 rounded-lg font-black flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
             style={{
               background: isPlayingSteps ? "#ffd166" : "#06d6a0",
               border: "2px solid #2b2d42",
@@ -2498,13 +2500,19 @@ export function AiWhiteboard({
           <button
             type="button"
             onClick={() => {
+              if (!activeLesson) return;
               stopAllVoiceNarration();
               setStepIndex((p) =>
                 Math.min(activeLesson.frames.length - 1, p + 1)
               );
             }}
-            disabled={stepIndex >= activeLesson.frames.length - 1}
-            className="px-2 py-1 rounded-lg font-extrabold flex items-center gap-1 cursor-pointer disabled:opacity-40"
+            disabled={
+              !activeLesson ||
+              (activeLesson
+                ? stepIndex >= activeLesson.frames.length - 1
+                : true)
+            }
+            className="px-2 py-1 rounded-lg font-extrabold flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
             style={{
               background: "#ffffff",
               border: "2px solid #2b2d42",
@@ -2517,7 +2525,7 @@ export function AiWhiteboard({
 
           {/* Direct Step Timeline Pills */}
           <div className="hidden md:flex items-center gap-1 px-1">
-            {activeLesson.frames.map((frame, idx) => (
+            {activeLesson?.frames.map((frame, idx) => (
               <button
                 key={idx}
                 type="button"
@@ -2547,7 +2555,8 @@ export function AiWhiteboard({
                 s === 1 ? 1.5 : s === 1.5 ? 2 : s === 2 ? 0.75 : 1
               )
             }
-            className="px-2 py-1 rounded-lg font-mono text-[11px] font-extrabold cursor-pointer"
+            disabled={!activeLesson}
+            className="px-2 py-1 rounded-lg font-mono text-[11px] font-extrabold cursor-pointer disabled:opacity-40"
             style={{
               background: "#ffffff",
               border: "2px solid #2b2d42",
@@ -2561,7 +2570,7 @@ export function AiWhiteboard({
           <button
             type="button"
             onClick={() => {
-              if (currentFrame) {
+              if (activeLesson && currentFrame) {
                 injectZoneFrameIntoExcalidraw(
                   activeLesson.zoneId,
                   currentFrame.elements,
@@ -2569,7 +2578,8 @@ export function AiWhiteboard({
                 );
               }
             }}
-            className="p-1.5 rounded-lg font-bold cursor-pointer"
+            disabled={!activeLesson}
+            className="p-1.5 rounded-lg font-bold cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
             style={{
               background: "#ffffff",
               border: "2px solid #2b2d42",

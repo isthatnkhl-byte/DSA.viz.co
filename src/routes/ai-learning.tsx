@@ -572,16 +572,16 @@ export function AiLearningPage() {
     "curriculum" | "inspector" | "quiz" | "lab"
   >("curriculum");
   const [selectedModuleId, setSelectedModuleId] =
-    useState<string>("two_pointers");
+    useState<string | null>(null);
   const [lessonOverride, setLessonOverride] =
     useState<AiWhiteboardLesson | null>(null);
   const [liveLessonState, setLiveLessonState] = useState<{
-    lesson: AiWhiteboardLesson;
+    lesson: AiWhiteboardLesson | null;
     stepIndex: number;
-  }>(() => ({
-    lesson: CURRICULUM_MODULES[0]!.buildLesson(),
+  }>({
+    lesson: null,
     stepIndex: 0,
-  }));
+  });
 
   // Quiz state
   const [selectedQuizOption, setSelectedQuizOption] = useState<number | null>(
@@ -604,8 +604,9 @@ export function AiLearningPage() {
 
   const activeModule: CurriculumModule = useMemo(
     () =>
-      CURRICULUM_MODULES.find((m) => m.id === selectedModuleId) ??
-      CURRICULUM_MODULES[0]!,
+      (selectedModuleId
+        ? CURRICULUM_MODULES.find((m) => m.id === selectedModuleId)
+        : null) ?? CURRICULUM_MODULES[0]!,
     [selectedModuleId]
   );
 
@@ -667,8 +668,10 @@ export function AiLearningPage() {
   };
 
   const currentFrame =
-    liveLessonState.lesson.frames[liveLessonState.stepIndex] ||
-    liveLessonState.lesson.frames[0];
+    liveLessonState.lesson
+      ? liveLessonState.lesson.frames[liveLessonState.stepIndex] ||
+        liveLessonState.lesson.frames[0]
+      : null;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -907,44 +910,55 @@ export function AiLearningPage() {
                 {activeTab === "inspector" && (
                   <div className="space-y-3">
                     {/* Active Lesson & Frame Banner */}
-                    <div
-                      className="rounded-xl p-3 border-2 border-[#2b2d42]"
-                      style={{ background: "#fef3c7" }}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-[#2b2d42] text-white font-mono text-[10px] font-bold">
-                          STEP {liveLessonState.stepIndex + 1} OF{" "}
-                          {liveLessonState.lesson.frames.length}
-                        </span>
-                        <span className="font-mono text-[11px] font-extrabold text-[#2b2d42]">
-                          {liveLessonState.lesson.badge}
-                        </span>
+                    {liveLessonState.lesson && currentFrame ? (
+                      <div
+                        className="rounded-xl p-3 border-2 border-[#2b2d42]"
+                        style={{ background: "#fef3c7" }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 rounded-md bg-[#2b2d42] text-white font-mono text-[10px] font-bold">
+                            STEP {liveLessonState.stepIndex + 1} OF{" "}
+                            {liveLessonState.lesson.frames.length}
+                          </span>
+                          <span className="font-mono text-[11px] font-extrabold text-[#2b2d42]">
+                            {liveLessonState.lesson.badge}
+                          </span>
+                        </div>
+
+                        <h3 className="mt-2 text-sm font-black text-[#2b2d42]">
+                          {currentFrame.title || liveLessonState.lesson.topic}
+                        </h3>
+
+                        <p className="mt-1 text-xs font-medium text-slate-800 leading-relaxed">
+                          {currentFrame.narration}
+                        </p>
+
+                        <div className="mt-2.5 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSpeakText(
+                                `${currentFrame.title}. ${currentFrame.narration}`
+                              )
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-white border-2 border-[#2b2d42] text-[11px] font-extrabold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Volume2 className="size-3.5 text-rose-500" />
+                            <span>Narrate Step Aloud</span>
+                          </button>
+                        </div>
                       </div>
-
-                      <h3 className="mt-2 text-sm font-black text-[#2b2d42]">
-                        {currentFrame?.title || liveLessonState.lesson.topic}
-                      </h3>
-
-                      <p className="mt-1 text-xs font-medium text-slate-800 leading-relaxed">
-                        {currentFrame?.narration}
-                      </p>
-
-                      <div className="mt-2.5 flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            currentFrame &&
-                            handleSpeakText(
-                              `${currentFrame.title}. ${currentFrame.narration}`
-                            )
-                          }
-                          className="px-2.5 py-1 rounded-lg bg-white border-2 border-[#2b2d42] text-[11px] font-extrabold flex items-center gap-1 cursor-pointer"
-                        >
-                          <Volume2 className="size-3.5 text-rose-500" />
-                          <span>Narrate Step Aloud</span>
-                        </button>
+                    ) : (
+                      <div className="rounded-xl p-4 border-2 border-[#2b2d42] bg-white text-center">
+                        <Sparkles className="size-5 text-rose-500 mx-auto mb-1.5" />
+                        <h3 className="text-xs font-black text-[#2b2d42]">
+                          Canvas is Clean
+                        </h3>
+                        <p className="mt-1 text-[11px] text-slate-600">
+                          Select a module from Topics or ask AI to simulate on the whiteboard to inspect live step invariants.
+                        </p>
                       </div>
-                    </div>
+                    )}
 
                     {/* Loop Invariant Card */}
                     <div className="rounded-xl p-3 border-2 border-[#2b2d42] bg-white">

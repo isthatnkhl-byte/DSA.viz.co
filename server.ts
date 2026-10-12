@@ -47,6 +47,17 @@ import {
   deleteUserApiKeyFromVault,
 } from './src/lib/user-keys.server';
 import {
+  enqueueWriteBehind,
+  startWriteBehindScheduler,
+  stopWriteBehindScheduler,
+  getWriteBehindStats,
+} from './src/lib/write-behind-buffer.server';
+import {
+  getCollabRoomSnapshot,
+  applyCollabDelta,
+  subscribeToCollabRoom,
+} from './src/lib/crdt-collab.server';
+import {
   getGeminiKey,
   getOpenAIKey,
   getOpenRouterKey,
@@ -487,7 +498,8 @@ const API_ENDPOINTS = [
   "/interview-respond", "/interview-run-tests", "/problem-run-tests", "/problem-submit",
   "/livekit-token", "/generate-plan", "/verify-trace", "/visualize-dataset", "/playground-review",
   "/code-diff-nudge", "/rate-submission", "/generate-mistakes-report",
-  "/user-reports", "/compiler", "/health", "/debug", "/user-keys"
+  "/user-reports", "/compiler", "/health", "/debug", "/user-keys",
+  "/activity", "/telemetry", "/collab"
 ];
 app.use((req, _res, next) => {
   const pathname = req.url.split("?")[0];
@@ -1021,9 +1033,10 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-// API: Get problem statement
+// API: Get problem statement (Edge SWR + Redis Read-Through Cached)
 app.get("/api/statement", async (req: Request, res: Response) => {
   try {
+    res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600");
     const slug = String(req.query.slug || "").trim();
     if (!slug) {
       return res.json({ statement: "" });
@@ -1037,6 +1050,13 @@ app.get("/api/statement", async (req: Request, res: Response) => {
     }
 
     const normalizedSlug = s.replace(/_/g, "-");
+    const cacheKey = `dsaviz:stmt:${normalizedSlug}`;
+
+    // Read-Through: Check L2 Redis cache first
+    const cachedStmt = await getCache<string>(cacheKey);
+    if (cachedStmt) {
+      return res.json({ statement: cachedStmt });
+    }
 
     // 1. Direct in-memory lookup
     let statement = memoryStatements[s] || memoryStatements[normalizedSlug] || "";
@@ -1044,6 +1064,10 @@ app.get("/api/statement", async (req: Request, res: Response) => {
     // 2. Fallback: Synthesize statement from problem database
     if (!statement) {
       statement = statementForSlug(slug);
+    }
+
+    if (statement) {
+      await setCache(cacheKey, statement, 86400 * 7).catch(() => {});
     }
 
     return res.json({ statement: statement || "" });
@@ -2731,6 +2755,112 @@ app.post("/api/chat-sessions", requireAuth, async (req: any, res: Response) => {
   }
 });
 
+// High-Throughput Write-Behind Activity & Telemetry Endpoints (<1ms response time)
+app.post("/api/activity/log", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { type, problemSlug, metadata } = req.body || {};
+    if (!type || typeof type !== "string") {
+      return res.status(400).json({ error: "Activity type is required" });
+    }
+    await enqueueWriteBehind({
+      type: "activity_log",
+      userId,
+      payload: {
+        type: type.slice(0, 100),
+        problemSlug: typeof problemSlug === "string" ? problemSlug.slice(0, 100) : null,
+        metadata: metadata && typeof metadata === "object" ? metadata : undefined,
+        createdAt: new Date().toISOString(),
+      },
+    });
+    return res.json({ ok: true, buffered: true });
+  } catch {
+    return res.status(500).json({ error: "Failed to buffer activity log" });
+  }
+});
+
+app.post("/api/telemetry/batch", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { events } = req.body || {};
+    if (!Array.isArray(events) || events.length === 0) {
+      return res.status(400).json({ error: "Events array required" });
+    }
+    const cappedEvents = events.slice(0, 50);
+    for (const evt of cappedEvents) {
+      await enqueueWriteBehind({
+        type: "telemetry",
+        userId,
+        telemetryId: `tel-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        payload: evt,
+      });
+    }
+    return res.json({ ok: true, bufferedCount: cappedEvents.length });
+  } catch {
+    return res.status(500).json({ error: "Failed to buffer telemetry batch" });
+  }
+});
+
+app.get("/api/telemetry/write-behind-stats", requireAuth, async (_req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  return res.json(getWriteBehindStats());
+});
+
+// CRDT Collaborative Real-Time Live Interviewing (Redis Pub/Sub Horizontal Backplane)
+app.get("/api/collab/room/:roomId", async (req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const roomId = String(req.params.roomId || "default-room");
+    const snapshot = await getCollabRoomSnapshot(roomId);
+    return res.json(snapshot);
+  } catch {
+    return res.status(500).json({ error: "Failed to read room snapshot" });
+  }
+});
+
+app.post("/api/collab/room/:roomId/delta", async (req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const roomId = String(req.params.roomId || "default-room");
+    const { deltaType, payload, authorId } = req.body || {};
+    if (!deltaType) {
+      return res.status(400).json({ error: "Missing deltaType" });
+    }
+    const result = await applyCollabDelta(roomId, {
+      authorId: typeof authorId === "string" ? authorId.slice(0, 64) : "guest",
+      deltaType,
+      payload,
+    });
+    return res.json(result);
+  } catch {
+    return res.status(500).json({ error: "Failed to apply collab delta" });
+  }
+});
+
+app.get("/api/collab/room/:roomId/events", async (req: Request, res: Response) => {
+  const roomId = String(req.params.roomId || "default-room");
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  res.write(`data: ${JSON.stringify({ type: "connected", roomId })}\n\n`);
+
+  const unsubscribe = subscribeToCollabRoom(roomId, (delta) => {
+    try {
+      res.write(`data: ${JSON.stringify(delta)}\n\n`);
+    } catch {
+      unsubscribe();
+    }
+  });
+
+  req.on("close", () => {
+    unsubscribe();
+  });
+});
+
 // API: High-Quality Image Generation (Requires authentication to prevent unauthenticated resource exhaustion)
 app.post("/api/generate-image", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
@@ -3738,9 +3868,24 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, () => {
+  startWriteBehindScheduler(5000);
+
+  const server = app.listen(PORT, () => {
     console.log(`DSA.viz Workspace & Intelligence Platform running at http://localhost:${PORT}`);
   });
+
+  const handleShutdown = async (signal: string) => {
+    console.log(`\n🛑 [Server] Received ${signal}. Flushing write-behind queue and shutting down...`);
+    try {
+      await stopWriteBehindScheduler();
+    } catch {}
+    server.close(() => {
+      process.exit(0);
+    });
+  };
+
+  process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+  process.on("SIGINT", () => handleShutdown("SIGINT"));
 }
 
 if (!process.env.VERCEL) {

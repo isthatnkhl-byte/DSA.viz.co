@@ -169391,6 +169391,23 @@ async function deleteCache(key) {
     }
   }
 }
+function getRawRedisClient() {
+  return redisClient && isConnectedToRedis ? redisClient : null;
+}
+function createRedisPubSubClients() {
+  if (!REDIS_URL) return { pub: null, sub: null };
+  try {
+    const pub = new import_ioredis.default(REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
+    const sub = new import_ioredis.default(REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
+    pub.connect().catch(() => {
+    });
+    sub.connect().catch(() => {
+    });
+    return { pub, sub };
+  } catch {
+    return { pub: null, sub: null };
+  }
+}
 var MAX_RATE_LIMIT_BUCKETS = 5e3;
 function createHybridRateLimitStore(prefix, windowMs) {
   const localBuckets = /* @__PURE__ */ new Map();
@@ -169934,6 +169951,146 @@ async function deleteSubmission(userId, id) {
   }
 }
 
+// src/lib/write-behind-buffer.server.ts
+var WRITE_BEHIND_REDIS_KEY = "dsaviz:write_behind_queue_v1";
+var MAX_IN_MEMORY_QUEUE = 1e4;
+var inMemoryQueue = [];
+var flushIntervalTimer = null;
+var isFlushing = false;
+var totalProcessedCount = 0;
+var lastFlushTimestamp = null;
+async function enqueueWriteBehind(op) {
+  if (!op || !op.userId) {
+    return { ok: false, queueLength: inMemoryQueue.length };
+  }
+  if (inMemoryQueue.length < MAX_IN_MEMORY_QUEUE) {
+    inMemoryQueue.push(op);
+  }
+  const redis = getRawRedisClient();
+  if (redis) {
+    try {
+      await redis.rpush(WRITE_BEHIND_REDIS_KEY, JSON.stringify(op));
+    } catch {
+    }
+  }
+  return { ok: true, queueLength: inMemoryQueue.length };
+}
+async function flushWriteBehindBatch(maxBatchSize = 400) {
+  if (isFlushing) return { processed: 0, errors: 0 };
+  isFlushing = true;
+  const redis = getRawRedisClient();
+  const opsToProcess = [];
+  try {
+    if (redis) {
+      try {
+        const rawItems = await redis.lpop(WRITE_BEHIND_REDIS_KEY, maxBatchSize);
+        if (Array.isArray(rawItems) && rawItems.length > 0) {
+          for (const item of rawItems) {
+            try {
+              opsToProcess.push(JSON.parse(item));
+            } catch {
+            }
+          }
+        }
+      } catch {
+      }
+    }
+    if (opsToProcess.length === 0 && inMemoryQueue.length > 0) {
+      const batchSlice = inMemoryQueue.splice(0, maxBatchSize);
+      opsToProcess.push(...batchSlice);
+    }
+    if (opsToProcess.length === 0) {
+      return { processed: 0, errors: 0 };
+    }
+    if (isAdminDbAvailable()) {
+      try {
+        const batch = adminDb.batch();
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        for (const op of opsToProcess) {
+          const { userId } = op;
+          if (!userId) continue;
+          switch (op.type) {
+            case "activity_log": {
+              const docRef = adminDb.collection("users").doc(userId).collection("activity").doc();
+              batch.set(docRef, {
+                ...op.payload,
+                createdAt: op.payload.createdAt || now
+              });
+              break;
+            }
+            case "chat_session": {
+              const docRef = adminDb.collection("users").doc(userId).collection("chat_sessions").doc(op.sessionId);
+              batch.set(docRef, {
+                ...op.payload,
+                updatedAt: op.payload.updatedAt || now
+              }, { merge: true });
+              break;
+            }
+            case "task_status": {
+              const docRef = adminDb.collection("users").doc(userId).collection("tasks").doc(op.taskId);
+              batch.set(docRef, {
+                ...op.payload,
+                updatedAt: now
+              }, { merge: true });
+              break;
+            }
+            case "telemetry": {
+              const docRef = adminDb.collection("users").doc(userId).collection("telemetry").doc(op.telemetryId);
+              batch.set(docRef, {
+                ...op.payload,
+                updatedAt: now
+              }, { merge: true });
+              break;
+            }
+          }
+        }
+        await batch.commit();
+        totalProcessedCount += opsToProcess.length;
+        lastFlushTimestamp = now;
+        return { processed: opsToProcess.length, errors: 0 };
+      } catch (err) {
+        console.warn("\u26A0\uFE0F [Write-Behind Batch] Error committing batch to Firestore:", err);
+        markAdminDbUnavailable();
+        return { processed: 0, errors: opsToProcess.length };
+      }
+    }
+    totalProcessedCount += opsToProcess.length;
+    lastFlushTimestamp = (/* @__PURE__ */ new Date()).toISOString();
+    return { processed: opsToProcess.length, errors: 0 };
+  } finally {
+    isFlushing = false;
+  }
+}
+function startWriteBehindScheduler(intervalMs = 5e3) {
+  if (flushIntervalTimer) return;
+  flushIntervalTimer = setInterval(async () => {
+    try {
+      await flushWriteBehindBatch();
+    } catch {
+    }
+  }, intervalMs);
+  flushIntervalTimer.unref();
+  console.log(`\u26A1 [Write-Behind] Buffer scheduler started (flushing every ${intervalMs}ms).`);
+}
+async function stopWriteBehindScheduler() {
+  if (flushIntervalTimer) {
+    clearInterval(flushIntervalTimer);
+    flushIntervalTimer = null;
+  }
+  while (inMemoryQueue.length > 0) {
+    await flushWriteBehindBatch(500);
+  }
+  console.log("\u2705 [Write-Behind] Flushed pending queue on shutdown.");
+}
+function getWriteBehindStats() {
+  return {
+    inMemoryQueueLength: inMemoryQueue.length,
+    totalProcessed: totalProcessedCount,
+    lastFlushTimestamp,
+    isFlushing
+  };
+}
+
 // src/db/ai-diagnostics.ts
 var MAX_DIAGNOSTIC_USERS_IN_MEMORY = 2e3;
 var memoryReportsStore = /* @__PURE__ */ new Map();
@@ -170078,18 +170235,16 @@ async function logUserActivity(userId, activityOrType, descriptionOrMetadata) {
   };
   const existing = memoryActivityStore.get(userId) || [];
   setBoundedMapEntry(memoryActivityStore, userId, [newActivity, ...existing].slice(0, 100));
-  if (isAdminDbAvailable()) {
-    try {
-      const { id: _localId, ...payload } = newActivity;
-      const docRef = await adminDb.collection("users").doc(userId).collection("activity").add(payload);
-      return {
-        ...newActivity,
-        id: docRef.id
-      };
-    } catch {
-      markAdminDbUnavailable();
+  void enqueueWriteBehind({
+    type: "activity_log",
+    userId,
+    payload: {
+      type: newActivity.type,
+      problemSlug: newActivity.problemSlug,
+      metadata: newActivity.metadata,
+      createdAt: newActivity.createdAt
     }
-  }
+  });
   return newActivity;
 }
 
@@ -290076,6 +290231,148 @@ async function submitProblemSolution(payload) {
   };
 }
 
+// src/lib/crdt-collab.server.ts
+var ROOM_SNAPSHOT_TTL_SECONDS = 60 * 60 * 24;
+var MAX_LOCAL_ROOMS = 1e3;
+var localRoomSnapshots = /* @__PURE__ */ new Map();
+var activeRoomListeners = /* @__PURE__ */ new Map();
+var { pub: redisPub, sub: redisSub } = createRedisPubSubClients();
+var subscribedChannels = /* @__PURE__ */ new Set();
+if (redisSub) {
+  redisSub.on("message", (channel, message2) => {
+    try {
+      const match2 = channel.match(/^collab:bus:(.+)$/);
+      if (!match2 || !match2[1]) return;
+      const roomId = match2[1];
+      const delta = JSON.parse(message2);
+      const listeners = activeRoomListeners.get(roomId);
+      if (listeners && listeners.size > 0) {
+        for (const listener of listeners) {
+          try {
+            listener(delta);
+          } catch {
+          }
+        }
+      }
+    } catch {
+    }
+  });
+}
+function ensureRedisChannelSubscription(roomId) {
+  if (!redisSub) return;
+  const channel = `collab:bus:${roomId}`;
+  if (!subscribedChannels.has(channel)) {
+    subscribedChannels.add(channel);
+    redisSub.subscribe(channel).catch(() => {
+    });
+  }
+}
+async function getCollabRoomSnapshot(roomId) {
+  const cleanId = roomId.trim().slice(0, 128);
+  const redis = getRawRedisClient();
+  if (redis) {
+    try {
+      const raw = await redis.get(`collab:snapshot:${cleanId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        localRoomSnapshots.set(cleanId, parsed);
+        return parsed;
+      }
+    } catch {
+    }
+  }
+  const existingLocal = localRoomSnapshots.get(cleanId);
+  if (existingLocal) {
+    return existingLocal;
+  }
+  const defaultState = {
+    roomId: cleanId,
+    code: "",
+    language: "cpp",
+    whiteboardElements: [],
+    version: 1,
+    updatedAt: Date.now()
+  };
+  localRoomSnapshots.set(cleanId, defaultState);
+  return defaultState;
+}
+async function applyCollabDelta(roomId, delta) {
+  const cleanId = roomId.trim().slice(0, 128);
+  const current = await getCollabRoomSnapshot(cleanId);
+  const newVersion = current.version + 1;
+  const now = Date.now();
+  const fullDelta = {
+    ...delta,
+    roomId: cleanId,
+    version: newVersion,
+    timestamp: now
+  };
+  if (delta.deltaType === "code_delta") {
+    if (typeof delta.payload?.code === "string") {
+      current.code = delta.payload.code;
+    }
+    if (typeof delta.payload?.language === "string") {
+      current.language = delta.payload.language;
+    }
+  } else if (delta.deltaType === "wb_element") {
+    if (delta.payload && delta.payload.id) {
+      current.whiteboardElements = [...current.whiteboardElements.slice(-499), delta.payload];
+    }
+  } else if (delta.deltaType === "wb_clear") {
+    current.whiteboardElements = [];
+  } else if (delta.deltaType === "ai_simulation") {
+    if (delta.payload && delta.payload.id) {
+      current.whiteboardElements = [...current.whiteboardElements.slice(-499), delta.payload];
+    }
+  }
+  current.version = newVersion;
+  current.updatedAt = now;
+  if (localRoomSnapshots.size >= MAX_LOCAL_ROOMS && !localRoomSnapshots.has(cleanId)) {
+    const oldest = localRoomSnapshots.keys().next().value;
+    if (oldest) localRoomSnapshots.delete(oldest);
+  }
+  localRoomSnapshots.set(cleanId, current);
+  const redis = getRawRedisClient();
+  if (redis) {
+    try {
+      await redis.set(`collab:snapshot:${cleanId}`, JSON.stringify(current), "EX", ROOM_SNAPSHOT_TTL_SECONDS);
+    } catch {
+    }
+  }
+  if (redisPub) {
+    try {
+      await redisPub.publish(`collab:bus:${cleanId}`, JSON.stringify(fullDelta));
+    } catch {
+    }
+  }
+  const listeners = activeRoomListeners.get(cleanId);
+  if (listeners && listeners.size > 0) {
+    for (const listener of listeners) {
+      try {
+        listener(fullDelta);
+      } catch {
+      }
+    }
+  }
+  return { ok: true, version: newVersion };
+}
+function subscribeToCollabRoom(roomId, onDelta) {
+  const cleanId = roomId.trim().slice(0, 128);
+  ensureRedisChannelSubscription(cleanId);
+  let listeners = activeRoomListeners.get(cleanId);
+  if (!listeners) {
+    listeners = /* @__PURE__ */ new Set();
+    activeRoomListeners.set(cleanId, listeners);
+  }
+  listeners.add(onDelta);
+  return () => {
+    listeners?.delete(onDelta);
+    if (listeners?.size === 0) {
+      activeRoomListeners.delete(cleanId);
+    }
+  };
+}
+
 // server.ts
 var import_path6 = __toESM(require("path"), 1);
 var import_fs7 = __toESM(require("fs"), 1);
@@ -291447,7 +291744,10 @@ var API_ENDPOINTS = [
   "/compiler",
   "/health",
   "/debug",
-  "/user-keys"
+  "/user-keys",
+  "/activity",
+  "/telemetry",
+  "/collab"
 ];
 app.use((req, _res, next) => {
   const pathname = req.url.split("?")[0];
@@ -291901,6 +292201,7 @@ app.get("/api/health", (_req, res) => {
 });
 app.get("/api/statement", async (req, res) => {
   try {
+    res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600");
     const slug = String(req.query.slug || "").trim();
     if (!slug) {
       return res.json({ statement: "" });
@@ -291912,9 +292213,18 @@ app.get("/api/statement", async (req, res) => {
       s2 = slug.toLowerCase().trim().replace(/\/+$/, "");
     }
     const normalizedSlug = s2.replace(/_/g, "-");
+    const cacheKey = `dsaviz:stmt:${normalizedSlug}`;
+    const cachedStmt = await getCache(cacheKey);
+    if (cachedStmt) {
+      return res.json({ statement: cachedStmt });
+    }
     let statement = memoryStatements[s2] || memoryStatements[normalizedSlug] || "";
     if (!statement) {
       statement = statementForSlug(slug);
+    }
+    if (statement) {
+      await setCache(cacheKey, statement, 86400 * 7).catch(() => {
+      });
     }
     return res.json({ statement: statement || "" });
   } catch (error61) {
@@ -293347,6 +293657,105 @@ app.post("/api/chat-sessions", requireAuth, async (req, res) => {
     res.status(500).json({ error: error61?.message || "Failed to save chat session" });
   }
 });
+app.post("/api/activity/log", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { type, problemSlug, metadata } = req.body || {};
+    if (!type || typeof type !== "string") {
+      return res.status(400).json({ error: "Activity type is required" });
+    }
+    await enqueueWriteBehind({
+      type: "activity_log",
+      userId,
+      payload: {
+        type: type.slice(0, 100),
+        problemSlug: typeof problemSlug === "string" ? problemSlug.slice(0, 100) : null,
+        metadata: metadata && typeof metadata === "object" ? metadata : void 0,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+    return res.json({ ok: true, buffered: true });
+  } catch {
+    return res.status(500).json({ error: "Failed to buffer activity log" });
+  }
+});
+app.post("/api/telemetry/batch", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { events } = req.body || {};
+    if (!Array.isArray(events) || events.length === 0) {
+      return res.status(400).json({ error: "Events array required" });
+    }
+    const cappedEvents = events.slice(0, 50);
+    for (const evt of cappedEvents) {
+      await enqueueWriteBehind({
+        type: "telemetry",
+        userId,
+        telemetryId: `tel-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        payload: evt
+      });
+    }
+    return res.json({ ok: true, bufferedCount: cappedEvents.length });
+  } catch {
+    return res.status(500).json({ error: "Failed to buffer telemetry batch" });
+  }
+});
+app.get("/api/telemetry/write-behind-stats", requireAuth, async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  return res.json(getWriteBehindStats());
+});
+app.get("/api/collab/room/:roomId", async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const roomId = String(req.params.roomId || "default-room");
+    const snapshot = await getCollabRoomSnapshot(roomId);
+    return res.json(snapshot);
+  } catch {
+    return res.status(500).json({ error: "Failed to read room snapshot" });
+  }
+});
+app.post("/api/collab/room/:roomId/delta", async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const roomId = String(req.params.roomId || "default-room");
+    const { deltaType, payload, authorId } = req.body || {};
+    if (!deltaType) {
+      return res.status(400).json({ error: "Missing deltaType" });
+    }
+    const result = await applyCollabDelta(roomId, {
+      authorId: typeof authorId === "string" ? authorId.slice(0, 64) : "guest",
+      deltaType,
+      payload
+    });
+    return res.json(result);
+  } catch {
+    return res.status(500).json({ error: "Failed to apply collab delta" });
+  }
+});
+app.get("/api/collab/room/:roomId/events", async (req, res) => {
+  const roomId = String(req.params.roomId || "default-room");
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+  res.write(`data: ${JSON.stringify({ type: "connected", roomId })}
+
+`);
+  const unsubscribe = subscribeToCollabRoom(roomId, (delta) => {
+    try {
+      res.write(`data: ${JSON.stringify(delta)}
+
+`);
+    } catch {
+      unsubscribe();
+    }
+  });
+  req.on("close", () => {
+    unsubscribe();
+  });
+});
 app.post("/api/generate-image", requireAuth, aiLimiter, async (req, res) => {
   try {
     const {
@@ -294202,9 +294611,23 @@ async function startServer() {
       res.sendFile(import_path6.default.join(distPath, "index.html"));
     });
   }
-  app.listen(PORT, () => {
+  startWriteBehindScheduler(5e3);
+  const server = app.listen(PORT, () => {
     console.log(`DSA.viz Workspace & Intelligence Platform running at http://localhost:${PORT}`);
   });
+  const handleShutdown = async (signal) => {
+    console.log(`
+\u{1F6D1} [Server] Received ${signal}. Flushing write-behind queue and shutting down...`);
+    try {
+      await stopWriteBehindScheduler();
+    } catch {
+    }
+    server.close(() => {
+      process.exit(0);
+    });
+  };
+  process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+  process.on("SIGINT", () => handleShutdown("SIGINT"));
 }
 if (!process.env.VERCEL) {
   startServer();

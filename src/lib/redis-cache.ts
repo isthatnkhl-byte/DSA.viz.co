@@ -235,6 +235,23 @@ export function isRedisConnected(): boolean {
   return isConnectedToRedis;
 }
 
+export function getRawRedisClient(): Redis | null {
+  return redisClient && isConnectedToRedis ? redisClient : null;
+}
+
+export function createRedisPubSubClients(): { pub: Redis | null; sub: Redis | null } {
+  if (!REDIS_URL) return { pub: null, sub: null };
+  try {
+    const pub = new Redis(REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
+    const sub = new Redis(REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
+    pub.connect().catch(() => {});
+    sub.connect().catch(() => {});
+    return { pub, sub };
+  } catch {
+    return { pub: null, sub: null };
+  }
+}
+
 export function getCacheStatus() {
   return {
     redisConnected: isConnectedToRedis,

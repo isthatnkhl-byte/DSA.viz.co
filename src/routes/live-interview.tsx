@@ -99,6 +99,8 @@ import {
   type LeetCodeSubmissionHistoryEntry,
 } from "@/lib/leetcode-testcases";
 import { LeetCodeTestDrawer, type DrawerTabType } from "@/components/editor/LeetCodeTestDrawer";
+import { AiWhiteboard } from "@/components/interview/AiWhiteboard";
+import type { WhiteboardElement } from "@/lib/crdt-collab.server";
 import { useAuth } from "@/hooks/useAuth";
 import type {
   SolutionTier,
@@ -349,7 +351,10 @@ function LiveInterviewPage() {
   isEvaluatingRef.current = isEvaluating;
   const [isGeneratingScorecard, setIsGeneratingScorecard] = useState(false);
   const [scorecard, setScorecard] = useState<InterviewScorecardResult | null>(null);
-  const [activeTab, setActiveTab] = useState<"problem" | "chat" | "proctoring">("problem");
+  const [activeTab, setActiveTab] = useState<"problem" | "chat" | "whiteboard" | "proctoring">("problem");
+  const [whiteboardElements, setWhiteboardElements] = useState<WhiteboardElement[]>([]);
+  const [aiWhiteboardMessage, setAiWhiteboardMessage] = useState<string | null>(null);
+  const [isAiTeaching, setIsAiTeaching] = useState<boolean>(false);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const [selectedScorecardQuestionIdx, setSelectedScorecardQuestionIdx] = useState<number>(0);
   const [selectedScorecardTier, setSelectedScorecardTier] = useState<SolutionTier>("optimal");
@@ -416,12 +421,29 @@ function LiveInterviewPage() {
         interviewerStatusRef.current === "idle" &&
         !isEvaluatingRef.current &&
         !isAskingInterviewerRef.current &&
-        wordCount >= 4
+        wordCount >= 2
       ) {
         pendingVoiceQueryRef.current = "";
+
+        // Check if candidate verbally asked to draw or simulate on whiteboard
+        const lower = bufferedSpeech.toLowerCase();
+        if (
+          lower.includes("draw") ||
+          lower.includes("whiteboard") ||
+          lower.includes("simulate") ||
+          lower.includes("pointer") ||
+          lower.includes("binary search") ||
+          lower.includes("tree") ||
+          lower.includes("diagram")
+        ) {
+          setActiveTab("whiteboard");
+          setIsAiTeaching(true);
+          setAiWhiteboardMessage(`Visualizing: "${bufferedSpeech}"`);
+        }
+
         handleSendQueryRef.current?.(bufferedSpeech, { fromVoice: true });
       }
-    }, 1650);
+    }, 1400);
   };
 
   // Initialize Engines & Voice Services
@@ -1549,6 +1571,43 @@ function LiveInterviewPage() {
         ]);
 
         speakInterviewerText(resp.spokenText);
+
+        const lowerResp = resp.spokenText.toLowerCase();
+        if (lowerResp.includes("pointer") || lowerResp.includes("two pointer") || lowerResp.includes("left") || lowerResp.includes("right")) {
+          setWhiteboardElements((prev) => [
+            ...prev,
+            {
+              id: `ai-diag-${Date.now()}`,
+              type: "ai_diagram",
+              aiDiagramType: "array_pointers",
+              aiDiagramPayload: {
+                title: "AI Illustrated Invariant: Two Pointers",
+                stepDescription: resp.spokenText.slice(0, 110) + "...",
+              },
+              timestamp: Date.now(),
+              authorId: "ai_interviewer",
+            },
+          ]);
+          setIsAiTeaching(true);
+          setAiWhiteboardMessage("AI illustrated two-pointer invariant on the whiteboard.");
+        } else if (lowerResp.includes("binary search") || lowerResp.includes("mid") || lowerResp.includes("halv")) {
+          setWhiteboardElements((prev) => [
+            ...prev,
+            {
+              id: `ai-diag-${Date.now()}`,
+              type: "ai_diagram",
+              aiDiagramType: "binary_search",
+              aiDiagramPayload: {
+                title: "AI Illustrated Invariant: Binary Search",
+                stepDescription: resp.spokenText.slice(0, 110) + "...",
+              },
+              timestamp: Date.now(),
+              authorId: "ai_interviewer",
+            },
+          ]);
+          setIsAiTeaching(true);
+          setAiWhiteboardMessage("AI illustrated binary search intervals on the whiteboard.");
+        }
       }
     } catch {
       toast.error("Interviewer is listening, please continue with your invariant.");
@@ -2883,6 +2942,20 @@ function LiveInterviewPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setActiveTab("whiteboard")}
+                  className={`flex-1 py-1.5 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 relative ${
+                    activeTab === "whiteboard"
+                      ? "bg-card text-foreground shadow-xs border border-border/80"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Sparkles className="size-3.5 text-sky-400" /> AI Whiteboard
+                  {isAiTeaching && (
+                    <span className="size-2 rounded-full bg-sky-400 animate-ping" />
+                  )}
+                </button>
+                <button
+                  type="button"
                   onClick={() => setActiveTab("proctoring")}
                   className={`flex-1 py-1.5 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     activeTab === "proctoring"
@@ -3128,7 +3201,21 @@ function LiveInterviewPage() {
                   </div>
                 )}
 
-                {/* 3. Proctoring Log Tab */}
+                {/* 3. AI Whiteboard & Real-Time Collaborative Canvas Tab */}
+                {activeTab === "whiteboard" && (
+                  <div className="space-y-3">
+                    <AiWhiteboard
+                      roomId={`interview-${selectedTemplateId}`}
+                      isAiTeaching={isAiTeaching}
+                      aiTeachingMessage={aiWhiteboardMessage}
+                      externalElements={whiteboardElements}
+                      onElementCreated={(el) => setWhiteboardElements((prev) => [...prev, el])}
+                      onClearBoard={() => setWhiteboardElements([])}
+                    />
+                  </div>
+                )}
+
+                {/* 4. Proctoring Log Tab */}
                 {activeTab === "proctoring" && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between p-2.5 rounded-xl border border-border/70 bg-card">

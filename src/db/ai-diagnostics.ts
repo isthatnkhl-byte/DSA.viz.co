@@ -1,4 +1,5 @@
 import { adminDb, isAdminDbAvailable, markAdminDbUnavailable } from '../lib/firebase-admin';
+import { enqueueWriteBehind } from '../lib/write-behind-buffer.server';
 
 export interface AiReportData {
   id?: string;
@@ -236,23 +237,18 @@ export async function logUserActivity(
   const existing = memoryActivityStore.get(userId) || [];
   setBoundedMapEntry(memoryActivityStore, userId, [newActivity, ...existing].slice(0, 100));
 
-  if (isAdminDbAvailable()) {
-    try {
-      const { id: _localId, ...payload } = newActivity;
-      const docRef = await adminDb
-        .collection('users')
-        .doc(userId)
-        .collection('activity')
-        .add(payload);
+  // Enqueue to write-behind buffer for high-throughput batched commit
+  void enqueueWriteBehind({
+    type: "activity_log",
+    userId,
+    payload: {
+      type: newActivity.type,
+      problemSlug: newActivity.problemSlug,
+      metadata: newActivity.metadata,
+      createdAt: newActivity.createdAt,
+    },
+  });
 
-      return {
-        ...newActivity,
-        id: docRef.id,
-      };
-    } catch {
-      markAdminDbUnavailable();
-    }
-  }
   return newActivity;
 }
 

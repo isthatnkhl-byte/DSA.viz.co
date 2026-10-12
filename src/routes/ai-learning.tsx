@@ -613,9 +613,14 @@ export function AiLearningPage() {
     setSelectedModuleId(mod.id);
     setSelectedQuizOption(null);
     const built = mod.buildLesson();
-    setLessonOverride({ ...built, id: `${built.id}_${Date.now()}` });
+    setLessonOverride({
+      ...built,
+      id: `${built.id}_${Date.now()}`,
+      aiSource: "preset",
+      modelUsed: "Offline Preset",
+    });
     toast.success(
-      `Spawned "${mod.title}" in its own bounded non-overlapping whiteboard zone!`
+      `📦 Spawned Offline Preset "${mod.title}" in its own bounded zone!`
     );
   }, []);
 
@@ -1091,13 +1096,28 @@ export function AiLearningPage() {
                                     Array.isArray(data.lesson.frames) &&
                                     data.lesson.frames.length > 0
                                   ) {
+                                    const isLive =
+                                      data.source === "gemini_live" ||
+                                      data.lesson.aiSource === "gemini_live";
                                     setLessonOverride({
                                       ...data.lesson,
                                       id: `${data.lesson.id || "ai_live"}_${Date.now()}`,
+                                      aiSource: isLive
+                                        ? "gemini_live"
+                                        : "deterministic_fallback",
+                                      modelUsed:
+                                        data.modelUsed ||
+                                        data.lesson.modelUsed ||
+                                        (isLive
+                                          ? "gemini-flash-lite-latest"
+                                          : "Offline Fallback"),
+                                      fallbackReason:
+                                        data.fallbackReason ||
+                                        data.lesson.fallbackReason,
                                     });
                                     toast.dismiss(loadingId);
                                     toast.success(
-                                      `AI spawned live "${data.lesson.topic}" (${data.modelUsed || "AI Co-Teacher"})!`
+                                      `🟢 Live AI (${data.modelUsed || "gemini-flash-lite-latest"}) spawned "${data.lesson.topic}"!`
                                     );
                                     return;
                                   }
@@ -1111,9 +1131,11 @@ export function AiLearningPage() {
                               setLessonOverride({
                                 ...lesson,
                                 id: `${lesson.id}_${Date.now()}`,
+                                aiSource: "deterministic_fallback",
+                                modelUsed: "Offline Fallback",
                               });
-                              toast.success(
-                                `AI spawned "${lesson.topic}" in its own bounded zone!`
+                              toast.warning(
+                                `⚠️ Offline Fallback spawned "${lesson.topic}" in its own bounded zone!`
                               );
                             }}
                             className="w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#fffaf3] hover:bg-[#fef3c7] border border-[#2b2d42] transition cursor-pointer truncate"

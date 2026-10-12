@@ -223,6 +223,17 @@ export interface AiWhiteboardLesson {
   zoneId?: string;
   /** Bounding box of this simulation's dedicated frame on the Excalidraw canvas */
   zoneBounds?: { x: number; y: number; width: number; height: number };
+  /** Source of the lesson ("gemini_live" | "openai_live" | "openrouter_live" | "deterministic_fallback" | "preset") */
+  aiSource?:
+    | "gemini_live"
+    | "openai_live"
+    | "openrouter_live"
+    | "deterministic_fallback"
+    | "preset";
+  /** Identifier of the model that answered (e.g. "gemini-flash-lite-latest", "Offline Fallback", "Offline Preset") */
+  modelUsed?: string;
+  /** Optional error/fallback reason when deterministic_fallback is used */
+  fallbackReason?: string;
 }
 
 export interface WhiteboardSelectedElementSummary {
@@ -3795,6 +3806,39 @@ export function wrapLessonInBoundedZone(
   const dx = originX + PAD_X - rawMinX;
   const dy = originY + PAD_TOP - rawMinY;
 
+  const isLiveAi =
+    lesson.aiSource === "gemini_live" ||
+    lesson.aiSource === "openai_live" ||
+    lesson.aiSource === "openrouter_live" ||
+    (Boolean(lesson.modelUsed) &&
+      !String(lesson.modelUsed).toLowerCase().includes("offline") &&
+      !String(lesson.modelUsed).toLowerCase().includes("preset") &&
+      !String(lesson.modelUsed).toLowerCase().includes("fallback"));
+  const isFallback = lesson.aiSource === "deterministic_fallback";
+
+  const modelBadgeText = isLiveAi
+    ? `LIVE AI: ${lesson.modelUsed || "gemini-flash-lite-latest"}`
+    : isFallback
+    ? `OFFLINE FALLBACK${lesson.fallbackReason ? ` (${lesson.fallbackReason.slice(0, 22)})` : ""}`
+    : `OFFLINE PRESET`;
+
+  const modelBadgeStroke = isLiveAi
+    ? "#059669"
+    : isFallback
+    ? "#e11d48"
+    : "#d97706";
+  const modelBadgeBg = isLiveAi
+    ? "#d1fae5"
+    : isFallback
+    ? "#ffe4e6"
+    : "#fef3c7";
+  const modelBadgeW = Math.min(
+    320,
+    Math.max(168, modelBadgeText.length * 8 + 24)
+  );
+  const modelBadgeX = originX + zoneWidth - modelBadgeW - 14;
+  const modelBadgeY = originY + 8;
+
   const wrappedFrames: AiWhiteboardStepFrame[] = lesson.frames.map((frame, fIdx) => {
     const ver = fIdx + 1;
     const zonedElements: WbElement[] = [
@@ -3820,7 +3864,34 @@ export function wrapLessonInBoundedZone(
         {
           fontSize: 16,
           strokeColor: "#2b2d42",
-          maxCharsPerLine: 72,
+          maxCharsPerLine: 52,
+          maxLines: 1,
+          version: ver,
+        }
+      ),
+      // Model Which Answered Badge Box in Top-Right of Drawing Box
+      excalidrawRect(
+        `${zoneId}__zone-model-box`,
+        modelBadgeX,
+        modelBadgeY,
+        modelBadgeW,
+        32,
+        {
+          strokeColor: modelBadgeStroke,
+          backgroundColor: modelBadgeBg,
+          strokeWidth: 2,
+          version: ver,
+        }
+      ),
+      excalidrawText(
+        `${zoneId}__zone-model-txt`,
+        modelBadgeX + 10,
+        modelBadgeY + 8,
+        modelBadgeText,
+        {
+          fontSize: 13,
+          strokeColor: modelBadgeStroke,
+          maxCharsPerLine: 38,
           maxLines: 1,
           version: ver,
         }

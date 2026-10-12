@@ -94,19 +94,26 @@ async function persistSealedVaultForUid(uid: string, sealedVault?: string | null
 
 /** Helper to retrieve the current user's Firebase Bearer ID Token and encrypted account vault envelope */
 export async function getAuthHeaders(): Promise<Record<string, string>> {
+  const withTimeout = <T>(p: Promise<T>, fallback: T, ms = 1500): Promise<T> =>
+    Promise.race([
+      p.catch(() => fallback),
+      new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+    ]);
+
   try {
     const auth = getAuth();
     const user = auth.currentUser;
     if (user) {
       const [token, sealedVault] = await Promise.all([
-        user.getIdToken(),
-        loadSealedVaultForUid(user.uid),
+        withTimeout(user.getIdToken(), ""),
+        withTimeout(loadSealedVaultForUid(user.uid), null),
       ]);
       const headers: Record<string, string> = {};
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
-      const effectiveVault = sealedVault || (await loadSealedVaultForUid("anon"));
+      const effectiveVault =
+        sealedVault || (await withTimeout(loadSealedVaultForUid("anon"), null, 400));
       if (effectiveVault) {
         headers["X-Encrypted-Account-Vault"] = effectiveVault;
       }
@@ -115,7 +122,7 @@ export async function getAuthHeaders(): Promise<Record<string, string>> {
   } catch {
     // Unauthenticated or Firebase not initialized
   }
-  const anonVault = await loadSealedVaultForUid("anon");
+  const anonVault = await withTimeout(loadSealedVaultForUid("anon"), null, 400);
   if (anonVault) {
     return { "X-Encrypted-Account-Vault": anonVault };
   }

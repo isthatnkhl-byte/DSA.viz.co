@@ -177,7 +177,12 @@ function getVaultMasterKey(): Buffer {
     cleanEnv(process.env.VAULT_MASTER_KEY) ||
     cleanEnv(process.env.ENCRYPTION_KEY) ||
     cleanEnv(process.env.GITHUB_CLIENT_SECRET) ||
-    cleanEnv(process.env.LIVEKIT_API_SECRET);
+    cleanEnv(process.env.LIVEKIT_API_SECRET) ||
+    cleanEnv(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) ||
+    cleanEnv(process.env.GEMINI_API_KEY) ||
+    cleanEnv(process.env.GOOGLE_API_KEY) ||
+    cleanEnv(process.env.VITE_FIREBASE_API_KEY) ||
+    cleanEnv(fallbackConfig.apiKey);
 
   if (!configuredSecret) {
     if (process.env.NODE_ENV === "production") {

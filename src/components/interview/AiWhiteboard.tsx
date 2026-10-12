@@ -147,10 +147,12 @@ export function AiWhiteboard({
 
   // Bounded Simulation Zones Registry (each simulation has its own dynamically placed non-overlapping area!)
   const [zonesHistory, setZonesHistory] = useState<AiWhiteboardLesson[]>(() => {
-    const initialRaw = buildExcalidrawTwoPointersLesson(
-      [1, 3, 5, 8, 12, 17, 21],
-      17
-    );
+    const initialRaw: AiWhiteboardLesson = {
+      ...buildExcalidrawTwoPointersLesson([1, 3, 5, 8, 12, 17, 21], 17),
+      id: "initial_boot_preset",
+      aiSource: "preset",
+      modelUsed: "Offline Preset",
+    };
     const initialZoned = wrapLessonInBoundedZone(initialRaw, {
       zoneId: "zone_1",
       zoneIndex: 0,
@@ -173,7 +175,11 @@ export function AiWhiteboard({
     zonesHistory[activeZoneIdx] ??
     zonesHistory[zonesHistory.length - 1] ??
     wrapLessonInBoundedZone(
-      buildExcalidrawTwoPointersLesson([1, 3, 5, 8, 12, 17, 21], 17),
+      {
+        ...buildExcalidrawTwoPointersLesson([1, 3, 5, 8, 12, 17, 21], 17),
+        aiSource: "preset",
+        modelUsed: "Offline Preset",
+      },
       { zoneId: "zone_1", zoneIndex: 0, originX: 40, originY: 40 }
     );
 
@@ -431,14 +437,15 @@ export function AiWhiteboard({
             excalidrawAPI.scrollToContent(
               targetRestored.length > 0 ? targetRestored : restoredZonesElements,
               {
-                fitToViewport: false,
-                animate: true,
+                fitToViewport: true,
+                viewportZoomFactor: 0.9,
+                animate: false,
               }
             );
           } catch {
             // ignore scroll error
           }
-        }, 60);
+        }, 40);
       }
     },
     [excalidrawAPI, excalidrawModule]
@@ -458,7 +465,7 @@ export function AiWhiteboard({
         excalidrawAPI.scrollToContent(allEls, {
           fitToViewport: true,
           viewportZoomFactor: 0.88,
-          animate: true,
+          animate: false,
         });
       }
     } catch {
@@ -541,6 +548,8 @@ export function AiWhiteboard({
   /**
    * Registers and activates a new bounded simulation zone in a dynamically chosen
    * clean region of the whiteboard without overwriting any previous simulation zones!
+   * If Zone #1 is still the untouched initial boot placeholder, replaces it in-place at (40, 40)
+   * so the user's first AI query is immediately centered in Zone #1.
    */
   const spawnBoundedSimulationZone = useCallback(
     (
@@ -571,9 +580,10 @@ export function AiWhiteboard({
       }
 
       const prevZones = zonesHistoryRef.current;
-      const nextZoneNum = zoneCounterRef.current + 1;
-      zoneCounterRef.current = nextZoneNum;
-      const zoneId = `zone_${nextZoneNum}`;
+      const replaceInitialBootPlaceholder =
+        prevZones.length === 1 &&
+        prevZones[0]?.id === "initial_boot_preset" &&
+        !selCtx;
 
       const selectionBannerText =
         selCtx && selCtx.selectedElements.length > 0
@@ -589,18 +599,39 @@ export function AiWhiteboard({
         Boolean(selectionBannerText)
       );
 
-      const { originX, originY, connectedFromBounds } =
-        computeNextFreeZoneOrigin(
+      let zoneId: string;
+      let zoneIndex: number;
+      let originX: number;
+      let originY: number;
+      let connectedFromBounds: WhiteboardSelectionContext["bounds"] | undefined;
+
+      if (replaceInitialBootPlaceholder) {
+        zoneCounterRef.current = 1;
+        zoneId = "zone_1";
+        zoneIndex = 0;
+        originX = 40;
+        originY = 40;
+        connectedFromBounds = undefined;
+      } else {
+        const nextZoneNum = zoneCounterRef.current + 1;
+        zoneCounterRef.current = nextZoneNum;
+        zoneId = `zone_${nextZoneNum}`;
+        zoneIndex = prevZones.length;
+        const pos = computeNextFreeZoneOrigin(
           zoneWidth,
           zoneHeight,
           prevZones,
           selCtx,
           mode
         );
+        originX = pos.originX;
+        originY = pos.originY;
+        connectedFromBounds = pos.connectedFromBounds;
+      }
 
       const wrapped = wrapLessonInBoundedZone(rawLesson, {
         zoneId,
-        zoneIndex: prevZones.length,
+        zoneIndex,
         originX,
         originY,
         connectedFromBounds,
@@ -608,14 +639,16 @@ export function AiWhiteboard({
       });
 
       zoneStepMapRef.current.set(zoneId, 0);
-      const updated = [...prevZones, wrapped];
+      const updated = replaceInitialBootPlaceholder
+        ? [wrapped]
+        : [...prevZones, wrapped];
       zonesHistoryRef.current = updated;
       setZonesHistory(updated);
       setActiveZoneIdx(updated.length - 1);
       setStepIndex(0);
       setIsPlayingSteps(true);
 
-      // Immediately synchronize all zones onto the Excalidraw canvas and smoothly pan camera to the new zone
+      // Immediately synchronize all zones onto the Excalidraw canvas and focus camera on the new zone
       if (wrapped.frames[0]) {
         injectZoneFrameIntoExcalidraw(
           wrapped.zoneId,
@@ -1131,17 +1164,44 @@ export function AiWhiteboard({
             Array.isArray(data.lesson.frames) &&
             data.lesson.frames.length > 0
           ) {
-            const nextNum = zonesHistoryRef.current.length + 1;
-            spawnBoundedSimulationZone(data.lesson, {
+            const isLive =
+              data.source === "gemini_live" ||
+              data.lesson.aiSource === "gemini_live";
+            const enrichedLesson: AiWhiteboardLesson = {
+              ...data.lesson,
+              aiSource: isLive ? "gemini_live" : "deterministic_fallback",
+              modelUsed:
+                data.modelUsed ||
+                data.lesson.modelUsed ||
+                (isLive ? "gemini-flash-lite-latest" : "Offline Fallback"),
+              fallbackReason:
+                data.fallbackReason || data.lesson.fallbackReason || undefined,
+            };
+            const willReplaceBoot =
+              zonesHistoryRef.current.length === 1 &&
+              zonesHistoryRef.current[0]?.id === "initial_boot_preset" &&
+              !activeSel;
+            const targetZoneNum = willReplaceBoot
+              ? 1
+              : zonesHistoryRef.current.length + 1;
+            spawnBoundedSimulationZone(enrichedLesson, {
               selCtx: activeSel,
               mode: effectiveMode,
             });
             if (!customQuery) setAiQueryInput("");
-            toast.success(
-              activeSel
-                ? `AI created Zone #${nextNum} from your selected area: ${data.lesson.topic}`
-                : `AI created non-overlapping Zone #${nextNum}: ${data.lesson.topic}`
-            );
+            if (isLive) {
+              toast.success(
+                `🟢 Live AI (${enrichedLesson.modelUsed}) drew Zone #${targetZoneNum}: ${enrichedLesson.topic}`
+              );
+            } else {
+              toast.warning(
+                `⚠️ Offline Fallback drew Zone #${targetZoneNum}: ${enrichedLesson.topic}${
+                  enrichedLesson.fallbackReason
+                    ? ` (${enrichedLesson.fallbackReason})`
+                    : ""
+                }`
+              );
+            }
             return;
           }
         }
@@ -1152,18 +1212,24 @@ export function AiWhiteboard({
       }
 
       // Deterministic instant fallback (selection-aware!)
-      const nextNum = zonesHistoryRef.current.length + 1;
-      const fallback = generateAiExcalidrawLessonForQuery(
-        finalQuery,
-        activeSel
-      );
+      const willReplaceBoot =
+        zonesHistoryRef.current.length === 1 &&
+        zonesHistoryRef.current[0]?.id === "initial_boot_preset" &&
+        !activeSel;
+      const nextNum = willReplaceBoot ? 1 : zonesHistoryRef.current.length + 1;
+      const fallback: AiWhiteboardLesson = {
+        ...generateAiExcalidrawLessonForQuery(finalQuery, activeSel),
+        aiSource: "deterministic_fallback",
+        modelUsed: "Offline Fallback (Client Offline)",
+        fallbackReason: "Could not reach /api/whiteboard/ai-teach",
+      };
       spawnBoundedSimulationZone(fallback, {
         selCtx: activeSel,
         mode: effectiveMode,
       });
       if (!customQuery) setAiQueryInput("");
-      toast.success(
-        `AI created non-overlapping Zone #${nextNum}: ${fallback.topic}`
+      toast.warning(
+        `⚠️ Offline Fallback drew Zone #${nextNum}: ${fallback.topic}`
       );
     },
     [
@@ -1237,39 +1303,21 @@ export function AiWhiteboard({
       .find((el) => el.type === "ai_diagram");
     if (latest && latest.id !== lastExternalIdRef.current) {
       lastExternalIdRef.current = latest.id;
+      if (latest.authorId === "ai_interviewer") {
+        // Ignore self-emitted preset notifications
+        return;
+      }
       const diagType = latest.aiDiagramType;
       const customPrompt =
         latest.aiDiagramPayload?.stepDescription ||
-        latest.aiDiagramPayload?.title;
+        latest.aiDiagramPayload?.title ||
+        (diagType ? `Simulate ${diagType.replace(/_/g, " ")} step by step with dry run` : "");
 
-      if (diagType === "binary_search") {
-        spawnBoundedSimulationZone(buildExcalidrawBinarySearchLesson(), {
-          selCtx: null,
-        });
-      } else if (diagType === "linked_list") {
-        spawnBoundedSimulationZone(buildExcalidrawLinkedListLesson(), {
-          selCtx: null,
-        });
-      } else if (diagType === "tree") {
-        spawnBoundedSimulationZone(buildExcalidrawTreeLesson(), {
-          selCtx: null,
-        });
-      } else if (
-        diagType === "array_pointers" ||
-        diagType === "two_pointers"
-      ) {
-        spawnBoundedSimulationZone(buildExcalidrawTwoPointersLesson(), {
-          selCtx: null,
-        });
-      } else if (customPrompt) {
+      if (customPrompt) {
         void handleRunAiWhiteboardQuery(customPrompt);
       }
     }
-  }, [
-    externalElements,
-    handleRunAiWhiteboardQuery,
-    spawnBoundedSimulationZone,
-  ]);
+  }, [externalElements, handleRunAiWhiteboardQuery]);
 
   // Preset Switcher supporting all 15 interactive lessons (each dynamically placed in its own clean non-overlapping zone!)
   const handleSelectPreset = (preset: WhiteboardPresetId) => {
@@ -1285,7 +1333,7 @@ export function AiWhiteboard({
       extractedTexts: [],
     });
 
-    const lesson =
+    const baseLesson =
       preset === "two_pointers"
         ? buildExcalidrawTwoPointersLesson()
         : preset === "brute_force"
@@ -1316,6 +1364,12 @@ export function AiWhiteboard({
         ? buildExcalidrawSortingPartitionLesson()
         : buildExcalidrawTreeLesson();
 
+    const lesson: AiWhiteboardLesson = {
+      ...baseLesson,
+      aiSource: "preset",
+      modelUsed: "Offline Preset",
+    };
+
     const nextZoneNumber = zonesHistoryRef.current.length + 1;
     spawnBoundedSimulationZone(lesson, {
       selCtx: null,
@@ -1334,7 +1388,7 @@ export function AiWhiteboard({
       authorId: "ai_interviewer",
     });
     toast.info(
-      `Spawned "${lesson.topic}" in clean board Zone #${nextZoneNumber}`
+      `📦 Spawned Offline Preset "${lesson.topic}" in Zone #${nextZoneNumber}`
     );
   };
 
@@ -1354,7 +1408,7 @@ export function AiWhiteboard({
       return;
     }
     const sorted = [...nums].sort((a, b) => a - b);
-    const lesson =
+    const baseLesson =
       mode === "two_pointers"
         ? buildExcalidrawTwoPointersLesson(sorted, target)
         : mode === "brute_force"
@@ -1363,10 +1417,16 @@ export function AiWhiteboard({
         ? buildExcalidrawBinarySearchLesson(sorted, target)
         : buildExcalidrawSlidingWindowLesson(nums, Math.min(3, nums.length));
 
+    const lesson: AiWhiteboardLesson = {
+      ...baseLesson,
+      aiSource: "preset",
+      modelUsed: "Offline Preset (Custom Input)",
+    };
+
     const nextZoneNumber = zonesHistoryRef.current.length + 1;
     spawnBoundedSimulationZone(lesson, { selCtx: null });
     setShowCustomBuilder(false);
-    toast.success(`Spawned ${lesson.topic} in Zone #${nextZoneNumber}!`);
+    toast.success(`📦 Spawned ${lesson.topic} in Zone #${nextZoneNumber}!`);
   };
 
   // Clear all simulation zones and reset to a fresh Zone #1
@@ -1376,7 +1436,12 @@ export function AiWhiteboard({
     zoneStepMapRef.current = new Map([["zone_1", 0]]);
     setActivePresetId("two_pointers");
     const fresh = wrapLessonInBoundedZone(
-      buildExcalidrawTwoPointersLesson([1, 3, 5, 8, 12, 17, 21], 17),
+      {
+        ...buildExcalidrawTwoPointersLesson([1, 3, 5, 8, 12, 17, 21], 17),
+        id: "initial_boot_preset",
+        aiSource: "preset",
+        modelUsed: "Offline Preset",
+      },
       { zoneId: "zone_1", zoneIndex: 0, originX: 40, originY: 40 }
     );
     if (excalidrawAPI) {
@@ -1633,6 +1698,8 @@ export function AiWhiteboard({
             const isCurrentZone = zIdx === activeZoneIdx;
             const savedStep =
               (z.zoneId ? zoneStepMapRef.current.get(z.zoneId) : 0) ?? 0;
+            const isLiveZone = z.aiSource === "gemini_live";
+            const isFallbackZone = z.aiSource === "deterministic_fallback";
             return (
               <button
                 key={z.zoneId || zIdx}
@@ -1658,15 +1725,30 @@ export function AiWhiteboard({
                   border: "2px solid #2b2d42",
                   boxShadow: isCurrentZone ? "0 2px 0 #ef476f" : "none",
                 }}
-                title={`Focus camera on Zone #${zIdx + 1}: ${z.topic} (${
-                  z.zoneBounds
-                    ? `x:${z.zoneBounds.x}, y:${z.zoneBounds.y}`
-                    : "dynamic"
-                })`}
+                title={`Focus camera on Zone #${zIdx + 1}: ${z.topic} • Answered by: ${
+                  z.modelUsed || (isLiveZone ? "Live AI" : "Offline Preset")
+                }`}
               >
                 <span>#{zIdx + 1}</span>
                 <span className="max-w-[140px] truncate font-sans font-extrabold">
                   {z.topic}
+                </span>
+                <span
+                  className="px-1.5 py-0.2 rounded text-[9px] font-mono font-black"
+                  style={{
+                    background: isLiveZone
+                      ? "#059669"
+                      : isFallbackZone
+                      ? "#e11d48"
+                      : "#d97706",
+                    color: "#ffffff",
+                  }}
+                >
+                  {isLiveZone
+                    ? `LIVE: ${z.modelUsed || "gemini"}`
+                    : isFallbackZone
+                    ? "OFFLINE FALLBACK"
+                    : "PRESET"}
                 </span>
               </button>
             );
@@ -1978,6 +2060,45 @@ export function AiWhiteboard({
         className="wb-host flex-1 min-h-0 relative"
         style={{ background: "#ffffff" }}
       >
+        {/* Pinned "Model Which Answered" Badge on the Drawing Box */}
+        <div
+          data-testid="whiteboard-model-badge"
+          className="absolute top-3 right-14 z-30 pointer-events-none flex items-center gap-2 px-3 py-1.5 rounded-xl font-mono text-[11px] font-black shadow-md"
+          style={{
+            background:
+              activeLesson.aiSource === "gemini_live"
+                ? "#d1fae5"
+                : activeLesson.aiSource === "deterministic_fallback"
+                ? "#ffe4e6"
+                : "#fef3c7",
+            color:
+              activeLesson.aiSource === "gemini_live"
+                ? "#065f46"
+                : activeLesson.aiSource === "deterministic_fallback"
+                ? "#9f1239"
+                : "#92400e",
+            border:
+              activeLesson.aiSource === "gemini_live"
+                ? "2px solid #059669"
+                : activeLesson.aiSource === "deterministic_fallback"
+                ? "2px solid #e11d48"
+                : "2px solid #d97706",
+            boxShadow: "0 3px 0 #2b2d42",
+          }}
+        >
+          <span>
+            {activeLesson.aiSource === "gemini_live"
+              ? `🟢 MODEL: ${activeLesson.modelUsed || "gemini-flash-lite-latest"} (LIVE API)`
+              : activeLesson.aiSource === "deterministic_fallback"
+              ? `⚠️ MODEL: ${activeLesson.modelUsed || "OFFLINE FALLBACK"}${
+                  activeLesson.fallbackReason
+                    ? ` — ${activeLesson.fallbackReason}`
+                    : ""
+                }`
+              : `📦 MODEL: ${activeLesson.modelUsed || "OFFLINE PRESET"} (Click "Spawn AI Simulation" for Live AI)`}
+          </span>
+        </div>
+
         {!ExcalidrawComp ? (
           <div
             className="wb-loading grid place-items-center h-full p-4 text-center font-extrabold text-base"

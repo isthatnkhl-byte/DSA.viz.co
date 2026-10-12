@@ -140,16 +140,21 @@ export function extractJson(str: string): any | null {
   if (first !== -1 && last > first) attempts.push(str.slice(first, last + 1));
   for (const a of attempts) {
     const trimmed = a.trim();
-    const parseAttempts = [trimmed, trimmed.replace(/,\s*([}\]])/g, "$1")];
+    const cleanedCommas = trimmed.replace(/,\s*([}\]])/g, "$1");
+    const sanitizedCtrl = cleanedCommas.replace(/[\u0000-\u001F]+/g, " ");
+    const parseAttempts = [trimmed, cleanedCommas, sanitizedCtrl];
     for (const textToParse of parseAttempts) {
       try {
         const parsed = JSON.parse(textToParse);
         if (parsed && typeof parsed === "object") {
           if (Array.isArray(parsed)) {
-            return { viz_steps: parsed };
+            return { viz_steps: parsed, steps: parsed };
           }
-          if (!parsed.viz_steps && (parsed.vizSteps || parsed.steps)) {
-            parsed.viz_steps = parsed.vizSteps || parsed.steps;
+          if (!parsed.viz_steps && (parsed.vizSteps || parsed.steps || parsed.frames || parsed.simulationSteps)) {
+            parsed.viz_steps = parsed.vizSteps || parsed.steps || parsed.frames || parsed.simulationSteps;
+          }
+          if (!parsed.steps && parsed.viz_steps) {
+            parsed.steps = parsed.viz_steps;
           }
           if (!parsed.code_lines && (parsed.codeLines || parsed.code)) {
             parsed.code_lines = parsed.codeLines || parsed.code;

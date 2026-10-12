@@ -81,7 +81,8 @@ test("extractJson cleans trailing commas in LLM JSON output", () => {
 
 test("models list includes reliable high-availability models across providers", () => {
   assert.ok(VIZ_MODELS.includes("openai/gpt-4o-mini"));
-  assert.ok(VIZ_MODELS.includes("gemini-2.0-flash"));
+  assert.ok(VIZ_MODELS.includes("gemini-flash-lite-latest"));
+  assert.ok(VIZ_MODELS.includes("gemini-flash-latest"));
   assert.ok(VIZ_MODELS.includes("qwen/qwen-2.5-coder-32b-instruct"));
   assert.ok(REVIEW_MODELS.length >= 10);
   assert.ok(VIZ_MODELS.length >= 10);

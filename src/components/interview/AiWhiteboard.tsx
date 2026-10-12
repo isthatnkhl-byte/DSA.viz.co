@@ -197,11 +197,24 @@ export function AiWhiteboard({
   const recognitionRef = useRef<any>(null);
   const zoneCounterRef = useRef<number>(1);
   const speechTimerRef = useRef<number>(0);
+  const audioWatchdogTimerRef = useRef<number>(0);
+  const stepTokenRef = useRef<number>(0);
+  const cursorPassDoneRef = useRef<boolean>(false);
+  const audioDoneRef = useRef<boolean>(true);
+  const [isCurrentlySpeaking, setIsCurrentlySpeaking] =
+    useState<boolean>(false);
 
-  // Smooth 60fps AI Cursor Interpolation Refs
+  // Smooth 60fps AI Cursor Path-Interpolation Refs (zero circular spinning!)
   const cursorPosRef = useRef<{ x: number; y: number }>({ x: 320, y: 220 });
+  const stepStartCursorPosRef = useRef<{ x: number; y: number }>({
+    x: 320,
+    y: 220,
+  });
+  const stepStartTimeRef = useRef<number>(
+    typeof performance !== "undefined" ? performance.now() : Date.now()
+  );
   const waypointIndexRef = useRef<number>(0);
-  const lastWaypointSwitchRef = useRef<number>(Date.now());
+  const settledAtTargetRef = useRef<boolean>(false);
 
   const currentFrame =
     activeLesson.frames[stepIndex] || activeLesson.frames[0];
@@ -212,6 +225,11 @@ export function AiWhiteboard({
       window.clearTimeout(speechTimerRef.current);
       speechTimerRef.current = 0;
     }
+    if (audioWatchdogTimerRef.current) {
+      window.clearTimeout(audioWatchdogTimerRef.current);
+      audioWatchdogTimerRef.current = 0;
+    }
+    setIsCurrentlySpeaking(false);
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
         window.speechSynthesis.cancel();
@@ -221,29 +239,84 @@ export function AiWhiteboard({
     }
   }, []);
 
-  // Debounced single-channel voice narrator: cancels any ongoing speech and waits 75ms
-  // so rapid clicks on presets/steps never queue overlapping utterances in Chromium/Edge.
+  /**
+   * Speaks step narration on a single debounced channel and tracks exact completion
+   * (`utter.onend` + 450ms natural pause) so the next step NEVER starts before the
+   * current step's audio narration finishes!
+   */
   const speakText = useCallback(
-    (text: string) => {
+    (text: string, tokenForStep?: number) => {
       stopAllVoiceNarration();
+      const activeToken = tokenForStep ?? stepTokenRef.current;
+      audioDoneRef.current = false;
+
       speechTimerRef.current = window.setTimeout(() => {
         speechTimerRef.current = 0;
+        if (activeToken !== stepTokenRef.current) return;
+
+        const markSpeechCompleted = () => {
+          if (activeToken !== stepTokenRef.current) return;
+          if (audioWatchdogTimerRef.current) {
+            window.clearTimeout(audioWatchdogTimerRef.current);
+            audioWatchdogTimerRef.current = 0;
+          }
+          setIsCurrentlySpeaking(false);
+          // Add a 450ms natural breathing pause after the sentence finishes before advancing
+          audioWatchdogTimerRef.current = window.setTimeout(() => {
+            audioWatchdogTimerRef.current = 0;
+            if (activeToken === stepTokenRef.current) {
+              audioDoneRef.current = true;
+            }
+          }, 450);
+        };
+
         if (typeof window !== "undefined" && "speechSynthesis" in window) {
           try {
             window.speechSynthesis.cancel();
             const utter = new SpeechSynthesisUtterance(text);
-            utter.rate = 1.03;
+            utter.rate = Math.min(1.35, Math.max(0.85, 1.02 * playbackSpeed));
             utter.pitch = 1.0;
+            utter.onstart = () => {
+              if (activeToken === stepTokenRef.current) {
+                setIsCurrentlySpeaking(true);
+              }
+            };
+            utter.onend = markSpeechCompleted;
+            utter.onerror = markSpeechCompleted;
+
+            // Safety watchdog based on word count in case the browser speech engine stalls
+            const wordCount = Math.max(1, text.trim().split(/\s+/).length);
+            const safetyTimeoutMs =
+              Math.max(6000, Math.round((wordCount * 460) / playbackSpeed)) +
+              2500;
+            audioWatchdogTimerRef.current = window.setTimeout(() => {
+              if (
+                typeof window !== "undefined" &&
+                "speechSynthesis" in window &&
+                window.speechSynthesis.speaking
+              ) {
+                // Still actively speaking — check again in 600ms instead of cutting off
+                audioWatchdogTimerRef.current = window.setTimeout(
+                  markSpeechCompleted,
+                  2000
+                );
+                return;
+              }
+              markSpeechCompleted();
+            }, safetyTimeoutMs);
+
             window.speechSynthesis.speak(utter);
             return;
           } catch {
-            // fallback to parent callback if needed
+            markSpeechCompleted();
           }
+        } else {
+          onAiSpeak?.(text);
+          markSpeechCompleted();
         }
-        onAiSpeak?.(text);
       }, 75);
     },
-    [onAiSpeak, stopAllVoiceNarration]
+    [onAiSpeak, playbackSpeed, stopAllVoiceNarration]
   );
 
   // Clean up any active speech when unmounting
@@ -651,11 +724,19 @@ export function AiWhiteboard({
     [fileUrl]
   );
 
-  // Whenever stepIndex or activeLesson changes, update that zone's step map and synchronize all zones in Excalidraw
+  // Whenever stepIndex or activeLesson changes, initialize the step's cursor path, voice token, and scene
   useEffect(() => {
     if (!excalidrawAPI || !excalidrawModule || !currentFrame) return;
+
+    const nextToken = stepTokenRef.current + 1;
+    stepTokenRef.current = nextToken;
+    stepStartTimeRef.current =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    stepStartCursorPosRef.current = { ...cursorPosRef.current };
+    cursorPassDoneRef.current = false;
     waypointIndexRef.current = 0;
-    lastWaypointSwitchRef.current = Date.now();
+    settledAtTargetRef.current = false;
+
     if (activeLesson.zoneId) {
       zoneStepMapRef.current.set(activeLesson.zoneId, stepIndex);
     }
@@ -669,8 +750,11 @@ export function AiWhiteboard({
         activeLesson.frames.length
       }: ${currentFrame.title} — ${currentFrame.narration}`
     );
+
     if (autoVoiceNarrate && currentFrame.narration) {
-      speakText(currentFrame.narration);
+      speakText(currentFrame.narration, nextToken);
+    } else {
+      audioDoneRef.current = true;
     }
   }, [
     stepIndex,
@@ -685,9 +769,9 @@ export function AiWhiteboard({
   ]);
 
   /**
-   * CONTINUOUS 60FPS LIVE-MOVING AI CO-TEACHER CURSOR & LASER TRAIL ENGINE
-   * Smoothly interpolates the AI cursor along the frame's waypoints and adds
-   * organic teaching pointer motion so the cursor is never static!
+   * CONTINUOUS LIVE PATH-INTERPOLATED AI CO-TEACHER CURSOR & LASER TRAIL ENGINE
+   * Smoothly travels point-to-point across the step's active elements using cubic easing
+   * (`easeInOutCubic`) with a brief steady pointer pause at each node — ZERO circular spinning!
    */
   useEffect(() => {
     if (!excalidrawAPI || !currentFrame) return;
@@ -697,47 +781,118 @@ export function AiWhiteboard({
     const aiColor = "#ef476f";
     const collaboratorId = tintedId("ai-co-teacher", aiColor);
 
+    const rawWaypoints =
+      currentFrame.aiLaserWaypoints && currentFrame.aiLaserWaypoints.length > 0
+        ? currentFrame.aiLaserWaypoints
+        : [currentFrame.aiLaserTarget];
+
+    // Build deduplicated ordered path from cursor's starting coordinate through all waypoints in the step
+    const fullCandidates = [stepStartCursorPosRef.current, ...rawWaypoints];
+    const cleanPath: Array<{ x: number; y: number }> = [];
+    for (const pt of fullCandidates) {
+      if (!pt) continue;
+      const last = cleanPath[cleanPath.length - 1];
+      if (!last || Math.hypot(pt.x - last.x, pt.y - last.y) > 4) {
+        cleanPath.push({ x: pt.x, y: pt.y });
+      }
+    }
+    if (cleanPath.length < 2) {
+      const anchor = cleanPath[0] ??
+        currentFrame.aiLaserTarget ?? { x: 320, y: 220 };
+      cleanPath.push(
+        { x: anchor.x + 140, y: anchor.y },
+        { x: anchor.x, y: anchor.y }
+      );
+    }
+
     const animateCursor = (now: number) => {
       animFrameId = window.requestAnimationFrame(animateCursor);
 
-      // Throttle Excalidraw collaborator updates to ~30fps (every 33ms) for buttery-smooth motion
+      // Throttle Excalidraw collaborator updates to ~30fps (every 33ms)
       if (now - lastCollaboratorUpdate < 33) return;
       lastCollaboratorUpdate = now;
 
-      const waypoints =
-        currentFrame.aiLaserWaypoints && currentFrame.aiLaserWaypoints.length > 0
-          ? currentFrame.aiLaserWaypoints
-          : [currentFrame.aiLaserTarget];
+      let nextX = cursorPosRef.current.x;
+      let nextY = cursorPosRef.current.y;
+      let isDrawingLaserTrail = false;
 
-      // Cycle to the next waypoint inside the current step every 850ms
-      if (waypoints.length > 1 && now - lastWaypointSwitchRef.current > 850) {
-        waypointIndexRef.current =
-          (waypointIndexRef.current + 1) % waypoints.length;
-        lastWaypointSwitchRef.current = now;
+      if (!isPlayingSteps && !isAiTeaching) {
+        // Paused: smoothly glide to the step's primary target and hold completely still (zero rotation!)
+        const target = currentFrame.aiLaserTarget ?? { x: 320, y: 220 };
+        const dist = Math.hypot(
+          target.x - cursorPosRef.current.x,
+          target.y - cursorPosRef.current.y
+        );
+        if (dist <= 1.5) {
+          if (settledAtTargetRef.current) return;
+          settledAtTargetRef.current = true;
+          nextX = target.x;
+          nextY = target.y;
+          isDrawingLaserTrail = false;
+        } else {
+          nextX =
+            cursorPosRef.current.x +
+            (target.x - cursorPosRef.current.x) * 0.24;
+          nextY =
+            cursorPosRef.current.y +
+            (target.y - cursorPosRef.current.y) * 0.24;
+          isDrawingLaserTrail = dist > 8;
+        }
+      } else {
+        settledAtTargetRef.current = false;
+        const numSegments = Math.max(1, cleanPath.length - 1);
+        const segDurationMs = Math.max(
+          520,
+          Math.round(860 / playbackSpeed)
+        );
+        const firstPassTotalMs = numSegments * segDurationMs;
+        const elapsed = Math.max(0, now - stepStartTimeRef.current);
+
+        if (elapsed >= firstPassTotalMs) {
+          cursorPassDoneRef.current = true;
+        }
+
+        let fromPt: { x: number; y: number };
+        let toPt: { x: number; y: number };
+
+        if (elapsed < firstPassTotalMs) {
+          const segIdx = Math.min(
+            numSegments - 1,
+            Math.floor(elapsed / segDurationMs)
+          );
+          fromPt = cleanPath[segIdx]!;
+          toPt = cleanPath[segIdx + 1]!;
+          waypointIndexRef.current = Math.min(rawWaypoints.length - 1, segIdx);
+        } else {
+          // Cursor finished first pass and is waiting for voice narration to finish:
+          // smoothly traverse between the step's waypoints without spinning in place
+          const loopPts =
+            rawWaypoints.length >= 2 ? rawWaypoints : cleanPath;
+          const totalSegs = Math.floor(elapsed / segDurationMs);
+          const loopIdx = (totalSegs - numSegments) % loopPts.length;
+          fromPt = loopPts[loopIdx]!;
+          toPt = loopPts[(loopIdx + 1) % loopPts.length]!;
+          waypointIndexRef.current = loopIdx;
+        }
+
+        const localProgress = (elapsed % segDurationMs) / segDurationMs;
+        if (localProgress <= 0.82) {
+          // 82% of segment: smooth cubic-eased travel from `fromPt` to `toPt`
+          const t = localProgress / 0.82;
+          const eased =
+            t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          nextX = fromPt.x + (toPt.x - fromPt.x) * eased;
+          nextY = fromPt.y + (toPt.y - fromPt.y) * eased;
+          isDrawingLaserTrail = Math.hypot(toPt.x - fromPt.x, toPt.y - fromPt.y) > 8;
+        } else {
+          // 18% of segment: steady pointer pause directly on `toPt` (no circular spinning!)
+          nextX = toPt.x;
+          nextY = toPt.y;
+          isDrawingLaserTrail = false;
+        }
       }
 
-      const activeTarget =
-        waypoints[waypointIndexRef.current] ??
-        currentFrame.aiLaserTarget ?? { x: 320, y: 220 };
-
-      // Add a smooth organic figure-8 gesturing motion around the active target
-      const gestureRadiusX = isPlayingSteps || isAiTeaching ? 18 : 10;
-      const gestureRadiusY = isPlayingSteps || isAiTeaching ? 10 : 6;
-      const angle = now * 0.0042;
-      const desiredX = activeTarget.x + Math.cos(angle) * gestureRadiusX;
-      const desiredY =
-        activeTarget.y + Math.sin(angle * 2) * gestureRadiusY;
-
-      // Smooth exponential lerp so the cursor glides across the canvas instead of jumping
-      const prev = cursorPosRef.current;
-      const lerpFactor = 0.16;
-      const nextX = prev.x + (desiredX - prev.x) * lerpFactor;
-      const nextY = prev.y + (desiredY - prev.y) * lerpFactor;
       cursorPosRef.current = { x: nextX, y: nextY };
-
-      const distToTarget = Math.hypot(desiredX - nextX, desiredY - nextY);
-      const isDrawingLaserTrail =
-        isPlayingSteps || isAiTeaching || distToTarget > 6;
 
       const pointer: WbPointer = {
         x: Math.round(nextX * 10) / 10,
@@ -750,7 +905,9 @@ export function AiWhiteboard({
       collaborators.set("ai-co-teacher", {
         id: collaboratorId,
         socketId: "ai-co-teacher",
-        username: `🤖 AI Co-Teacher (Zone #${activeZoneIdx + 1})`,
+        username: `🤖 AI Co-Teacher (Zone #${activeZoneIdx + 1} • Step ${
+          stepIndex + 1
+        }/${activeLesson.frames.length})`,
         color: { background: aiColor, stroke: aiColor },
         pointer,
         button: pointer.button,
@@ -771,15 +928,38 @@ export function AiWhiteboard({
     excalidrawAPI,
     currentFrame,
     activeZoneIdx,
+    stepIndex,
+    activeLesson.frames.length,
     isPlayingSteps,
     isAiTeaching,
+    playbackSpeed,
   ]);
 
-  // Auto-play VCR timer for multi-step AI simulation
+  /**
+   * AUDIO- & CURSOR-SYNCHRONIZED STEP PROGRESSION COORDINATOR
+   * Advances to the next step ONLY after:
+   * 1. The AI cursor has completed its full live traversal of all waypoints in the current step, AND
+   * 2. The current step's voice narration (if active) has completely finished speaking!
+   */
   useEffect(() => {
     if (!isPlayingSteps) return;
-    const intervalMs = Math.max(900, Math.round(2800 / playbackSpeed));
-    const timer = window.setInterval(() => {
+    const syncTimer = window.setInterval(() => {
+      // 1. Wait until the AI cursor has finished traversing all waypoints for this step
+      if (!cursorPassDoneRef.current) return;
+
+      // 2. If Voice ON is enabled, wait until the step's SpeechSynthesisUtterance + pause has finished
+      if (autoVoiceNarrate && !audioDoneRef.current) return;
+
+      // 3. Never advance if a speech timer is pending or browser speechSynthesis is still speaking
+      if (speechTimerRef.current !== 0) return;
+      if (
+        typeof window !== "undefined" &&
+        "speechSynthesis" in window &&
+        (window.speechSynthesis.speaking || window.speechSynthesis.pending)
+      ) {
+        return;
+      }
+
       setStepIndex((prev) => {
         if (prev < activeLesson.frames.length - 1) {
           return prev + 1;
@@ -788,9 +968,9 @@ export function AiWhiteboard({
           return prev;
         }
       });
-    }, intervalMs);
-    return () => window.clearInterval(timer);
-  }, [isPlayingSteps, activeLesson.frames.length, playbackSpeed]);
+    }, 120);
+    return () => window.clearInterval(syncTimer);
+  }, [isPlayingSteps, autoVoiceNarrate, activeLesson.frames.length]);
 
   // Flush local user drawings to server (ported from Agentic-Hub-office flush())
   const flushChanges = useCallback(() => {
@@ -2043,6 +2223,19 @@ export function AiWhiteboard({
 
         {/* Center/Right: Live AI Narration & Step Counter */}
         <div className="flex-1 min-w-[200px] flex items-center justify-end gap-2">
+          {isCurrentlySpeaking && (
+            <span
+              className="px-2 py-0.5 rounded-lg font-mono text-[10px] font-black flex items-center gap-1 shrink-0 animate-pulse"
+              style={{
+                background: "#ef476f",
+                color: "#ffffff",
+                border: "2px solid #2b2d42",
+              }}
+              title="Voice narration is speaking the current step — next step will wait until narration finishes"
+            >
+              <span>🎙️ Speaking Step {stepIndex + 1}</span>
+            </span>
+          )}
           <span
             className="px-2.5 py-1 rounded-lg font-bold text-[11px] truncate max-w-2xl"
             style={{

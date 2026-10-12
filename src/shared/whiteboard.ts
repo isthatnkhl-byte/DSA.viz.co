@@ -633,6 +633,14 @@ export function buildExcalidrawTwoPointersLesson(
         x: isGreater ? rx : lx,
         y: baseY + cellH / 2,
       },
+      aiLaserWaypoints: [
+        { x: lx, y: baseY + cellH + 68 },
+        { x: lx, y: baseY + cellH / 2 },
+        { x: rx, y: baseY + cellH / 2 },
+        { x: rx, y: baseY + cellH + 68 },
+        { x: baseX + 240, y: 88 },
+        { x: isGreater ? rx : lx, y: baseY + cellH / 2 },
+      ],
     });
 
     if (isMatch) break;
@@ -740,6 +748,8 @@ export function buildExcalidrawBinarySearchLesson(
     });
 
     const midX = baseX + mid * cellW + (cellW - 6) / 2;
+    const lowX = baseX + low * cellW + (cellW - 6) / 2;
+    const highX = baseX + high * cellW + (cellW - 6) / 2;
     elements.push(
       excalidrawArrow("bs-ptr-mid", midX, baseY - 42, midX, baseY - 6, {
         strokeColor: "#0284c7",
@@ -764,6 +774,14 @@ export function buildExcalidrawBinarySearchLesson(
       mathInvariant: `low=${low}, mid=${mid}, high=${high} • arr[mid]=${val}`,
       elements,
       aiLaserTarget: { x: midX, y: baseY + cellH / 2 },
+      aiLaserWaypoints: [
+        { x: lowX, y: baseY + cellH / 2 },
+        { x: highX, y: baseY + cellH / 2 },
+        { x: midX, y: baseY - 52 },
+        { x: midX, y: baseY + cellH / 2 },
+        { x: baseX + 240, y: 88 },
+        { x: isMatch ? midX : isLess ? highX : lowX, y: baseY + cellH / 2 },
+      ],
     });
 
     if (isMatch) break;
@@ -895,6 +913,8 @@ export function buildExcalidrawLinkedListLesson(): AiWhiteboardLesson {
     });
 
     const focusIdx = Math.min(step, nodes.length - 1);
+    const prevIdx = Math.max(0, step - 1);
+    const nextIdx = Math.min(nodes.length - 1, focusIdx + 1);
     frames.push({
       stepIndex: step,
       title:
@@ -915,6 +935,13 @@ export function buildExcalidrawLinkedListLesson(): AiWhiteboardLesson {
         x: startX + focusIdx * spacing + 34,
         y: nodeY + 34,
       },
+      aiLaserWaypoints: [
+        { x: startX + prevIdx * spacing + 34, y: nodeY + 34 },
+        { x: startX + focusIdx * spacing + 34, y: nodeY + 34 },
+        { x: startX + nextIdx * spacing + 34, y: nodeY + 34 },
+        { x: 280, y: 86 },
+        { x: startX + focusIdx * spacing + 34, y: nodeY + 34 },
+      ],
     });
   }
 
@@ -1011,6 +1038,7 @@ export function buildExcalidrawTreeLesson(): AiWhiteboardLesson {
     });
 
     const activeNodeObj = treeNodes.find((n) => n.id === st.active) || treeNodes[0]!;
+    const rootNode = treeNodes[0]!;
     return {
       stepIndex: idx,
       title: `Validate Node(${st.active}) ∈ ${activeNodeObj.bounds}`,
@@ -1018,6 +1046,13 @@ export function buildExcalidrawTreeLesson(): AiWhiteboardLesson {
       mathInvariant: `min < Node(${st.active}) < max  →  ${activeNodeObj.bounds}`,
       elements,
       aiLaserTarget: { x: activeNodeObj.x + 30, y: activeNodeObj.y + 30 },
+      aiLaserWaypoints: [
+        { x: rootNode.x + 30, y: rootNode.y + 30 },
+        { x: activeNodeObj.x + 30, y: activeNodeObj.y + 30 },
+        { x: activeNodeObj.x + 30, y: activeNodeObj.y + 70 },
+        { x: 260, y: 84 },
+        { x: activeNodeObj.x + 30, y: activeNodeObj.y + 30 },
+      ],
     };
   });
 
@@ -1120,6 +1155,10 @@ export function buildExcalidrawSlidingWindowLesson(
       );
     });
 
+    const startCellX = baseX + wStart * cellW + 32;
+    const endCellX = baseX + wEnd * cellW + 32;
+    const droppedX = wStart > 0 ? baseX + (wStart - 1) * cellW + 32 : startCellX;
+
     frames.push({
       stepIndex: wStart,
       title: `Window [${wStart}..${wEnd}] (Sum = ${windowSum})`,
@@ -1130,9 +1169,16 @@ export function buildExcalidrawSlidingWindowLesson(
       mathInvariant: `windowSum = ${windowSum} | maxSum = ${maxSum}`,
       elements,
       aiLaserTarget: {
-        x: baseX + wEnd * cellW + 30,
+        x: endCellX,
         y: baseY + 30,
       },
+      aiLaserWaypoints: [
+        { x: droppedX, y: baseY + 30 },
+        { x: startCellX, y: baseY + 30 },
+        { x: endCellX, y: baseY + 30 },
+        { x: baseX + 240, y: 84 },
+        { x: endCellX, y: baseY + 30 },
+      ],
     });
   }
 
@@ -1261,13 +1307,23 @@ export function buildExcalidrawMonotonicStackLesson(
       );
     });
 
+    const activeInputX = baseX + st.activeIdx * 74 + 33;
+    const stackTopY = 265 - Math.max(0, st.stack.length - 1) * 46 + 20;
+
     return {
       stepIndex: sIdx,
       title: st.title,
       narration: st.narration,
       mathInvariant: `Stack = [${st.stack.join(", ")}] • Ans = [${st.ans.join(", ")}]`,
       elements: els,
-      aiLaserTarget: { x: baseX + st.activeIdx * 74 + 33, y: 192 },
+      aiLaserTarget: { x: activeInputX, y: 192 },
+      aiLaserWaypoints: [
+        { x: activeInputX, y: 192 },
+        { x: 590, y: stackTopY },
+        { x: activeInputX, y: 292 },
+        { x: baseX + 240, y: 80 },
+        { x: 590, y: stackTopY },
+      ],
     };
   });
 
@@ -1361,7 +1417,7 @@ export function buildExcalidrawDpTableLesson(_n = 6): AiWhiteboardLesson {
         strokeColor: "#7c3aed",
         strokeWidth: 2.5,
         version: ver,
-      })
+        })
     );
 
     frames.push({
@@ -1371,6 +1427,14 @@ export function buildExcalidrawDpTableLesson(_n = 6): AiWhiteboardLesson {
       mathInvariant: `dp[${step}] = dp[${step - 1}] + dp[${step - 2}] = ${dp[step]}`,
       elements: els,
       aiLaserTarget: { x: targetX, y: baseY + 30 },
+      aiLaserWaypoints: [
+        { x: dep2X, y: baseY + 30 },
+        { x: dep1X, y: baseY + 30 },
+        { x: (dep1X + targetX) / 2, y: baseY - 14 },
+        { x: targetX, y: baseY + 30 },
+        { x: baseX + 260, y: 84 },
+        { x: targetX, y: baseY + 30 },
+      ],
     });
   }
 
@@ -2041,7 +2105,10 @@ export function wrapLessonInBoundedZone(
         versionNonce: Math.abs(hashToInteger(`${scopedId}-v${ver}`)) % 1_000_000_000,
       });
 
-      if (el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond") {
+      if (
+        (el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond") &&
+        nw < 520
+      ) {
         interactivePoints.push({
           x: Math.round(nx + nw / 2),
           y: Math.round(ny + nh / 2),
@@ -2061,8 +2128,8 @@ export function wrapLessonInBoundedZone(
             y: Math.round(pt.y + dy),
           }))
         : [
-            // Start near step header, sweep across interactive shapes, land on primary target
-            ...(interactivePoints.slice(0, 3)),
+            // Traverse across interactive node centers, then land on primary target
+            ...interactivePoints.slice(0, 4),
             primaryTarget,
           ];
 

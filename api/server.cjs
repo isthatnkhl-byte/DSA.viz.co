@@ -290582,6 +290582,605 @@ function excalidrawArrow(id, fromX, fromY, toX, toY, opts = {}) {
     }
   );
 }
+function excalidrawLine(id, x2, y, points, opts = {}) {
+  let minX = 0;
+  let minY = 0;
+  let maxX = 0;
+  let maxY = 0;
+  for (const [px, py] of points) {
+    minX = Math.min(minX, px);
+    minY = Math.min(minY, py);
+    maxX = Math.max(maxX, px);
+    maxY = Math.max(maxY, py);
+  }
+  return makeBaseProps(
+    id,
+    "line",
+    x2,
+    y,
+    Math.max(4, Math.abs(maxX - minX)),
+    Math.max(4, Math.abs(maxY - minY)),
+    opts.version ?? 1,
+    {
+      strokeColor: opts.strokeColor ?? "#334155",
+      strokeWidth: opts.strokeWidth ?? 2.5,
+      strokeStyle: opts.strokeStyle ?? "solid",
+      points,
+      roundness: opts.roundness ?? null,
+      startBinding: null,
+      endBinding: null,
+      lastCommittedPoint: null,
+      startArrowhead: null,
+      endArrowhead: null
+    }
+  );
+}
+function excalidrawCurvedArrow(id, fromX, fromY, toX, toY, opts = {}) {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const len = Math.max(1, Math.hypot(dx, dy));
+  const offset = opts.curveOffset ?? -38;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const midX = Math.round(dx / 2 + nx * offset);
+  const midY = Math.round(dy / 2 + ny * offset);
+  return makeBaseProps(
+    id,
+    "arrow",
+    fromX,
+    fromY,
+    Math.max(Math.abs(dx), Math.abs(midX)),
+    Math.max(Math.abs(dy), Math.abs(midY)),
+    opts.version ?? 1,
+    {
+      strokeColor: opts.strokeColor ?? "#0284c7",
+      strokeWidth: opts.strokeWidth ?? 2.5,
+      strokeStyle: opts.strokeStyle ?? "solid",
+      roundness: { type: 2 },
+      points: [
+        [0, 0],
+        [midX, midY],
+        [dx, dy]
+      ],
+      startBinding: null,
+      endBinding: null,
+      lastCommittedPoint: null,
+      startArrowhead: opts.bidirectional ? "arrow" : null,
+      endArrowhead: "arrow"
+    }
+  );
+}
+function excalidrawElbowArrow(id, fromX, fromY, toX, toY, opts = {}) {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const routing = opts.routing ?? (Math.abs(dx) > Math.abs(dy) ? "h-v-h" : "v-h-v");
+  const points = routing === "l-shape" ? [
+    [0, 0],
+    [0, dy],
+    [dx, dy]
+  ] : routing === "v-h-v" ? [
+    [0, 0],
+    [0, Math.round(dy / 2)],
+    [dx, Math.round(dy / 2)],
+    [dx, dy]
+  ] : [
+    [0, 0],
+    [Math.round(dx / 2), 0],
+    [Math.round(dx / 2), dy],
+    [dx, dy]
+  ];
+  return makeBaseProps(
+    id,
+    "arrow",
+    fromX,
+    fromY,
+    Math.max(8, Math.abs(dx)),
+    Math.max(8, Math.abs(dy)),
+    opts.version ?? 1,
+    {
+      strokeColor: opts.strokeColor ?? "#0284c7",
+      strokeWidth: opts.strokeWidth ?? 2.5,
+      strokeStyle: opts.strokeStyle ?? "solid",
+      roundness: null,
+      points,
+      startBinding: null,
+      endBinding: null,
+      lastCommittedPoint: null,
+      startArrowhead: opts.bidirectional ? "arrow" : null,
+      endArrowhead: "arrow"
+    }
+  );
+}
+function excalidrawLabeledConnector(id, fromX, fromY, toX, toY, opts = {}) {
+  const ver = opts.version ?? 1;
+  const style = opts.style ?? "straight";
+  const strokeColor = opts.strokeColor ?? "#0284c7";
+  const els = [];
+  if (style === "curved") {
+    els.push(
+      excalidrawCurvedArrow(id, fromX, fromY, toX, toY, {
+        curveOffset: opts.curveOffset,
+        strokeColor,
+        strokeWidth: opts.strokeWidth,
+        strokeStyle: opts.strokeStyle,
+        bidirectional: opts.bidirectional,
+        version: ver
+      })
+    );
+  } else if (style === "elbow") {
+    els.push(
+      excalidrawElbowArrow(id, fromX, fromY, toX, toY, {
+        strokeColor,
+        strokeWidth: opts.strokeWidth,
+        strokeStyle: opts.strokeStyle,
+        bidirectional: opts.bidirectional,
+        version: ver
+      })
+    );
+  } else {
+    const baseArr = excalidrawArrow(id, fromX, fromY, toX, toY, {
+      strokeColor,
+      strokeWidth: opts.strokeWidth,
+      strokeStyle: opts.strokeStyle,
+      version: ver
+    });
+    if (opts.bidirectional) {
+      baseArr.startArrowhead = "arrow";
+    }
+    els.push(baseArr);
+  }
+  if (opts.label) {
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const offset = style === "curved" ? (opts.curveOffset ?? -38) * 0.65 : 0;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const midX = Math.round(fromX + dx / 2 + nx * offset);
+    const midY = Math.round(fromY + dy / 2 + ny * offset);
+    const lblText = String(opts.label).slice(0, 14);
+    const pillW = Math.max(28, lblText.length * 9 + 12);
+    els.push(
+      excalidrawRect(`${id}-lbl-bg`, midX - pillW / 2, midY - 11, pillW, 22, {
+        strokeColor,
+        backgroundColor: "#ffffff",
+        strokeWidth: 1.5,
+        version: ver
+      }),
+      excalidrawText(`${id}-lbl-txt`, midX - pillW / 2 + 5, midY - 8, lblText, {
+        fontSize: 12,
+        strokeColor: "#0f172a",
+        maxCharsPerLine: 16,
+        maxLines: 1,
+        version: ver
+      })
+    );
+  }
+  return els;
+}
+function excalidrawSplitNode(id, x2, y, width, height, compartments, opts = {}) {
+  const ver = opts.version ?? 1;
+  const parts = compartments.length > 0 ? compartments : [""];
+  const strokeColor = opts.strokeColor ?? "#1e293b";
+  const backgroundColor = opts.backgroundColor ?? "#ffffff";
+  const els = [
+    excalidrawRect(`${id}-box`, x2, y, width, height, {
+      strokeColor,
+      backgroundColor,
+      strokeWidth: opts.strokeWidth ?? 2.5,
+      version: ver
+    })
+  ];
+  const partW = width / parts.length;
+  parts.forEach((txt, idx) => {
+    if (idx > 0) {
+      const divX = Math.round(x2 + idx * partW);
+      els.push(
+        excalidrawLine(
+          `${id}-div-${idx}`,
+          divX,
+          y + 2,
+          [
+            [0, 0],
+            [0, height - 4]
+          ],
+          {
+            strokeColor,
+            strokeWidth: 2,
+            version: ver
+          }
+        )
+      );
+    }
+    const cleanTxt = String(txt);
+    const tx = Math.round(x2 + idx * partW + Math.max(6, (partW - cleanTxt.length * 9) / 2));
+    const ty = Math.round(y + Math.max(8, (height - 18) / 2));
+    els.push(
+      excalidrawText(`${id}-part-${idx}`, tx, ty, cleanTxt, {
+        fontSize: 14,
+        strokeColor: "#0f172a",
+        maxCharsPerLine: Math.max(4, Math.floor(partW / 8)),
+        maxLines: 1,
+        version: ver
+      })
+    );
+  });
+  if (opts.sublabel) {
+    els.push(
+      excalidrawText(`${id}-sub`, x2 + 6, y + height + 6, opts.sublabel, {
+        fontSize: 12,
+        strokeColor,
+        maxCharsPerLine: 24,
+        maxLines: 1,
+        version: ver
+      })
+    );
+  }
+  return els;
+}
+function excalidrawContainerBucket(id, x2, y, opts) {
+  const ver = opts.version ?? 1;
+  const strokeColor = opts.strokeColor ?? "#0284c7";
+  const els = [];
+  if (opts.kind === "stack") {
+    const cap3 = Math.max(opts.capacity ?? 4, opts.items.length, 3);
+    const boxW = 136;
+    const itemH = 40;
+    const boxH = cap3 * (itemH + 6) + 22;
+    if (opts.title) {
+      els.push(
+        excalidrawText(`${id}-title`, x2 + 8, y - 26, opts.title, {
+          fontSize: 14,
+          strokeColor,
+          maxLines: 1,
+          version: ver
+        })
+      );
+    }
+    els.push(
+      excalidrawLine(
+        `${id}-u-walls`,
+        x2,
+        y,
+        [
+          [0, 0],
+          [0, boxH],
+          [boxW, boxH],
+          [boxW, 0]
+        ],
+        {
+          strokeColor,
+          strokeWidth: 3.5,
+          version: ver
+        }
+      )
+    );
+    opts.items.forEach((it, idx) => {
+      const iy = y + boxH - (idx + 1) * (itemH + 6) - 4;
+      const isTop = idx === opts.items.length - 1;
+      els.push(
+        excalidrawRect(`${id}-it-${idx}`, x2 + 12, iy, boxW - 24, itemH, {
+          strokeColor: it.highlight || isTop ? "#db2777" : strokeColor,
+          backgroundColor: it.highlight || isTop ? "#fbcfe8" : "#e0f2fe",
+          strokeWidth: it.highlight || isTop ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(`${id}-it-txt-${idx}`, x2 + 28, iy + 10, it.label, {
+          fontSize: 15,
+          strokeColor: "#0f172a",
+          maxLines: 1,
+          version: ver
+        })
+      );
+      if (isTop) {
+        els.push(
+          excalidrawText(`${id}-top-lbl`, x2 + boxW + 8, iy + 11, "\u2190 TOP", {
+            fontSize: 12,
+            strokeColor: "#db2777",
+            maxLines: 1,
+            version: ver
+          })
+        );
+      }
+    });
+    const topIdx = Math.max(0, opts.items.length - 1);
+    const topY = y + boxH - (topIdx + 1) * (itemH + 6) + itemH / 2;
+    return {
+      elements: els,
+      focusPoint: { x: x2 + boxW / 2, y: opts.items.length > 0 ? topY : y + boxH / 2 }
+    };
+  }
+  const cap2 = Math.max(opts.capacity ?? 5, opts.items.length, 3);
+  const itemW = 68;
+  const pipeW = cap2 * (itemW + 8) + 24;
+  const pipeH = 58;
+  if (opts.title) {
+    els.push(
+      excalidrawText(`${id}-title`, x2, y - 26, opts.title, {
+        fontSize: 14,
+        strokeColor,
+        maxLines: 1,
+        version: ver
+      })
+    );
+  }
+  els.push(
+    excalidrawLine(`${id}-rail-top`, x2, y, [[0, 0], [pipeW, 0]], {
+      strokeColor,
+      strokeWidth: 3.5,
+      version: ver
+    }),
+    excalidrawLine(`${id}-rail-bot`, x2, y + pipeH, [[0, 0], [pipeW, 0]], {
+      strokeColor,
+      strokeWidth: 3.5,
+      version: ver
+    }),
+    excalidrawText(`${id}-front-lbl`, x2 - 4, y + pipeH + 8, "\u2190 FRONT (Pop)", {
+      fontSize: 11,
+      strokeColor: "#047857",
+      maxLines: 1,
+      version: ver
+    }),
+    excalidrawText(`${id}-rear-lbl`, x2 + pipeW - 92, y + pipeH + 8, "(Push) REAR \u2190", {
+      fontSize: 11,
+      strokeColor: "#b45309",
+      maxLines: 1,
+      version: ver
+    })
+  );
+  opts.items.forEach((it, idx) => {
+    const ix = x2 + 12 + idx * (itemW + 8);
+    els.push(
+      excalidrawRect(`${id}-q-it-${idx}`, ix, y + 8, itemW, pipeH - 16, {
+        strokeColor: it.highlight ? "#d97706" : strokeColor,
+        backgroundColor: it.highlight ? "#fef3c7" : "#e0f2fe",
+        strokeWidth: it.highlight ? 3 : 2,
+        version: ver
+      }),
+      excalidrawText(`${id}-q-txt-${idx}`, ix + 14, y + 18, it.label, {
+        fontSize: 15,
+        strokeColor: "#0f172a",
+        maxLines: 1,
+        version: ver
+      })
+    );
+  });
+  const lastIdx = Math.max(0, opts.items.length - 1);
+  return {
+    elements: els,
+    focusPoint: {
+      x: x2 + 12 + lastIdx * (itemW + 8) + itemW / 2,
+      y: y + pipeH / 2
+    }
+  };
+}
+function excalidrawGrid2D(id, x2, y, matrix, opts = {}) {
+  const ver = opts.version ?? 1;
+  const rows = matrix.length;
+  const cols = rows > 0 ? matrix[0].length : 0;
+  const cellW = opts.cellW ?? 62;
+  const cellH = opts.cellH ?? 48;
+  const hdrOffsetX = 48;
+  const hdrOffsetY = 32;
+  const els = [];
+  const secondarySet = new Set(
+    (opts.secondaryCells ?? []).map(([r2, c]) => `${r2},${c}`)
+  );
+  for (let c = 0; c < cols; c++) {
+    const colLbl = opts.colLabels?.[c] ?? `c=${c}`;
+    els.push(
+      excalidrawText(
+        `${id}-col-hdr-${c}`,
+        x2 + hdrOffsetX + c * cellW + 10,
+        y + 6,
+        colLbl,
+        {
+          fontSize: 12,
+          strokeColor: "#475569",
+          maxLines: 1,
+          version: ver
+        }
+      )
+    );
+  }
+  for (let r2 = 0; r2 < rows; r2++) {
+    const rowLbl = opts.rowLabels?.[r2] ?? `r=${r2}`;
+    els.push(
+      excalidrawText(
+        `${id}-row-hdr-${r2}`,
+        x2 + 2,
+        y + hdrOffsetY + r2 * cellH + 14,
+        rowLbl,
+        {
+          fontSize: 12,
+          strokeColor: "#475569",
+          maxLines: 1,
+          version: ver
+        }
+      )
+    );
+    for (let c = 0; c < cols; c++) {
+      const cx = x2 + hdrOffsetX + c * cellW;
+      const cy = y + hdrOffsetY + r2 * cellH;
+      const key = `${r2},${c}`;
+      const isAct = opts.activeCell?.[0] === r2 && opts.activeCell?.[1] === c;
+      const isSec = secondarySet.has(key);
+      const isVis = opts.visitedCells?.has(key) ?? false;
+      const valStr = String(matrix[r2]?.[c] ?? "");
+      els.push(
+        excalidrawRect(`${id}-cell-${r2}-${c}`, cx, cy, cellW - 4, cellH - 4, {
+          strokeColor: isAct ? "#e11d48" : isSec ? "#0284c7" : isVis ? "#16a34a" : "#64748b",
+          backgroundColor: isAct ? "#ffe4e6" : isSec ? "#bae6fd" : isVis ? "#dcfce7" : "#ffffff",
+          strokeWidth: isAct || isSec ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(
+          `${id}-val-${r2}-${c}`,
+          cx + Math.max(8, Math.floor((cellW - 4 - valStr.length * 10) / 2)),
+          cy + Math.floor((cellH - 22) / 2),
+          valStr,
+          {
+            fontSize: 15,
+            strokeColor: "#0f172a",
+            maxLines: 1,
+            version: ver
+          }
+        )
+      );
+    }
+  }
+  const getCellCenter = (r2, c) => ({
+    x: Math.round(x2 + hdrOffsetX + c * cellW + (cellW - 4) / 2),
+    y: Math.round(y + hdrOffsetY + r2 * cellH + (cellH - 4) / 2)
+  });
+  return { elements: els, getCellCenter };
+}
+function excalidrawHashTable(id, x2, y, entries, opts = {}) {
+  const ver = opts.version ?? 1;
+  const tableW = opts.width ?? 230;
+  const rowH = 38;
+  const hdrH = 34;
+  const rows = entries.length > 0 ? entries : [{ key: "(empty)", value: "\u2014", highlight: false }];
+  const totalH = hdrH + rows.length * rowH + 10;
+  const els = [
+    excalidrawRect(`${id}-outer`, x2, y, tableW, totalH, {
+      strokeColor: "#7c3aed",
+      backgroundColor: "#faf5ff",
+      strokeWidth: 2.5,
+      version: ver
+    }),
+    excalidrawText(
+      `${id}-hdr`,
+      x2 + 12,
+      y + 8,
+      opts.title ?? "HashMap { Key \u2192 Val }",
+      {
+        fontSize: 14,
+        strokeColor: "#6d28d9",
+        maxLines: 1,
+        version: ver
+      }
+    )
+  ];
+  rows.forEach((row, idx) => {
+    const ry = y + hdrH + idx * rowH;
+    els.push(
+      ...excalidrawSplitNode(
+        `${id}-row-${idx}`,
+        x2 + 8,
+        ry,
+        tableW - 16,
+        rowH - 4,
+        [row.key, row.value],
+        {
+          strokeColor: row.highlight ? "#e11d48" : "#7c3aed",
+          backgroundColor: row.highlight ? "#ffe4e6" : "#ffffff",
+          strokeWidth: row.highlight ? 3 : 2,
+          version: ver
+        }
+      )
+    );
+  });
+  const getRowCenter = (idx) => {
+    const clamped = Math.max(0, Math.min(rows.length - 1, idx));
+    return {
+      x: Math.round(x2 + tableW / 2),
+      y: Math.round(y + hdrH + clamped * rowH + (rowH - 4) / 2)
+    };
+  };
+  return { elements: els, getRowCenter };
+}
+function excalidrawIntervalTimeline(id, x2, y, intervals, opts = {}) {
+  const ver = opts.version ?? 1;
+  const minVal = opts.minTick ?? Math.min(0, ...intervals.map((iv) => iv.start));
+  const maxVal = opts.maxTick ?? Math.max(10, ...intervals.map((iv) => iv.end));
+  const span = Math.max(1, maxVal - minVal);
+  const axisW = opts.axisWidth ?? 560;
+  const rowH = 38;
+  const axisY = y + intervals.length * rowH + 18;
+  const els = [];
+  const toX = (v) => Math.round(x2 + (v - minVal) / span * axisW);
+  intervals.forEach((iv, idx) => {
+    const ix1 = toX(iv.start);
+    const ix2 = Math.max(ix1 + 32, toX(iv.end));
+    const iy = y + idx * rowH;
+    const isAct = iv.status === "active";
+    const isMrg = iv.status === "merged";
+    els.push(
+      excalidrawRect(`${id}-bar-${idx}`, ix1, iy, ix2 - ix1, 28, {
+        strokeColor: isAct ? "#e11d48" : isMrg ? "#16a34a" : "#0284c7",
+        backgroundColor: isAct ? "#ffe4e6" : isMrg ? "#dcfce7" : "#e0f2fe",
+        strokeWidth: isAct || isMrg ? 3 : 2,
+        version: ver
+      }),
+      excalidrawText(
+        `${id}-bar-lbl-${idx}`,
+        ix1 + 8,
+        iy + 6,
+        iv.label ?? `[${iv.start}, ${iv.end}]`,
+        {
+          fontSize: 13,
+          strokeColor: "#0f172a",
+          maxLines: 1,
+          version: ver
+        }
+      )
+    );
+  });
+  els.push(
+    excalidrawLine(
+      `${id}-axis`,
+      x2,
+      axisY,
+      [
+        [0, 0],
+        [axisW, 0]
+      ],
+      {
+        strokeColor: "#334155",
+        strokeWidth: 2.5,
+        version: ver
+      }
+    )
+  );
+  const stepTick = Math.max(1, Math.ceil(span / 8));
+  for (let tv = minVal; tv <= maxVal; tv += stepTick) {
+    const tx = toX(tv);
+    els.push(
+      excalidrawLine(
+        `${id}-tick-${tv}`,
+        tx,
+        axisY - 4,
+        [
+          [0, 0],
+          [0, 8]
+        ],
+        {
+          strokeColor: "#334155",
+          strokeWidth: 2,
+          version: ver
+        }
+      ),
+      excalidrawText(`${id}-tick-lbl-${tv}`, tx - 6, axisY + 8, String(tv), {
+        fontSize: 11,
+        strokeColor: "#64748b",
+        maxLines: 1,
+        version: ver
+      })
+    );
+  }
+  const getIntervalCenter = (idx) => {
+    const clamped = Math.max(0, Math.min(intervals.length - 1, idx));
+    const iv = intervals[clamped];
+    const ix1 = toX(iv.start);
+    const ix2 = Math.max(ix1 + 32, toX(iv.end));
+    return {
+      x: Math.round((ix1 + ix2) / 2),
+      y: Math.round(y + clamped * rowH + 14)
+    };
+  };
+  return { elements: els, getIntervalCenter };
+}
 function buildExcalidrawTwoPointersLesson(arr = [1, 3, 5, 8, 12, 17, 21], target = 17) {
   const sorted = [...arr].sort((a, b) => a - b);
   const frames = [];
@@ -291456,11 +292055,881 @@ function buildExcalidrawBruteForceDryRunLesson(arr = [1, 3, 5, 8, 12], target = 
     frames
   };
 }
+function buildExcalidrawGraphShortestPathLesson() {
+  const vertices = [
+    { id: "A", x: 110, y: 220 },
+    { id: "B", x: 260, y: 150 },
+    { id: "C", x: 260, y: 295 },
+    { id: "D", x: 420, y: 185 },
+    { id: "E", x: 420, y: 305 }
+  ];
+  const edges = [
+    { u: 0, v: 1, w: 2, style: "curved", curve: -26 },
+    { u: 0, v: 2, w: 5, style: "curved", curve: 26 },
+    { u: 1, v: 2, w: 1, style: "straight", curve: 0 },
+    { u: 1, v: 3, w: 4, style: "curved", curve: -22 },
+    { u: 2, v: 4, w: 2, style: "curved", curve: 22 },
+    { u: 3, v: 4, w: 1, style: "straight", curve: 0 }
+  ];
+  const steps = [
+    {
+      active: "A",
+      relaxedEdge: -1,
+      visited: ["A"],
+      dist: { A: "0", B: "2", C: "5", D: "\u221E", E: "\u221E" },
+      pq: ["(2,B)", "(5,C)"],
+      title: "Init Source A (dist=0) & Relax A\u2192B(2), A\u2192C(5)",
+      narration: "We pop source vertex A with distance 0 and relax its outgoing edges: dist[B] becomes 2 and dist[C] becomes 5."
+    },
+    {
+      active: "B",
+      relaxedEdge: 2,
+      visited: ["A", "B"],
+      dist: { A: "0", B: "2", C: "3", D: "6", E: "\u221E" },
+      pq: ["(3,C)", "(6,D)"],
+      title: "Pop Min B (dist=2) \u2192 Shortcut B\u2192C Improves C to 3!",
+      narration: "Popping vertex B (dist=2), edge B\u2192C of weight 1 lowers dist[C] from 5 to 2+1 = 3, and sets dist[D] = 2+4 = 6."
+    },
+    {
+      active: "C",
+      relaxedEdge: 4,
+      visited: ["A", "B", "C"],
+      dist: { A: "0", B: "2", C: "3", D: "6", E: "5" },
+      pq: ["(5,E)", "(6,D)"],
+      title: "Pop Min C (dist=3) \u2192 Relax C\u2192E (dist[E] = 5)",
+      narration: "Next we pop C (dist=3) and relax edge C\u2192E of weight 2, discovering path A\u2192B\u2192C\u2192E with total cost 5."
+    },
+    {
+      active: "E",
+      relaxedEdge: 5,
+      visited: ["A", "B", "C", "E", "D"],
+      dist: { A: "0", B: "2", C: "3", D: "6", E: "5" },
+      pq: [],
+      title: "Shortest Paths Settled! Optimal A\u2192E Cost = 5",
+      narration: "Popping E (dist=5) and D (dist=6) completes Dijkstra's algorithm in O((V + E) log V) time."
+    }
+  ];
+  const frames = steps.map((st, idx) => {
+    const ver = idx + 1;
+    const els = [
+      excalidrawRect("gr-hdr", 70, 35, 700, 90, {
+        strokeColor: "#0284c7",
+        backgroundColor: "#f0f9ff",
+        version: ver
+      }),
+      excalidrawText("gr-title", 88, 46, `Step ${ver}: ${st.title}`, {
+        fontSize: 16,
+        strokeColor: "#0369a1",
+        maxCharsPerLine: 58,
+        maxLines: 1,
+        version: ver
+      }),
+      excalidrawText("gr-sub", 88, 78, st.narration, {
+        fontSize: 13,
+        strokeColor: "#0f172a",
+        maxCharsPerLine: 68,
+        maxLines: 2,
+        version: ver
+      })
+    ];
+    edges.forEach((e2, eIdx) => {
+      const n1 = vertices[e2.u];
+      const n2 = vertices[e2.v];
+      const isRel = eIdx === st.relaxedEdge;
+      els.push(
+        ...excalidrawLabeledConnector(
+          `gr-edge-${eIdx}`,
+          n1.x + 28,
+          n1.y + 28,
+          n2.x + 28,
+          n2.y + 28,
+          {
+            style: e2.style,
+            curveOffset: e2.curve,
+            label: `w=${e2.w}`,
+            strokeColor: isRel ? "#e11d48" : "#64748b",
+            strokeWidth: isRel ? 3 : 2,
+            version: ver
+          }
+        )
+      );
+    });
+    vertices.forEach((v) => {
+      const isAct = v.id === st.active;
+      const isVis = st.visited.includes(v.id);
+      const dVal = st.dist[v.id];
+      els.push(
+        excalidrawEllipse(`gr-v-${v.id}`, v.x, v.y, 56, 56, {
+          strokeColor: isAct ? "#e11d48" : isVis ? "#16a34a" : "#334155",
+          backgroundColor: isAct ? "#ffe4e6" : isVis ? "#dcfce7" : "#ffffff",
+          strokeWidth: isAct ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(`gr-v-lbl-${v.id}`, v.x + 20, v.y + 16, v.id, {
+          fontSize: 18,
+          strokeColor: "#0f172a",
+          version: ver
+        }),
+        excalidrawText(`gr-v-d-${v.id}`, v.x + 6, v.y + 60, `d=${dVal}`, {
+          fontSize: 12,
+          strokeColor: isAct ? "#be123c" : "#047857",
+          version: ver
+        })
+      );
+    });
+    const distTable = excalidrawHashTable(
+      "gr-dist-tbl",
+      535,
+      148,
+      Object.entries(st.dist).map(([k, val]) => ({
+        key: `Node ${k}`,
+        value: `d = ${val}`,
+        highlight: k === st.active
+      })),
+      { title: "Dist[] Table", width: 225, version: ver }
+    );
+    els.push(...distTable.elements);
+    const pqPipe = excalidrawContainerBucket("gr-pq", 85, 385, {
+      kind: "queue",
+      title: "Min-Heap PriorityQueue (cost, vertex):",
+      items: st.pq.length > 0 ? st.pq.map((item, i2) => ({ label: item, highlight: i2 === 0 })) : [{ label: "Done", highlight: false }],
+      capacity: 4,
+      version: ver
+    });
+    els.push(...pqPipe.elements);
+    const actV = vertices.find((v) => v.id === st.active) ?? vertices[0];
+    return {
+      stepIndex: idx,
+      title: st.title,
+      narration: st.narration,
+      mathInvariant: `dist[v] = min(dist[v], dist[u] + w(u,v)) \u2022 Active = ${st.active}`,
+      elements: els,
+      aiLaserTarget: { x: actV.x + 28, y: actV.y + 28 },
+      aiLaserWaypoints: [{ x: actV.x + 28, y: actV.y + 28 }]
+    };
+  });
+  return {
+    id: "graph_shortest_path",
+    topic: "Graph Shortest Path (Dijkstra + Min-Heap)",
+    badge: "O((V+E) log V) Time",
+    frames
+  };
+}
+function buildExcalidrawMatrix2DLesson() {
+  const baseMatrix = [
+    ["1", "1", "0", "0"],
+    ["1", "0", "0", "1"],
+    ["0", "0", "1", "1"]
+  ];
+  const steps = [
+    {
+      active: [0, 0],
+      visited: /* @__PURE__ */ new Set(["0,0"]),
+      stack: ["(0,0)"],
+      title: "Discover Island #1 Seed at Grid[0][0] = '1'",
+      narration: "Scanning the 2D matrix, we hit land '1' at (r=0, c=0). Increment islandCount = 1 and launch DFS to flood-fill connected land."
+    },
+    {
+      active: [0, 1],
+      visited: /* @__PURE__ */ new Set(["0,0", "0,1", "1,0"]),
+      stack: ["(0,1)", "(1,0)"],
+      title: "Flood-Fill Connected Neighbors (0,1) & (1,0)",
+      narration: "From (0,0), orthogonal 4-directional DFS visits right neighbor (0,1) and bottom neighbor (1,0), marking Island #1 visited."
+    },
+    {
+      active: [2, 2],
+      visited: /* @__PURE__ */ new Set(["0,0", "0,1", "1,0", "1,3", "2,2", "2,3"]),
+      stack: ["(2,3)", "(2,2)"],
+      title: "Discover & Flood-Fill Island #2 at Bottom-Right!",
+      narration: "Continuing the scan finds unvisited land at (1,3), (2,3), and (2,2), completing Island #2 in O(R \xD7 C) total time!"
+    }
+  ];
+  const frames = steps.map((st, idx) => {
+    const ver = idx + 1;
+    const grid2 = excalidrawGrid2D("mat-grid", 90, 155, baseMatrix, {
+      activeCell: st.active,
+      visitedCells: st.visited,
+      cellW: 72,
+      cellH: 56,
+      version: ver
+    });
+    const stackBucket = excalidrawContainerBucket("mat-dfs-stk", 475, 175, {
+      kind: "stack",
+      title: "DFS Call Stack (r,c)",
+      items: st.stack.map((s2, i2) => ({
+        label: s2,
+        highlight: i2 === st.stack.length - 1
+      })),
+      capacity: 3,
+      version: ver
+    });
+    const targetPt = grid2.getCellCenter(st.active[0], st.active[1]);
+    const els = [
+      excalidrawRect("mat-hdr", 75, 35, 650, 90, {
+        strokeColor: "#059669",
+        backgroundColor: "#ecfdf5",
+        version: ver
+      }),
+      excalidrawText("mat-title", 92, 46, `Step ${ver}: ${st.title}`, {
+        fontSize: 16,
+        strokeColor: "#047857",
+        maxCharsPerLine: 56,
+        maxLines: 1,
+        version: ver
+      }),
+      excalidrawText("mat-sub", 92, 78, st.narration, {
+        fontSize: 13,
+        strokeColor: "#0f172a",
+        maxCharsPerLine: 66,
+        maxLines: 2,
+        version: ver
+      }),
+      ...grid2.elements,
+      ...stackBucket.elements,
+      excalidrawElbowArrow(
+        "mat-to-stk",
+        targetPt.x + 34,
+        targetPt.y,
+        470,
+        stackBucket.focusPoint.y,
+        {
+          strokeColor: "#e11d48",
+          strokeStyle: "dashed",
+          version: ver
+        }
+      )
+    ];
+    return {
+      stepIndex: idx,
+      title: st.title,
+      narration: st.narration,
+      mathInvariant: `Active Cell = (${st.active[0]}, ${st.active[1]}) \u2022 Visited = ${st.visited.size}`,
+      elements: els,
+      aiLaserTarget: targetPt,
+      aiLaserWaypoints: [targetPt]
+    };
+  });
+  return {
+    id: "matrix_2d",
+    topic: "2D Matrix Grid (Flood-Fill / Island DFS)",
+    badge: "O(R \xD7 C) Time \u2022 2D Grid",
+    frames
+  };
+}
+function buildExcalidrawHashMapLesson(arr = [3, 2, 4, 7], target = 9) {
+  const nums = arr.slice(0, 6);
+  const frames = [];
+  const seen = /* @__PURE__ */ new Map();
+  for (let i2 = 0; i2 < nums.length; i2++) {
+    const val = nums[i2];
+    const comp = target - val;
+    const hitIdx = seen.get(comp);
+    const isHit = hitIdx !== void 0;
+    const ver = i2 + 1;
+    const baseX = 80;
+    const baseY = 175;
+    const cellW = 78;
+    const els = [
+      excalidrawRect("hm-hdr", baseX, 35, 660, 90, {
+        strokeColor: isHit ? "#16a34a" : "#7c3aed",
+        backgroundColor: isHit ? "#dcfce7" : "#f3e8ff",
+        version: ver
+      }),
+      excalidrawText(
+        "hm-title",
+        baseX + 16,
+        46,
+        isHit ? `Step ${ver}: O(1) Hash Map HIT! Target ${target} - ${val} = ${comp} found at idx ${hitIdx}!` : `Step ${ver}: Check need = ${target} - ${val} = ${comp} (Miss \u2192 Insert {${val}: idx ${i2}})`,
+        {
+          fontSize: 16,
+          strokeColor: isHit ? "#15803d" : "#6d28d9",
+          maxCharsPerLine: 58,
+          maxLines: 1,
+          version: ver
+        }
+      ),
+      excalidrawText(
+        "hm-sub",
+        baseX + 16,
+        78,
+        isHit ? `Found pair (idx ${hitIdx}, idx ${i2}) = (${comp}, ${val}) in a single O(N) pass!` : `Complement ${comp} is not in HashMap yet. Store key ${val} \u2192 index ${i2} in O(1) time.`,
+        { fontSize: 13, strokeColor: "#0f172a", maxCharsPerLine: 66, maxLines: 2, version: ver }
+      )
+    ];
+    nums.forEach((v, idx) => {
+      const cx = baseX + idx * cellW;
+      const isCur = idx === i2;
+      const isMatchPartner = isHit && idx === hitIdx;
+      els.push(
+        excalidrawRect(`hm-c-${idx}`, cx, baseY, cellW - 8, 56, {
+          strokeColor: isCur || isMatchPartner ? "#16a34a" : "#334155",
+          backgroundColor: isCur ? "#fef3c7" : isMatchPartner ? "#bbf7d0" : "#ffffff",
+          strokeWidth: isCur || isMatchPartner ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(`hm-v-${idx}`, cx + 22, baseY + 16, String(v), {
+          fontSize: 18,
+          strokeColor: "#0f172a",
+          version: ver
+        }),
+        excalidrawText(`hm-i-${idx}`, cx + 18, baseY + 62, `[${idx}]`, {
+          fontSize: 12,
+          strokeColor: "#64748b",
+          version: ver
+        })
+      );
+    });
+    if (!isHit) {
+      seen.set(val, i2);
+    }
+    const entries = [...seen.entries()].map(([k, idxVal]) => ({
+      key: `key: ${k}`,
+      value: `idx: ${idxVal}`,
+      highlight: isHit ? k === comp : k === val
+    }));
+    const hashWidget = excalidrawHashTable("hm-table", 450, 155, entries, {
+      title: "HashMap { Value \u2192 Index }",
+      width: 265,
+      version: ver
+    });
+    els.push(...hashWidget.elements);
+    const curCellX = baseX + i2 * cellW + 35;
+    const rowIdx = Math.max(
+      0,
+      entries.findIndex((e2) => e2.highlight)
+    );
+    const bucketCenter = hashWidget.getRowCenter(rowIdx);
+    els.push(
+      excalidrawCurvedArrow(
+        "hm-arc",
+        curCellX,
+        baseY + 56,
+        bucketCenter.x - 120,
+        bucketCenter.y,
+        {
+          curveOffset: 42,
+          strokeColor: isHit ? "#16a34a" : "#7c3aed",
+          strokeWidth: 2.5,
+          version: ver
+        }
+      )
+    );
+    frames.push({
+      stepIndex: i2,
+      title: isHit ? `O(1) Lookup Hit: ${comp} + ${val} == ${target}` : `Insert { ${val} \u2192 idx ${i2} } into HashMap`,
+      narration: isHit ? `At index ${i2} (value ${val}), we need ${comp}. HashMap lookup finds ${comp} at index ${hitIdx} in O(1) time!` : `At index ${i2} (value ${val}), complement ${comp} is not in the map, so we insert ${val} \u2192 ${i2}.`,
+      mathInvariant: `need = ${target} - ${val} = ${comp} \u2022 Map Size = ${seen.size}`,
+      elements: els,
+      aiLaserTarget: bucketCenter,
+      aiLaserWaypoints: [
+        { x: curCellX, y: baseY + 28 },
+        bucketCenter
+      ]
+    });
+    if (isHit) break;
+  }
+  return {
+    id: "hashmap_lookup",
+    topic: "Hash Map Lookup (O(1) Complement Table)",
+    badge: "O(N) Time \u2022 O(N) Space",
+    frames
+  };
+}
+function buildExcalidrawHeapPriorityQueueLesson() {
+  const treeCoords = [
+    { x: 220, y: 155 },
+    // 0: root
+    { x: 130, y: 255 },
+    // 1: left
+    { x: 310, y: 255 },
+    // 2: right
+    { x: 85, y: 355 },
+    // 3: L-L
+    { x: 185, y: 355 }
+    // 4: L-R
+  ];
+  const treeEdges = [
+    [0, 1],
+    [0, 2],
+    [1, 3],
+    [1, 4]
+  ];
+  const steps = [
+    {
+      heap: [3, 5, 8, 12, 1],
+      activeIdx: 4,
+      swapPair: [1, 4],
+      title: "Insert 1 at Leaf idx=4 \u2192 Violates Min-Heap with Parent(idx=1, val=5)",
+      narration: "We append 1 at array index 4. Since child 1 < parent 5 at index (4-1)//2 = 1, we sift-up by swapping indices 4 and 1."
+    },
+    {
+      heap: [3, 1, 8, 12, 5],
+      activeIdx: 1,
+      swapPair: [0, 1],
+      title: "Sift-Up Step 2: 1 < Root(idx=0, val=3) \u2192 Swap with Root!",
+      narration: "Now at index 1, value 1 is still smaller than root 3 at index 0, so we swap indices 1 and 0."
+    },
+    {
+      heap: [1, 3, 8, 12, 5],
+      activeIdx: 0,
+      swapPair: null,
+      title: "Min-Heap Restored in O(log N)! New Min Root = 1",
+      narration: "1 reaches root index 0! Every parent is now <= its children, and heap[0] gives O(1) access to the minimum."
+    }
+  ];
+  const frames = steps.map((st, sIdx) => {
+    const ver = sIdx + 1;
+    const els = [
+      excalidrawRect("hp-hdr", 70, 35, 680, 90, {
+        strokeColor: "#d97706",
+        backgroundColor: "#fef3c7",
+        version: ver
+      }),
+      excalidrawText("hp-title", 88, 46, `Step ${ver}: ${st.title}`, {
+        fontSize: 16,
+        strokeColor: "#b45309",
+        maxCharsPerLine: 58,
+        maxLines: 1,
+        version: ver
+      }),
+      excalidrawText("hp-sub", 88, 78, st.narration, {
+        fontSize: 13,
+        strokeColor: "#0f172a",
+        maxCharsPerLine: 68,
+        maxLines: 2,
+        version: ver
+      })
+    ];
+    treeEdges.forEach(([u, v], eIdx) => {
+      const p1 = treeCoords[u];
+      const p2 = treeCoords[v];
+      els.push(
+        excalidrawArrow(`hp-e-${eIdx}`, p1.x + 26, p1.y + 52, p2.x + 26, p2.y, {
+          strokeColor: "#64748b",
+          strokeWidth: 2,
+          version: ver
+        })
+      );
+    });
+    st.heap.forEach((val, idx) => {
+      const pt = treeCoords[idx];
+      const isAct = idx === st.activeIdx || st.swapPair?.[0] === idx || st.swapPair?.[1] === idx;
+      els.push(
+        excalidrawEllipse(`hp-node-${idx}`, pt.x, pt.y, 54, 54, {
+          strokeColor: isAct ? "#e11d48" : "#0284c7",
+          backgroundColor: isAct ? "#ffe4e6" : "#e0f2fe",
+          strokeWidth: isAct ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(`hp-nval-${idx}`, pt.x + 18, pt.y + 16, String(val), {
+          fontSize: 18,
+          strokeColor: "#0f172a",
+          version: ver
+        })
+      );
+      const ax = 415 + idx * 62;
+      const ay = 235;
+      els.push(
+        excalidrawRect(`hp-arr-${idx}`, ax, ay, 56, 52, {
+          strokeColor: isAct ? "#e11d48" : "#334155",
+          backgroundColor: isAct ? "#ffe4e6" : "#ffffff",
+          strokeWidth: isAct ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(`hp-aval-${idx}`, ax + 18, ay + 15, String(val), {
+          fontSize: 17,
+          strokeColor: "#0f172a",
+          version: ver
+        }),
+        excalidrawText(`hp-aidx-${idx}`, ax + 16, ay + 58, `[${idx}]`, {
+          fontSize: 12,
+          strokeColor: "#64748b",
+          version: ver
+        })
+      );
+    });
+    els.push(
+      excalidrawText("hp-arr-lbl", 415, 198, "Backing Heap Array [0..4]:", {
+        fontSize: 14,
+        strokeColor: "#0369a1",
+        maxLines: 1,
+        version: ver
+      })
+    );
+    if (st.swapPair) {
+      const [u, v] = st.swapPair;
+      const n1 = treeCoords[u];
+      const n2 = treeCoords[v];
+      els.push(
+        ...excalidrawLabeledConnector(
+          "hp-swap-arc",
+          n2.x + 27,
+          n2.y + 27,
+          n1.x + 27,
+          n1.y + 27,
+          {
+            style: "curved",
+            curveOffset: -42,
+            bidirectional: true,
+            label: "swap",
+            strokeColor: "#e11d48",
+            strokeWidth: 3,
+            version: ver
+          }
+        )
+      );
+    }
+    const focusNode = treeCoords[st.activeIdx] ?? treeCoords[0];
+    return {
+      stepIndex: sIdx,
+      title: st.title,
+      narration: st.narration,
+      mathInvariant: `parent(i) = \u230A(i-1)/2\u230B \u2022 Heap = [${st.heap.join(", ")}]`,
+      elements: els,
+      aiLaserTarget: { x: focusNode.x + 27, y: focusNode.y + 27 },
+      aiLaserWaypoints: [{ x: focusNode.x + 27, y: focusNode.y + 27 }]
+    };
+  });
+  return {
+    id: "heap_pq",
+    topic: "Binary Min-Heap & Priority Queue (Tree + Array)",
+    badge: "O(log N) Sift-Up \u2022 O(1) Min",
+    frames
+  };
+}
+function buildExcalidrawTrieLesson() {
+  const trieNodes = [
+    { id: "root", x: 320, y: 150, parts: ["ROOT", "\xB7"] },
+    { id: "c", x: 180, y: 245, parts: ["'c'", "\xB7"] },
+    { id: "d", x: 460, y: 245, parts: ["'d'", "\xB7"] },
+    { id: "ca", x: 180, y: 340, parts: ["'a'", "\xB7"] },
+    { id: "cat", x: 100, y: 430, parts: ["'t'", "\u2605 end"] },
+    { id: "car", x: 265, y: 430, parts: ["'r'", "\u2605 end"] },
+    { id: "do", x: 460, y: 340, parts: ["'o'", "\u2605 end"] }
+  ];
+  const edges = [
+    [0, 1],
+    [0, 2],
+    [1, 3],
+    [3, 4],
+    [3, 5],
+    [2, 6]
+  ];
+  const steps = [
+    {
+      active: "ca",
+      highlighted: ["root", "c", "ca"],
+      title: "Shared Prefix Path 'c' \u2192 'a' in O(L) Time",
+      narration: "Starting at ROOT, words 'cat' and 'car' share the exact same prefix nodes 'c' \u2192 'a', saving memory and enabling O(L) prefix search."
+    },
+    {
+      active: "cat",
+      highlighted: ["root", "c", "ca", "cat"],
+      title: "Branch to Terminal Node ['t' | \u2605 end] for Word 'cat'",
+      narration: "Following child 't' reaches a node marked \u2605 isEndOfWord = true, confirming 'cat' exists in the Trie."
+    },
+    {
+      active: "car",
+      highlighted: ["root", "c", "ca", "car"],
+      title: "Autocomplete All Words Under Prefix 'ca*' \u2192 ['cat', 'car']",
+      narration: "From prefix node 'a', branching to all \u2605 terminal children immediately yields autocomplete suggestions 'cat' and 'car'!"
+    }
+  ];
+  const frames = steps.map((st, idx) => {
+    const ver = idx + 1;
+    const els = [
+      excalidrawRect("tr-hdr", 70, 35, 650, 90, {
+        strokeColor: "#7c3aed",
+        backgroundColor: "#f3e8ff",
+        version: ver
+      }),
+      excalidrawText("tr-title", 88, 46, `Step ${ver}: ${st.title}`, {
+        fontSize: 16,
+        strokeColor: "#6d28d9",
+        maxCharsPerLine: 56,
+        maxLines: 1,
+        version: ver
+      }),
+      excalidrawText("tr-sub", 88, 78, st.narration, {
+        fontSize: 13,
+        strokeColor: "#0f172a",
+        maxCharsPerLine: 66,
+        maxLines: 2,
+        version: ver
+      })
+    ];
+    edges.forEach(([u, v], eIdx) => {
+      const n1 = trieNodes[u];
+      const n2 = trieNodes[v];
+      els.push(
+        excalidrawArrow(`tr-e-${eIdx}`, n1.x + 52, n1.y + 42, n2.x + 52, n2.y, {
+          strokeColor: "#64748b",
+          strokeWidth: 2,
+          version: ver
+        })
+      );
+    });
+    trieNodes.forEach((n) => {
+      const isAct = n.id === st.active;
+      const isHi = st.highlighted.includes(n.id);
+      els.push(
+        ...excalidrawSplitNode(`tr-n-${n.id}`, n.x, n.y, 108, 40, n.parts, {
+          strokeColor: isAct ? "#e11d48" : isHi ? "#16a34a" : "#334155",
+          backgroundColor: isAct ? "#ffe4e6" : isHi ? "#dcfce7" : "#ffffff",
+          strokeWidth: isAct || isHi ? 3 : 2,
+          version: ver
+        })
+      );
+    });
+    const actNode = trieNodes.find((n) => n.id === st.active) ?? trieNodes[0];
+    return {
+      stepIndex: idx,
+      title: st.title,
+      narration: st.narration,
+      mathInvariant: `Time = O(L) where L = word length \u2022 Active Node = ${st.active}`,
+      elements: els,
+      aiLaserTarget: { x: actNode.x + 54, y: actNode.y + 20 },
+      aiLaserWaypoints: [{ x: actNode.x + 54, y: actNode.y + 20 }]
+    };
+  });
+  return {
+    id: "trie_prefix_tree",
+    topic: "Trie / Prefix Tree ([char | \u2605 isEnd] Nodes)",
+    badge: "O(L) Lookup & Autocomplete",
+    frames
+  };
+}
+function buildExcalidrawIntervalsLesson() {
+  const steps = [
+    {
+      intervals: [
+        { start: 1, end: 3, label: "[1, 3]", status: "active" },
+        { start: 2, end: 6, label: "[2, 6] (overlaps \u2264 3)", status: "active" },
+        { start: 8, end: 10, label: "[8, 10]", status: "pending" },
+        { start: 9, end: 12, label: "[9, 12]", status: "pending" }
+      ],
+      focusIdx: 1,
+      title: "Sort by Start Time \u2192 Overlap Detected: [2, 6].start (2) \u2264 [1, 3].end (3)",
+      narration: "After sorting intervals by start time, [2, 6] starts at 2 which is <= 3. We merge them into [1, max(3, 6)] = [1, 6]."
+    },
+    {
+      intervals: [
+        { start: 1, end: 6, label: "Merged [1, 6]", status: "merged" },
+        { start: 8, end: 10, label: "[8, 10] (8 > 6: disjoint)", status: "active" },
+        { start: 9, end: 12, label: "[9, 12] (overlaps \u2264 10)", status: "active" }
+      ],
+      focusIdx: 2,
+      title: "Disjoint Gap at 8 > 6 \u2192 Merge [8, 10] & [9, 12] into [8, 12]",
+      narration: "Interval [8, 10] starts after 6 so [1, 6] is finalized. Then [9, 12] overlaps with [8, 10] (9 <= 10), merging into [8, 12]."
+    },
+    {
+      intervals: [
+        { start: 1, end: 6, label: "Result #1: [1, 6]", status: "merged" },
+        { start: 8, end: 12, label: "Result #2: [8, 12]", status: "merged" }
+      ],
+      focusIdx: 1,
+      title: "Merged Non-Overlapping Intervals: [[1, 6], [8, 12]]",
+      narration: "Sweep-line merge finishes in O(N log N) time with 2 clean disjoint intervals: [1, 6] and [8, 12]!"
+    }
+  ];
+  const frames = steps.map((st, idx) => {
+    const ver = idx + 1;
+    const timeline = excalidrawIntervalTimeline("iv-tl", 95, 165, st.intervals, {
+      minTick: 0,
+      maxTick: 12,
+      axisWidth: 560,
+      version: ver
+    });
+    const focusPt = timeline.getIntervalCenter(st.focusIdx);
+    const els = [
+      excalidrawRect("iv-hdr", 75, 35, 650, 90, {
+        strokeColor: "#0284c7",
+        backgroundColor: "#f0f9ff",
+        version: ver
+      }),
+      excalidrawText("iv-title", 92, 46, `Step ${ver}: ${st.title}`, {
+        fontSize: 16,
+        strokeColor: "#0369a1",
+        maxCharsPerLine: 56,
+        maxLines: 1,
+        version: ver
+      }),
+      excalidrawText("iv-sub", 92, 78, st.narration, {
+        fontSize: 13,
+        strokeColor: "#0f172a",
+        maxCharsPerLine: 66,
+        maxLines: 2,
+        version: ver
+      }),
+      ...timeline.elements
+    ];
+    return {
+      stepIndex: idx,
+      title: st.title,
+      narration: st.narration,
+      mathInvariant: `Overlap iff next.start \u2264 curr.end  \u2192  curr.end = max(curr.end, next.end)`,
+      elements: els,
+      aiLaserTarget: focusPt,
+      aiLaserWaypoints: [focusPt]
+    };
+  });
+  return {
+    id: "merge_intervals",
+    topic: "Merge Intervals (Sweep-Line Coordinate Axis)",
+    badge: "O(N log N) Time \u2022 Timeline",
+    frames
+  };
+}
+function buildExcalidrawSortingPartitionLesson(customArr) {
+  const base = customArr && customArr.length >= 5 ? customArr.slice(0, 6) : [8, 3, 1, 7, 0, 5];
+  const steps = [
+    {
+      arr: [...base],
+      pivotIdx: base.length - 1,
+      iPtr: 0,
+      jPtr: 1,
+      swapPair: [0, 1],
+      title: `Partition Around Pivot = ${base[base.length - 1]} \u2192 Swap Smaller Element Into Left Zone`,
+      narration: `Choosing rightmost element ${base[base.length - 1]} as pivot, scanner j finds a value <= pivot and swaps it to boundary i, expanding the '<= pivot' zone.`
+    },
+    {
+      arr: [3, 1, 0, 7, 8, 5],
+      pivotIdx: 5,
+      iPtr: 3,
+      jPtr: 5,
+      swapPair: [3, 5],
+      title: "Place Pivot 5 at Partition Boundary i = 3",
+      narration: "After scanning the array, we swap pivot 5 with index i=3 so all elements left of index 3 are < 5 and all elements right are > 5."
+    },
+    {
+      arr: [0, 1, 3, 5, 7, 8],
+      pivotIdx: 3,
+      iPtr: 3,
+      jPtr: 3,
+      swapPair: null,
+      title: "Pivot 5 Locked at Final Sorted Index 3 \u2192 Recurse Left & Right!",
+      narration: "Pivot 5 is now permanently in its sorted spot! Recursively sorting the left and right partitions completes in O(N log N) average time."
+    }
+  ];
+  const frames = steps.map((st, sIdx) => {
+    const ver = sIdx + 1;
+    const baseX = 85;
+    const baseY = 195;
+    const cellW = 82;
+    const els = [
+      excalidrawRect("qs-hdr", 75, 35, 650, 90, {
+        strokeColor: "#d97706",
+        backgroundColor: "#fef3c7",
+        version: ver
+      }),
+      excalidrawText("qs-title", 92, 46, `Step ${ver}: ${st.title}`, {
+        fontSize: 16,
+        strokeColor: "#b45309",
+        maxCharsPerLine: 56,
+        maxLines: 1,
+        version: ver
+      }),
+      excalidrawText("qs-sub", 92, 78, st.narration, {
+        fontSize: 13,
+        strokeColor: "#0f172a",
+        maxCharsPerLine: 66,
+        maxLines: 2,
+        version: ver
+      })
+    ];
+    st.arr.forEach((v, idx) => {
+      const cx = baseX + idx * cellW;
+      const isPiv = idx === st.pivotIdx;
+      const isLessZone = idx < st.iPtr;
+      els.push(
+        excalidrawRect(`qs-c-${idx}`, cx, baseY, cellW - 8, 58, {
+          strokeColor: isPiv ? "#e11d48" : isLessZone ? "#16a34a" : "#0284c7",
+          backgroundColor: isPiv ? "#ffe4e6" : isLessZone ? "#dcfce7" : "#e0f2fe",
+          strokeWidth: isPiv ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(`qs-v-${idx}`, cx + 26, baseY + 18, String(v), {
+          fontSize: 19,
+          strokeColor: "#0f172a",
+          version: ver
+        }),
+        excalidrawText(
+          `qs-lbl-${idx}`,
+          cx + 12,
+          baseY + 66,
+          isPiv ? "PIVOT" : `[${idx}]`,
+          {
+            fontSize: 12,
+            strokeColor: isPiv ? "#e11d48" : "#64748b",
+            version: ver
+          }
+        )
+      );
+    });
+    if (st.swapPair) {
+      const [u, v] = st.swapPair;
+      const x1 = baseX + u * cellW + 36;
+      const x2 = baseX + v * cellW + 36;
+      els.push(
+        ...excalidrawLabeledConnector("qs-swap", x1, baseY, x2, baseY, {
+          style: "curved",
+          curveOffset: -44,
+          bidirectional: true,
+          label: "swap",
+          strokeColor: "#e11d48",
+          strokeWidth: 3,
+          version: ver
+        })
+      );
+    }
+    const focusX = baseX + st.pivotIdx * cellW + 36;
+    return {
+      stepIndex: sIdx,
+      title: st.title,
+      narration: st.narration,
+      mathInvariant: `arr[0..i-1] \u2264 pivot < arr[i+1..n-1] \u2022 boundary i = ${st.iPtr}`,
+      elements: els,
+      aiLaserTarget: { x: focusX, y: baseY + 29 },
+      aiLaserWaypoints: [{ x: focusX, y: baseY + 29 }]
+    };
+  });
+  return {
+    id: "sorting_partition",
+    topic: "QuickSort & Divide-and-Conquer Partitioning",
+    badge: "O(N log N) Time \u2022 In-Place",
+    frames
+  };
+}
 function generateAiExcalidrawLessonForQuery(query, selectionContext) {
   const q = query.toLowerCase();
   const queryNums = query.match(/-?\d+/g)?.map(Number).filter((n) => !Number.isNaN(n)) || [];
   const selectedNums = selectionContext?.extractedNumbers || [];
   const combinedNums = queryNums.length >= 2 ? queryNums : selectedNums;
+  if (q.includes("dijkstra") || q.includes("shortest path") || q.includes("graph") || q.includes("bellman") || q.includes("topological") || q.includes("union find") || q.includes("kruskal") || q.includes("prim")) {
+    return buildExcalidrawGraphShortestPathLesson();
+  }
+  if (q.includes("matrix") || q.includes("grid") || q.includes("island") || q.includes("flood fill") || q.includes("2d") || q.includes("rotting") || q.includes("backtrack") || q.includes("maze")) {
+    return buildExcalidrawMatrix2DLesson();
+  }
+  if (q.includes("hash") || q.includes("map") || q.includes("dictionary") || q.includes("lru") || q.includes("anagram") || q.includes("complement") || q.includes("frequency")) {
+    const arr = combinedNums.length >= 4 ? combinedNums.slice(0, -1) : [3, 2, 4, 7];
+    const target = combinedNums.length >= 4 ? combinedNums[combinedNums.length - 1] : 9;
+    return buildExcalidrawHashMapLesson(arr, target);
+  }
+  if (q.includes("heap") || q.includes("priority queue") || q.includes("kth") || q.includes("k-th") || q.includes("top k") || q.includes("sift")) {
+    return buildExcalidrawHeapPriorityQueueLesson();
+  }
+  if (q.includes("trie") || q.includes("prefix tree") || q.includes("autocomplete") || q.includes("dictionary tree")) {
+    return buildExcalidrawTrieLesson();
+  }
+  if (q.includes("interval") || q.includes("meeting") || q.includes("sweep") || q.includes("schedule") || q.includes("calendar")) {
+    return buildExcalidrawIntervalsLesson();
+  }
+  if (q.includes("quicksort") || q.includes("quick sort") || q.includes("mergesort") || q.includes("merge sort") || q.includes("partition") || q.includes("pivot") || q.includes("sort")) {
+    return buildExcalidrawSortingPartitionLesson(
+      combinedNums.length >= 4 ? combinedNums : void 0
+    );
+  }
   if (q.includes("brute") || q.includes("dry run") || q.includes("dry-run") || q.includes("nested") || q.includes("o(n^2)") || q.includes("all pairs")) {
     const arr = combinedNums.length >= 4 ? combinedNums.slice(0, -1) : combinedNums.length >= 3 ? combinedNums : [1, 3, 5, 8, 12];
     const target = combinedNums.length >= 4 ? combinedNums[combinedNums.length - 1] : 17;
@@ -296090,14 +297559,21 @@ You MUST directly reference the exact numbers, values, pointers, or partial dry-
     const geminiKey = getGeminiKey();
     if (geminiKey && query.length > 3) {
       const ai = new GoogleGenAI2({ apiKey: geminiKey });
-      const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Co-Teacher with direct control over an Excalidraw Whiteboard (local simulation coordinates x: 60..760, y: 40..440).
+      const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Co-Teacher with direct control over an Excalidraw Whiteboard (local simulation coordinates x: 60..780, y: 40..470).
 The user asked: "${fullPromptContext}"
 ${code ? `Candidate's current code snippet:
 ${code.slice(0, 600)}` : ""}
 ${selectionPromptBlock}
 
 Design a 3 to 5 step animated visual dry-run simulation on the Excalidraw whiteboard that teaches, demonstrates, and simulates this exact query clearly.
-Return ONLY valid JSON matching this exact structure:
+
+WHITEBOARD TOOLKIT (YOUR CHOICE \u2014 USE OUR COMPOSITE WIDGETS, DRAW CUSTOM NODES/ARROWS, OR COMBINE BOTH):
+You have full creative freedom in every step to either:
+(A) Use our built-in high-level "widgets" ("grid2d" for 2D matrices/DP/islands, "hashmap" for key-value tables, "container" for U-shaped stack buckets or open-ended queue pipes, "intervals" for timeline sweep-line bars), OR
+(B) Draw your own custom "nodes" ("rect", "ellipse", "diamond", or multi-compartment "split_node" like ["prev","val","next"]) and "arrows" ("straight", "curved" arcs, or 90-degree orthogonal "elbow" arrows, with optional "bidirectional" and edge weight "label"), OR
+(C) Combine both widgets and custom nodes/arrows in the same step!
+
+Return ONLY valid JSON matching this structure:
 {
   "topic": "Concise Title (max 44 chars)",
   "badge": "Time & Space Complexity (e.g. O(N) Time \u2022 O(1) Space)",
@@ -296110,20 +297586,42 @@ Return ONLY valid JSON matching this exact structure:
       "laserY": 210,
       "waypoints": [
         { "x": 140, "y": 210 },
-        { "x": 260, "y": 210 },
-        { "x": 420, "y": 210 }
+        { "x": 260, "y": 210 }
+      ],
+      "widgets": [
+        {
+          "type": "grid2d | hashmap | container | intervals",
+          "id": "w-1",
+          "x": 70,
+          "y": 170,
+          "title": "Optional widget header",
+          "cells": [["1","1","0"],["1","0","0"]],
+          "rowLabels": ["r0","r1"],
+          "colLabels": ["c0","c1","c2"],
+          "highlightedCells": [{ "row": 0, "col": 1, "color": "amber" }],
+          "keyHeader": "key",
+          "valHeader": "val",
+          "entries": [{ "key": "2", "value": "idx 0", "highlight": "green" }],
+          "variant": "stack | queue | deque",
+          "items": [{ "label": "[0]=2", "color": "blue" }],
+          "axisMin": 0,
+          "axisMax": 16,
+          "intervals": [{ "label": "[1,4]", "start": 1, "end": 4, "row": 0, "color": "blue", "highlight": true }]
+        }
       ],
       "nodes": [
         {
           "id": "node-1",
-          "shape": "rect",
+          "shape": "rect | ellipse | diamond | split_node",
           "x": 90,
           "y": 175,
           "width": 100,
           "height": 60,
           "label": "Short text (<=16 chars)",
+          "compartments": ["prev", "42", "next"],
+          "activeCompartmentIndex": 1,
           "sublabel": "idx / ptr label",
-          "color": "blue",
+          "color": "blue | green | amber | rose | purple | slate",
           "highlight": true
         }
       ],
@@ -296134,19 +297632,24 @@ Return ONLY valid JSON matching this exact structure:
           "fromY": 205,
           "toX": 238,
           "toY": 205,
-          "color": "slate"
+          "style": "straight | curved | elbow",
+          "curvature": -42,
+          "routing": "h-v-h | v-h-v | l-shape",
+          "bidirectional": false,
+          "label": "optional weight/ptr",
+          "color": "blue | green | amber | rose | purple | slate"
         }
       ]
     }
   ]
 }
 Strict Layout Rules (to prevent any overlapping or messy UI):
-1. "shape" must be "rect", "ellipse", or "diamond".
-2. "color" must be "blue", "green", "amber", "rose", "purple", or "slate".
-3. Keep all node x between 70 and 720, and node y between 160 and 390 so shapes NEVER overlap the top step banner (y: 32..130).
-4. Space adjacent nodes horizontally by at least (width + 24) pixels so boxes NEVER overlap each other.
-5. Keep node "label" concise (<= 18 characters) so text fits cleanly inside its shape.
-6. Provide 2 to 4 "waypoints" per step tracing the AI teacher's laser pointer across the active nodes being compared.`;
+1. "shape" in nodes can be "rect", "ellipse", "diamond", or "split_node" (use "compartments": ["a","b"] or ["prev","val","next"] for split_node).
+2. "style" in arrows can be "straight", "curved" (for jump arcs / graph edges), or "elbow" (for 90-degree orthogonal routing). Include "label" for weighted graphs or state transitions, and "bidirectional": true for doubly-linked or undirected edges.
+3. "widgets" is optional \u2014 include ONLY the fields relevant to the chosen widget "type" ("grid2d", "hashmap", "container", or "intervals").
+4. Keep all elements within x: 65..780 and y: 158..450 so nothing ever overlaps the top step banner (y: 32..130).
+5. Space adjacent custom nodes horizontally by at least (width + 24) pixels so boxes NEVER overlap each other.
+6. Provide 2 to 4 "waypoints" per step tracing the AI teacher's pointer across the active elements.`;
       const llmRes = await Promise.race([
         ai.models.generateContent({
           model: "gemini-2.5-flash",
@@ -296167,14 +297670,180 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
             const placedNodeRects = [];
             let maxNodeRight = 740;
             const shapeEls = [];
+            if (Array.isArray(st.widgets)) {
+              st.widgets.forEach((w, wIdx) => {
+                const wid = String(w.id || `w-${wIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
+                const wx = Math.max(60, Number(w.x) || 70);
+                const wy = Math.max(158, Number(w.y) || 170);
+                const wType = String(w.type || "").toLowerCase();
+                if (wType === "grid2d" && Array.isArray(w.cells) && w.cells.length > 0) {
+                  const rows = w.cells.slice(0, 6).map(
+                    (r2) => Array.isArray(r2) ? r2.slice(0, 7).map((c) => String(c)) : ["0"]
+                  );
+                  const cellW = Number(w.cellWidth) || 58;
+                  const cellH = Number(w.cellHeight) || 46;
+                  const highlights = Array.isArray(w.highlightedCells) ? w.highlightedCells.map((hc) => {
+                    const cTheme = colorMap[String(hc.color || "amber")] || colorMap.amber;
+                    return {
+                      row: Number(hc.row) || 0,
+                      col: Number(hc.col) || 0,
+                      strokeColor: cTheme.stroke,
+                      backgroundColor: cTheme.bg
+                    };
+                  }) : [];
+                  const gridOut = excalidrawGrid2D(`ai-wg-${wid}`, wx, wy, rows, {
+                    cellWidth: cellW,
+                    cellHeight: cellH,
+                    title: w.title ? String(w.title) : void 0,
+                    rowLabels: Array.isArray(w.rowLabels) ? w.rowLabels.map((l) => String(l)) : void 0,
+                    colLabels: Array.isArray(w.colLabels) ? w.colLabels.map((l) => String(l)) : void 0,
+                    highlightedCells: highlights,
+                    version: ver
+                  });
+                  shapeEls.push(...gridOut.elements);
+                  const numCols = Math.max(1, rows[0]?.length || 1);
+                  const gw = numCols * cellW + 44;
+                  const gh = rows.length * cellH + 54;
+                  placedNodeRects.push({ x: wx, y: wy, width: gw, height: gh });
+                  maxNodeRight = Math.max(maxNodeRight, wx + gw);
+                  if (highlights.length > 0 && highlights[0]) {
+                    stepWaypoints.push(
+                      gridOut.getCellCenter(highlights[0].row, highlights[0].col)
+                    );
+                  }
+                } else if (wType === "hashmap" && Array.isArray(w.entries)) {
+                  const entries = w.entries.slice(0, 7).map((e2) => {
+                    const hlColor = e2.highlight ? colorMap[String(e2.highlight)] || colorMap.amber : null;
+                    return {
+                      key: String(e2.key ?? ""),
+                      value: String(e2.value ?? ""),
+                      highlightStroke: hlColor?.stroke,
+                      highlightBg: hlColor?.bg
+                    };
+                  });
+                  const hmOut = excalidrawHashTable(`ai-whm-${wid}`, wx, wy, entries, {
+                    title: String(w.title || "Hash Map"),
+                    keyHeader: String(w.keyHeader || "Key"),
+                    valHeader: String(w.valHeader || "Value"),
+                    keyColWidth: Number(w.keyColWidth) || 96,
+                    valColWidth: Number(w.valColWidth) || 116,
+                    version: ver
+                  });
+                  shapeEls.push(...hmOut.elements);
+                  const hw = (Number(w.keyColWidth) || 96) + (Number(w.valColWidth) || 116);
+                  const hh = 56 + Math.max(1, entries.length) * 34;
+                  placedNodeRects.push({ x: wx, y: wy, width: hw, height: hh });
+                  maxNodeRight = Math.max(maxNodeRight, wx + hw);
+                  if (entries.length > 0) {
+                    stepWaypoints.push(hmOut.getRowCenter(entries.length - 1));
+                  }
+                } else if (wType === "container") {
+                  const variant = w.variant === "queue" || w.variant === "deque" ? w.variant : "stack";
+                  const cw = Number(w.width) || (variant === "stack" ? 150 : 320);
+                  const ch = Number(w.height) || (variant === "stack" ? 210 : 72);
+                  shapeEls.push(
+                    ...excalidrawContainerBucket(`ai-wc-${wid}`, wx, wy, cw, ch, {
+                      variant,
+                      title: w.title ? String(w.title) : void 0,
+                      version: ver
+                    })
+                  );
+                  if (Array.isArray(w.items)) {
+                    w.items.slice(0, 5).forEach((item, iIdx) => {
+                      const itTheme = colorMap[String(item?.color || "blue")] || colorMap.blue;
+                      const itemLbl = typeof item === "string" ? item : String(item?.label || "");
+                      if (variant === "stack") {
+                        const ix = wx + 14;
+                        const iy = wy + ch - 44 - iIdx * 38;
+                        shapeEls.push(
+                          excalidrawRect(`ai-wci-${wid}-${iIdx}`, ix, iy, cw - 28, 32, {
+                            strokeColor: itTheme.stroke,
+                            backgroundColor: itTheme.bg,
+                            strokeWidth: 2,
+                            version: ver
+                          }),
+                          excalidrawText(`ai-wcit-${wid}-${iIdx}`, ix + 10, iy + 7, itemLbl, {
+                            fontSize: 13,
+                            strokeColor: "#0f172a",
+                            maxCharsPerLine: 14,
+                            maxLines: 1,
+                            version: ver
+                          })
+                        );
+                      } else {
+                        const ix = wx + 14 + iIdx * 68;
+                        const iy = wy + 12;
+                        shapeEls.push(
+                          excalidrawRect(`ai-wci-${wid}-${iIdx}`, ix, iy, 60, ch - 24, {
+                            strokeColor: itTheme.stroke,
+                            backgroundColor: itTheme.bg,
+                            strokeWidth: 2,
+                            version: ver
+                          }),
+                          excalidrawText(`ai-wcit-${wid}-${iIdx}`, ix + 8, iy + 14, itemLbl, {
+                            fontSize: 13,
+                            strokeColor: "#0f172a",
+                            maxCharsPerLine: 8,
+                            maxLines: 1,
+                            version: ver
+                          })
+                        );
+                      }
+                    });
+                  }
+                  placedNodeRects.push({ x: wx, y: wy, width: cw, height: ch });
+                  maxNodeRight = Math.max(maxNodeRight, wx + cw);
+                } else if (wType === "intervals" && Array.isArray(w.intervals)) {
+                  const tw = Number(w.width) || 560;
+                  const axisMin = Number(w.axisMin) || 0;
+                  const axisMax = Math.max(axisMin + 4, Number(w.axisMax) || 16);
+                  const ivs = w.intervals.slice(0, 6).map((iv, ivIdx) => {
+                    const ivTheme = colorMap[String(iv.color || "blue")] || colorMap.blue;
+                    return {
+                      id: String(iv.id || `iv-${ivIdx}`),
+                      label: String(iv.label || `[${iv.start},${iv.end}]`),
+                      start: Number(iv.start) || 0,
+                      end: Number(iv.end) || 2,
+                      row: iv.row !== void 0 ? Number(iv.row) : ivIdx,
+                      strokeColor: ivTheme.stroke,
+                      backgroundColor: ivTheme.bg,
+                      highlight: Boolean(iv.highlight)
+                    };
+                  });
+                  const tlOut = excalidrawIntervalTimeline(
+                    `ai-wtl-${wid}`,
+                    wx,
+                    wy,
+                    tw,
+                    axisMin,
+                    axisMax,
+                    ivs,
+                    {
+                      title: w.title ? String(w.title) : void 0,
+                      version: ver
+                    }
+                  );
+                  shapeEls.push(...tlOut.elements);
+                  placedNodeRects.push({ x: wx, y: wy, width: tw, height: 180 });
+                  maxNodeRight = Math.max(maxNodeRight, wx + tw);
+                  if (ivs.length > 0) {
+                    stepWaypoints.push(tlOut.getIntervalCenter(0));
+                  }
+                }
+              });
+            }
             if (Array.isArray(st.nodes)) {
               st.nodes.forEach((n, nIdx) => {
                 const nid = String(n.id || `node-${nIdx}`).replace(
                   /[^a-zA-Z0-9_-]/g,
                   "-"
                 );
-                const nw = Math.max(76, Math.min(240, Number(n.width) || 104));
-                const nh = Math.max(52, Math.min(140, Number(n.height) || 64));
+                const isSplit = n.shape === "split_node" || Array.isArray(n.compartments) && n.compartments.length > 1;
+                const nw = Math.max(
+                  isSplit ? 110 : 76,
+                  Math.min(260, Number(n.width) || (isSplit ? 136 : 104))
+                );
+                const nh = Math.max(48, Math.min(140, Number(n.height) || 60));
                 let nx = Math.max(60, Number(n.x) || 70 + nIdx * (nw + 28));
                 let ny = Math.max(158, Number(n.y) || 195);
                 const gapX = 24;
@@ -296202,68 +297871,88 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                     y: Math.round(ny + nh / 2)
                   });
                 }
-                if (n.shape === "ellipse") {
+                if (isSplit) {
+                  const rawCompartments = Array.isArray(n.compartments) && n.compartments.length > 0 ? n.compartments : String(n.label || "val|next").split("|");
+                  const activeCompIdx = typeof n.activeCompartmentIndex === "number" ? n.activeCompartmentIndex : -1;
+                  const compartments = rawCompartments.slice(0, 4).map((c, cIdx) => ({
+                    label: String(c).trim(),
+                    backgroundColor: cIdx === activeCompIdx ? "#fef3c7" : theme.bg,
+                    textColor: "#0f172a"
+                  }));
                   shapeEls.push(
-                    excalidrawEllipse(`ai-sh-${nid}`, nx, ny, nw, nh, {
+                    ...excalidrawSplitNode(`ai-sh-${nid}`, nx, ny, nw, nh, compartments, {
                       strokeColor: theme.stroke,
                       backgroundColor: theme.bg,
                       strokeWidth: strokeW,
-                      version: ver
-                    })
-                  );
-                } else if (n.shape === "diamond") {
-                  shapeEls.push(
-                    excalidrawDiamond(`ai-sh-${nid}`, nx, ny, nw, nh, {
-                      strokeColor: theme.stroke,
-                      backgroundColor: theme.bg,
-                      strokeWidth: strokeW,
+                      sublabel: n.sublabel ? String(n.sublabel) : void 0,
+                      sublabelColor: theme.stroke,
                       version: ver
                     })
                   );
                 } else {
-                  shapeEls.push(
-                    excalidrawRect(`ai-sh-${nid}`, nx, ny, nw, nh, {
-                      strokeColor: theme.stroke,
-                      backgroundColor: theme.bg,
-                      strokeWidth: strokeW,
-                      version: ver
-                    })
-                  );
-                }
-                if (n.label !== void 0) {
-                  const maxChars = Math.max(8, Math.floor((nw - 16) / 10));
-                  shapeEls.push(
-                    excalidrawText(
-                      `ai-lbl-${nid}`,
-                      nx + 10,
-                      ny + Math.max(10, Math.floor(nh / 2) - 12),
-                      String(n.label),
-                      {
-                        fontSize: 15,
-                        strokeColor: "#0f172a",
-                        maxCharsPerLine: maxChars,
-                        maxLines: 2,
-                        version: ver
-                      }
-                    )
-                  );
-                }
-                if (n.sublabel) {
-                  shapeEls.push(
-                    excalidrawText(
-                      `ai-sub-${nid}`,
-                      nx + 8,
-                      ny + nh + 6,
-                      String(n.sublabel),
-                      {
-                        fontSize: 12,
+                  if (n.shape === "ellipse") {
+                    shapeEls.push(
+                      excalidrawEllipse(`ai-sh-${nid}`, nx, ny, nw, nh, {
                         strokeColor: theme.stroke,
-                        maxCharsPerLine: 20,
-                        maxLines: 1,
+                        backgroundColor: theme.bg,
+                        strokeWidth: strokeW,
                         version: ver
-                      }
-                    )
-                  );
+                      })
+                    );
+                  } else if (n.shape === "diamond") {
+                    shapeEls.push(
+                      excalidrawDiamond(`ai-sh-${nid}`, nx, ny, nw, nh, {
+                        strokeColor: theme.stroke,
+                        backgroundColor: theme.bg,
+                        strokeWidth: strokeW,
+                        version: ver
+                      })
+                    );
+                  } else {
+                    shapeEls.push(
+                      excalidrawRect(`ai-sh-${nid}`, nx, ny, nw, nh, {
+                        strokeColor: theme.stroke,
+                        backgroundColor: theme.bg,
+                        strokeWidth: strokeW,
+                        version: ver
+                      })
+                    );
+                  }
+                  if (n.label !== void 0) {
+                    const maxChars = Math.max(8, Math.floor((nw - 16) / 10));
+                    shapeEls.push(
+                      excalidrawText(
+                        `ai-lbl-${nid}`,
+                        nx + 10,
+                        ny + Math.max(10, Math.floor(nh / 2) - 12),
+                        String(n.label),
+                        {
+                          fontSize: 15,
+                          strokeColor: "#0f172a",
+                          maxCharsPerLine: maxChars,
+                          maxLines: 2,
+                          version: ver
+                        }
+                      )
+                    );
+                  }
+                  if (n.sublabel) {
+                    shapeEls.push(
+                      excalidrawText(
+                        `ai-sub-${nid}`,
+                        nx + 8,
+                        ny + nh + 6,
+                        String(n.sublabel),
+                        {
+                          fontSize: 12,
+                          strokeColor: theme.stroke,
+                          maxCharsPerLine: 20,
+                          maxLines: 1,
+                          version: ver
+                        }
+                      )
+                    );
+                  }
                 }
               });
             }
@@ -296306,20 +297995,45 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
               st.arrows.forEach((a, aIdx) => {
                 const aid = String(a.id || `arr-${aIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
                 const theme = colorMap[String(a.color || "blue")] || colorMap.blue;
-                els.push(
-                  excalidrawArrow(
-                    `ai-ar-${aid}`,
-                    Number(a.fromX) || 150,
-                    Number(a.fromY) || 210,
-                    Number(a.toX) || 220,
-                    Number(a.toY) || 210,
-                    {
-                      strokeColor: theme.stroke,
-                      strokeWidth: 2.5,
-                      version: ver
-                    }
-                  )
-                );
+                const style = a.style === "curved" || a.style === "elbow" ? a.style : "straight";
+                const routing = a.routing === "v-h-v" || a.routing === "l-shape" ? a.routing : "h-v-h";
+                if (style !== "straight" || a.bidirectional || a.label) {
+                  els.push(
+                    ...excalidrawLabeledConnector(
+                      `ai-ar-${aid}`,
+                      Number(a.fromX) || 150,
+                      Number(a.fromY) || 210,
+                      Number(a.toX) || 220,
+                      Number(a.toY) || 210,
+                      {
+                        style,
+                        curvature: typeof a.curvature === "number" ? a.curvature : -44,
+                        routing,
+                        bidirectional: Boolean(a.bidirectional),
+                        label: a.label ? String(a.label) : void 0,
+                        strokeColor: theme.stroke,
+                        labelBgColor: theme.bg,
+                        strokeWidth: 2.5,
+                        version: ver
+                      }
+                    )
+                  );
+                } else {
+                  els.push(
+                    excalidrawArrow(
+                      `ai-ar-${aid}`,
+                      Number(a.fromX) || 150,
+                      Number(a.fromY) || 210,
+                      Number(a.toX) || 220,
+                      Number(a.toY) || 210,
+                      {
+                        strokeColor: theme.stroke,
+                        strokeWidth: 2.5,
+                        version: ver
+                      }
+                    )
+                  );
+                }
               });
             }
             const parsedWaypoints = Array.isArray(st.waypoints) ? st.waypoints.map((wp) => ({

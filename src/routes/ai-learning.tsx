@@ -30,6 +30,13 @@ import {
   buildExcalidrawDpTableLesson,
   buildExcalidrawLinkedListLesson,
   buildExcalidrawTreeLesson,
+  buildExcalidrawGraphShortestPathLesson,
+  buildExcalidrawMatrix2DLesson,
+  buildExcalidrawHashMapLesson,
+  buildExcalidrawHeapPriorityQueueLesson,
+  buildExcalidrawTrieLesson,
+  buildExcalidrawIntervalsLesson,
+  buildExcalidrawSortingPartitionLesson,
   generateAiExcalidrawLessonForQuery,
   type AiWhiteboardLesson,
 } from "@/shared/whiteboard";
@@ -296,17 +303,266 @@ return prev;`,
     },
     buildLesson: () => buildExcalidrawTreeLesson(),
   },
+  {
+    id: "graph",
+    title: "Graph Shortest Path (Dijkstra)",
+    pattern: "Graphs & Shortest Path",
+    complexity: "O((V + E) log V) Time",
+    spaceComplexity: "O(V) Space",
+    difficulty: "Advanced",
+    summary:
+      "Relax weighted edges greedily using a Min-Heap priority queue and a live distance table dist[u] + w(u, v) < dist[v].",
+    invariant:
+      "Whenever vertex u is popped from the Min-Heap with minimal tentative distance, dist[u] is finalized as the true shortest path.",
+    cppSnippet: `priority_queue<pair<int,int>, vector<pair<int,int>>, greater<>> pq;
+pq.push({0, src});
+dist[src] = 0;
+while (!pq.empty()) {
+    auto [d, u] = pq.top(); pq.pop();
+    if (d > dist[u]) continue;
+    for (auto [v, w] : adj[u])
+        if (dist[u] + w < dist[v]) pq.push({dist[v] = dist[u] + w, v});
+}`,
+    quiz: {
+      question:
+        "Why does standard Dijkstra's algorithm require non-negative edge weights w(u, v) >= 0?",
+      options: [
+        "So that once a vertex u with minimum dist[u] is popped, no future path through unvisited nodes can ever decrease dist[u]",
+        "Because priority_queue in C++ cannot store negative integers",
+        "Because graphs with negative weights have no edges",
+        "To keep the adjacency matrix symmetric",
+      ],
+      correctIndex: 0,
+      explanation:
+        "Non-negative weights guarantee monotonicity of path costs, so the first time the minimum-distance vertex is extracted, its shortest path is permanently optimal.",
+    },
+    buildLesson: () => buildExcalidrawGraphShortestPathLesson(),
+  },
+  {
+    id: "matrix_2d",
+    title: "2D Grid Flood-Fill & Islands BFS",
+    pattern: "2D Matrix & BFS Queue",
+    complexity: "O(R · C) Time",
+    spaceComplexity: "O(R · C) Space",
+    difficulty: "Intermediate",
+    summary:
+      "Scan a 2D (row, col) matrix and trigger a 4-directional BFS queue expansion whenever an unvisited land cell '1' is discovered.",
+    invariant:
+      "Each land cell (r, c) is enqueued and marked visited at most once across the entire R × C scan.",
+    cppSnippet: `int dirs[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
+queue<pair<int,int>> q;
+q.push({sr, sc});
+grid[sr][sc] = 'V';
+while (!q.empty()) {
+    auto [r, c] = q.front(); q.pop();
+    for (auto& d : dirs) {
+        int nr = r + d[0], nc = c + d[1];
+        if (inBounds(nr, nc) && grid[nr][nc] == '1') {
+            grid[nr][nc] = 'V';
+            q.push({nr, nc});
+        }
+    }
+}`,
+    quiz: {
+      question:
+        "Why should you mark grid[nr][nc] as visited BEFORE pushing (nr, nc) into the BFS queue rather than when popping?",
+      options: [
+        "To prevent multiple neighbors from pushing duplicate copies of the same cell (nr, nc) into the queue",
+        "Because queue::pop() takes O(R * C) time",
+        "Because diagonal neighbors are visited first",
+        "To sort the matrix in ascending order",
+      ],
+      correctIndex: 0,
+      explanation:
+        "Marking a cell visited immediately upon discovery prevents other frontier cells in the same BFS wave from enqueuing the exact same coordinate multiple times.",
+    },
+    buildLesson: () => buildExcalidrawMatrix2DLesson(),
+  },
+  {
+    id: "hashmap",
+    title: "Hash Map O(1) Complement Lookup",
+    pattern: "Hashing & Lookup Table",
+    complexity: "O(n) Time",
+    spaceComplexity: "O(n) Space",
+    difficulty: "Beginner",
+    summary:
+      "Trade O(n) space for O(1) expected lookup time by recording seen[nums[i]] = i and checking whether complement = target - nums[i] already exists.",
+    invariant:
+      "Before inspecting index i, the hash table contains every element nums[0 .. i-1] mapped to its index.",
+    cppSnippet: `unordered_map<int, int> seen;
+for (int i = 0; i < (int)nums.size(); i++) {
+    int need = target - nums[i];
+    if (seen.count(need)) return {seen[need], i};
+    seen[nums[i]] = i;
+}`,
+    quiz: {
+      question:
+        "How does a single-pass Hash Map reduce Two Sum from O(n^2) to O(n) expected time?",
+      options: [
+        "Each complement lookup target - nums[i] takes O(1) average time instead of an O(n) linear scan",
+        "It sorts the array in O(1) time",
+        "It uses two pointers without extra memory",
+        "It hashes the entire array into a single integer",
+      ],
+      correctIndex: 0,
+      explanation:
+        "Replacing the inner O(n) loop with an O(1) hash table lookup reduces total work across n elements to O(n).",
+    },
+    buildLesson: () => buildExcalidrawHashMapLesson(),
+  },
+  {
+    id: "heap",
+    title: "Min-Heap & Priority Queue",
+    pattern: "Heaps & Complete Trees",
+    complexity: "O(log n) Push/Pop",
+    spaceComplexity: "O(n) Space",
+    difficulty: "Intermediate",
+    summary:
+      "Visualize the dual representation of a binary heap as both a complete binary tree and a contiguous 0-indexed array with O(log n) Sift-Up / Sift-Down.",
+    invariant:
+      "Min-Heap Property: heap[parent(i)] <= heap[i] for every node i > 0, so the global minimum is always at heap[0].",
+    cppSnippet: `void siftUp(vector<int>& h, int i) {
+    while (i > 0) {
+        int p = (i - 1) / 2;
+        if (h[p] <= h[i]) break;
+        swap(h[p], h[i]);
+        i = p;
+    }
+}`,
+    quiz: {
+      question:
+        "In a 0-indexed array representation of a binary heap, what are the indices of the parent and left child of index i?",
+      options: [
+        "parent = (i - 1) / 2, left = 2 * i + 1",
+        "parent = i / 2, left = 2 * i",
+        "parent = i - 1, left = i + 1",
+        "parent = 2 * i, left = i / 2",
+      ],
+      correctIndex: 0,
+      explanation:
+        "In a 0-indexed complete binary tree array, node i has children at 2i + 1 and 2i + 2, and its parent is at floor((i - 1) / 2).",
+    },
+    buildLesson: () => buildExcalidrawHeapPriorityQueueLesson(),
+  },
+  {
+    id: "trie",
+    title: "Trie (Prefix Tree) & Word Search",
+    pattern: "Tries & String Prefixes",
+    complexity: "O(L) per Query",
+    spaceComplexity: "O(Σ · N · L) Space",
+    difficulty: "Intermediate",
+    summary:
+      "Share common character prefixes across words in a multi-way tree where each split node stores [char | isEnd ★].",
+    invariant:
+      "A root-to-node path spells a valid stored word if and only if the terminal node has isEnd == true (★).",
+    cppSnippet: `struct TrieNode {
+    TrieNode* next[26]{};
+    bool isEnd = false;
+};
+void insert(TrieNode* root, const string& word) {
+    TrieNode* cur = root;
+    for (char c : word) {
+        int idx = c - 'a';
+        if (!cur->next[idx]) cur->next[idx] = new TrieNode();
+        cur = cur->next[idx];
+    }
+    cur->isEnd = true;
+}`,
+    quiz: {
+      question:
+        "How does a Trie distinguish between a stored word 'APP' and a mere prefix of 'APPLE' when both share the path R -> A -> P -> P?",
+      options: [
+        "By setting the boolean terminal flag isEnd = true (★) on the second 'P' node",
+        "By duplicating the entire path R -> A -> P -> P twice",
+        "By sorting characters in reverse order",
+        "By deleting 'APPLE' when 'APP' is inserted",
+      ],
+      correctIndex: 0,
+      explanation:
+        "Marking isEnd = true on the second 'P' node lets both search('APP') and startsWith('APP') succeed in O(L) time while sharing the prefix nodes.",
+    },
+    buildLesson: () => buildExcalidrawTrieLesson(),
+  },
+  {
+    id: "intervals",
+    title: "Merge Overlapping Intervals",
+    pattern: "Intervals & Sweep-Line",
+    complexity: "O(n log n) Time",
+    spaceComplexity: "O(n) Space",
+    difficulty: "Intermediate",
+    summary:
+      "Sort intervals by start time on a 1D coordinate timeline and merge any interval whose start <= current.end.",
+    invariant:
+      "After sorting by start_i <= start_{i+1}, two intervals overlap iff next.start <= merged.back().end.",
+    cppSnippet: `sort(intervals.begin(), intervals.end());
+vector<vector<int>> merged;
+for (auto& iv : intervals) {
+    if (merged.empty() || iv[0] > merged.back()[1])
+        merged.push_back(iv);
+    else
+        merged.back()[1] = max(merged.back()[1], iv[1]);
+}`,
+    quiz: {
+      question:
+        "After sorting intervals by start time, what is the exact condition for interval B = [s2, e2] to overlap with the active interval A = [s1, e1]?",
+      options: [
+        "s2 <= e1 (and the merged end becomes max(e1, e2))",
+        "s2 > e1",
+        "e2 < s1",
+        "s1 == e2 only",
+      ],
+      correctIndex: 0,
+      explanation:
+        "Since s1 <= s2 is guaranteed by sorting, the intervals intersect whenever B starts before or at A's end (s2 <= e1).",
+    },
+    buildLesson: () => buildExcalidrawIntervalsLesson(),
+  },
+  {
+    id: "sorting",
+    title: "QuickSort Lomuto Partitioning",
+    pattern: "Sorting & Divide-and-Conquer",
+    complexity: "O(n log n) Avg Time",
+    spaceComplexity: "O(log n) Stack",
+    difficulty: "Intermediate",
+    summary:
+      "Partition an array in-place around a pivot so all elements <= pivot sit in [low..i], then place the pivot at its exact final sorted index i+1.",
+    invariant:
+      "At each scan index j, subarray [low .. i] holds values <= pivot and [i+1 .. j-1] holds values > pivot.",
+    cppSnippet: `int pivot = a[high], i = low - 1;
+for (int j = low; j < high; j++) {
+    if (a[j] <= pivot) swap(a[++i], a[j]);
+}
+swap(a[i + 1], a[high]);
+return i + 1;`,
+    quiz: {
+      question:
+        "What is true about the pivot element immediately after one complete Lomuto partition pass?",
+      options: [
+        "The pivot is at its exact final sorted index, with all elements to its left <= pivot and all to its right > pivot",
+        "The entire array is completely sorted after one pass",
+        "The pivot is always moved to index 0",
+        "The pivot must be the maximum element",
+      ],
+      correctIndex: 0,
+      explanation:
+        "Partitioning places the pivot between the <= region and the > region, locking the pivot into its permanent sorted index before recursing on both halves.",
+    },
+    buildLesson: () => buildExcalidrawSortingPartitionLesson(),
+  },
 ];
 
 const QUICK_AI_PROMPTS = [
   "How would the dry run of the brute force O(N^2) approach look on [1, 3, 5, 8, 12] target 17?",
   "Simulate Two Pointers on [2, 4, 7, 11, 15, 19] with target 18",
-  "Explain Sliding Window max sum of size 3 on [3, 1, 6, 2, 5, 4]",
-  "Simulate Binary Search for 24 in [2, 5, 9, 14, 19, 24, 31]",
+  "Simulate Dijkstra's shortest path algorithm on a weighted graph",
+  "Simulate 2D Matrix Flood-Fill / Number of Islands with BFS Queue",
+  "Show Hash Map O(1) complement lookup table for Two Sum target 9",
+  "Draw Min-Heap Sift-Up with dual Binary Tree and Array view",
+  "Draw Trie Prefix Tree inserting APP and APPLE with split nodes",
+  "Simulate Merge Overlapping Intervals on a coordinate timeline",
+  "Demonstrate QuickSort Lomuto Partitioning with curved swap arcs",
   "Draw Monotonic Stack Next Greater Element on [2, 1, 5, 6, 2, 3]",
-  "Draw 1D Dynamic Programming table for Climbing Stairs n=6",
   "Demonstrate Linked List in-place pointer reversal step by step",
-  "Draw Binary Search Tree traversal and recursive call stack",
 ];
 
 export function AiLearningPage() {

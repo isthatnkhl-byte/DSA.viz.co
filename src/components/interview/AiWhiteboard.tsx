@@ -45,6 +45,13 @@ import {
   buildExcalidrawLinkedListLesson,
   buildExcalidrawTreeLesson,
   buildExcalidrawBruteForceDryRunLesson,
+  buildExcalidrawGraphShortestPathLesson,
+  buildExcalidrawMatrix2DLesson,
+  buildExcalidrawHashMapLesson,
+  buildExcalidrawHeapPriorityQueueLesson,
+  buildExcalidrawTrieLesson,
+  buildExcalidrawIntervalsLesson,
+  buildExcalidrawSortingPartitionLesson,
   generateAiExcalidrawLessonForQuery,
   extractWhiteboardSelectionContext,
   wrapLessonInBoundedZone,
@@ -64,7 +71,14 @@ export type WhiteboardPresetId =
   | "monotonic_stack"
   | "dp_table"
   | "linked_list"
-  | "tree";
+  | "tree"
+  | "graph"
+  | "matrix_2d"
+  | "hashmap"
+  | "heap"
+  | "trie"
+  | "intervals"
+  | "sorting";
 
 export interface AiWhiteboardProps {
   roomId?: string;
@@ -98,6 +112,13 @@ const LEGACY_UNZONED_PREFIXES = [
   "ms-",
   "dp-",
   "bf-",
+  "gr-",
+  "m2d-",
+  "hm-",
+  "hp-",
+  "tr-",
+  "iv-",
+  "qs-",
   "custom-",
   "ai-",
 ];
@@ -1246,7 +1267,7 @@ export function AiWhiteboard({
     spawnBoundedSimulationZone,
   ]);
 
-  // Preset Switcher supporting all 8 interactive lessons (each dynamically placed in its own clean non-overlapping zone!)
+  // Preset Switcher supporting all 15 interactive lessons (each dynamically placed in its own clean non-overlapping zone!)
   const handleSelectPreset = (preset: WhiteboardPresetId) => {
     stopAllVoiceNarration();
     setActivePresetId(preset);
@@ -1275,6 +1296,20 @@ export function AiWhiteboard({
         ? buildExcalidrawDpTableLesson()
         : preset === "linked_list"
         ? buildExcalidrawLinkedListLesson()
+        : preset === "graph"
+        ? buildExcalidrawGraphShortestPathLesson()
+        : preset === "matrix_2d"
+        ? buildExcalidrawMatrix2DLesson()
+        : preset === "hashmap"
+        ? buildExcalidrawHashMapLesson()
+        : preset === "heap"
+        ? buildExcalidrawHeapPriorityQueueLesson()
+        : preset === "trie"
+        ? buildExcalidrawTrieLesson()
+        : preset === "intervals"
+        ? buildExcalidrawIntervalsLesson()
+        : preset === "sorting"
+        ? buildExcalidrawSortingPartitionLesson()
         : buildExcalidrawTreeLesson();
 
     const nextZoneNumber = zonesHistoryRef.current.length + 1;
@@ -1481,6 +1516,13 @@ export function AiWhiteboard({
               { id: "dp_table", label: "DP Table" },
               { id: "linked_list", label: "Linked List" },
               { id: "tree", label: "BST / Tree" },
+              { id: "graph", label: "Graph / Dijkstra" },
+              { id: "matrix_2d", label: "2D Grid BFS" },
+              { id: "hashmap", label: "Hash Map" },
+              { id: "heap", label: "Min-Heap" },
+              { id: "trie", label: "Trie" },
+              { id: "intervals", label: "Intervals" },
+              { id: "sorting", label: "QuickSort" },
             ] as const
           ).map((p) => {
             const isActivePreset = activePresetId === p.id;

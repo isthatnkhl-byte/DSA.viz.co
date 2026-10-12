@@ -70,6 +70,12 @@ import {
   excalidrawDiamond,
   excalidrawText,
   excalidrawArrow,
+  excalidrawLabeledConnector,
+  excalidrawSplitNode,
+  excalidrawContainerBucket,
+  excalidrawGrid2D,
+  excalidrawHashTable,
+  excalidrawIntervalTimeline,
   type AiWhiteboardLesson,
   type AiWhiteboardStepFrame,
   type WbElement,
@@ -3932,13 +3938,20 @@ You MUST directly reference the exact numbers, values, pointers, or partial dry-
     const geminiKey = getGeminiKey();
     if (geminiKey && query.length > 3) {
       const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Co-Teacher with direct control over an Excalidraw Whiteboard (local simulation coordinates x: 60..760, y: 40..440).
+      const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Co-Teacher with direct control over an Excalidraw Whiteboard (local simulation coordinates x: 60..780, y: 40..470).
 The user asked: "${fullPromptContext}"
 ${code ? `Candidate's current code snippet:\n${code.slice(0, 600)}` : ""}
 ${selectionPromptBlock}
 
 Design a 3 to 5 step animated visual dry-run simulation on the Excalidraw whiteboard that teaches, demonstrates, and simulates this exact query clearly.
-Return ONLY valid JSON matching this exact structure:
+
+WHITEBOARD TOOLKIT (YOUR CHOICE — USE OUR COMPOSITE WIDGETS, DRAW CUSTOM NODES/ARROWS, OR COMBINE BOTH):
+You have full creative freedom in every step to either:
+(A) Use our built-in high-level "widgets" ("grid2d" for 2D matrices/DP/islands, "hashmap" for key-value tables, "container" for U-shaped stack buckets or open-ended queue pipes, "intervals" for timeline sweep-line bars), OR
+(B) Draw your own custom "nodes" ("rect", "ellipse", "diamond", or multi-compartment "split_node" like ["prev","val","next"]) and "arrows" ("straight", "curved" arcs, or 90-degree orthogonal "elbow" arrows, with optional "bidirectional" and edge weight "label"), OR
+(C) Combine both widgets and custom nodes/arrows in the same step!
+
+Return ONLY valid JSON matching this structure:
 {
   "topic": "Concise Title (max 44 chars)",
   "badge": "Time & Space Complexity (e.g. O(N) Time • O(1) Space)",
@@ -3951,20 +3964,42 @@ Return ONLY valid JSON matching this exact structure:
       "laserY": 210,
       "waypoints": [
         { "x": 140, "y": 210 },
-        { "x": 260, "y": 210 },
-        { "x": 420, "y": 210 }
+        { "x": 260, "y": 210 }
+      ],
+      "widgets": [
+        {
+          "type": "grid2d | hashmap | container | intervals",
+          "id": "w-1",
+          "x": 70,
+          "y": 170,
+          "title": "Optional widget header",
+          "cells": [["1","1","0"],["1","0","0"]],
+          "rowLabels": ["r0","r1"],
+          "colLabels": ["c0","c1","c2"],
+          "highlightedCells": [{ "row": 0, "col": 1, "color": "amber" }],
+          "keyHeader": "key",
+          "valHeader": "val",
+          "entries": [{ "key": "2", "value": "idx 0", "highlight": "green" }],
+          "variant": "stack | queue | deque",
+          "items": [{ "label": "[0]=2", "color": "blue" }],
+          "axisMin": 0,
+          "axisMax": 16,
+          "intervals": [{ "label": "[1,4]", "start": 1, "end": 4, "row": 0, "color": "blue", "highlight": true }]
+        }
       ],
       "nodes": [
         {
           "id": "node-1",
-          "shape": "rect",
+          "shape": "rect | ellipse | diamond | split_node",
           "x": 90,
           "y": 175,
           "width": 100,
           "height": 60,
           "label": "Short text (<=16 chars)",
+          "compartments": ["prev", "42", "next"],
+          "activeCompartmentIndex": 1,
           "sublabel": "idx / ptr label",
-          "color": "blue",
+          "color": "blue | green | amber | rose | purple | slate",
           "highlight": true
         }
       ],
@@ -3975,19 +4010,24 @@ Return ONLY valid JSON matching this exact structure:
           "fromY": 205,
           "toX": 238,
           "toY": 205,
-          "color": "slate"
+          "style": "straight | curved | elbow",
+          "curvature": -42,
+          "routing": "h-v-h | v-h-v | l-shape",
+          "bidirectional": false,
+          "label": "optional weight/ptr",
+          "color": "blue | green | amber | rose | purple | slate"
         }
       ]
     }
   ]
 }
 Strict Layout Rules (to prevent any overlapping or messy UI):
-1. "shape" must be "rect", "ellipse", or "diamond".
-2. "color" must be "blue", "green", "amber", "rose", "purple", or "slate".
-3. Keep all node x between 70 and 720, and node y between 160 and 390 so shapes NEVER overlap the top step banner (y: 32..130).
-4. Space adjacent nodes horizontally by at least (width + 24) pixels so boxes NEVER overlap each other.
-5. Keep node "label" concise (<= 18 characters) so text fits cleanly inside its shape.
-6. Provide 2 to 4 "waypoints" per step tracing the AI teacher's laser pointer across the active nodes being compared.`;
+1. "shape" in nodes can be "rect", "ellipse", "diamond", or "split_node" (use "compartments": ["a","b"] or ["prev","val","next"] for split_node).
+2. "style" in arrows can be "straight", "curved" (for jump arcs / graph edges), or "elbow" (for 90-degree orthogonal routing). Include "label" for weighted graphs or state transitions, and "bidirectional": true for doubly-linked or undirected edges.
+3. "widgets" is optional — include ONLY the fields relevant to the chosen widget "type" ("grid2d", "hashmap", "container", or "intervals").
+4. Keep all elements within x: 65..780 and y: 158..450 so nothing ever overlaps the top step banner (y: 32..130).
+5. Space adjacent custom nodes horizontally by at least (width + 24) pixels so boxes NEVER overlap each other.
+6. Provide 2 to 4 "waypoints" per step tracing the AI teacher's pointer across the active elements.`;
 
       const llmRes = await Promise.race([
         ai.models.generateContent({
@@ -4017,18 +4057,203 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
 
             const shapeEls: WbElement[] = [];
 
+            // 1. Render optional high-level composite widgets if the AI chose to include them
+            if (Array.isArray(st.widgets)) {
+              st.widgets.forEach((w: any, wIdx: number) => {
+                const wid = String(w.id || `w-${wIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
+                const wx = Math.max(60, Number(w.x) || 70);
+                const wy = Math.max(158, Number(w.y) || 170);
+                const wType = String(w.type || "").toLowerCase();
+
+                if (wType === "grid2d" && Array.isArray(w.cells) && w.cells.length > 0) {
+                  const rows = w.cells.slice(0, 6).map((r: any) =>
+                    Array.isArray(r) ? r.slice(0, 7).map((c: any) => String(c)) : ["0"]
+                  );
+                  const cellW = Number(w.cellWidth) || 58;
+                  const cellH = Number(w.cellHeight) || 46;
+                  const highlights = Array.isArray(w.highlightedCells)
+                    ? w.highlightedCells.map((hc: any) => {
+                        const cTheme = colorMap[String(hc.color || "amber")] || colorMap.amber!;
+                        return {
+                          row: Number(hc.row) || 0,
+                          col: Number(hc.col) || 0,
+                          strokeColor: cTheme.stroke,
+                          backgroundColor: cTheme.bg,
+                        };
+                      })
+                    : [];
+
+                  const gridOut = excalidrawGrid2D(`ai-wg-${wid}`, wx, wy, rows, {
+                    cellWidth: cellW,
+                    cellHeight: cellH,
+                    title: w.title ? String(w.title) : undefined,
+                    rowLabels: Array.isArray(w.rowLabels)
+                      ? w.rowLabels.map((l: any) => String(l))
+                      : undefined,
+                    colLabels: Array.isArray(w.colLabels)
+                      ? w.colLabels.map((l: any) => String(l))
+                      : undefined,
+                    highlightedCells: highlights,
+                    version: ver,
+                  });
+                  shapeEls.push(...gridOut.elements);
+                  const numCols = Math.max(1, rows[0]?.length || 1);
+                  const gw = numCols * cellW + 44;
+                  const gh = rows.length * cellH + 54;
+                  placedNodeRects.push({ x: wx, y: wy, width: gw, height: gh });
+                  maxNodeRight = Math.max(maxNodeRight, wx + gw);
+                  if (highlights.length > 0 && highlights[0]) {
+                    stepWaypoints.push(
+                      gridOut.getCellCenter(highlights[0].row, highlights[0].col)
+                    );
+                  }
+                } else if (wType === "hashmap" && Array.isArray(w.entries)) {
+                  const entries = w.entries.slice(0, 7).map((e: any) => {
+                    const hlColor = e.highlight
+                      ? colorMap[String(e.highlight)] || colorMap.amber!
+                      : null;
+                    return {
+                      key: String(e.key ?? ""),
+                      value: String(e.value ?? ""),
+                      highlightStroke: hlColor?.stroke,
+                      highlightBg: hlColor?.bg,
+                    };
+                  });
+                  const hmOut = excalidrawHashTable(`ai-whm-${wid}`, wx, wy, entries, {
+                    title: String(w.title || "Hash Map"),
+                    keyHeader: String(w.keyHeader || "Key"),
+                    valHeader: String(w.valHeader || "Value"),
+                    keyColWidth: Number(w.keyColWidth) || 96,
+                    valColWidth: Number(w.valColWidth) || 116,
+                    version: ver,
+                  });
+                  shapeEls.push(...hmOut.elements);
+                  const hw = (Number(w.keyColWidth) || 96) + (Number(w.valColWidth) || 116);
+                  const hh = 56 + Math.max(1, entries.length) * 34;
+                  placedNodeRects.push({ x: wx, y: wy, width: hw, height: hh });
+                  maxNodeRight = Math.max(maxNodeRight, wx + hw);
+                  if (entries.length > 0) {
+                    stepWaypoints.push(hmOut.getRowCenter(entries.length - 1));
+                  }
+                } else if (wType === "container") {
+                  const variant =
+                    w.variant === "queue" || w.variant === "deque" ? w.variant : "stack";
+                  const cw = Number(w.width) || (variant === "stack" ? 150 : 320);
+                  const ch = Number(w.height) || (variant === "stack" ? 210 : 72);
+                  shapeEls.push(
+                    ...excalidrawContainerBucket(`ai-wc-${wid}`, wx, wy, cw, ch, {
+                      variant,
+                      title: w.title ? String(w.title) : undefined,
+                      version: ver,
+                    })
+                  );
+                  if (Array.isArray(w.items)) {
+                    w.items.slice(0, 5).forEach((item: any, iIdx: number) => {
+                      const itTheme =
+                        colorMap[String(item?.color || "blue")] || colorMap.blue!;
+                      const itemLbl =
+                        typeof item === "string" ? item : String(item?.label || "");
+                      if (variant === "stack") {
+                        const ix = wx + 14;
+                        const iy = wy + ch - 44 - iIdx * 38;
+                        shapeEls.push(
+                          excalidrawRect(`ai-wci-${wid}-${iIdx}`, ix, iy, cw - 28, 32, {
+                            strokeColor: itTheme.stroke,
+                            backgroundColor: itTheme.bg,
+                            strokeWidth: 2,
+                            version: ver,
+                          }),
+                          excalidrawText(`ai-wcit-${wid}-${iIdx}`, ix + 10, iy + 7, itemLbl, {
+                            fontSize: 13,
+                            strokeColor: "#0f172a",
+                            maxCharsPerLine: 14,
+                            maxLines: 1,
+                            version: ver,
+                          })
+                        );
+                      } else {
+                        const ix = wx + 14 + iIdx * 68;
+                        const iy = wy + 12;
+                        shapeEls.push(
+                          excalidrawRect(`ai-wci-${wid}-${iIdx}`, ix, iy, 60, ch - 24, {
+                            strokeColor: itTheme.stroke,
+                            backgroundColor: itTheme.bg,
+                            strokeWidth: 2,
+                            version: ver,
+                          }),
+                          excalidrawText(`ai-wcit-${wid}-${iIdx}`, ix + 8, iy + 14, itemLbl, {
+                            fontSize: 13,
+                            strokeColor: "#0f172a",
+                            maxCharsPerLine: 8,
+                            maxLines: 1,
+                            version: ver,
+                          })
+                        );
+                      }
+                    });
+                  }
+                  placedNodeRects.push({ x: wx, y: wy, width: cw, height: ch });
+                  maxNodeRight = Math.max(maxNodeRight, wx + cw);
+                } else if (wType === "intervals" && Array.isArray(w.intervals)) {
+                  const tw = Number(w.width) || 560;
+                  const axisMin = Number(w.axisMin) || 0;
+                  const axisMax = Math.max(axisMin + 4, Number(w.axisMax) || 16);
+                  const ivs = w.intervals.slice(0, 6).map((iv: any, ivIdx: number) => {
+                    const ivTheme =
+                      colorMap[String(iv.color || "blue")] || colorMap.blue!;
+                    return {
+                      id: String(iv.id || `iv-${ivIdx}`),
+                      label: String(iv.label || `[${iv.start},${iv.end}]`),
+                      start: Number(iv.start) || 0,
+                      end: Number(iv.end) || 2,
+                      row: iv.row !== undefined ? Number(iv.row) : ivIdx,
+                      strokeColor: ivTheme.stroke,
+                      backgroundColor: ivTheme.bg,
+                      highlight: Boolean(iv.highlight),
+                    };
+                  });
+                  const tlOut = excalidrawIntervalTimeline(
+                    `ai-wtl-${wid}`,
+                    wx,
+                    wy,
+                    tw,
+                    axisMin,
+                    axisMax,
+                    ivs,
+                    {
+                      title: w.title ? String(w.title) : undefined,
+                      version: ver,
+                    }
+                  );
+                  shapeEls.push(...tlOut.elements);
+                  placedNodeRects.push({ x: wx, y: wy, width: tw, height: 180 });
+                  maxNodeRight = Math.max(maxNodeRight, wx + tw);
+                  if (ivs.length > 0) {
+                    stepWaypoints.push(tlOut.getIntervalCenter(0));
+                  }
+                }
+              });
+            }
+
+            // 2. Render custom nodes (rect, ellipse, diamond, or multi-compartment split_node)
             if (Array.isArray(st.nodes)) {
               st.nodes.forEach((n: any, nIdx: number) => {
                 const nid = String(n.id || `node-${nIdx}`).replace(
                   /[^a-zA-Z0-9_-]/g,
                   "-"
                 );
-                const nw = Math.max(76, Math.min(240, Number(n.width) || 104));
-                const nh = Math.max(52, Math.min(140, Number(n.height) || 64));
+                const isSplit =
+                  n.shape === "split_node" ||
+                  (Array.isArray(n.compartments) && n.compartments.length > 1);
+                const nw = Math.max(
+                  isSplit ? 110 : 76,
+                  Math.min(260, Number(n.width) || (isSplit ? 136 : 104))
+                );
+                const nh = Math.max(48, Math.min(140, Number(n.height) || 60));
                 let nx = Math.max(60, Number(n.x) || 70 + nIdx * (nw + 28));
                 let ny = Math.max(158, Number(n.y) || 195);
 
-                // Dynamic collision-resolution loop so AI-generated nodes NEVER overlap each other
+                // Dynamic collision-resolution loop so AI-generated nodes NEVER overlap each other or widgets
                 const gapX = 24;
                 const gapY = n.sublabel ? 34 : 22;
                 let guard = 0;
@@ -4063,69 +4288,94 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   });
                 }
 
-                if (n.shape === "ellipse") {
+                if (isSplit) {
+                  const rawCompartments = Array.isArray(n.compartments) && n.compartments.length > 0
+                    ? n.compartments
+                    : String(n.label || "val|next").split("|");
+                  const activeCompIdx =
+                    typeof n.activeCompartmentIndex === "number"
+                      ? n.activeCompartmentIndex
+                      : -1;
+                  const compartments = rawCompartments.slice(0, 4).map((c: any, cIdx: number) => ({
+                    label: String(c).trim(),
+                    backgroundColor: cIdx === activeCompIdx ? "#fef3c7" : theme.bg,
+                    textColor: "#0f172a",
+                  }));
                   shapeEls.push(
-                    excalidrawEllipse(`ai-sh-${nid}`, nx, ny, nw, nh, {
+                    ...excalidrawSplitNode(`ai-sh-${nid}`, nx, ny, nw, nh, compartments, {
                       strokeColor: theme.stroke,
                       backgroundColor: theme.bg,
                       strokeWidth: strokeW,
-                      version: ver,
-                    })
-                  );
-                } else if (n.shape === "diamond") {
-                  shapeEls.push(
-                    excalidrawDiamond(`ai-sh-${nid}`, nx, ny, nw, nh, {
-                      strokeColor: theme.stroke,
-                      backgroundColor: theme.bg,
-                      strokeWidth: strokeW,
+                      sublabel: n.sublabel ? String(n.sublabel) : undefined,
+                      sublabelColor: theme.stroke,
                       version: ver,
                     })
                   );
                 } else {
-                  shapeEls.push(
-                    excalidrawRect(`ai-sh-${nid}`, nx, ny, nw, nh, {
-                      strokeColor: theme.stroke,
-                      backgroundColor: theme.bg,
-                      strokeWidth: strokeW,
-                      version: ver,
-                    })
-                  );
-                }
-
-                if (n.label !== undefined) {
-                  const maxChars = Math.max(8, Math.floor((nw - 16) / 10));
-                  shapeEls.push(
-                    excalidrawText(
-                      `ai-lbl-${nid}`,
-                      nx + 10,
-                      ny + Math.max(10, Math.floor(nh / 2) - 12),
-                      String(n.label),
-                      {
-                        fontSize: 15,
-                        strokeColor: "#0f172a",
-                        maxCharsPerLine: maxChars,
-                        maxLines: 2,
-                        version: ver,
-                      }
-                    )
-                  );
-                }
-                if (n.sublabel) {
-                  shapeEls.push(
-                    excalidrawText(
-                      `ai-sub-${nid}`,
-                      nx + 8,
-                      ny + nh + 6,
-                      String(n.sublabel),
-                      {
-                        fontSize: 12,
+                  if (n.shape === "ellipse") {
+                    shapeEls.push(
+                      excalidrawEllipse(`ai-sh-${nid}`, nx, ny, nw, nh, {
                         strokeColor: theme.stroke,
-                        maxCharsPerLine: 20,
-                        maxLines: 1,
+                        backgroundColor: theme.bg,
+                        strokeWidth: strokeW,
                         version: ver,
-                      }
-                    )
-                  );
+                      })
+                    );
+                  } else if (n.shape === "diamond") {
+                    shapeEls.push(
+                      excalidrawDiamond(`ai-sh-${nid}`, nx, ny, nw, nh, {
+                        strokeColor: theme.stroke,
+                        backgroundColor: theme.bg,
+                        strokeWidth: strokeW,
+                        version: ver,
+                      })
+                    );
+                  } else {
+                    shapeEls.push(
+                      excalidrawRect(`ai-sh-${nid}`, nx, ny, nw, nh, {
+                        strokeColor: theme.stroke,
+                        backgroundColor: theme.bg,
+                        strokeWidth: strokeW,
+                        version: ver,
+                      })
+                    );
+                  }
+
+                  if (n.label !== undefined) {
+                    const maxChars = Math.max(8, Math.floor((nw - 16) / 10));
+                    shapeEls.push(
+                      excalidrawText(
+                        `ai-lbl-${nid}`,
+                        nx + 10,
+                        ny + Math.max(10, Math.floor(nh / 2) - 12),
+                        String(n.label),
+                        {
+                          fontSize: 15,
+                          strokeColor: "#0f172a",
+                          maxCharsPerLine: maxChars,
+                          maxLines: 2,
+                          version: ver,
+                        }
+                      )
+                    );
+                  }
+                  if (n.sublabel) {
+                    shapeEls.push(
+                      excalidrawText(
+                        `ai-sub-${nid}`,
+                        nx + 8,
+                        ny + nh + 6,
+                        String(n.sublabel),
+                        {
+                          fontSize: 12,
+                          strokeColor: theme.stroke,
+                          maxCharsPerLine: 20,
+                          maxLines: 1,
+                          version: ver,
+                        }
+                      )
+                    );
+                  }
                 }
               });
             }
@@ -4166,24 +4416,54 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
               ...shapeEls,
             ];
 
+            // 3. Render connectors (straight, curved arcs, 90° elbow arrows, bidirectional, and labeled edges)
             if (Array.isArray(st.arrows)) {
               st.arrows.forEach((a: any, aIdx: number) => {
                 const aid = String(a.id || `arr-${aIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
                 const theme = colorMap[String(a.color || "blue")] || colorMap.blue!;
-                els.push(
-                  excalidrawArrow(
-                    `ai-ar-${aid}`,
-                    Number(a.fromX) || 150,
-                    Number(a.fromY) || 210,
-                    Number(a.toX) || 220,
-                    Number(a.toY) || 210,
-                    {
-                      strokeColor: theme.stroke,
-                      strokeWidth: 2.5,
-                      version: ver,
-                    }
-                  )
-                );
+                const style =
+                  a.style === "curved" || a.style === "elbow" ? a.style : "straight";
+                const routing =
+                  a.routing === "v-h-v" || a.routing === "l-shape" ? a.routing : "h-v-h";
+
+                if (style !== "straight" || a.bidirectional || a.label) {
+                  els.push(
+                    ...excalidrawLabeledConnector(
+                      `ai-ar-${aid}`,
+                      Number(a.fromX) || 150,
+                      Number(a.fromY) || 210,
+                      Number(a.toX) || 220,
+                      Number(a.toY) || 210,
+                      {
+                        style,
+                        curvature:
+                          typeof a.curvature === "number" ? a.curvature : -44,
+                        routing,
+                        bidirectional: Boolean(a.bidirectional),
+                        label: a.label ? String(a.label) : undefined,
+                        strokeColor: theme.stroke,
+                        labelBgColor: theme.bg,
+                        strokeWidth: 2.5,
+                        version: ver,
+                      }
+                    )
+                  );
+                } else {
+                  els.push(
+                    excalidrawArrow(
+                      `ai-ar-${aid}`,
+                      Number(a.fromX) || 150,
+                      Number(a.fromY) || 210,
+                      Number(a.toX) || 220,
+                      Number(a.toY) || 210,
+                      {
+                        strokeColor: theme.stroke,
+                        strokeWidth: 2.5,
+                        version: ver,
+                      }
+                    )
+                  );
+                }
               });
             }
 

@@ -299,6 +299,7 @@ return prev;`,
 ];
 
 const QUICK_AI_PROMPTS = [
+  "How would the dry run of the brute force O(N^2) approach look on [1, 3, 5, 8, 12] target 17?",
   "Simulate Two Pointers on [2, 4, 7, 11, 15, 19] with target 18",
   "Explain Sliding Window max sum of size 3 on [3, 1, 6, 2, 5, 4]",
   "Simulate Binary Search for 24 in [2, 5, 9, 14, 19, 24, 31]",
@@ -355,8 +356,10 @@ export function AiLearningPage() {
     setSelectedModuleId(mod.id);
     setSelectedQuizOption(null);
     const built = mod.buildLesson();
-    setLessonOverride(built);
-    toast.success(`Loaded "${mod.title}" onto the AI Excalidraw Whiteboard`);
+    setLessonOverride({ ...built, id: `${built.id}_${Date.now()}` });
+    toast.success(
+      `Spawned "${mod.title}" in its own bounded non-overlapping whiteboard zone!`
+    );
   }, []);
 
   const handleLessonStateChange = useCallback(
@@ -811,9 +814,12 @@ export function AiLearningPage() {
                             onClick={() => {
                               const lesson =
                                 generateAiExcalidrawLessonForQuery(prompt);
-                              setLessonOverride(lesson);
+                              setLessonOverride({
+                                ...lesson,
+                                id: `${lesson.id}_${Date.now()}`,
+                              });
                               toast.success(
-                                `AI drew "${lesson.topic}" on the whiteboard!`
+                                `AI spawned "${lesson.topic}" in its own bounded zone!`
                               );
                             }}
                             className="w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#fffaf3] hover:bg-[#fef3c7] border border-[#2b2d42] transition cursor-pointer truncate"
@@ -859,11 +865,16 @@ export function AiLearningPage() {
                               return;
                             }
                             const sorted = [...arr].sort((a, b) => a - b);
-                            setLessonOverride(
-                              buildExcalidrawTwoPointersLesson(sorted, t)
+                            const built = buildExcalidrawTwoPointersLesson(
+                              sorted,
+                              t
                             );
+                            setLessonOverride({
+                              ...built,
+                              id: `${built.id}_${Date.now()}`,
+                            });
                             toast.success(
-                              "Drawing custom Two Pointers trace on board!"
+                              "Spawned custom Two Pointers trace in a new bounded zone!"
                             );
                           }}
                           className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#06d6a0] border-2 border-[#2b2d42] font-extrabold text-xs cursor-pointer"

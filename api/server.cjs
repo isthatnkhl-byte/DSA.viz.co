@@ -290443,6 +290443,44 @@ function hashToInteger(id) {
     hash2 = (hash2 << 5) - hash2 + id.charCodeAt(i2);
   return hash2;
 }
+function wrapWhiteboardText(text, maxCharsPerLine = 54, maxLines = 4) {
+  if (!text) return "";
+  const rawParagraphs = String(text).split("\n");
+  const outLines = [];
+  for (const para of rawParagraphs) {
+    const trimmed = para.trim();
+    if (!trimmed) {
+      outLines.push("");
+      continue;
+    }
+    if (trimmed.length <= maxCharsPerLine) {
+      outLines.push(trimmed);
+      continue;
+    }
+    const words = trimmed.split(/\s+/);
+    let currentLine = "";
+    for (const word of words) {
+      if (!currentLine) {
+        currentLine = word.length > maxCharsPerLine ? word.slice(0, maxCharsPerLine - 1) + "\u2026" : word;
+      } else if (currentLine.length + 1 + word.length <= maxCharsPerLine) {
+        currentLine += " " + word;
+      } else {
+        outLines.push(currentLine);
+        currentLine = word.length > maxCharsPerLine ? word.slice(0, maxCharsPerLine - 1) + "\u2026" : word;
+      }
+    }
+    if (currentLine) outLines.push(currentLine);
+  }
+  if (outLines.length > maxLines) {
+    const clipped = outLines.slice(0, maxLines);
+    const lastIdx = clipped.length - 1;
+    if (lastIdx >= 0 && !clipped[lastIdx].endsWith("\u2026")) {
+      clipped[lastIdx] = clipped[lastIdx].slice(0, Math.max(1, maxCharsPerLine - 2)) + "\u2026";
+    }
+    return clipped.join("\n");
+  }
+  return outLines.join("\n");
+}
 function makeBaseProps(id, type, x2, y, width, height, version2, extra = {}) {
   return {
     id,
@@ -290496,14 +290534,16 @@ function excalidrawDiamond(id, x2, y, width, height, opts = {}) {
   });
 }
 function excalidrawText(id, x2, y, text, opts = {}) {
-  const fontSize = opts.fontSize ?? 18;
-  const lines = text.split("\n");
+  const fontSize = opts.fontSize ?? 16;
+  const maxChars = opts.maxCharsPerLine ?? (fontSize >= 17 ? 52 : 64);
+  const wrapped = wrapWhiteboardText(text, maxChars, opts.maxLines ?? 3);
+  const lines = wrapped.split("\n");
   const maxLen = Math.max(...lines.map((l) => l.length), 1);
-  const width = Math.max(24, Math.round(maxLen * fontSize * 0.6));
-  const height = Math.max(24, Math.round(lines.length * fontSize * 1.35));
+  const width = Math.max(28, Math.round(maxLen * fontSize * 0.65) + 12);
+  const height = Math.max(22, Math.round(lines.length * fontSize * 1.32));
   return makeBaseProps(id, "text", x2, y, width, height, opts.version ?? 1, {
-    text,
-    originalText: text,
+    text: wrapped,
+    originalText: wrapped,
     fontSize,
     fontFamily: 3,
     // monospace / Cascadia in Excalidraw
@@ -290556,11 +290596,12 @@ function buildExcalidrawTwoPointersLesson(arr = [1, 3, 5, 8, 12, 17, 21], target
     const ver = stepIdx + 1;
     const elements = [];
     const baseX = 80;
-    const baseY = 180;
+    const baseY = 185;
     const cellW = 72;
     const cellH = 60;
+    const headerW = Math.max(660, sorted.length * cellW + 24);
     elements.push(
-      excalidrawRect("tp-header-box", baseX, 40, Math.max(540, sorted.length * cellW), 95, {
+      excalidrawRect("tp-header-box", baseX, 40, headerW, 96, {
         strokeColor: "#0284c7",
         backgroundColor: "#e0f2fe",
         version: ver
@@ -290568,16 +290609,16 @@ function buildExcalidrawTwoPointersLesson(arr = [1, 3, 5, 8, 12, 17, 21], target
       excalidrawText(
         "tp-header-title",
         baseX + 18,
-        52,
-        `Step ${stepIdx + 1}: ${isMatch ? `Target Sum ${target} Found at [${l}, ${r2}]!` : isGreater ? `Sum (${sum}) > Target (${target}) \u2192 Decrement Right Pointer (R--)` : `Sum (${sum}) < Target (${target}) \u2192 Increment Left Pointer (L++)`}`,
-        { fontSize: 18, strokeColor: "#0369a1", version: ver }
+        50,
+        `Step ${stepIdx + 1}: ${isMatch ? `Target Sum ${target} Found at [${l}, ${r2}]!` : isGreater ? `Sum (${sum}) > Target (${target}) \u2192 Decrement R--` : `Sum (${sum}) < Target (${target}) \u2192 Increment L++`}`,
+        { fontSize: 17, strokeColor: "#0369a1", maxCharsPerLine: 54, maxLines: 1, version: ver }
       ),
       excalidrawText(
         "tp-header-formula",
         baseX + 18,
-        88,
+        84,
         `Invariant: arr[L=${l}] (${sorted[l]}) + arr[R=${r2}] (${sorted[r2]}) = ${sum} ${isMatch ? "==" : isGreater ? ">" : "<"} ${target}`,
-        { fontSize: 15, strokeColor: "#0f172a", version: ver }
+        { fontSize: 14, strokeColor: "#0f172a", maxCharsPerLine: 64, maxLines: 1, version: ver }
       )
     );
     sorted.forEach((val, idx) => {
@@ -290675,11 +290716,12 @@ function buildExcalidrawBinarySearchLesson(arr = [2, 5, 8, 12, 16, 23, 38, 56, 7
     const ver = stepIdx + 1;
     const elements = [];
     const baseX = 60;
-    const baseY = 185;
+    const baseY = 190;
     const cellW = 64;
     const cellH = 56;
+    const headerW = Math.max(660, sorted.length * cellW + 20);
     elements.push(
-      excalidrawRect("bs-header-box", baseX, 40, Math.max(580, sorted.length * cellW), 95, {
+      excalidrawRect("bs-header-box", baseX, 40, headerW, 96, {
         strokeColor: "#059669",
         backgroundColor: "#ecfdf5",
         version: ver
@@ -290687,16 +290729,16 @@ function buildExcalidrawBinarySearchLesson(arr = [2, 5, 8, 12, 16, 23, 38, 56, 7
       excalidrawText(
         "bs-header-title",
         baseX + 16,
-        52,
+        50,
         `Step ${stepIdx + 1}: Search Range [${low}..${high}] \u2022 Mid = ${mid} (val=${val})`,
-        { fontSize: 18, strokeColor: "#047857", version: ver }
+        { fontSize: 17, strokeColor: "#047857", maxCharsPerLine: 54, maxLines: 1, version: ver }
       ),
       excalidrawText(
         "bs-header-formula",
         baseX + 16,
-        88,
-        isMatch ? `arr[${mid}] == ${target} \u2192 Target Found in ${stepIdx + 1} steps!` : isLess ? `arr[${mid}] (${val}) < ${target} \u2192 Prune left half [${low}..${mid}], set low = ${mid + 1}` : `arr[${mid}] (${val}) > ${target} \u2192 Prune right half [${mid}..${high}], set high = ${mid - 1}`,
-        { fontSize: 15, strokeColor: "#0f172a", version: ver }
+        84,
+        isMatch ? `arr[${mid}] == ${target} \u2192 Target Found in ${stepIdx + 1} steps!` : isLess ? `arr[${mid}] (${val}) < ${target} \u2192 Prune left [${low}..${mid}], low = ${mid + 1}` : `arr[${mid}] (${val}) > ${target} \u2192 Prune right [${mid}..${high}], high = ${mid - 1}`,
+        { fontSize: 14, strokeColor: "#0f172a", maxCharsPerLine: 64, maxLines: 1, version: ver }
       )
     );
     sorted.forEach((v, idx) => {
@@ -290770,7 +290812,7 @@ function buildExcalidrawLinkedListLesson() {
     const nodeY = 190;
     const spacing = 145;
     elements.push(
-      excalidrawRect("ll-header", 80, 40, 620, 90, {
+      excalidrawRect("ll-header", 80, 40, 660, 96, {
         strokeColor: "#7c3aed",
         backgroundColor: "#f3e8ff",
         version: ver
@@ -290778,16 +290820,16 @@ function buildExcalidrawLinkedListLesson() {
       excalidrawText(
         "ll-title",
         98,
-        52,
+        50,
         step === 0 ? "Step 1: Initialize prev = null, curr = Head(10)" : step === nodes.length ? `Step ${ver}: Reversal Complete! New Head is prev (Node 40)` : `Step ${ver}: Reverse Node(${nodes[step - 1]}).next \u2192 prev`,
-        { fontSize: 18, strokeColor: "#6d28d9", version: ver }
+        { fontSize: 17, strokeColor: "#6d28d9", maxCharsPerLine: 54, maxLines: 1, version: ver }
       ),
       excalidrawText(
         "ll-formula",
         98,
-        86,
-        `nextTemp = curr.next  |  curr.next = prev  |  prev = curr  |  curr = nextTemp`,
-        { fontSize: 14, strokeColor: "#1e293b", version: ver }
+        84,
+        `nextTemp = curr.next | curr.next = prev | prev = curr | curr = nextTemp`,
+        { fontSize: 13, strokeColor: "#1e293b", maxCharsPerLine: 68, maxLines: 1, version: ver }
       )
     );
     nodes.forEach((val, idx) => {
@@ -290869,11 +290911,11 @@ function buildExcalidrawLinkedListLesson() {
 }
 function buildExcalidrawTreeLesson() {
   const treeNodes = [
-    { id: 10, x: 360, y: 150, bounds: "(-\u221E, +\u221E)" },
-    { id: 5, x: 210, y: 260, bounds: "(-\u221E, 10)" },
-    { id: 15, x: 510, y: 260, bounds: "(10, +\u221E)" },
-    { id: 3, x: 130, y: 370, bounds: "(-\u221E, 5)" },
-    { id: 7, x: 290, y: 370, bounds: "(5, 10)" }
+    { id: 10, x: 360, y: 160, bounds: "(-\u221E, +\u221E)" },
+    { id: 5, x: 210, y: 270, bounds: "(-\u221E, 10)" },
+    { id: 15, x: 510, y: 270, bounds: "(10, +\u221E)" },
+    { id: 3, x: 130, y: 380, bounds: "(-\u221E, 5)" },
+    { id: 7, x: 290, y: 380, bounds: "(5, 10)" }
   ];
   const edges = [
     [0, 1],
@@ -290882,27 +290924,31 @@ function buildExcalidrawTreeLesson() {
     [1, 4]
   ];
   const stepsOrder = [
-    { active: 10, visited: [10], desc: "Validate Root(10) within (-\u221E, +\u221E). Branch left with max=10, right with min=10." },
-    { active: 5, visited: [10, 5], desc: "Left child Node(5) satisfies (-\u221E < 5 < 10). Passrange (-\u221E, 5) left and (5, 10) right." },
-    { active: 7, visited: [10, 5, 3, 7], desc: "Subtree nodes 3 \u2208 (-\u221E, 5) and 7 \u2208 (5, 10) both hold! Left subtree verified." },
-    { active: 15, visited: [10, 5, 3, 7, 15], desc: "Right child Node(15) satisfies (10 < 15 < +\u221E). Global BST property verified in O(N) time!" }
+    { active: 10, visited: [10], desc: "Validate Root(10) in (-\u221E, +\u221E). Branch left max=10, right min=10." },
+    { active: 5, visited: [10, 5], desc: "Left child Node(5) satisfies (-\u221E < 5 < 10). Pass (-\u221E, 5) & (5, 10)." },
+    { active: 7, visited: [10, 5, 3, 7], desc: "Subtree nodes 3 \u2208 (-\u221E, 5) and 7 \u2208 (5, 10) both hold! Left verified." },
+    { active: 15, visited: [10, 5, 3, 7, 15], desc: "Right child Node(15) \u2208 (10, +\u221E) holds! Global BST verified in O(N)." }
   ];
   const frames = stepsOrder.map((st, idx) => {
     const ver = idx + 1;
     const elements = [
-      excalidrawRect("bst-header", 80, 35, 620, 82, {
+      excalidrawRect("bst-header", 80, 35, 660, 96, {
         strokeColor: "#e11d48",
         backgroundColor: "#ffe4e6",
         version: ver
       }),
       excalidrawText("bst-title", 98, 46, `Step ${ver}: DFS Range Validation at Node(${st.active})`, {
-        fontSize: 18,
+        fontSize: 17,
         strokeColor: "#be123c",
+        maxCharsPerLine: 54,
+        maxLines: 1,
         version: ver
       }),
-      excalidrawText("bst-desc", 98, 78, st.desc, {
+      excalidrawText("bst-desc", 98, 80, st.desc, {
         fontSize: 13,
         strokeColor: "#0f172a",
+        maxCharsPerLine: 66,
+        maxLines: 1,
         version: ver
       })
     ];
@@ -290956,12 +291002,464 @@ function buildExcalidrawTreeLesson() {
     frames
   };
 }
-function generateAiExcalidrawLessonForQuery(query) {
+function buildExcalidrawSlidingWindowLesson(arr = [2, 1, 5, 1, 3, 2], k = 3) {
+  const frames = [];
+  let windowSum = 0;
+  for (let i2 = 0; i2 < Math.min(k, arr.length); i2++) windowSum += arr[i2];
+  let maxSum = windowSum;
+  const totalWindows = Math.max(1, arr.length - k + 1);
+  for (let wStart = 0; wStart < totalWindows; wStart++) {
+    const wEnd = wStart + k - 1;
+    if (wStart > 0) {
+      windowSum = windowSum - arr[wStart - 1] + arr[wEnd];
+      maxSum = Math.max(maxSum, windowSum);
+    }
+    const ver = wStart + 1;
+    const baseX = 80;
+    const baseY = 195;
+    const cellW = 74;
+    const cellH = 60;
+    const headerW = Math.max(660, arr.length * cellW + 24);
+    const elements = [
+      excalidrawRect("sw-hdr", baseX, 38, headerW, 96, {
+        strokeColor: "#d97706",
+        backgroundColor: "#fef3c7",
+        version: ver
+      }),
+      excalidrawText(
+        "sw-hdr-title",
+        baseX + 16,
+        50,
+        `Step ${ver}: Window [${wStart}..${wEnd}] \u2022 Sum = ${windowSum} \u2022 Best Max = ${maxSum}`,
+        { fontSize: 17, strokeColor: "#b45309", maxCharsPerLine: 54, maxLines: 1, version: ver }
+      ),
+      excalidrawText(
+        "sw-hdr-sub",
+        baseX + 16,
+        84,
+        wStart === 0 ? `Initialize first window of size k=${k}: sum = ${windowSum}` : `Slide right: drop arr[${wStart - 1}] (${arr[wStart - 1]}) & add arr[${wEnd}] (${arr[wEnd]})`,
+        { fontSize: 14, strokeColor: "#0f172a", maxCharsPerLine: 64, maxLines: 1, version: ver }
+      )
+    ];
+    elements.push(
+      excalidrawRect(
+        "sw-frame",
+        baseX + wStart * cellW - 8,
+        baseY - 10,
+        k * cellW + 10,
+        cellH + 20,
+        {
+          strokeColor: "#d97706",
+          backgroundColor: "transparent",
+          strokeWidth: 3,
+          strokeStyle: "dashed",
+          version: ver
+        }
+      )
+    );
+    arr.forEach((val, idx) => {
+      const cx = baseX + idx * cellW;
+      const inWin = idx >= wStart && idx <= wEnd;
+      elements.push(
+        excalidrawRect(`sw-cell-${idx}`, cx, baseY, cellW - 6, cellH, {
+          strokeColor: inWin ? "#d97706" : "#64748b",
+          backgroundColor: inWin ? "#fef3c7" : "#ffffff",
+          strokeWidth: inWin ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(`sw-val-${idx}`, cx + 22, baseY + 18, String(val), {
+          fontSize: 20,
+          strokeColor: "#0f172a",
+          version: ver
+        }),
+        excalidrawText(`sw-idx-${idx}`, cx + 20, baseY + cellH + 14, `[${idx}]`, {
+          fontSize: 13,
+          strokeColor: "#64748b",
+          version: ver
+        })
+      );
+    });
+    frames.push({
+      stepIndex: wStart,
+      title: `Window [${wStart}..${wEnd}] (Sum = ${windowSum})`,
+      narration: wStart === 0 ? `We sum the first ${k} elements to get ${windowSum}, setting our initial maximum to ${maxSum}.` : `Sliding the window right by 1 drops ${arr[wStart - 1]} and adds ${arr[wEnd]} in O(1) time. Current sum is ${windowSum}, best max is ${maxSum}.`,
+      mathInvariant: `windowSum = ${windowSum} | maxSum = ${maxSum}`,
+      elements,
+      aiLaserTarget: {
+        x: baseX + wEnd * cellW + 30,
+        y: baseY + 30
+      }
+    });
+  }
+  return {
+    id: "sliding_window",
+    topic: "Sliding Window (Fixed Size k=3)",
+    badge: "O(N) Time \u2022 O(1) Space",
+    frames
+  };
+}
+function buildExcalidrawMonotonicStackLesson(customArr) {
+  const arr = customArr && customArr.length >= 5 ? customArr.slice(0, 5) : [2, 1, 5, 3, 6];
+  const stepsData = [
+    {
+      activeIdx: 1,
+      stack: [2, 1],
+      ans: [-1, -1, -1, -1, -1],
+      title: "Push Decreasing Prefix [2, 1]",
+      narration: "Elements 2 and 1 maintain a monotonic decreasing stack awaiting a larger value."
+    },
+    {
+      activeIdx: 2,
+      stack: [5],
+      ans: [5, 5, -1, -1, -1],
+      title: "Incoming 5 Pops 1 and 2!",
+      narration: "5 > stack top 1 and 2! Both are popped and Next Greater is recorded as 5."
+    },
+    {
+      activeIdx: 4,
+      stack: [6],
+      ans: [5, 5, 6, 6, -1],
+      title: "Incoming 6 Resolves 3 and 5!",
+      narration: "Incoming 6 pops 3 and 5, completing Next Greater array in O(N) amortized time!"
+    }
+  ];
+  const frames = stepsData.map((st, sIdx) => {
+    const ver = sIdx + 1;
+    const baseX = 75;
+    const els = [
+      excalidrawRect("ms-hdr", baseX, 35, 660, 96, {
+        strokeColor: "#db2777",
+        backgroundColor: "#fce7f3",
+        version: ver
+      }),
+      excalidrawText("ms-title", baseX + 16, 46, `Step ${ver}: ${st.title}`, {
+        fontSize: 17,
+        strokeColor: "#be185d",
+        maxCharsPerLine: 54,
+        maxLines: 1,
+        version: ver
+      }),
+      excalidrawText("ms-sub", baseX + 16, 80, st.narration, {
+        fontSize: 13,
+        strokeColor: "#0f172a",
+        maxCharsPerLine: 66,
+        maxLines: 1,
+        version: ver
+      })
+    ];
+    arr.forEach((v, i2) => {
+      const cx = baseX + i2 * 74;
+      const isAct = i2 === st.activeIdx;
+      els.push(
+        excalidrawRect(`ms-in-${i2}`, cx, 165, 66, 54, {
+          strokeColor: isAct ? "#db2777" : "#334155",
+          backgroundColor: isAct ? "#fbcfe8" : "#ffffff",
+          strokeWidth: isAct ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(`ms-in-v-${i2}`, cx + 22, 182, String(v), {
+          fontSize: 18,
+          strokeColor: "#0f172a",
+          version: ver
+        }),
+        excalidrawRect(`ms-ans-${i2}`, cx, 265, 66, 54, {
+          strokeColor: st.ans[i2] !== -1 ? "#16a34a" : "#94a3b8",
+          backgroundColor: st.ans[i2] !== -1 ? "#dcfce7" : "#f8fafc",
+          version: ver
+        }),
+        excalidrawText(`ms-ans-v-${i2}`, cx + 18, 282, String(st.ans[i2]), {
+          fontSize: 18,
+          strokeColor: st.ans[i2] !== -1 ? "#15803d" : "#64748b",
+          version: ver
+        })
+      );
+    });
+    els.push(
+      excalidrawRect("ms-stack-box", 510, 155, 160, 170, {
+        strokeColor: "#0284c7",
+        backgroundColor: "#f0f9ff",
+        version: ver
+      }),
+      excalidrawText("ms-stack-lbl", 522, 165, "Monotonic Stack", {
+        fontSize: 14,
+        strokeColor: "#0369a1",
+        maxLines: 1,
+        version: ver
+      })
+    );
+    st.stack.forEach((sv, sPos) => {
+      els.push(
+        excalidrawRect(`ms-stk-${sPos}`, 540, 265 - sPos * 46, 100, 40, {
+          strokeColor: "#0284c7",
+          backgroundColor: "#bae6fd",
+          version: ver
+        }),
+        excalidrawText(`ms-stk-v-${sPos}`, 580, 276 - sPos * 46, String(sv), {
+          fontSize: 17,
+          strokeColor: "#0f172a",
+          version: ver
+        })
+      );
+    });
+    return {
+      stepIndex: sIdx,
+      title: st.title,
+      narration: st.narration,
+      mathInvariant: `Stack = [${st.stack.join(", ")}] \u2022 Ans = [${st.ans.join(", ")}]`,
+      elements: els,
+      aiLaserTarget: { x: baseX + st.activeIdx * 74 + 33, y: 192 }
+    };
+  });
+  return {
+    id: "monotonic_stack",
+    topic: "Monotonic Stack (Next Greater Element)",
+    badge: "O(N) Amortized \u2022 O(N) Space",
+    frames
+  };
+}
+function buildExcalidrawDpTableLesson(_n = 6) {
+  const dp = [1, 1, 2, 3, 5, 8, 13];
+  const frames = [];
+  for (let step = 2; step < dp.length; step++) {
+    const ver = step - 1;
+    const baseX = 75;
+    const baseY = 200;
+    const cellW = 74;
+    const els = [
+      excalidrawRect("dp-hdr", baseX, 38, 660, 96, {
+        strokeColor: "#7c3aed",
+        backgroundColor: "#f3e8ff",
+        version: ver
+      }),
+      excalidrawText(
+        "dp-title",
+        baseX + 16,
+        50,
+        `Step ${ver}: Compute dp[${step}] = dp[${step - 1}] (${dp[step - 1]}) + dp[${step - 2}] (${dp[step - 2]}) = ${dp[step]}`,
+        { fontSize: 17, strokeColor: "#6d28d9", maxCharsPerLine: 54, maxLines: 1, version: ver }
+      ),
+      excalidrawText(
+        "dp-sub",
+        baseX + 16,
+        84,
+        `Optimal Substructure: Cached subproblems reused in O(1) lookup time`,
+        { fontSize: 14, strokeColor: "#0f172a", maxCharsPerLine: 64, maxLines: 1, version: ver }
+      )
+    ];
+    dp.forEach((val, idx) => {
+      const cx = baseX + idx * cellW;
+      const isComputed = idx <= step;
+      const isCurrent = idx === step;
+      const isDep = idx === step - 1 || idx === step - 2;
+      els.push(
+        excalidrawRect(`dp-cell-${idx}`, cx, baseY, cellW - 6, 60, {
+          strokeColor: isCurrent ? "#7c3aed" : isDep ? "#0284c7" : isComputed ? "#16a34a" : "#cbd5e1",
+          backgroundColor: isCurrent ? "#ddd6fe" : isDep ? "#e0f2fe" : isComputed ? "#dcfce7" : "#f8fafc",
+          strokeWidth: isCurrent || isDep ? 3 : 2,
+          version: ver
+        }),
+        excalidrawText(`dp-val-${idx}`, cx + 20, baseY + 18, isComputed ? String(val) : "?", {
+          fontSize: 20,
+          strokeColor: isComputed ? "#0f172a" : "#94a3b8",
+          version: ver
+        }),
+        excalidrawText(`dp-idx-${idx}`, cx + 14, baseY + 68, `dp[${idx}]`, {
+          fontSize: 13,
+          strokeColor: "#475569",
+          version: ver
+        })
+      );
+    });
+    const targetX = baseX + step * cellW + 30;
+    const dep1X = baseX + (step - 1) * cellW + 30;
+    const dep2X = baseX + (step - 2) * cellW + 30;
+    els.push(
+      excalidrawArrow("dp-arr-1", dep1X, baseY - 8, targetX - 8, baseY - 8, {
+        strokeColor: "#0284c7",
+        strokeWidth: 2.5,
+        version: ver
+      }),
+      excalidrawArrow("dp-arr-2", dep2X, baseY - 26, targetX - 4, baseY - 26, {
+        strokeColor: "#7c3aed",
+        strokeWidth: 2.5,
+        version: ver
+      })
+    );
+    frames.push({
+      stepIndex: ver - 1,
+      title: `Transition dp[${step}] = ${dp[step - 1]} + ${dp[step - 2]} = ${dp[step]}`,
+      narration: `To compute dp[${step}], we reuse already memoized states dp[${step - 1}]=${dp[step - 1]} and dp[${step - 2}]=${dp[step - 2]} in O(1) time, avoiding exponential recursion.`,
+      mathInvariant: `dp[${step}] = dp[${step - 1}] + dp[${step - 2}] = ${dp[step]}`,
+      elements: els,
+      aiLaserTarget: { x: targetX, y: baseY + 30 }
+    });
+  }
+  return {
+    id: "dp_table",
+    topic: "Dynamic Programming (1D Tabulation)",
+    badge: "O(N) Time \u2022 O(N) Space",
+    frames
+  };
+}
+function buildExcalidrawBruteForceDryRunLesson(arr = [1, 3, 5, 8, 12], target = 17) {
+  const nums = arr.slice(0, 6);
+  const frames = [];
+  const pairsChecked = [];
+  let stepIdx = 0;
+  let found = false;
+  for (let i2 = 0; i2 < nums.length - 1 && !found && stepIdx < 7; i2++) {
+    for (let j = i2 + 1; j < nums.length && !found && stepIdx < 7; j++) {
+      const vi = nums[i2];
+      const vj = nums[j];
+      const sum = vi + vj;
+      const match2 = sum === target;
+      pairsChecked.push({ i: i2, j, vi, vj, sum, match: match2 });
+      const ver = stepIdx + 1;
+      const baseX = 70;
+      const baseY = 185;
+      const cellW = 78;
+      const cellH = 60;
+      const headerW = Math.max(620, nums.length * cellW + 40);
+      const els = [
+        excalidrawRect("bf-hdr", baseX, 38, headerW, 96, {
+          strokeColor: match2 ? "#16a34a" : "#d97706",
+          backgroundColor: match2 ? "#dcfce7" : "#fef3c7",
+          strokeWidth: 2.5,
+          version: ver
+        }),
+        excalidrawText(
+          "bf-title",
+          baseX + 18,
+          50,
+          match2 ? `Dry-Run Step ${ver}: MATCH! arr[i=${i2}] (${vi}) + arr[j=${j}] (${vj}) == ${target}` : `Dry-Run Step ${ver}: Test Pair (i=${i2}, j=${j}) \u2192 ${vi} + ${vj} = ${sum} != ${target}`,
+          { fontSize: 16, strokeColor: match2 ? "#15803d" : "#b45309", maxCharsPerLine: 58, version: ver }
+        ),
+        excalidrawText(
+          "bf-sub",
+          baseX + 18,
+          92,
+          `Brute Force O(N\xB2) Nested Loops: Checked ${ver} pair(s) so far  |  Target = ${target}`,
+          { fontSize: 14, strokeColor: "#1e293b", maxCharsPerLine: 64, version: ver }
+        )
+      ];
+      nums.forEach((v, idx) => {
+        const cx = baseX + idx * cellW;
+        const isI = idx === i2;
+        const isJ = idx === j;
+        els.push(
+          excalidrawRect(`bf-cell-${idx}`, cx, baseY, cellW - 8, cellH, {
+            strokeColor: match2 && (isI || isJ) ? "#16a34a" : isI ? "#d97706" : isJ ? "#7c3aed" : "#334155",
+            backgroundColor: match2 && (isI || isJ) ? "#bbf7d0" : isI ? "#fde68a" : isJ ? "#ede9fe" : "#ffffff",
+            strokeWidth: isI || isJ ? 3 : 2,
+            version: ver
+          }),
+          excalidrawText(`bf-val-${idx}`, cx + 22, baseY + 18, String(v), {
+            fontSize: 18,
+            strokeColor: "#0f172a",
+            version: ver
+          }),
+          excalidrawText(`bf-idx-${idx}`, cx + 20, baseY + cellH + 8, `[${idx}]`, {
+            fontSize: 12,
+            strokeColor: "#64748b",
+            version: ver
+          })
+        );
+      });
+      const ix = baseX + i2 * cellW + (cellW - 8) / 2;
+      const jx = baseX + j * cellW + (cellW - 8) / 2;
+      els.push(
+        excalidrawArrow("bf-ptr-i", ix, baseY - 38, ix, baseY - 4, {
+          strokeColor: "#d97706",
+          strokeWidth: 3,
+          version: ver
+        }),
+        excalidrawText("bf-lbl-i", ix - 16, baseY - 62, `i=${i2}`, {
+          fontSize: 14,
+          strokeColor: "#b45309",
+          version: ver
+        }),
+        excalidrawArrow("bf-ptr-j", jx, baseY + cellH + 56, jx, baseY + cellH + 24, {
+          strokeColor: "#7c3aed",
+          strokeWidth: 3,
+          version: ver
+        }),
+        excalidrawText("bf-lbl-j", jx - 16, baseY + cellH + 62, `j=${j}`, {
+          fontSize: 14,
+          strokeColor: "#6d28d9",
+          version: ver
+        })
+      );
+      const traceLines = pairsChecked.slice(-4).map(
+        (p, idx) => `#${pairsChecked.length - Math.min(4, pairsChecked.length) + idx + 1}: (i=${p.i}, j=${p.j}) \u2192 ${p.vi} + ${p.vj} = ${p.sum} ${p.match ? "== " + target + " [FOUND]" : "!= " + target}`
+      ).join("\n");
+      els.push(
+        excalidrawRect("bf-trace-box", baseX, 340, headerW, 118, {
+          strokeColor: "#475569",
+          backgroundColor: "#f8fafc",
+          version: ver
+        }),
+        excalidrawText("bf-trace-hdr", baseX + 16, 350, "DRY-RUN EXECUTION LOG (Nested Loop i, j):", {
+          fontSize: 14,
+          strokeColor: "#0f172a",
+          version: ver
+        }),
+        excalidrawText("bf-trace-rows", baseX + 16, 374, traceLines, {
+          fontSize: 13,
+          strokeColor: match2 ? "#15803d" : "#334155",
+          maxCharsPerLine: 68,
+          maxLines: 4,
+          version: ver
+        })
+      );
+      frames.push({
+        stepIndex: stepIdx,
+        title: match2 ? `Match Found at (i=${i2}, j=${j}): ${vi} + ${vj} = ${target}` : `Brute Force Check #${ver}: arr[${i2}]+arr[${j}] = ${sum}`,
+        narration: match2 ? `Pair (i=${i2}, j=${j}) sums to ${vi} + ${vj} = ${target}! Brute force tested ${ver} pairs in O(N\xB2) time vs O(N) with Two Pointers.` : `Outer loop i=${i2} (val ${vi}), inner loop j=${j} (val ${vj}). Sum is ${sum} != ${target}, so j advances to ${j + 1}.`,
+        mathInvariant: `Outer i=${i2}, Inner j=${j} \u2022 Pair Sum = ${sum} \u2022 Comparisons = ${ver}`,
+        elements: els,
+        aiLaserTarget: { x: jx, y: baseY + cellH / 2 },
+        aiLaserWaypoints: [
+          { x: ix, y: baseY + cellH / 2 },
+          { x: jx, y: baseY + cellH / 2 },
+          { x: baseX + 180, y: 395 }
+        ]
+      });
+      if (match2) found = true;
+      stepIdx++;
+    }
+  }
+  return {
+    id: "brute_force_dry_run",
+    topic: "Brute Force O(N\xB2) Nested-Loop Dry Run",
+    badge: "O(N\xB2) Time \u2022 O(1) Space",
+    frames
+  };
+}
+function generateAiExcalidrawLessonForQuery(query, selectionContext) {
   const q = query.toLowerCase();
-  const numberMatches = query.match(/-?\d+/g)?.map(Number).filter((n) => !Number.isNaN(n)) || [];
+  const queryNums = query.match(/-?\d+/g)?.map(Number).filter((n) => !Number.isNaN(n)) || [];
+  const selectedNums = selectionContext?.extractedNumbers || [];
+  const combinedNums = queryNums.length >= 2 ? queryNums : selectedNums;
+  if (q.includes("brute") || q.includes("dry run") || q.includes("dry-run") || q.includes("nested") || q.includes("o(n^2)") || q.includes("all pairs")) {
+    const arr = combinedNums.length >= 4 ? combinedNums.slice(0, -1) : combinedNums.length >= 3 ? combinedNums : [1, 3, 5, 8, 12];
+    const target = combinedNums.length >= 4 ? combinedNums[combinedNums.length - 1] : 17;
+    return buildExcalidrawBruteForceDryRunLesson(arr, target);
+  }
+  if (q.includes("sliding window") || q.includes("subarray") || q.includes("window")) {
+    const arr = combinedNums.length >= 4 ? combinedNums : [2, 1, 5, 1, 3, 2];
+    return buildExcalidrawSlidingWindowLesson(arr, 3);
+  }
+  if (q.includes("monotonic") || q.includes("stack") || q.includes("next greater")) {
+    const arr = combinedNums.length >= 3 ? combinedNums.slice(0, 7) : [2, 1, 5, 6, 2, 3];
+    return buildExcalidrawMonotonicStackLesson(arr);
+  }
+  if (q.includes("dp") || q.includes("dynamic programming") || q.includes("memo") || q.includes("fibonacci") || q.includes("knapsack") || q.includes("climbing")) {
+    const nVal = combinedNums.length === 1 && combinedNums[0] >= 3 && combinedNums[0] <= 9 ? combinedNums[0] : 6;
+    return buildExcalidrawDpTableLesson(nVal);
+  }
   if (q.includes("binary search") || q.includes("mid") || q.includes("sorted range") || q.includes("halv")) {
-    const arr = numberMatches.length >= 4 ? numberMatches.slice(0, -1) : [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
-    const target = numberMatches.length >= 4 ? numberMatches[numberMatches.length - 1] : 23;
+    const arr = combinedNums.length >= 4 ? combinedNums.slice(0, -1) : [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
+    const target = combinedNums.length >= 4 ? combinedNums[combinedNums.length - 1] : 23;
     return buildExcalidrawBinarySearchLesson(arr, target);
   }
   if (q.includes("linked list") || q.includes("reverse") || q.includes("next") || q.includes("prev")) {
@@ -290970,28 +291468,33 @@ function generateAiExcalidrawLessonForQuery(query) {
   if (q.includes("tree") || q.includes("bst") || q.includes("dfs") || q.includes("bfs") || q.includes("recursion")) {
     return buildExcalidrawTreeLesson();
   }
-  if (q.includes("two pointer") || q.includes("pointer") || q.includes("pair") || q.includes("two sum")) {
-    const arr = numberMatches.length >= 4 ? numberMatches.slice(0, -1) : [1, 3, 5, 8, 12, 17, 21];
-    const target = numberMatches.length >= 4 ? numberMatches[numberMatches.length - 1] : 17;
+  if (q.includes("two pointer") || q.includes("pointer") || q.includes("pair") || q.includes("two sum") || q.includes("optimal") || combinedNums.length >= 3 && (q.includes("continue") || q.includes("take over") || q.includes("solve"))) {
+    const arr = combinedNums.length >= 4 ? combinedNums.slice(0, -1) : combinedNums.length >= 3 ? combinedNums : [1, 3, 5, 8, 12, 17, 21];
+    const target = combinedNums.length >= 4 ? combinedNums[combinedNums.length - 1] : 17;
     return buildExcalidrawTwoPointersLesson(arr, target);
   }
-  const cleanTitle = query.trim().slice(0, 68) || "Algorithmic Breakdown & Dry-Run";
+  const cleanTitle = wrapWhiteboardText(
+    query.trim() || "Algorithmic Breakdown & Dry-Run",
+    46,
+    1
+  );
+  const selectedCtxNote = selectionContext?.extractedTexts && selectionContext.extractedTexts.length > 0 ? `Selected Context: ${selectionContext.extractedTexts.slice(0, 3).join(" | ")}` : combinedNums.length > 0 ? `Selected Values: [${combinedNums.join(", ")}]` : "Step-by-Step State Invariant & Complexity Analysis";
   const stages = [
     {
-      label: "1. Input & Invariant Setup",
-      detail: `Parse input constraints & initialize state for: "${cleanTitle}"`,
+      label: "1. Input & State Setup",
+      detail: `Initialize data structures & bounds. ${selectedCtxNote}`,
       color: "#e0f2fe",
       stroke: "#0284c7"
     },
     {
-      label: "2. State Transition / Core Loop",
-      detail: "Maintain monotonic / hash / pointer invariant at each iteration in O(1) amortized work",
+      label: "2. Core Transition Loop",
+      detail: "Update pointers / state table at each step while preserving the loop invariant.",
       color: "#fef3c7",
       stroke: "#d97706"
     },
     {
-      label: "3. Optimal Output & Complexity",
-      detail: "Verify boundary conditions (empty, single-element, duplicates) & return optimal result",
+      label: "3. Optimal Output & Proof",
+      detail: "Verify boundary cases (empty, duplicates, extremes) & return optimal result.",
       color: "#dcfce7",
       stroke: "#16a34a"
     }
@@ -290999,87 +291502,122 @@ function generateAiExcalidrawLessonForQuery(query) {
   const frames = stages.map((st, sIdx) => {
     const ver = sIdx + 1;
     const els = [
-      excalidrawRect("custom-hdr", 80, 35, 660, 75, {
+      excalidrawRect("custom-hdr", 70, 36, 700, 86, {
         strokeColor: "#0284c7",
         backgroundColor: "#f0f9ff",
         version: ver
       }),
-      excalidrawText("custom-hdr-txt", 98, 48, `AI Whiteboard Walkthrough: ${cleanTitle}`, {
-        fontSize: 18,
-        strokeColor: "#0369a1",
-        version: ver
-      }),
-      excalidrawText("custom-hdr-sub", 98, 78, `Active Stage ${ver}/3: ${st.label}`, {
-        fontSize: 14,
-        strokeColor: "#334155",
-        version: ver
-      })
+      excalidrawText(
+        "custom-hdr-txt",
+        88,
+        48,
+        `Walkthrough: ${cleanTitle}`,
+        {
+          fontSize: 17,
+          strokeColor: "#0369a1",
+          maxCharsPerLine: 56,
+          maxLines: 1,
+          version: ver
+        }
+      ),
+      excalidrawText(
+        "custom-hdr-sub",
+        88,
+        82,
+        `Active Stage ${ver}/3: ${st.label}`,
+        {
+          fontSize: 14,
+          strokeColor: "#334155",
+          maxCharsPerLine: 64,
+          maxLines: 1,
+          version: ver
+        }
+      )
     ];
     stages.forEach((box, bIdx) => {
-      const bx = 80 + bIdx * 230;
-      const by = 165;
+      const bx = 70 + bIdx * 240;
+      const by = 160;
       const isCurrent = bIdx === sIdx;
       const isDone = bIdx < sIdx;
       els.push(
-        excalidrawRect(`custom-stage-${bIdx}`, bx, by, 200, 120, {
+        excalidrawRect(`custom-stage-${bIdx}`, bx, by, 216, 132, {
           strokeColor: isCurrent ? box.stroke : isDone ? "#16a34a" : "#94a3b8",
           backgroundColor: isCurrent ? box.color : isDone ? "#f0fdf4" : "#ffffff",
           strokeWidth: isCurrent ? 3 : 2,
           version: ver
         }),
-        excalidrawText(`custom-st-title-${bIdx}`, bx + 14, by + 18, box.label, {
-          fontSize: 15,
+        excalidrawText(`custom-st-title-${bIdx}`, bx + 14, by + 16, box.label, {
+          fontSize: 14,
           strokeColor: "#0f172a",
+          maxCharsPerLine: 22,
+          maxLines: 1,
           version: ver
         }),
-        excalidrawText(
-          `custom-st-desc-${bIdx}`,
-          bx + 14,
-          by + 52,
-          box.detail.slice(0, 26) + "\n" + box.detail.slice(26, 54),
-          {
-            fontSize: 12,
-            strokeColor: "#475569",
-            version: ver
-          }
-        )
+        excalidrawText(`custom-st-desc-${bIdx}`, bx + 14, by + 48, box.detail, {
+          fontSize: 12,
+          strokeColor: "#475569",
+          maxCharsPerLine: 24,
+          maxLines: 3,
+          version: ver
+        })
       );
       if (bIdx < stages.length - 1) {
         els.push(
-          excalidrawArrow(`custom-arr-${bIdx}`, bx + 202, by + 60, bx + 228, by + 60, {
-            strokeColor: bIdx < sIdx ? "#16a34a" : "#64748b",
-            strokeWidth: 2,
-            version: ver
-          })
+          excalidrawArrow(
+            `custom-arr-${bIdx}`,
+            bx + 218,
+            by + 66,
+            bx + 238,
+            by + 66,
+            {
+              strokeColor: bIdx < sIdx ? "#16a34a" : "#64748b",
+              strokeWidth: 2.5,
+              version: ver
+            }
+          )
         );
       }
     });
     els.push(
-      excalidrawRect("custom-trace-box", 80, 320, 660, 90, {
+      excalidrawRect("custom-trace-box", 70, 326, 700, 96, {
         strokeColor: st.stroke,
         backgroundColor: "#ffffff",
         version: ver
       }),
-      excalidrawText("custom-trace-txt", 98, 338, `${st.label}
-${st.detail}`, {
-        fontSize: 15,
-        strokeColor: "#0f172a",
-        version: ver
-      })
+      excalidrawText(
+        "custom-trace-txt",
+        88,
+        344,
+        `${st.label}
+${st.detail}`,
+        {
+          fontSize: 14,
+          strokeColor: "#0f172a",
+          maxCharsPerLine: 64,
+          maxLines: 3,
+          version: ver
+        }
+      )
     );
+    const activeBoxCenterX = 70 + sIdx * 240 + 108;
     return {
       stepIndex: sIdx,
       title: st.label,
       narration: st.detail,
       mathInvariant: `Stage ${ver}/3 \u2022 ${st.label}`,
       elements: els,
-      aiLaserTarget: { x: 80 + sIdx * 230 + 100, y: 225 }
+      aiLaserTarget: { x: activeBoxCenterX, y: 226 },
+      aiLaserWaypoints: [
+        { x: 220, y: 78 },
+        { x: activeBoxCenterX, y: 226 },
+        { x: 380, y: 374 }
+      ]
     };
   });
   return {
     id: `custom_${Date.now()}`,
     topic: cleanTitle,
-    badge: "AI Custom Diagram",
+    badge: "AI Custom Simulation",
     frames
   };
 }
@@ -295503,6 +296041,18 @@ app.post("/api/whiteboard/ai-teach", aiLimiter, async (req, res) => {
   const roomId = String(req.body?.roomId || "default");
   const problemTitle = String(req.body?.problemTitle || "").trim();
   const code = String(req.body?.code || "").trim();
+  const selectionContext = req.body?.selectionContext && typeof req.body.selectionContext === "object" ? req.body.selectionContext : null;
+  const hasSelection = selectionContext && Array.isArray(selectionContext.selectedElements) && selectionContext.selectedElements.length > 0;
+  const selectionPromptBlock = hasSelection ? `
+USER'S CURRENT DRAG-SELECTED WHITEBOARD AREA (CRITICAL CONTEXT):
+- Selection Mode: ${selectionContext?.mode === "takeover" ? "TAKE OVER / CONTINUE FROM SELECTED DIAGRAM" : "ANSWER / BRANCH FROM SELECTED DIAGRAM"}
+- Bounding Box on Canvas: x=${selectionContext?.bounds?.minX}..${selectionContext?.bounds?.maxX}, y=${selectionContext?.bounds?.minY}..${selectionContext?.bounds?.maxY} (${selectionContext?.bounds?.width}x${selectionContext?.bounds?.height}px)
+- Extracted Numbers in Selection (left-to-right): [${(selectionContext?.extractedNumbers || []).join(", ")}]
+- Extracted Text Labels in Selection: ${JSON.stringify(selectionContext?.extractedTexts || [])}
+- Selected Shapes Summary: ${JSON.stringify((selectionContext?.selectedElements || []).slice(0, 12))}
+
+INSTRUCTION FOR SELECTED AREA:
+You MUST directly reference the exact numbers, values, pointers, or partial dry-run state inside the user's selected whiteboard area above! If the user asks for a dry run, brute force comparison, optimization, or "continue from here", use the exact numbers/elements they selected on the whiteboard.` : "";
   const fullPromptContext = [
     query,
     problemTitle ? `(Problem: ${problemTitle})` : ""
@@ -295519,33 +296069,39 @@ app.post("/api/whiteboard/ai-teach", aiLimiter, async (req, res) => {
     const geminiKey = getGeminiKey();
     if (geminiKey && query.length > 3) {
       const ai = new GoogleGenAI2({ apiKey: geminiKey });
-      const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Teacher with direct control over an Excalidraw Whiteboard (canvas coordinates x: 60..760, y: 40..440).
+      const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Co-Teacher with direct control over an Excalidraw Whiteboard (local simulation coordinates x: 60..760, y: 40..440).
 The user asked: "${fullPromptContext}"
 ${code ? `Candidate's current code snippet:
 ${code.slice(0, 600)}` : ""}
+${selectionPromptBlock}
 
-Design a 3 to 5 step animated visual simulation on the Excalidraw whiteboard that teaches, demonstrates, and simulates this exact concept or dry-run clearly.
+Design a 3 to 5 step animated visual dry-run simulation on the Excalidraw whiteboard that teaches, demonstrates, and simulates this exact query clearly.
 Return ONLY valid JSON matching this exact structure:
 {
-  "topic": "Concise Title of the Simulation",
+  "topic": "Concise Title (max 44 chars)",
   "badge": "Time & Space Complexity (e.g. O(N) Time \u2022 O(1) Space)",
   "steps": [
     {
-      "title": "Step Title",
-      "narration": "1-2 sentence spoken explanation for the student",
-      "mathInvariant": "Key mathematical / pointer invariant at this step",
+      "title": "Concise Step Title (max 48 chars)",
+      "narration": "1-2 sentence clear spoken explanation for the student",
+      "mathInvariant": "Key mathematical / pointer invariant at this step (max 64 chars)",
       "laserX": 260,
       "laserY": 210,
+      "waypoints": [
+        { "x": 140, "y": 210 },
+        { "x": 260, "y": 210 },
+        { "x": 420, "y": 210 }
+      ],
       "nodes": [
         {
           "id": "node-1",
           "shape": "rect",
-          "x": 100,
-          "y": 180,
-          "width": 90,
-          "height": 56,
-          "label": "Main text inside shape",
-          "sublabel": "Optional index/pointer label below",
+          "x": 90,
+          "y": 175,
+          "width": 100,
+          "height": 60,
+          "label": "Short text (<=16 chars)",
+          "sublabel": "idx / ptr label",
           "color": "blue",
           "highlight": true
         }
@@ -295553,20 +296109,23 @@ Return ONLY valid JSON matching this exact structure:
       "arrows": [
         {
           "id": "arr-1",
-          "fromX": 190,
-          "fromY": 208,
-          "toX": 240,
-          "toY": 208,
+          "fromX": 192,
+          "fromY": 205,
+          "toX": 238,
+          "toY": 205,
           "color": "slate"
         }
       ]
     }
   ]
 }
-Rules:
-- "shape" must be "rect", "ellipse", or "diamond".
-- "color" must be "blue", "green", "amber", "rose", "purple", or "slate".
-- Keep x between 60 and 740, y between 150 and 410 so shapes never overlap the top header banner (y: 35..125).`;
+Strict Layout Rules (to prevent any overlapping or messy UI):
+1. "shape" must be "rect", "ellipse", or "diamond".
+2. "color" must be "blue", "green", "amber", "rose", "purple", or "slate".
+3. Keep all node x between 70 and 720, and node y between 160 and 390 so shapes NEVER overlap the top step banner (y: 32..130).
+4. Space adjacent nodes horizontally by at least (width + 24) pixels so boxes NEVER overlap each other.
+5. Keep node "label" concise (<= 18 characters) so text fits cleanly inside its shape.
+6. Provide 2 to 4 "waypoints" per step tracing the AI teacher's laser pointer across the active nodes being compared.`;
       const llmRes = await Promise.race([
         ai.models.generateContent({
           model: "gemini-2.5-flash",
@@ -295584,7 +296143,7 @@ Rules:
           (st, sIdx) => {
             const ver = sIdx + 1;
             const els = [
-              excalidrawRect("ai-hdr-box", 60, 32, 680, 88, {
+              excalidrawRect("ai-hdr-box", 60, 32, 680, 94, {
                 strokeColor: "#0284c7",
                 backgroundColor: "#f0f9ff",
                 version: ver
@@ -295594,25 +296153,32 @@ Rules:
                 78,
                 44,
                 `Step ${ver}/${parsed.steps.length}: ${String(st.title || "Simulation Step")}`,
-                { fontSize: 18, strokeColor: "#0369a1", version: ver }
+                { fontSize: 16, strokeColor: "#0369a1", maxCharsPerLine: 58, maxLines: 1, version: ver }
               ),
               excalidrawText(
                 "ai-hdr-inv",
                 78,
-                78,
-                `Invariant: ${String(st.mathInvariant || st.narration || "").slice(0, 78)}`,
-                { fontSize: 14, strokeColor: "#0f172a", version: ver }
+                76,
+                `Invariant: ${String(st.mathInvariant || st.narration || "")}`,
+                { fontSize: 13, strokeColor: "#0f172a", maxCharsPerLine: 68, maxLines: 2, version: ver }
               )
             ];
+            const stepWaypoints = [];
             if (Array.isArray(st.nodes)) {
               st.nodes.forEach((n, nIdx) => {
                 const nid = String(n.id || `node-${nIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
-                const nx = Math.max(40, Math.min(760, Number(n.x) || 90 + nIdx * 110));
-                const ny = Math.max(140, Math.min(430, Number(n.y) || 195));
-                const nw = Math.max(48, Math.min(240, Number(n.width) || 84));
-                const nh = Math.max(44, Math.min(140, Number(n.height) || 58));
+                const nx = Math.max(60, Math.min(730, Number(n.x) || 80 + nIdx * 124));
+                const ny = Math.max(155, Math.min(395, Number(n.y) || 195));
+                const nw = Math.max(64, Math.min(220, Number(n.width) || 96));
+                const nh = Math.max(48, Math.min(130, Number(n.height) || 60));
                 const theme = colorMap[String(n.color || "slate")] || colorMap.slate;
                 const strokeW = n.highlight ? 3 : 2;
+                if (n.highlight) {
+                  stepWaypoints.push({
+                    x: Math.round(nx + nw / 2),
+                    y: Math.round(ny + nh / 2)
+                  });
+                }
                 if (n.shape === "ellipse") {
                   els.push(
                     excalidrawEllipse(`ai-sh-${nid}`, nx, ny, nw, nh, {
@@ -295642,15 +296208,18 @@ Rules:
                   );
                 }
                 if (n.label !== void 0) {
+                  const maxChars = Math.max(8, Math.floor((nw - 16) / 9));
                   els.push(
                     excalidrawText(
                       `ai-lbl-${nid}`,
-                      nx + 12,
-                      ny + Math.max(10, Math.floor(nh / 2) - 10),
+                      nx + 10,
+                      ny + Math.max(10, Math.floor(nh / 2) - 12),
                       String(n.label),
                       {
-                        fontSize: 16,
+                        fontSize: 15,
                         strokeColor: "#0f172a",
+                        maxCharsPerLine: maxChars,
+                        maxLines: 2,
                         version: ver
                       }
                     )
@@ -295660,12 +296229,14 @@ Rules:
                   els.push(
                     excalidrawText(
                       `ai-sub-${nid}`,
-                      nx + 10,
+                      nx + 8,
                       ny + nh + 6,
                       String(n.sublabel),
                       {
                         fontSize: 12,
                         strokeColor: theme.stroke,
+                        maxCharsPerLine: 20,
+                        maxLines: 1,
                         version: ver
                       }
                     )
@@ -295693,38 +296264,38 @@ Rules:
                 );
               });
             }
+            const parsedWaypoints = Array.isArray(st.waypoints) ? st.waypoints.map((wp) => ({
+              x: Number(wp?.x) || 260,
+              y: Number(wp?.y) || 210
+            })).slice(0, 6) : stepWaypoints;
+            const primaryLaser = {
+              x: Number(st.laserX) || parsedWaypoints[parsedWaypoints.length - 1]?.x || 260,
+              y: Number(st.laserY) || parsedWaypoints[parsedWaypoints.length - 1]?.y || 210
+            };
             return {
               stepIndex: sIdx,
               title: String(st.title || `Step ${ver}`),
               narration: String(st.narration || ""),
               mathInvariant: String(st.mathInvariant || ""),
               elements: els,
-              aiLaserTarget: {
-                x: Number(st.laserX) || 260,
-                y: Number(st.laserY) || 210
-              }
+              aiLaserTarget: primaryLaser,
+              aiLaserWaypoints: parsedWaypoints.length > 0 ? parsedWaypoints : [primaryLaser]
             };
           }
         );
         const lesson = {
           id: `ai_lesson_${Date.now()}`,
-          topic: String(parsed.topic || query),
+          topic: String(parsed.topic || query).slice(0, 56),
           badge: String(parsed.badge || "AI Live Simulation"),
           frames
         };
-        if (frames[0]?.elements) {
-          getRoomWhiteboard(roomId).apply(frames[0].elements);
-        }
         return res.json({ ok: true, lesson });
       }
     }
   } catch (err) {
     console.warn("[AI Whiteboard] Using deterministic Excalidraw generator fallback:", err?.message);
   }
-  const fallbackLesson = generateAiExcalidrawLessonForQuery(query);
-  if (fallbackLesson.frames[0]?.elements) {
-    getRoomWhiteboard(roomId).apply(fallbackLesson.frames[0].elements);
-  }
+  const fallbackLesson = generateAiExcalidrawLessonForQuery(query, selectionContext);
   return res.json({ ok: true, lesson: fallbackLesson });
 });
 async function startServer() {

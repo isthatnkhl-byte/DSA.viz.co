@@ -48,6 +48,7 @@ import {
   generateAiExcalidrawLessonForQuery,
   extractWhiteboardSelectionContext,
   wrapLessonInBoundedZone,
+  measureLessonZoneDimensions,
   type WbElement,
   type WbPointer,
   type AiWhiteboardLesson,
@@ -85,8 +86,22 @@ export interface AiWhiteboardProps {
 
 const SEND_MS = 80;
 const BATCH_BYTES = 900_000;
-const ZONE_COL_STRIDE = 880;
-const ZONE_ROW_STRIDE = 620;
+const ZONE_COL_STRIDE = 960;
+const ZONE_ROW_STRIDE = 660;
+const ZONE_MIN_GAP = 72;
+
+const LEGACY_UNZONED_PREFIXES = [
+  "tp-",
+  "bs-",
+  "sw-",
+  "ll-",
+  "bst-",
+  "ms-",
+  "dp-",
+  "bf-",
+  "custom-",
+  "ai-",
+];
 
 export function AiWhiteboard({
   roomId = "default-room",
@@ -121,6 +136,9 @@ export function AiWhiteboard({
     });
     return [initialZoned];
   });
+  const zonesHistoryRef = useRef<AiWhiteboardLesson[]>(zonesHistory);
+  zonesHistoryRef.current = zonesHistory;
+
   const [activeZoneIdx, setActiveZoneIdx] = useState<number>(0);
 
   const activeLesson =
@@ -204,42 +222,156 @@ export function AiWhiteboard({
   );
 
   /**
+   * Injects ONLY the active zone's frame elements into Excalidraw while preserving
+   * all other bounded simulation zones and user freehand drawings!
+   * Also strips any legacy un-namespaced preset elements so old cached elements never collide.
+   */
+  const injectZoneFrameIntoExcalidraw = useCallback(
+    (
+      zoneId: string | undefined,
+      frameElements: readonly WbElement[],
+      autoScrollToZone = false
+    ) => {
+      if (!excalidrawAPI || !excalidrawModule) return;
+
+      const { restoreElements, CaptureUpdateAction } = excalidrawModule;
+      const prefix = zoneId ? `${zoneId}__` : "";
+
+      // Keep all elements on the canvas that do NOT belong to this specific simulation zone
+      // and purge any legacy un-namespaced preset elements
+      const currentActiveElements = (
+        excalidrawAPI.getSceneElements() as any[]
+      ).filter((el) => {
+        if (!el || el.isDeleted) return false;
+        const idStr = typeof el.id === "string" ? el.id : "";
+        if (prefix && idStr.startsWith(prefix)) {
+          return false;
+        }
+        if (
+          !idStr.includes("__") &&
+          LEGACY_UNZONED_PREFIXES.some((p) => idStr.startsWith(p))
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+      const restoredZoneElements = restoreElements(frameElements as any[], null);
+      for (const el of restoredZoneElements) {
+        knownElementsRef.current.set(el.id, el);
+      }
+
+      const combinedScene = [...currentActiveElements, ...restoredZoneElements];
+
+      excalidrawAPI.updateScene({
+        elements: combinedScene,
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+
+      if (
+        autoScrollToZone &&
+        typeof excalidrawAPI.scrollToContent === "function"
+      ) {
+        setTimeout(() => {
+          try {
+            excalidrawAPI.scrollToContent(restoredZoneElements, {
+              fitToViewport: false,
+              animate: true,
+            });
+          } catch {
+            // ignore scroll error
+          }
+        }, 60);
+      }
+    },
+    [excalidrawAPI, excalidrawModule]
+  );
+
+  /**
    * Computes a guaranteed non-overlapping canvas coordinate (originX, originY)
-   * for a newly triggered simulation zone so it NEVER overwrites previous zones!
+   * by checking BOTH the zones history registry AND the real bounding boxes of all
+   * live elements currently rendered in Excalidraw (`excalidrawAPI.getSceneElements()`).
    */
   const computeNextFreeZoneOrigin = useCallback(
     (
+      newZoneWidth: number,
+      newZoneHeight: number,
       existingZones: AiWhiteboardLesson[],
       selCtx?: WhiteboardSelectionContext | null,
       mode?: "branch" | "takeover"
-    ): { originX: number; originY: number; connectedFromBounds?: WhiteboardSelectionContext["bounds"] } => {
-      // If user drag-selected an area on the board:
+    ): {
+      originX: number;
+      originY: number;
+      connectedFromBounds?: WhiteboardSelectionContext["bounds"];
+    } => {
+      // Collect all occupied rectangles from existing zones + live canvas elements
+      const occupiedRects: Array<{
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }> = [];
+
+      for (const z of existingZones) {
+        if (z.zoneBounds) {
+          occupiedRects.push(z.zoneBounds);
+        }
+      }
+
+      if (excalidrawAPI && typeof excalidrawAPI.getSceneElements === "function") {
+        const sceneEls = excalidrawAPI.getSceneElements() as any[];
+        const takeoverIds =
+          mode === "takeover" && selCtx
+            ? new Set(selCtx.selectedElements.map((s) => s.id))
+            : null;
+
+        for (const el of sceneEls) {
+          if (!el || el.isDeleted) continue;
+          const idStr = typeof el.id === "string" ? el.id : "";
+          if (takeoverIds && takeoverIds.has(idStr)) continue;
+          if (
+            !idStr.includes("__") &&
+            LEGACY_UNZONED_PREFIXES.some((p) => idStr.startsWith(p))
+          ) {
+            continue;
+          }
+          const ex = Number(el.x) || 0;
+          const ey = Number(el.y) || 0;
+          const ew = Math.max(20, Number(el.width) || 40);
+          const eh = Math.max(20, Number(el.height) || 40);
+          occupiedRects.push({ x: ex, y: ey, width: ew, height: eh });
+        }
+      }
+
+      const collidesWithOccupied = (cx: number, cy: number): boolean => {
+        for (const r of occupiedRects) {
+          const hitX =
+            cx < r.x + r.width + ZONE_MIN_GAP &&
+            cx + newZoneWidth + ZONE_MIN_GAP > r.x;
+          const hitY =
+            cy < r.y + r.height + ZONE_MIN_GAP &&
+            cy + newZoneHeight + ZONE_MIN_GAP > r.y;
+          if (hitX && hitY) return true;
+        }
+        return false;
+      };
+
+      // Case 1: User drag-selected an area on the board
       if (selCtx?.bounds && selCtx.selectedElements.length > 0) {
         if (mode === "takeover") {
-          // Take over in-place at the selected region's coordinates
           return {
             originX: selCtx.bounds.minX,
             originY: selCtx.bounds.minY,
             connectedFromBounds: null,
           };
         }
-        // Branch mode: place the new bounded simulation zone cleanly to the right of the selected region,
-        // or below any existing zones that occupy that horizontal slot
-        let candidateX = selCtx.bounds.maxX + 96;
+        // Branch mode: place cleanly to the right of the selected region, shifting down if occupied
+        const candidateX = selCtx.bounds.maxX + 96;
         let candidateY = selCtx.bounds.minY;
-
-        for (const z of existingZones) {
-          if (!z.zoneBounds) continue;
-          const zb = z.zoneBounds;
-          const overlapsX =
-            candidateX < zb.x + zb.width + 40 &&
-            candidateX + 780 > zb.x - 40;
-          const overlapsY =
-            candidateY < zb.y + zb.height + 40 &&
-            candidateY + 540 > zb.y - 40;
-          if (overlapsX && overlapsY) {
-            candidateY = zb.y + zb.height + 64;
-          }
+        let guard = 0;
+        while (collidesWithOccupied(candidateX, candidateY) && guard < 60) {
+          candidateY += 140;
+          guard++;
         }
         return {
           originX: candidateX,
@@ -248,36 +380,40 @@ export function AiWhiteboard({
         };
       }
 
-      // Otherwise place in a clean 2-column architectural grid on the Excalidraw canvas
-      const idx = existingZones.length;
-      const col = idx % 2;
-      const row = Math.floor(idx / 2);
-      let candidateX = 40 + col * ZONE_COL_STRIDE;
-      let candidateY = 40 + row * ZONE_ROW_STRIDE;
+      // Case 2: Place in a 2-column architectural grid, advancing slots until 100% collision-free
+      const colStride = Math.max(ZONE_COL_STRIDE, newZoneWidth + ZONE_MIN_GAP + 28);
+      const rowStride = Math.max(ZONE_ROW_STRIDE, newZoneHeight + ZONE_MIN_GAP + 28);
 
-      // Double-check against existing zone bounds to guarantee zero overlap
-      for (const z of existingZones) {
-        if (!z.zoneBounds) continue;
-        const zb = z.zoneBounds;
-        const overlapsX =
-          candidateX < zb.x + zb.width + 40 &&
-          candidateX + 780 > zb.x - 40;
-        const overlapsY =
-          candidateY < zb.y + zb.height + 40 &&
-          candidateY + 540 > zb.y - 40;
-        if (overlapsX && overlapsY) {
-          candidateY = zb.y + zb.height + 64;
+      let slotIdx = existingZones.length;
+      let candidateX = 40;
+      let candidateY = 40;
+      let guard = 0;
+
+      while (guard < 100) {
+        const col = slotIdx % 2;
+        const row = Math.floor(slotIdx / 2);
+        candidateX = 40 + col * colStride;
+        candidateY = 40 + row * rowStride;
+        if (!collidesWithOccupied(candidateX, candidateY)) {
+          break;
         }
+        slotIdx++;
+        guard++;
       }
 
-      return { originX: candidateX, originY: candidateY, connectedFromBounds: null };
+      return {
+        originX: candidateX,
+        originY: candidateY,
+        connectedFromBounds: null,
+      };
     },
-    []
+    [excalidrawAPI]
   );
 
   /**
    * Registers and activates a new bounded simulation zone on the whiteboard
    * without overwriting any previous simulation zones!
+   * Pure and synchronous — safe under React 19 StrictMode and rapid multi-clicks.
    */
   const spawnBoundedSimulationZone = useCallback(
     (
@@ -304,40 +440,65 @@ export function AiWhiteboard({
         excalidrawAPI.updateScene({ elements: kept });
       }
 
-      setZonesHistory((prev) => {
-        const nextZoneNum = zoneCounterRef.current + 1;
-        zoneCounterRef.current = nextZoneNum;
-        const zoneId = `zone_${nextZoneNum}`;
+      const prevZones = zonesHistoryRef.current;
+      const nextZoneNum = zoneCounterRef.current + 1;
+      zoneCounterRef.current = nextZoneNum;
+      const zoneId = `zone_${nextZoneNum}`;
 
-        const { originX, originY, connectedFromBounds } =
-          computeNextFreeZoneOrigin(prev, selCtx, mode);
+      const selectionBannerText =
+        selCtx && selCtx.selectedElements.length > 0
+          ? selCtx.extractedNumbers && selCtx.extractedNumbers.length > 0
+            ? `Values [${selCtx.extractedNumbers.join(", ")}] (${
+                mode === "takeover" ? "Taken Over" : "Branched"
+              })`
+            : `${selCtx.selectedElements.length} selected shapes`
+          : undefined;
 
-        const selectionBannerText =
-          selCtx && selCtx.selectedElements.length > 0
-            ? selCtx.extractedNumbers && selCtx.extractedNumbers.length > 0
-              ? `Values [${selCtx.extractedNumbers.join(", ")}] (${
-                  mode === "takeover" ? "Taken Over" : "Branched"
-                })`
-              : `${selCtx.selectedElements.length} selected shapes`
-            : undefined;
+      const { zoneWidth, zoneHeight } = measureLessonZoneDimensions(
+        rawLesson,
+        Boolean(selectionBannerText)
+      );
 
-        const wrapped = wrapLessonInBoundedZone(rawLesson, {
-          zoneId,
-          zoneIndex: prev.length,
-          originX,
-          originY,
-          connectedFromBounds,
-          selectionBannerText,
-        });
+      const { originX, originY, connectedFromBounds } =
+        computeNextFreeZoneOrigin(
+          zoneWidth,
+          zoneHeight,
+          prevZones,
+          selCtx,
+          mode
+        );
 
-        const updated = [...prev, wrapped];
-        setActiveZoneIdx(updated.length - 1);
-        setStepIndex(0);
-        setIsPlayingSteps(true);
-        return updated;
+      const wrapped = wrapLessonInBoundedZone(rawLesson, {
+        zoneId,
+        zoneIndex: prevZones.length,
+        originX,
+        originY,
+        connectedFromBounds,
+        selectionBannerText,
       });
+
+      const updated = [...prevZones, wrapped];
+      zonesHistoryRef.current = updated;
+      setZonesHistory(updated);
+      setActiveZoneIdx(updated.length - 1);
+      setStepIndex(0);
+      setIsPlayingSteps(true);
+
+      // Immediately inject the newly spawned bounded zone and smoothly pan camera to it
+      if (wrapped.frames[0]) {
+        injectZoneFrameIntoExcalidraw(
+          wrapped.zoneId,
+          wrapped.frames[0].elements,
+          true
+        );
+      }
     },
-    [computeNextFreeZoneOrigin, excalidrawAPI, selectionMode]
+    [
+      computeNextFreeZoneOrigin,
+      excalidrawAPI,
+      injectZoneFrameIntoExcalidraw,
+      selectionMode,
+    ]
   );
 
   // Sync external lesson override when provided by parent (/ai-learning curriculum or custom dataset)
@@ -451,64 +612,6 @@ export function AiWhiteboard({
       return got;
     },
     [fileUrl]
-  );
-
-  /**
-   * Injects ONLY the active zone's frame elements into Excalidraw while preserving
-   * all other bounded simulation zones and user freehand drawings!
-   * Prevents any overlapping or ghost elements between steps or across simulations.
-   */
-  const injectZoneFrameIntoExcalidraw = useCallback(
-    (
-      zoneId: string | undefined,
-      frameElements: readonly WbElement[],
-      autoScrollToZone = false
-    ) => {
-      if (!excalidrawAPI || !excalidrawModule) return;
-
-      const { restoreElements, CaptureUpdateAction } = excalidrawModule;
-      const prefix = zoneId ? `${zoneId}__` : "";
-
-      // Keep all elements on the canvas that do NOT belong to this specific simulation zone
-      const currentActiveElements = (
-        excalidrawAPI.getSceneElements() as any[]
-      ).filter((el) => {
-        if (!el || el.isDeleted) return false;
-        if (prefix && typeof el.id === "string" && el.id.startsWith(prefix)) {
-          return false;
-        }
-        return true;
-      });
-
-      const restoredZoneElements = restoreElements(frameElements as any[], null);
-      for (const el of restoredZoneElements) {
-        knownElementsRef.current.set(el.id, el);
-      }
-
-      const combinedScene = [...currentActiveElements, ...restoredZoneElements];
-
-      excalidrawAPI.updateScene({
-        elements: combinedScene,
-        captureUpdate: CaptureUpdateAction.NEVER,
-      });
-
-      if (
-        autoScrollToZone &&
-        typeof excalidrawAPI.scrollToContent === "function"
-      ) {
-        setTimeout(() => {
-          try {
-            excalidrawAPI.scrollToContent(restoredZoneElements, {
-              fitToViewport: false,
-              animate: true,
-            });
-          } catch {
-            // ignore scroll error
-          }
-        }, 60);
-      }
-    },
-    [excalidrawAPI, excalidrawModule]
   );
 
   // Whenever stepIndex or activeLesson changes, update ONLY that zone's elements in Excalidraw
@@ -1029,10 +1132,14 @@ export function AiWhiteboard({
       excalidrawAPI.updateScene({ elements: [] });
     }
     knownElementsRef.current.clear();
+    zonesHistoryRef.current = [fresh];
     setZonesHistory([fresh]);
     setActiveZoneIdx(0);
     setStepIndex(0);
     setIsPlayingSteps(true);
+    if (fresh.frames[0]) {
+      injectZoneFrameIntoExcalidraw(fresh.zoneId, fresh.frames[0].elements, true);
+    }
     onClearBoard?.();
     toast.info("Cleared whiteboard and reset to Zone #1");
   };
@@ -1158,6 +1265,13 @@ export function AiWhiteboard({
                     setActiveZoneIdx(zIdx);
                     setStepIndex(0);
                     setIsPlayingSteps(false);
+                    if (z.frames[0]) {
+                      injectZoneFrameIntoExcalidraw(
+                        z.zoneId,
+                        z.frames[0].elements,
+                        true
+                      );
+                    }
                   }}
                   className="px-2 py-0.5 rounded-md font-mono text-[10px] font-black flex items-center gap-1 cursor-pointer transition"
                   style={{

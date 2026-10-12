@@ -421,11 +421,12 @@ export function excalidrawText(
   } = {}
 ): WbElement {
   const fontSize = opts.fontSize ?? 16;
-  const maxChars = opts.maxCharsPerLine ?? (fontSize >= 17 ? 56 : 68);
-  const wrapped = wrapWhiteboardText(text, maxChars, opts.maxLines ?? 4);
+  const maxChars = opts.maxCharsPerLine ?? (fontSize >= 17 ? 52 : 64);
+  const wrapped = wrapWhiteboardText(text, maxChars, opts.maxLines ?? 3);
   const lines = wrapped.split("\n");
   const maxLen = Math.max(...lines.map((l) => l.length), 1);
-  const width = Math.max(24, Math.round(maxLen * fontSize * 0.58));
+  // Cascadia monospace in Excalidraw renders at ~0.65 * fontSize per glyph
+  const width = Math.max(28, Math.round(maxLen * fontSize * 0.65) + 12);
   const height = Math.max(22, Math.round(lines.length * fontSize * 1.32));
 
   return makeBaseProps(id, "text", x, y, width, height, opts.version ?? 1, {
@@ -504,13 +505,14 @@ export function buildExcalidrawTwoPointersLesson(
 
     const elements: WbElement[] = [];
     const baseX = 80;
-    const baseY = 180;
+    const baseY = 185;
     const cellW = 72;
     const cellH = 60;
+    const headerW = Math.max(660, sorted.length * cellW + 24);
 
     // Header Card
     elements.push(
-      excalidrawRect("tp-header-box", baseX, 40, Math.max(540, sorted.length * cellW), 95, {
+      excalidrawRect("tp-header-box", baseX, 40, headerW, 96, {
         strokeColor: "#0284c7",
         backgroundColor: "#e0f2fe",
         version: ver,
@@ -518,24 +520,24 @@ export function buildExcalidrawTwoPointersLesson(
       excalidrawText(
         "tp-header-title",
         baseX + 18,
-        52,
+        50,
         `Step ${stepIdx + 1}: ${
           isMatch
             ? `Target Sum ${target} Found at [${l}, ${r}]!`
             : isGreater
-            ? `Sum (${sum}) > Target (${target}) → Decrement Right Pointer (R--)`
-            : `Sum (${sum}) < Target (${target}) → Increment Left Pointer (L++)`
+            ? `Sum (${sum}) > Target (${target}) → Decrement R--`
+            : `Sum (${sum}) < Target (${target}) → Increment L++`
         }`,
-        { fontSize: 18, strokeColor: "#0369a1", version: ver }
+        { fontSize: 17, strokeColor: "#0369a1", maxCharsPerLine: 54, maxLines: 1, version: ver }
       ),
       excalidrawText(
         "tp-header-formula",
         baseX + 18,
-        88,
+        84,
         `Invariant: arr[L=${l}] (${sorted[l]}) + arr[R=${r}] (${sorted[r]}) = ${sum} ${
           isMatch ? "==" : isGreater ? ">" : "<"
         } ${target}`,
-        { fontSize: 15, strokeColor: "#0f172a", version: ver }
+        { fontSize: 14, strokeColor: "#0f172a", maxCharsPerLine: 64, maxLines: 1, version: ver }
       )
     );
 
@@ -675,12 +677,13 @@ export function buildExcalidrawBinarySearchLesson(
 
     const elements: WbElement[] = [];
     const baseX = 60;
-    const baseY = 185;
+    const baseY = 190;
     const cellW = 64;
     const cellH = 56;
+    const headerW = Math.max(660, sorted.length * cellW + 20);
 
     elements.push(
-      excalidrawRect("bs-header-box", baseX, 40, Math.max(580, sorted.length * cellW), 95, {
+      excalidrawRect("bs-header-box", baseX, 40, headerW, 96, {
         strokeColor: "#059669",
         backgroundColor: "#ecfdf5",
         version: ver,
@@ -688,20 +691,20 @@ export function buildExcalidrawBinarySearchLesson(
       excalidrawText(
         "bs-header-title",
         baseX + 16,
-        52,
+        50,
         `Step ${stepIdx + 1}: Search Range [${low}..${high}] • Mid = ${mid} (val=${val})`,
-        { fontSize: 18, strokeColor: "#047857", version: ver }
+        { fontSize: 17, strokeColor: "#047857", maxCharsPerLine: 54, maxLines: 1, version: ver }
       ),
       excalidrawText(
         "bs-header-formula",
         baseX + 16,
-        88,
+        84,
         isMatch
           ? `arr[${mid}] == ${target} → Target Found in ${stepIdx + 1} steps!`
           : isLess
-          ? `arr[${mid}] (${val}) < ${target} → Prune left half [${low}..${mid}], set low = ${mid + 1}`
-          : `arr[${mid}] (${val}) > ${target} → Prune right half [${mid}..${high}], set high = ${mid - 1}`,
-        { fontSize: 15, strokeColor: "#0f172a", version: ver }
+          ? `arr[${mid}] (${val}) < ${target} → Prune left [${low}..${mid}], low = ${mid + 1}`
+          : `arr[${mid}] (${val}) > ${target} → Prune right [${mid}..${high}], high = ${mid - 1}`,
+        { fontSize: 14, strokeColor: "#0f172a", maxCharsPerLine: 64, maxLines: 1, version: ver }
       )
     );
 
@@ -797,7 +800,7 @@ export function buildExcalidrawLinkedListLesson(): AiWhiteboardLesson {
     const spacing = 145;
 
     elements.push(
-      excalidrawRect("ll-header", 80, 40, 620, 90, {
+      excalidrawRect("ll-header", 80, 40, 660, 96, {
         strokeColor: "#7c3aed",
         backgroundColor: "#f3e8ff",
         version: ver,
@@ -805,20 +808,20 @@ export function buildExcalidrawLinkedListLesson(): AiWhiteboardLesson {
       excalidrawText(
         "ll-title",
         98,
-        52,
+        50,
         step === 0
           ? "Step 1: Initialize prev = null, curr = Head(10)"
           : step === nodes.length
           ? `Step ${ver}: Reversal Complete! New Head is prev (Node 40)`
           : `Step ${ver}: Reverse Node(${nodes[step - 1]}).next → prev`,
-        { fontSize: 18, strokeColor: "#6d28d9", version: ver }
+        { fontSize: 17, strokeColor: "#6d28d9", maxCharsPerLine: 54, maxLines: 1, version: ver }
       ),
       excalidrawText(
         "ll-formula",
         98,
-        86,
-        `nextTemp = curr.next  |  curr.next = prev  |  prev = curr  |  curr = nextTemp`,
-        { fontSize: 14, strokeColor: "#1e293b", version: ver }
+        84,
+        `nextTemp = curr.next | curr.next = prev | prev = curr | curr = nextTemp`,
+        { fontSize: 13, strokeColor: "#1e293b", maxCharsPerLine: 68, maxLines: 1, version: ver }
       )
     );
 
@@ -928,11 +931,11 @@ export function buildExcalidrawLinkedListLesson(): AiWhiteboardLesson {
  */
 export function buildExcalidrawTreeLesson(): AiWhiteboardLesson {
   const treeNodes = [
-    { id: 10, x: 360, y: 150, bounds: "(-∞, +∞)" },
-    { id: 5, x: 210, y: 260, bounds: "(-∞, 10)" },
-    { id: 15, x: 510, y: 260, bounds: "(10, +∞)" },
-    { id: 3, x: 130, y: 370, bounds: "(-∞, 5)" },
-    { id: 7, x: 290, y: 370, bounds: "(5, 10)" },
+    { id: 10, x: 360, y: 160, bounds: "(-∞, +∞)" },
+    { id: 5, x: 210, y: 270, bounds: "(-∞, 10)" },
+    { id: 15, x: 510, y: 270, bounds: "(10, +∞)" },
+    { id: 3, x: 130, y: 380, bounds: "(-∞, 5)" },
+    { id: 7, x: 290, y: 380, bounds: "(5, 10)" },
   ];
   const edges: Array<[number, number]> = [
     [0, 1],
@@ -942,28 +945,32 @@ export function buildExcalidrawTreeLesson(): AiWhiteboardLesson {
   ];
 
   const stepsOrder = [
-    { active: 10, visited: [10], desc: "Validate Root(10) within (-∞, +∞). Branch left with max=10, right with min=10." },
-    { active: 5, visited: [10, 5], desc: "Left child Node(5) satisfies (-∞ < 5 < 10). Passrange (-∞, 5) left and (5, 10) right." },
-    { active: 7, visited: [10, 5, 3, 7], desc: "Subtree nodes 3 ∈ (-∞, 5) and 7 ∈ (5, 10) both hold! Left subtree verified." },
-    { active: 15, visited: [10, 5, 3, 7, 15], desc: "Right child Node(15) satisfies (10 < 15 < +∞). Global BST property verified in O(N) time!" },
+    { active: 10, visited: [10], desc: "Validate Root(10) in (-∞, +∞). Branch left max=10, right min=10." },
+    { active: 5, visited: [10, 5], desc: "Left child Node(5) satisfies (-∞ < 5 < 10). Pass (-∞, 5) & (5, 10)." },
+    { active: 7, visited: [10, 5, 3, 7], desc: "Subtree nodes 3 ∈ (-∞, 5) and 7 ∈ (5, 10) both hold! Left verified." },
+    { active: 15, visited: [10, 5, 3, 7, 15], desc: "Right child Node(15) ∈ (10, +∞) holds! Global BST verified in O(N)." },
   ];
 
   const frames: AiWhiteboardStepFrame[] = stepsOrder.map((st, idx) => {
     const ver = idx + 1;
     const elements: WbElement[] = [
-      excalidrawRect("bst-header", 80, 35, 620, 82, {
+      excalidrawRect("bst-header", 80, 35, 660, 96, {
         strokeColor: "#e11d48",
         backgroundColor: "#ffe4e6",
         version: ver,
       }),
       excalidrawText("bst-title", 98, 46, `Step ${ver}: DFS Range Validation at Node(${st.active})`, {
-        fontSize: 18,
+        fontSize: 17,
         strokeColor: "#be123c",
+        maxCharsPerLine: 54,
+        maxLines: 1,
         version: ver,
       }),
-      excalidrawText("bst-desc", 98, 78, st.desc, {
+      excalidrawText("bst-desc", 98, 80, st.desc, {
         fontSize: 13,
         strokeColor: "#0f172a",
+        maxCharsPerLine: 66,
+        maxLines: 1,
         version: ver,
       }),
     ];
@@ -1046,9 +1053,10 @@ export function buildExcalidrawSlidingWindowLesson(
     const baseY = 195;
     const cellW = 74;
     const cellH = 60;
+    const headerW = Math.max(660, arr.length * cellW + 24);
 
     const elements: WbElement[] = [
-      excalidrawRect("sw-hdr", baseX, 38, 600, 88, {
+      excalidrawRect("sw-hdr", baseX, 38, headerW, 96, {
         strokeColor: "#d97706",
         backgroundColor: "#fef3c7",
         version: ver,
@@ -1058,16 +1066,16 @@ export function buildExcalidrawSlidingWindowLesson(
         baseX + 16,
         50,
         `Step ${ver}: Window [${wStart}..${wEnd}] • Sum = ${windowSum} • Best Max = ${maxSum}`,
-        { fontSize: 18, strokeColor: "#b45309", version: ver }
+        { fontSize: 17, strokeColor: "#b45309", maxCharsPerLine: 54, maxLines: 1, version: ver }
       ),
       excalidrawText(
         "sw-hdr-sub",
         baseX + 16,
-        82,
+        84,
         wStart === 0
           ? `Initialize first window of size k=${k}: sum = ${windowSum}`
-          : `Slide right: subtract outgoing arr[${wStart - 1}] (${arr[wStart - 1]}) & add incoming arr[${wEnd}] (${arr[wEnd]})`,
-        { fontSize: 14, strokeColor: "#0f172a", version: ver }
+          : `Slide right: drop arr[${wStart - 1}] (${arr[wStart - 1]}) & add arr[${wEnd}] (${arr[wEnd]})`,
+        { fontSize: 14, strokeColor: "#0f172a", maxCharsPerLine: 64, maxLines: 1, version: ver }
       ),
     ];
 
@@ -1152,21 +1160,21 @@ export function buildExcalidrawMonotonicStackLesson(
       stack: [2, 1],
       ans: [-1, -1, -1, -1, -1],
       title: "Push Decreasing Prefix [2, 1]",
-      narration: "Elements 2 and 1 maintain a monotonic decreasing stack. Both wait for a larger element.",
+      narration: "Elements 2 and 1 maintain a monotonic decreasing stack awaiting a larger value.",
     },
     {
       activeIdx: 2,
       stack: [5],
       ans: [5, 5, -1, -1, -1],
       title: "Incoming 5 Pops 1 and 2!",
-      narration: "5 is greater than stack top 1 and 2! Both are popped and their Next Greater Element is recorded as 5.",
+      narration: "5 > stack top 1 and 2! Both are popped and Next Greater is recorded as 5.",
     },
     {
       activeIdx: 4,
       stack: [6],
       ans: [5, 5, 6, 6, -1],
       title: "Incoming 6 Resolves 3 and 5!",
-      narration: "After pushing 3, incoming 6 pops both 3 and 5, completing the Next Greater array in O(N) amortized time!",
+      narration: "Incoming 6 pops 3 and 5, completing Next Greater array in O(N) amortized time!",
     },
   ];
 
@@ -1174,19 +1182,23 @@ export function buildExcalidrawMonotonicStackLesson(
     const ver = sIdx + 1;
     const baseX = 75;
     const els: WbElement[] = [
-      excalidrawRect("ms-hdr", baseX, 35, 620, 82, {
+      excalidrawRect("ms-hdr", baseX, 35, 660, 96, {
         strokeColor: "#db2777",
         backgroundColor: "#fce7f3",
         version: ver,
       }),
       excalidrawText("ms-title", baseX + 16, 46, `Step ${ver}: ${st.title}`, {
-        fontSize: 18,
+        fontSize: 17,
         strokeColor: "#be185d",
+        maxCharsPerLine: 54,
+        maxLines: 1,
         version: ver,
       }),
-      excalidrawText("ms-sub", baseX + 16, 78, st.narration, {
+      excalidrawText("ms-sub", baseX + 16, 80, st.narration, {
         fontSize: 13,
         strokeColor: "#0f172a",
+        maxCharsPerLine: 66,
+        maxLines: 1,
         version: ver,
       }),
     ];
@@ -1226,9 +1238,10 @@ export function buildExcalidrawMonotonicStackLesson(
         backgroundColor: "#f0f9ff",
         version: ver,
       }),
-      excalidrawText("ms-stack-lbl", 530, 165, "Monotonic Stack", {
-        fontSize: 15,
+      excalidrawText("ms-stack-lbl", 522, 165, "Monotonic Stack", {
+        fontSize: 14,
         strokeColor: "#0369a1",
+        maxLines: 1,
         version: ver,
       })
     );
@@ -1280,7 +1293,7 @@ export function buildExcalidrawDpTableLesson(_n = 6): AiWhiteboardLesson {
     const cellW = 74;
 
     const els: WbElement[] = [
-      excalidrawRect("dp-hdr", baseX, 38, 600, 86, {
+      excalidrawRect("dp-hdr", baseX, 38, 660, 96, {
         strokeColor: "#7c3aed",
         backgroundColor: "#f3e8ff",
         version: ver,
@@ -1290,14 +1303,14 @@ export function buildExcalidrawDpTableLesson(_n = 6): AiWhiteboardLesson {
         baseX + 16,
         50,
         `Step ${ver}: Compute dp[${step}] = dp[${step - 1}] (${dp[step - 1]}) + dp[${step - 2}] (${dp[step - 2]}) = ${dp[step]}`,
-        { fontSize: 18, strokeColor: "#6d28d9", version: ver }
+        { fontSize: 17, strokeColor: "#6d28d9", maxCharsPerLine: 54, maxLines: 1, version: ver }
       ),
       excalidrawText(
         "dp-sub",
         baseX + 16,
-        82,
-        `Optimal Substructure: Overlapping subproblems cached in O(1) lookup time`,
-        { fontSize: 14, strokeColor: "#0f172a", version: ver }
+        84,
+        `Optimal Substructure: Cached subproblems reused in O(1) lookup time`,
+        { fontSize: 14, strokeColor: "#0f172a", maxCharsPerLine: 64, maxLines: 1, version: ver }
       ),
     ];
 
@@ -1658,31 +1671,21 @@ export function extractWhiteboardSelectionContext(
 }
 
 /**
- * Surrounds an entire AiWhiteboardLesson inside its own dedicated, non-overlapping
- * architectural Zone Frame on the Excalidraw canvas so that triggering a new
- * simulation NEVER overwrites or collides with previous simulations or user drawings.
+ * Pre-calculates the exact bounded zone dimensions (width, height, and raw minX/minY)
+ * of an AiWhiteboardLesson across all of its step frames.
  */
-export function wrapLessonInBoundedZone(
+export function measureLessonZoneDimensions(
   lesson: AiWhiteboardLesson,
-  opts: {
-    zoneId: string;
-    zoneIndex: number;
-    originX: number;
-    originY: number;
-    connectedFromBounds?: {
-      minX: number;
-      minY: number;
-      maxX: number;
-      maxY: number;
-      width: number;
-      height: number;
-    } | null;
-    selectionBannerText?: string;
-  }
-): AiWhiteboardLesson {
-  const { zoneId, zoneIndex, originX, originY, connectedFromBounds, selectionBannerText } = opts;
-
-  // 1. Measure natural bounds of all elements across all frames
+  hasSelectionBanner = false
+): {
+  zoneWidth: number;
+  zoneHeight: number;
+  rawMinX: number;
+  rawMinY: number;
+  topBarH: number;
+  padX: number;
+  padTop: number;
+} {
   let rawMinX = Infinity;
   let rawMinY = Infinity;
   let rawMaxX = -Infinity;
@@ -1708,15 +1711,61 @@ export function wrapLessonInBoundedZone(
     rawMaxY = 440;
   }
 
-  const PAD_X = 36;
-  const TOP_BAR_H = selectionBannerText ? 76 : 54;
-  const PAD_TOP = TOP_BAR_H + 24;
-  const PAD_BOTTOM = 36;
+  const padX = 36;
+  const topBarH = hasSelectionBanner ? 76 : 54;
+  const padTop = topBarH + 24;
+  const padBottom = 36;
 
   const contentW = Math.max(660, rawMaxX - rawMinX);
   const contentH = Math.max(360, rawMaxY - rawMinY);
-  const zoneWidth = contentW + PAD_X * 2;
-  const zoneHeight = contentH + PAD_TOP + PAD_BOTTOM;
+  const zoneWidth = Math.round(contentW + padX * 2);
+  const zoneHeight = Math.round(contentH + padTop + padBottom);
+
+  return {
+    zoneWidth,
+    zoneHeight,
+    rawMinX,
+    rawMinY,
+    topBarH,
+    padX,
+    padTop,
+  };
+}
+
+/**
+ * Surrounds an entire AiWhiteboardLesson inside its own dedicated, non-overlapping
+ * architectural Zone Frame on the Excalidraw canvas so that triggering a new
+ * simulation NEVER overwrites or collides with previous simulations or user drawings.
+ */
+export function wrapLessonInBoundedZone(
+  lesson: AiWhiteboardLesson,
+  opts: {
+    zoneId: string;
+    zoneIndex: number;
+    originX: number;
+    originY: number;
+    connectedFromBounds?: {
+      minX: number;
+      minY: number;
+      maxX: number;
+      maxY: number;
+      width: number;
+      height: number;
+    } | null;
+    selectionBannerText?: string;
+  }
+): AiWhiteboardLesson {
+  const { zoneId, zoneIndex, originX, originY, connectedFromBounds, selectionBannerText } = opts;
+
+  const {
+    zoneWidth,
+    zoneHeight,
+    rawMinX,
+    rawMinY,
+    topBarH: TOP_BAR_H,
+    padX: PAD_X,
+    padTop: PAD_TOP,
+  } = measureLessonZoneDimensions(lesson, Boolean(selectionBannerText));
 
   const dx = originX + PAD_X - rawMinX;
   const dy = originY + PAD_TOP - rawMinY;

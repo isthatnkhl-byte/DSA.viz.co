@@ -780,17 +780,13 @@ export function AiWhiteboard({
     const collaboratorId = tintedId("ai-co-teacher", aiColor);
     const finalTarget = currentFrame.aiLaserTarget ?? { x: 320, y: 220 };
 
-    const updateCollaboratorCursor = (
-      x: number,
-      y: number,
-      isMoving: boolean
-    ) => {
+    const updateCollaboratorCursor = (x: number, y: number) => {
       cursorPosRef.current = { x, y };
       const pointer: WbPointer = {
         x: Math.round(x * 10) / 10,
         y: Math.round(y * 10) / 10,
-        tool: "laser",
-        button: isMoving ? "down" : "up",
+        tool: "pointer",
+        button: "up",
       };
       const collaborators = new Map<string, any>();
       collaborators.set("ai-co-teacher", {
@@ -801,7 +797,7 @@ export function AiWhiteboard({
         }/${activeLesson.frames.length})`,
         color: { background: aiColor, stroke: aiColor },
         pointer,
-        button: pointer.button,
+        button: "up",
       });
       try {
         excalidrawAPI.updateScene({ collaborators });
@@ -812,7 +808,7 @@ export function AiWhiteboard({
 
     // If the cursor has already settled at this step's target, keep it 100% stationary!
     if (settledAtTargetRef.current) {
-      updateCollaboratorCursor(finalTarget.x, finalTarget.y, false);
+      updateCollaboratorCursor(finalTarget.x, finalTarget.y);
       return;
     }
 
@@ -845,7 +841,7 @@ export function AiWhiteboard({
     // If the cursor is already at the target (cleanPath.length < 2), do NOT move at all!
     if (cleanPath.length < 2) {
       settledAtTargetRef.current = true;
-      updateCollaboratorCursor(finalTarget.x, finalTarget.y, false);
+      updateCollaboratorCursor(finalTarget.x, finalTarget.y);
       const holdMs = autoVoiceNarrate
         ? 150
         : Math.max(700, Math.round(1300 / playbackSpeed));
@@ -869,7 +865,7 @@ export function AiWhiteboard({
       // Once the cursor reaches the destination, STOP COMPLETELY (no more requestAnimationFrame!)
       if (elapsed >= totalMoveMs) {
         settledAtTargetRef.current = true;
-        updateCollaboratorCursor(finalTarget.x, finalTarget.y, false);
+        updateCollaboratorCursor(finalTarget.x, finalTarget.y);
 
         // Hold stationary at the target before allowing step progression (if Voice is OFF)
         const holdMs = autoVoiceNarrate
@@ -900,7 +896,7 @@ export function AiWhiteboard({
       const nextX = fromPt.x + (toPt.x - fromPt.x) * eased;
       const nextY = fromPt.y + (toPt.y - fromPt.y) * eased;
 
-      updateCollaboratorCursor(nextX, nextY, true);
+      updateCollaboratorCursor(nextX, nextY);
     };
 
     animFrameId = window.requestAnimationFrame(animateCursor);

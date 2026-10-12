@@ -792,9 +792,6 @@ export function AiWhiteboard({
       collaborators.set("ai-co-teacher", {
         id: collaboratorId,
         socketId: "ai-co-teacher",
-        username: `🤖 AI Co-Teacher (Zone #${activeZoneIdx + 1} • Step ${
-          stepIndex + 1
-        }/${activeLesson.frames.length})`,
         color: { background: aiColor, stroke: aiColor },
         pointer,
         button: "up",

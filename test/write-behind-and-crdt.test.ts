@@ -174,5 +174,24 @@ test('Excalidraw Whiteboard - merges elements by version/versionNonce and genera
   assert.strictEqual(bfLesson.id, 'brute_force_dry_run');
   assert.ok(bfLesson.frames.length >= 2);
   assert.ok((bfLesson.frames[0]!.aiLaserWaypoints?.length ?? 0) >= 2);
+
+  // Verify all 7 new global DSA lesson families (Graphs, 2D Grid, Hash Map, Heap, Trie, Intervals, QuickSort)
+  const globalQueries: Array<[string, string]> = [
+    ['Simulate Dijkstra shortest path on a weighted graph', 'graph_shortest_path'],
+    ['Simulate 2D Matrix Number of Islands flood fill BFS', 'matrix_2d_bfs'],
+    ['Show Hash Map complement lookup for Two Sum', 'hashmap_lookup'],
+    ['Demonstrate Min-Heap priority queue sift-up', 'heap_priority_queue'],
+    ['Draw Trie prefix tree inserting APP and APPLE', 'trie_prefix_tree'],
+    ['Simulate Merge Overlapping Intervals on timeline', 'merge_intervals'],
+    ['Demonstrate QuickSort partition around pivot', 'quicksort_partition'],
+  ];
+
+  for (const [q, expectedId] of globalQueries) {
+    const built = generateAiExcalidrawLessonForQuery(q);
+    assert.strictEqual(built.id, expectedId, `Expected "${q}" to resolve to ${expectedId}`);
+    assert.ok(built.frames.length >= 3);
+    assert.ok(built.frames[0]!.elements.length > 0);
+  }
 });
+
 

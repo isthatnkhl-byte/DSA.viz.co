@@ -741,8 +741,6 @@ export function AiLearningPage() {
             <AiWhiteboard
               roomId="ai-learning-main-stage"
               fullScreenStage={true}
-              problemTitle={activeModule.title}
-              currentCode={activeModule.cppSnippet}
               activeLessonOverride={lessonOverride}
               onLessonStateChange={handleLessonStateChange}
               onAiSpeak={handleSpeakText}
@@ -1084,8 +1082,6 @@ export function AiLearningPage() {
                                   body: JSON.stringify({
                                     query: prompt,
                                     roomId: "ai-learning-main-stage",
-                                    problemTitle: activeModule.title,
-                                    code: activeModule.cppSnippet,
                                   }),
                                 });
                                 if (res.ok) {

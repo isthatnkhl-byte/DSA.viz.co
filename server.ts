@@ -3918,13 +3918,6 @@ INSTRUCTION FOR SELECTED AREA:
 You MUST directly reference the exact numbers, values, pointers, or partial dry-run state inside the user's selected whiteboard area above! If the user asks for a dry run, brute force comparison, optimization, or "continue from here", use the exact numbers/elements they selected on the whiteboard.`
     : "";
 
-  const fullPromptContext = [
-    query,
-    problemTitle ? `(Problem: ${problemTitle})` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   const colorMap: Record<string, { stroke: string; bg: string }> = {
     blue: { stroke: "#0284c7", bg: "#e0f2fe" },
     cyan: { stroke: "#0891b2", bg: "#cffafe" },
@@ -3961,33 +3954,46 @@ You MUST directly reference the exact numbers, values, pointers, or partial dry-
           headers: { "User-Agent": "aistudio-build" },
         },
       });
+      const optionalInterviewContext =
+        problemTitle || code
+          ? `\nOptional background context (IGNORE completely if the user's query below asks for a specific algorithm, problem, or data structure):${problemTitle ? ` Problem="${problemTitle}"` : ""}${code ? `\nCode snippet:\n${code.slice(0, 450)}` : ""}`
+          : "";
+
       const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Co-Teacher with direct control over an Excalidraw Whiteboard (local simulation coordinates x: 60..780, y: 40..470).
-The user asked: "${fullPromptContext}"
-${code ? `Candidate's current code snippet:\n${code.slice(0, 600)}` : ""}
-${selectionPromptBlock}
 
-Design a 3 to 5 step animated visual dry-run simulation on the Excalidraw whiteboard that teaches, demonstrates, and simulates this exact query clearly.
+USER'S EXACT REQUEST (HIGHEST PRIORITY — MUST FOLLOW 100%):
+"${query}"
+${selectionPromptBlock}${optionalInterviewContext}
 
-WHITEBOARD TOOLKIT (YOUR CHOICE — USE OUR COMPOSITE WIDGETS, DRAW CUSTOM NODES/ARROWS, OR COMBINE BOTH):
-You have full creative freedom in every step to either:
-(A) Use our built-in high-level "widgets" ("grid2d" for 2D matrices/DP/islands, "hashmap" for key-value tables, "container" for U-shaped stack buckets or open-ended queue pipes, "intervals" for timeline sweep-line bars), OR
-(B) Draw your own custom "nodes" ("rect", "ellipse", "diamond", or multi-compartment "split_node" like ["prev","val","next"]) and "arrows" ("straight", "curved" arcs, or 90-degree orthogonal "elbow" arrows, with optional "bidirectional" and edge weight "label"), OR
+CRITICAL RULES:
+1. You MUST simulate the EXACT algorithm, problem, and dry run requested in the user's query ("${query}"). Never substitute a different algorithm!
+2. Design a complete **4 to 6 step** animated visual dry-run simulation ("steps" array MUST contain 4 to 6 steps) walking through concrete sample inputs iteration-by-iteration from initial state to final answer.
+3. In every step, populate "stateVars" with 2 to 4 key live dry-run variables (e.g. for Sliding Window Max Subarray Sum: window range "[L..R]", "windowSum", "maxSum"; for DP: current "i", "dp[i]"; for Graph: "queue/dist", etc.) so the student sees the exact dry-run state numbers updating at each step.
+
+WHITEBOARD TOOLKIT (YOUR CHOICE — USE COMPOSITE WIDGETS, CUSTOM NODES/ARROWS, OR COMBINE BOTH):
+(A) Built-in "widgets" ("grid2d" for 2D matrices/DP/islands, "hashmap" for key-value tables, "container" for stack buckets or queue pipes, "intervals" for timeline bars), OR
+(B) Custom "nodes" ("rect", "ellipse", "diamond", or multi-compartment "split_node" like ["prev","val","next"]) and "arrows" (connect two distinct node IDs via "from": "node-0", "to": "node-1"), OR
 (C) Combine both widgets and custom nodes/arrows in the same step!
 
 Return ONLY valid JSON matching this structure:
 {
-  "topic": "Concise Title (max 44 chars)",
+  "topic": "Concise Title Matching User Query (max 44 chars)",
   "badge": "Time & Space Complexity (e.g. O(N) Time • O(1) Space)",
   "steps": [
     {
       "title": "Concise Step Title (max 48 chars)",
-      "narration": "1-2 sentence clear spoken explanation for the student",
-      "mathInvariant": "Key mathematical / pointer invariant at this step (max 64 chars)",
+      "narration": "1-2 sentence clear spoken explanation of what happens in this dry-run step",
+      "mathInvariant": "Key mathematical / pointer formula at this step (max 64 chars)",
       "laserX": 260,
-      "laserY": 210,
+      "laserY": 205,
       "waypoints": [
-        { "x": 140, "y": 210 },
-        { "x": 260, "y": 210 }
+        { "x": 140, "y": 205 },
+        { "x": 260, "y": 205 }
+      ],
+      "stateVars": [
+        { "name": "Window [L..R]", "value": "[0..2] = {2, 1, 5}", "color": "amber" },
+        { "name": "windowSum", "value": "8", "color": "blue" },
+        { "name": "maxSum", "value": "8", "color": "green" }
       ],
       "widgets": [
         {
@@ -4012,16 +4018,16 @@ Return ONLY valid JSON matching this structure:
       ],
       "nodes": [
         {
-          "id": "node-1",
+          "id": "node-0",
           "shape": "rect | ellipse | diamond | split_node",
-          "x": 90,
-          "y": 175,
-          "width": 100,
-          "height": 60,
-          "label": "Short text (<=16 chars)",
+          "x": 70,
+          "y": 180,
+          "width": 88,
+          "height": 58,
+          "label": "Short value (<=14 chars)",
           "compartments": ["prev", "42", "next"],
           "activeCompartmentIndex": 1,
-          "sublabel": "idx / ptr label",
+          "sublabel": "idx 0 (L)",
           "color": "blue | green | amber | rose | purple | slate",
           "highlight": true
         }
@@ -4029,15 +4035,13 @@ Return ONLY valid JSON matching this structure:
       "arrows": [
         {
           "id": "arr-1",
-          "fromX": 192,
-          "fromY": 205,
-          "toX": 238,
-          "toY": 205,
+          "from": "node-0",
+          "to": "node-1",
           "style": "straight | curved | elbow",
           "curvature": -42,
           "routing": "h-v-h | v-h-v | l-shape",
           "bidirectional": false,
-          "label": "optional weight/ptr",
+          "label": "optional edge/transition label",
           "color": "blue | green | amber | rose | purple | slate"
         }
       ]
@@ -4045,12 +4049,11 @@ Return ONLY valid JSON matching this structure:
   ]
 }
 Strict Layout Rules (to prevent any overlapping or messy UI):
-1. "shape" in nodes can be "rect", "ellipse", "diamond", or "split_node" (use "compartments": ["a","b"] or ["prev","val","next"] for split_node).
-2. "style" in arrows can be "straight", "curved" (for jump arcs / graph edges), or "elbow" (for 90-degree orthogonal routing). Include "label" for weighted graphs or state transitions, and "bidirectional": true for doubly-linked or undirected edges.
-3. "widgets" is optional — include ONLY the fields relevant to the chosen widget "type" ("grid2d", "hashmap", "container", or "intervals").
-4. Keep all elements within x: 65..780 and y: 158..450 so nothing ever overlaps the top step banner (y: 32..130).
-5. Space adjacent custom nodes horizontally by at least (width + 24) pixels so boxes NEVER overlap each other.
-6. Provide 2 to 4 "waypoints" per step tracing the AI teacher's pointer across the active elements.`;
+1. Generate 4 to 6 steps in "steps". For array/window/pointer algorithms, include ALL array elements as "nodes" in every step at y: 180, highlighting the active window/elements with "color": "amber" or "green" and "highlight": true, and marking pointer roles in "sublabel" (e.g. "L=0", "in window", "R=2").
+2. Use "stateVars" in every step to display live dry-run variable values (like windowSum, maxSum, L, R, k) — our renderer automatically places "stateVars" in a clean non-overlapping tracker bar below the diagram.
+3. Only use "arrows" to connect two different nodes ("from": "node-a", "to": "node-b"). Do NOT create self-arrows or floating badge arrows on a single node.
+4. "widgets" is optional — include ONLY when needed ("grid2d", "hashmap", "container", or "intervals").
+5. Space adjacent horizontal nodes by at least (width + 22) pixels inside x: 65..780, y: 165..280.`;
 
       const llmRes = await Promise.race([
         generateContentWithFallback(ai, "gemini-flash-lite-latest", {
@@ -4086,6 +4089,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
               { x: number; y: number; width: number; height: number }
             >();
             let maxNodeRight = 740;
+            let maxNodeBottom = 260;
 
             const shapeEls: WbElement[] = [];
 
@@ -4134,6 +4138,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   const gh = rows.length * cellH + 54;
                   placedNodeRects.push({ x: wx, y: wy, width: gw, height: gh });
                   maxNodeRight = Math.max(maxNodeRight, wx + gw);
+                  maxNodeBottom = Math.max(maxNodeBottom, wy + gh);
                   if (highlights.length > 0 && highlights[0]) {
                     stepWaypoints.push(
                       gridOut.getCellCenter(highlights[0].row, highlights[0].col)
@@ -4164,6 +4169,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   const hh = 56 + Math.max(1, entries.length) * 34;
                   placedNodeRects.push({ x: wx, y: wy, width: hw, height: hh });
                   maxNodeRight = Math.max(maxNodeRight, wx + hw);
+                  maxNodeBottom = Math.max(maxNodeBottom, wy + hh);
                   if (entries.length > 0) {
                     stepWaypoints.push(hmOut.getRowCenter(entries.length - 1));
                   }
@@ -4225,6 +4231,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   }
                   placedNodeRects.push({ x: wx, y: wy, width: cw, height: ch });
                   maxNodeRight = Math.max(maxNodeRight, wx + cw);
+                  maxNodeBottom = Math.max(maxNodeBottom, wy + ch);
                 } else if (wType === "intervals" && Array.isArray(w.intervals)) {
                   const tw = Number(w.width) || 560;
                   const axisMin = Number(w.axisMin) || 0;
@@ -4258,6 +4265,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   shapeEls.push(...tlOut.elements);
                   placedNodeRects.push({ x: wx, y: wy, width: tw, height: 180 });
                   maxNodeRight = Math.max(maxNodeRight, wx + tw);
+                  maxNodeBottom = Math.max(maxNodeBottom, wy + 180);
                   if (ivs.length > 0) {
                     stepWaypoints.push(tlOut.getIntervalCenter(0));
                   }
@@ -4276,14 +4284,14 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   (Array.isArray(n.compartments) && n.compartments.length > 1);
                 const nw = Math.max(
                   isSplit ? 110 : 76,
-                  Math.min(260, Number(n.width) || (isSplit ? 136 : 104))
+                  Math.min(240, Number(n.width) || (isSplit ? 132 : 90))
                 );
-                const nh = Math.max(48, Math.min(140, Number(n.height) || 60));
-                let nx = Math.max(60, Number(n.x) || 70 + nIdx * (nw + 28));
-                let ny = Math.max(158, Number(n.y) || 195);
+                const nh = Math.max(48, Math.min(130, Number(n.height) || 58));
+                let nx = Math.max(60, Number(n.x) || 70 + nIdx * (nw + 22));
+                let ny = Math.max(162, Number(n.y) || 185);
 
                 // Dynamic collision-resolution loop so AI-generated nodes NEVER overlap each other or widgets
-                const gapX = 24;
+                const gapX = 20;
                 const gapY = n.sublabel ? 34 : 22;
                 let guard = 0;
                 while (guard < 40) {
@@ -4307,6 +4315,10 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 nodeBoundsById.set(rawId, { x: nx, y: ny, width: nw, height: nh });
                 nodeBoundsById.set(nid, { x: nx, y: ny, width: nw, height: nh });
                 maxNodeRight = Math.max(maxNodeRight, nx + nw);
+                maxNodeBottom = Math.max(
+                  maxNodeBottom,
+                  ny + nh + (n.sublabel ? 28 : 8)
+                );
 
                 const theme = resolveTheme(n.color, "slate");
                 const strokeW = n.highlight ? 3 : 2;
@@ -4393,13 +4405,13 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                     shapeEls.push(
                       excalidrawText(
                         `ai-sub-${nid}`,
-                        nx + 8,
+                        nx + 6,
                         ny + nh + 6,
                         String(n.sublabel),
                         {
                           fontSize: 12,
                           strokeColor: theme.stroke,
-                          maxCharsPerLine: 20,
+                          maxCharsPerLine: 18,
                           maxLines: 1,
                           version: ver,
                         }
@@ -4407,6 +4419,51 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                     );
                   }
                 }
+              });
+            }
+
+            // 2b. Render Live Dry-Run State Tracker row (st.stateVars or st.variables) below the diagram
+            const rawVars = Array.isArray(st.stateVars)
+              ? st.stateVars
+              : Array.isArray(st.variables)
+                ? st.variables
+                : [];
+            if (rawVars.length > 0) {
+              const trackerY = Math.max(296, maxNodeBottom + 30);
+              const cappedVars = rawVars.slice(0, 4);
+              const cardGap = 16;
+              const cardW = Math.max(
+                155,
+                Math.min(220, Math.floor((680 - (cappedVars.length - 1) * cardGap) / cappedVars.length))
+              );
+              cappedVars.forEach((sv: any, vIdx: number) => {
+                const vx = 60 + vIdx * (cardW + cardGap);
+                const vTheme = resolveTheme(sv?.color, vIdx === cappedVars.length - 1 ? "green" : "blue");
+                const vName = String(sv?.name || sv?.key || `var_${vIdx}`).slice(0, 22);
+                const vVal = String(sv?.value ?? sv?.val ?? "").slice(0, 26);
+                shapeEls.push(
+                  excalidrawRect(`ai-sv-box-${vIdx}`, vx, trackerY, cardW, 56, {
+                    strokeColor: vTheme.stroke,
+                    backgroundColor: vTheme.bg,
+                    strokeWidth: 2,
+                    version: ver,
+                  }),
+                  excalidrawText(`ai-sv-k-${vIdx}`, vx + 10, trackerY + 8, vName, {
+                    fontSize: 11,
+                    strokeColor: vTheme.stroke,
+                    maxCharsPerLine: 22,
+                    maxLines: 1,
+                    version: ver,
+                  }),
+                  excalidrawText(`ai-sv-v-${vIdx}`, vx + 10, trackerY + 26, vVal, {
+                    fontSize: 14,
+                    strokeColor: "#0f172a",
+                    maxCharsPerLine: 24,
+                    maxLines: 1,
+                    version: ver,
+                  })
+                );
+                maxNodeRight = Math.max(maxNodeRight, vx + cardW);
               });
             }
 
@@ -4449,14 +4506,18 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
             // 3. Render connectors (straight, curved arcs, 90° elbow arrows, bidirectional, and labeled edges)
             if (Array.isArray(st.arrows)) {
               st.arrows.forEach((a: any, aIdx: number) => {
+                if (a.from && a.to && String(a.from) === String(a.to)) {
+                  return;
+                }
                 const aid = String(a.id || `arr-${aIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
                 const theme = resolveTheme(a.color, "blue");
-                const style =
+                let style: "straight" | "curved" | "elbow" =
                   a.style === "curved" || a.style === "elbow" ? a.style : "straight";
+                let curvature = typeof a.curvature === "number" ? a.curvature : -44;
                 const routing =
                   a.routing === "v-h-v" || a.routing === "l-shape" ? a.routing : "h-v-h";
 
-                // Resolve coordinates from either explicit fromX/toX or node IDs (a.from / a.to)
+                // Resolve coordinates prioritizing post-collision node bounds (a.from / a.to)
                 const fromBox = a.from ? nodeBoundsById.get(String(a.from)) : undefined;
                 const toBox = a.to ? nodeBoundsById.get(String(a.to)) : undefined;
 
@@ -4465,25 +4526,56 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 let tx = Number(a.toX);
                 let ty = Number(a.toY);
 
-                if ((!Number.isFinite(fx) || !Number.isFinite(fy)) && fromBox) {
-                  fx = fromBox.x + fromBox.width;
-                  fy = fromBox.y + Math.round(fromBox.height / 2);
+                if (fromBox && toBox) {
+                  const sameRow = Math.abs(fromBox.y - toBox.y) < 36;
+                  const horizDist = Math.abs(toBox.x - fromBox.x);
+                  if (sameRow && horizDist > Math.max(fromBox.width, toBox.width) + 48) {
+                    // Non-adjacent nodes on the same row: arch above the row so we never cut through intermediate boxes
+                    fx = fromBox.x + Math.round(fromBox.width / 2);
+                    fy = fromBox.y - 6;
+                    tx = toBox.x + Math.round(toBox.width / 2);
+                    ty = toBox.y - 6;
+                    style = "curved";
+                    curvature = -38;
+                  } else if (toBox.x >= fromBox.x + fromBox.width) {
+                    fx = fromBox.x + fromBox.width + 2;
+                    fy = fromBox.y + Math.round(fromBox.height / 2);
+                    tx = toBox.x - 2;
+                    ty = toBox.y + Math.round(toBox.height / 2);
+                  } else if (fromBox.x >= toBox.x + toBox.width) {
+                    fx = fromBox.x - 2;
+                    fy = fromBox.y + Math.round(fromBox.height / 2);
+                    tx = toBox.x + toBox.width + 2;
+                    ty = toBox.y + Math.round(toBox.height / 2);
+                  } else {
+                    fx = fromBox.x + Math.round(fromBox.width / 2);
+                    fy = fromBox.y + fromBox.height + 2;
+                    tx = toBox.x + Math.round(toBox.width / 2);
+                    ty = toBox.y - 2;
+                  }
+                } else {
+                  if ((!Number.isFinite(fx) || !Number.isFinite(fy)) && fromBox) {
+                    fx = fromBox.x + fromBox.width;
+                    fy = fromBox.y + Math.round(fromBox.height / 2);
+                  }
+                  if ((!Number.isFinite(tx) || !Number.isFinite(ty)) && toBox) {
+                    tx = toBox.x;
+                    ty = toBox.y + Math.round(toBox.height / 2);
+                  }
                 }
-                if ((!Number.isFinite(tx) || !Number.isFinite(ty)) && toBox) {
-                  tx = toBox.x;
-                  ty = toBox.y + Math.round(toBox.height / 2);
+
+                if (!Number.isFinite(fx) || !Number.isFinite(fy) || !Number.isFinite(tx) || !Number.isFinite(ty)) {
+                  return;
                 }
-                fx = Number.isFinite(fx) ? fx : 150;
-                fy = Number.isFinite(fy) ? fy : 210;
-                tx = Number.isFinite(tx) ? tx : 220;
-                ty = Number.isFinite(ty) ? ty : 210;
+                if (Math.hypot(tx - fx, ty - fy) < 30) {
+                  return;
+                }
 
                 if (style !== "straight" || a.bidirectional || a.label) {
                   els.push(
                     ...excalidrawLabeledConnector(`ai-ar-${aid}`, fx, fy, tx, ty, {
                       style,
-                      curvature:
-                        typeof a.curvature === "number" ? a.curvature : -44,
+                      curvature,
                       routing,
                       bidirectional: Boolean(a.bidirectional),
                       label: a.label ? String(a.label) : undefined,

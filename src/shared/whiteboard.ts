@@ -4030,43 +4030,26 @@ export function generateAiExcalidrawLessonForQuery(
     );
   }
 
-  // 8. Brute Force / Dry Run / Nested Loop O(N^2)
+  // 8. Sliding Window / Subarray Sum
   if (
-    q.includes("brute") ||
-    q.includes("dry run") ||
-    q.includes("dry-run") ||
-    q.includes("nested") ||
-    q.includes("o(n^2)") ||
-    q.includes("all pairs")
+    q.includes("sliding window") ||
+    q.includes("subarray") ||
+    q.includes("window") ||
+    q.includes("kadane")
   ) {
-    const arr =
-      combinedNums.length >= 4
-        ? combinedNums.slice(0, -1)
-        : combinedNums.length >= 3
-        ? combinedNums
-        : [1, 3, 5, 8, 12];
-    const target =
-      combinedNums.length >= 4
-        ? combinedNums[combinedNums.length - 1]!
-        : 17;
-    return buildExcalidrawBruteForceDryRunLesson(arr, target);
-  }
-
-  // 9. Sliding Window
-  if (q.includes("sliding window") || q.includes("subarray") || q.includes("window")) {
     const arr =
       combinedNums.length >= 4 ? combinedNums : [2, 1, 5, 1, 3, 2];
     return buildExcalidrawSlidingWindowLesson(arr, 3);
   }
 
-  // 10. Monotonic Stack / Queue
+  // 9. Monotonic Stack / Queue
   if (q.includes("monotonic") || q.includes("stack") || q.includes("next greater")) {
     const arr =
       combinedNums.length >= 3 ? combinedNums.slice(0, 7) : [2, 1, 5, 6, 2, 3];
     return buildExcalidrawMonotonicStackLesson(arr);
   }
 
-  // 11. Dynamic Programming
+  // 10. Dynamic Programming
   if (
     q.includes("dp") ||
     q.includes("dynamic programming") ||
@@ -4082,7 +4065,7 @@ export function generateAiExcalidrawLessonForQuery(
     return buildExcalidrawDpTableLesson(nVal);
   }
 
-  // 12. Binary Search
+  // 11. Binary Search
   if (
     q.includes("binary search") ||
     q.includes("mid") ||
@@ -4100,7 +4083,7 @@ export function generateAiExcalidrawLessonForQuery(
     return buildExcalidrawBinarySearchLesson(arr, target);
   }
 
-  // 13. Linked List
+  // 12. Linked List
   if (
     q.includes("linked list") ||
     q.includes("reverse") ||
@@ -4110,7 +4093,7 @@ export function generateAiExcalidrawLessonForQuery(
     return buildExcalidrawLinkedListLesson();
   }
 
-  // 14. Trees / BST / DFS
+  // 13. Trees / BST / DFS
   if (
     q.includes("tree") ||
     q.includes("bst") ||
@@ -4121,7 +4104,7 @@ export function generateAiExcalidrawLessonForQuery(
     return buildExcalidrawTreeLesson();
   }
 
-  // 15. Two Pointers / Optimal Pair / Takeover from Selection
+  // 14. Two Pointers / Optimal Pair / Takeover from Selection
   if (
     q.includes("two pointer") ||
     q.includes("pointer") ||
@@ -4141,6 +4124,28 @@ export function generateAiExcalidrawLessonForQuery(
         ? combinedNums[combinedNums.length - 1]!
         : 17;
     return buildExcalidrawTwoPointersLesson(arr, target);
+  }
+
+  // 15. Brute Force / Nested Loop O(N^2) / Generic Dry Run
+  if (
+    q.includes("brute") ||
+    q.includes("dry run") ||
+    q.includes("dry-run") ||
+    q.includes("nested") ||
+    q.includes("o(n^2)") ||
+    q.includes("all pairs")
+  ) {
+    const arr =
+      combinedNums.length >= 4
+        ? combinedNums.slice(0, -1)
+        : combinedNums.length >= 3
+        ? combinedNums
+        : [1, 3, 5, 8, 12];
+    const target =
+      combinedNums.length >= 4
+        ? combinedNums[combinedNums.length - 1]!
+        : 17;
+    return buildExcalidrawBruteForceDryRunLesson(arr, target);
   }
 
   // 9. Clean, Well-Spaced Architectural / Dry-Run Flowchart for any Custom Query

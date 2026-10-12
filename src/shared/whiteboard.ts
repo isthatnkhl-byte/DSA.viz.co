@@ -934,14 +934,367 @@ export function buildExcalidrawTreeLesson(): AiWhiteboardLesson {
 }
 
 /**
+ * Generates a Sliding Window (Max Subarray Sum k=3) interactive Excalidraw lesson.
+ */
+export function buildExcalidrawSlidingWindowLesson(
+  arr: number[] = [2, 1, 5, 1, 3, 2],
+  k = 3
+): AiWhiteboardLesson {
+  const frames: AiWhiteboardStepFrame[] = [];
+  let windowSum = 0;
+  for (let i = 0; i < Math.min(k, arr.length); i++) windowSum += arr[i]!;
+  let maxSum = windowSum;
+
+  const totalWindows = Math.max(1, arr.length - k + 1);
+  for (let wStart = 0; wStart < totalWindows; wStart++) {
+    const wEnd = wStart + k - 1;
+    if (wStart > 0) {
+      windowSum = windowSum - arr[wStart - 1]! + arr[wEnd]!;
+      maxSum = Math.max(maxSum, windowSum);
+    }
+    const ver = wStart + 1;
+    const baseX = 80;
+    const baseY = 195;
+    const cellW = 74;
+    const cellH = 60;
+
+    const elements: WbElement[] = [
+      excalidrawRect("sw-hdr", baseX, 38, 600, 88, {
+        strokeColor: "#d97706",
+        backgroundColor: "#fef3c7",
+        version: ver,
+      }),
+      excalidrawText(
+        "sw-hdr-title",
+        baseX + 16,
+        50,
+        `Step ${ver}: Window [${wStart}..${wEnd}] • Sum = ${windowSum} • Best Max = ${maxSum}`,
+        { fontSize: 18, strokeColor: "#b45309", version: ver }
+      ),
+      excalidrawText(
+        "sw-hdr-sub",
+        baseX + 16,
+        82,
+        wStart === 0
+          ? `Initialize first window of size k=${k}: sum = ${windowSum}`
+          : `Slide right: subtract outgoing arr[${wStart - 1}] (${arr[wStart - 1]}) & add incoming arr[${wEnd}] (${arr[wEnd]})`,
+        { fontSize: 14, strokeColor: "#0f172a", version: ver }
+      ),
+    ];
+
+    // Window outer frame box
+    elements.push(
+      excalidrawRect(
+        "sw-frame",
+        baseX + wStart * cellW - 8,
+        baseY - 10,
+        k * cellW + 10,
+        cellH + 20,
+        {
+          strokeColor: "#d97706",
+          backgroundColor: "transparent",
+          strokeWidth: 3,
+          strokeStyle: "dashed",
+          version: ver,
+        }
+      )
+    );
+
+    arr.forEach((val, idx) => {
+      const cx = baseX + idx * cellW;
+      const inWin = idx >= wStart && idx <= wEnd;
+      elements.push(
+        excalidrawRect(`sw-cell-${idx}`, cx, baseY, cellW - 6, cellH, {
+          strokeColor: inWin ? "#d97706" : "#64748b",
+          backgroundColor: inWin ? "#fef3c7" : "#ffffff",
+          strokeWidth: inWin ? 3 : 2,
+          version: ver,
+        }),
+        excalidrawText(`sw-val-${idx}`, cx + 22, baseY + 18, String(val), {
+          fontSize: 20,
+          strokeColor: "#0f172a",
+          version: ver,
+        }),
+        excalidrawText(`sw-idx-${idx}`, cx + 20, baseY + cellH + 14, `[${idx}]`, {
+          fontSize: 13,
+          strokeColor: "#64748b",
+          version: ver,
+        })
+      );
+    });
+
+    frames.push({
+      stepIndex: wStart,
+      title: `Window [${wStart}..${wEnd}] (Sum = ${windowSum})`,
+      narration:
+        wStart === 0
+          ? `We sum the first ${k} elements to get ${windowSum}, setting our initial maximum to ${maxSum}.`
+          : `Sliding the window right by 1 drops ${arr[wStart - 1]} and adds ${arr[wEnd]} in O(1) time. Current sum is ${windowSum}, best max is ${maxSum}.`,
+      mathInvariant: `windowSum = ${windowSum} | maxSum = ${maxSum}`,
+      elements,
+      aiLaserTarget: {
+        x: baseX + wEnd * cellW + 30,
+        y: baseY + 30,
+      },
+    });
+  }
+
+  return {
+    id: "sliding_window",
+    topic: "Sliding Window (Fixed Size k=3)",
+    badge: "O(N) Time • O(1) Space",
+    frames,
+  };
+}
+
+/**
+ * Generates a Monotonic Stack (Next Greater Element) interactive Excalidraw lesson.
+ */
+export function buildExcalidrawMonotonicStackLesson(): AiWhiteboardLesson {
+  const arr = [2, 1, 5, 3, 6];
+  const stepsData = [
+    {
+      activeIdx: 1,
+      stack: [2, 1],
+      ans: [-1, -1, -1, -1, -1],
+      title: "Push Decreasing Prefix [2, 1]",
+      narration: "Elements 2 and 1 maintain a monotonic decreasing stack. Both wait for a larger element.",
+    },
+    {
+      activeIdx: 2,
+      stack: [5],
+      ans: [5, 5, -1, -1, -1],
+      title: "Incoming 5 Pops 1 and 2!",
+      narration: "5 is greater than stack top 1 and 2! Both are popped and their Next Greater Element is recorded as 5.",
+    },
+    {
+      activeIdx: 4,
+      stack: [6],
+      ans: [5, 5, 6, 6, -1],
+      title: "Incoming 6 Resolves 3 and 5!",
+      narration: "After pushing 3, incoming 6 pops both 3 and 5, completing the Next Greater array in O(N) amortized time!",
+    },
+  ];
+
+  const frames: AiWhiteboardStepFrame[] = stepsData.map((st, sIdx) => {
+    const ver = sIdx + 1;
+    const baseX = 75;
+    const els: WbElement[] = [
+      excalidrawRect("ms-hdr", baseX, 35, 620, 82, {
+        strokeColor: "#db2777",
+        backgroundColor: "#fce7f3",
+        version: ver,
+      }),
+      excalidrawText("ms-title", baseX + 16, 46, `Step ${ver}: ${st.title}`, {
+        fontSize: 18,
+        strokeColor: "#be185d",
+        version: ver,
+      }),
+      excalidrawText("ms-sub", baseX + 16, 78, st.narration, {
+        fontSize: 13,
+        strokeColor: "#0f172a",
+        version: ver,
+      }),
+    ];
+
+    arr.forEach((v, i) => {
+      const cx = baseX + i * 74;
+      const isAct = i === st.activeIdx;
+      els.push(
+        excalidrawRect(`ms-in-${i}`, cx, 165, 66, 54, {
+          strokeColor: isAct ? "#db2777" : "#334155",
+          backgroundColor: isAct ? "#fbcfe8" : "#ffffff",
+          strokeWidth: isAct ? 3 : 2,
+          version: ver,
+        }),
+        excalidrawText(`ms-in-v-${i}`, cx + 22, 182, String(v), {
+          fontSize: 18,
+          strokeColor: "#0f172a",
+          version: ver,
+        }),
+        excalidrawRect(`ms-ans-${i}`, cx, 265, 66, 54, {
+          strokeColor: st.ans[i] !== -1 ? "#16a34a" : "#94a3b8",
+          backgroundColor: st.ans[i] !== -1 ? "#dcfce7" : "#f8fafc",
+          version: ver,
+        }),
+        excalidrawText(`ms-ans-v-${i}`, cx + 18, 282, String(st.ans[i]), {
+          fontSize: 18,
+          strokeColor: st.ans[i] !== -1 ? "#15803d" : "#64748b",
+          version: ver,
+        })
+      );
+    });
+
+    // Stack Bucket on the right
+    els.push(
+      excalidrawRect("ms-stack-box", 510, 155, 160, 170, {
+        strokeColor: "#0284c7",
+        backgroundColor: "#f0f9ff",
+        version: ver,
+      }),
+      excalidrawText("ms-stack-lbl", 530, 165, "Monotonic Stack", {
+        fontSize: 15,
+        strokeColor: "#0369a1",
+        version: ver,
+      })
+    );
+
+    st.stack.forEach((sv, sPos) => {
+      els.push(
+        excalidrawRect(`ms-stk-${sPos}`, 540, 265 - sPos * 46, 100, 40, {
+          strokeColor: "#0284c7",
+          backgroundColor: "#bae6fd",
+          version: ver,
+        }),
+        excalidrawText(`ms-stk-v-${sPos}`, 580, 276 - sPos * 46, String(sv), {
+          fontSize: 17,
+          strokeColor: "#0f172a",
+          version: ver,
+        })
+      );
+    });
+
+    return {
+      stepIndex: sIdx,
+      title: st.title,
+      narration: st.narration,
+      mathInvariant: `Stack = [${st.stack.join(", ")}] • Ans = [${st.ans.join(", ")}]`,
+      elements: els,
+      aiLaserTarget: { x: baseX + st.activeIdx * 74 + 33, y: 192 },
+    };
+  });
+
+  return {
+    id: "monotonic_stack",
+    topic: "Monotonic Stack (Next Greater Element)",
+    badge: "O(N) Amortized • O(N) Space",
+    frames,
+  };
+}
+
+/**
+ * Generates a Dynamic Programming 1D Memoization Table Excalidraw lesson.
+ */
+export function buildExcalidrawDpTableLesson(): AiWhiteboardLesson {
+  const dp = [1, 1, 2, 3, 5, 8, 13];
+  const frames: AiWhiteboardStepFrame[] = [];
+
+  for (let step = 2; step < dp.length; step++) {
+    const ver = step - 1;
+    const baseX = 75;
+    const baseY = 200;
+    const cellW = 74;
+
+    const els: WbElement[] = [
+      excalidrawRect("dp-hdr", baseX, 38, 600, 86, {
+        strokeColor: "#7c3aed",
+        backgroundColor: "#f3e8ff",
+        version: ver,
+      }),
+      excalidrawText(
+        "dp-title",
+        baseX + 16,
+        50,
+        `Step ${ver}: Compute dp[${step}] = dp[${step - 1}] (${dp[step - 1]}) + dp[${step - 2}] (${dp[step - 2]}) = ${dp[step]}`,
+        { fontSize: 18, strokeColor: "#6d28d9", version: ver }
+      ),
+      excalidrawText(
+        "dp-sub",
+        baseX + 16,
+        82,
+        `Optimal Substructure: Overlapping subproblems cached in O(1) lookup time`,
+        { fontSize: 14, strokeColor: "#0f172a", version: ver }
+      ),
+    ];
+
+    dp.forEach((val, idx) => {
+      const cx = baseX + idx * cellW;
+      const isComputed = idx <= step;
+      const isCurrent = idx === step;
+      const isDep = idx === step - 1 || idx === step - 2;
+
+      els.push(
+        excalidrawRect(`dp-cell-${idx}`, cx, baseY, cellW - 6, 60, {
+          strokeColor: isCurrent ? "#7c3aed" : isDep ? "#0284c7" : isComputed ? "#16a34a" : "#cbd5e1",
+          backgroundColor: isCurrent
+            ? "#ddd6fe"
+            : isDep
+            ? "#e0f2fe"
+            : isComputed
+            ? "#dcfce7"
+            : "#f8fafc",
+          strokeWidth: isCurrent || isDep ? 3 : 2,
+          version: ver,
+        }),
+        excalidrawText(`dp-val-${idx}`, cx + 20, baseY + 18, isComputed ? String(val) : "?", {
+          fontSize: 20,
+          strokeColor: isComputed ? "#0f172a" : "#94a3b8",
+          version: ver,
+        }),
+        excalidrawText(`dp-idx-${idx}`, cx + 14, baseY + 68, `dp[${idx}]`, {
+          fontSize: 13,
+          strokeColor: "#475569",
+          version: ver,
+        })
+      );
+    });
+
+    // Transition arrows from dp[step-1] and dp[step-2] to dp[step]
+    const targetX = baseX + step * cellW + 30;
+    const dep1X = baseX + (step - 1) * cellW + 30;
+    const dep2X = baseX + (step - 2) * cellW + 30;
+
+    els.push(
+      excalidrawArrow("dp-arr-1", dep1X, baseY - 8, targetX - 8, baseY - 8, {
+        strokeColor: "#0284c7",
+        strokeWidth: 2.5,
+        version: ver,
+      }),
+      excalidrawArrow("dp-arr-2", dep2X, baseY - 26, targetX - 4, baseY - 26, {
+        strokeColor: "#7c3aed",
+        strokeWidth: 2.5,
+        version: ver,
+      })
+    );
+
+    frames.push({
+      stepIndex: ver - 1,
+      title: `Transition dp[${step}] = ${dp[step - 1]} + ${dp[step - 2]} = ${dp[step]}`,
+      narration: `To compute dp[${step}], we reuse already memoized states dp[${step - 1}]=${dp[step - 1]} and dp[${step - 2}]=${dp[step - 2]} in O(1) time, avoiding exponential recursion.`,
+      mathInvariant: `dp[${step}] = dp[${step - 1}] + dp[${step - 2}] = ${dp[step]}`,
+      elements: els,
+      aiLaserTarget: { x: targetX, y: baseY + 30 },
+    });
+  }
+
+  return {
+    id: "dp_table",
+    topic: "Dynamic Programming (1D Tabulation)",
+    badge: "O(N) Time • O(N) Space",
+    frames,
+  };
+}
+
+/**
  * Generates a Sliding Window / Dynamic Programming / DAG / Custom Query diagram on Excalidraw
  * for ANY user prompt!
  */
 export function generateAiExcalidrawLessonForQuery(query: string): AiWhiteboardLesson {
   const q = query.toLowerCase();
 
-  // Extract custom numbers if the user typed an array like [2, 7, 11, 15] or "1, 4, 6, 9, 12"
   const numberMatches = query.match(/-?\d+/g)?.map(Number).filter((n) => !Number.isNaN(n)) || [];
+
+  if (q.includes("sliding window") || q.includes("subarray") || q.includes("window")) {
+    return buildExcalidrawSlidingWindowLesson();
+  }
+
+  if (q.includes("monotonic") || q.includes("stack") || q.includes("next greater")) {
+    return buildExcalidrawMonotonicStackLesson();
+  }
+
+  if (q.includes("dp") || q.includes("dynamic programming") || q.includes("memo") || q.includes("fibonacci") || q.includes("knapsack") || q.includes("climbing")) {
+    return buildExcalidrawDpTableLesson();
+  }
 
   if (q.includes("binary search") || q.includes("mid") || q.includes("sorted range") || q.includes("halv")) {
     const arr = numberMatches.length >= 4 ? numberMatches.slice(0, -1) : [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];

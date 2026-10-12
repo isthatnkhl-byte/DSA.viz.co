@@ -17,6 +17,11 @@ import {
   Crosshair,
   Loader2,
   Volume2,
+  VolumeX,
+  Mic,
+  MicOff,
+  SlidersHorizontal,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { WhiteboardElement } from "@/lib/crdt-collab.server";
@@ -27,6 +32,9 @@ import {
   tintedId,
   buildExcalidrawTwoPointersLesson,
   buildExcalidrawBinarySearchLesson,
+  buildExcalidrawSlidingWindowLesson,
+  buildExcalidrawMonotonicStackLesson,
+  buildExcalidrawDpTableLesson,
   buildExcalidrawLinkedListLesson,
   buildExcalidrawTreeLesson,
   generateAiExcalidrawLessonForQuery,
@@ -34,6 +42,15 @@ import {
   type WbPointer,
   type AiWhiteboardLesson,
 } from "@/shared/whiteboard";
+
+export type WhiteboardPresetId =
+  | "two_pointers"
+  | "sliding_window"
+  | "binary_search"
+  | "monotonic_stack"
+  | "dp_table"
+  | "linked_list"
+  | "tree";
 
 export interface AiWhiteboardProps {
   roomId?: string;
@@ -46,6 +63,12 @@ export interface AiWhiteboardProps {
   problemTitle?: string;
   currentCode?: string;
   onAiSpeak?: (text: string) => void;
+  /** When true, stretches to fill the parent full-screen stage (used on /ai-learning) */
+  fullScreenStage?: boolean;
+  /** Optional external lesson injected from parent curriculum or dataset builder */
+  activeLessonOverride?: AiWhiteboardLesson | null;
+  /** Callback fired whenever active lesson or current frame index changes */
+  onLessonStateChange?: (lesson: AiWhiteboardLesson, stepIndex: number) => void;
 }
 
 const SEND_MS = 80;
@@ -62,6 +85,9 @@ export function AiWhiteboard({
   problemTitle = "",
   currentCode = "",
   onAiSpeak,
+  fullScreenStage = false,
+  activeLessonOverride = null,
+  onLessonStateChange,
 }: AiWhiteboardProps) {
   const [excalidrawModule, setExcalidrawModule] = useState<any>(null);
   const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
@@ -75,8 +101,14 @@ export function AiWhiteboard({
   );
   const [stepIndex, setStepIndex] = useState(0);
   const [isPlayingSteps, setIsPlayingSteps] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const [autoVoiceNarrate, setAutoVoiceNarrate] = useState<boolean>(false);
+  const [isListeningVoiceQuery, setIsListeningVoiceQuery] = useState<boolean>(false);
+  const [showCustomBuilder, setShowCustomBuilder] = useState<boolean>(false);
+  const [customArrayInput, setCustomArrayInput] = useState<string>("2, 4, 7, 11, 15, 19");
+  const [customTargetInput, setCustomTargetInput] = useState<string>("18");
   const [aiStatusText, setAiStatusText] = useState<string>(
-    "AI Co-Teacher ready — ask any query or pick a preset to draw & simulate live"
+    "AI Co-Teacher ready — ask any query, speak into the mic, or pick a preset to draw & simulate live"
   );
 
   // Store & Sync Refs (ported from Agentic-Hub-office/src/client/ui/whiteboard-app.ts)
@@ -88,9 +120,46 @@ export function AiWhiteboard({
   const uploadsRef = useRef<Map<string, Promise<boolean>>>(new Map());
   const missingFilesRef = useRef<Map<string, number>>(new Map());
   const tooBigRef = useRef<Set<string>>(new Set());
+  const recognitionRef = useRef<any>(null);
 
   const currentFrame =
     activeLesson.frames[stepIndex] || activeLesson.frames[0];
+
+  // Speak helper using either parent onAiSpeak or browser speechSynthesis
+  const speakText = useCallback(
+    (text: string) => {
+      if (onAiSpeak) {
+        onAiSpeak(text);
+        return;
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.rate = 1.03;
+          utter.pitch = 1.0;
+          window.speechSynthesis.speak(utter);
+        } catch {
+          // ignore speech synthesis error
+        }
+      }
+    },
+    [onAiSpeak]
+  );
+
+  // Sync external lesson override when provided by parent (/ai-learning curriculum or custom dataset)
+  useEffect(() => {
+    if (activeLessonOverride) {
+      setActiveLesson(activeLessonOverride);
+      setStepIndex(0);
+      setIsPlayingSteps(true);
+    }
+  }, [activeLessonOverride]);
+
+  // Notify parent when lesson or step changes
+  useEffect(() => {
+    onLessonStateChange?.(activeLesson, stepIndex);
+  }, [activeLesson, stepIndex, onLessonStateChange]);
 
   // Dynamically load @excalidraw/excalidraw on the client (mirrors Agentic-Hub-office excalidraw() loader)
   useEffect(() => {
@@ -265,11 +334,14 @@ export function AiWhiteboard({
   useEffect(() => {
     if (!excalidrawAPI || !excalidrawModule) return;
 
-    // Fetch any persisted room scene from /api/whiteboard/scene
     fetch(`/api/whiteboard/scene?roomId=${encodeURIComponent(roomId)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.elements && Array.isArray(data.elements) && data.elements.length > 0) {
+        if (
+          data?.elements &&
+          Array.isArray(data.elements) &&
+          data.elements.length > 0
+        ) {
           injectElementsIntoExcalidraw(data.elements, undefined, true);
         } else if (currentFrame) {
           injectElementsIntoExcalidraw(
@@ -301,6 +373,9 @@ export function AiWhiteboard({
     setAiStatusText(
       `Step ${stepIndex + 1}/${activeLesson.frames.length}: ${currentFrame.title} — ${currentFrame.narration}`
     );
+    if (autoVoiceNarrate && currentFrame.narration) {
+      speakText(currentFrame.narration);
+    }
   }, [
     stepIndex,
     activeLesson,
@@ -308,11 +383,14 @@ export function AiWhiteboard({
     excalidrawAPI,
     excalidrawModule,
     injectElementsIntoExcalidraw,
+    autoVoiceNarrate,
+    speakText,
   ]);
 
   // Auto-play VCR timer for multi-step AI simulation
   useEffect(() => {
     if (!isPlayingSteps) return;
+    const intervalMs = Math.max(900, Math.round(2600 / playbackSpeed));
     const timer = window.setInterval(() => {
       setStepIndex((prev) => {
         if (prev < activeLesson.frames.length - 1) {
@@ -322,9 +400,9 @@ export function AiWhiteboard({
           return prev;
         }
       });
-    }, 2600);
+    }, intervalMs);
     return () => window.clearInterval(timer);
-  }, [isPlayingSteps, activeLesson.frames.length]);
+  }, [isPlayingSteps, activeLesson.frames.length, playbackSpeed]);
 
   // Flush local user drawings to server (ported from Agentic-Hub-office flush())
   const flushChanges = useCallback(() => {
@@ -414,12 +492,16 @@ export function AiWhiteboard({
     async (customQuery?: string) => {
       const q = (customQuery ?? aiQueryInput).trim();
       if (!q) {
-        toast.info("Type a topic or question for the AI to draw and simulate on the board!");
+        toast.info(
+          "Type a topic or question for the AI to draw and simulate on the board!"
+        );
         return;
       }
       setIsGeneratingAiLesson(true);
       setIsPlayingSteps(false);
-      setAiStatusText(`🤖 AI Co-Teacher is designing Excalidraw simulation for "${q}"...`);
+      setAiStatusText(
+        `🤖 AI Co-Teacher is designing Excalidraw simulation for "${q}"...`
+      );
 
       try {
         const res = await fetch("/api/whiteboard/ai-teach", {
@@ -435,14 +517,18 @@ export function AiWhiteboard({
 
         if (res.ok) {
           const data = await res.json();
-          if (data?.lesson && Array.isArray(data.lesson.frames) && data.lesson.frames.length > 0) {
+          if (
+            data?.lesson &&
+            Array.isArray(data.lesson.frames) &&
+            data.lesson.frames.length > 0
+          ) {
             setActiveLesson(data.lesson);
             setStepIndex(0);
             setIsPlayingSteps(true);
             if (!customQuery) setAiQueryInput("");
             const firstNarration = data.lesson.frames[0]?.narration;
-            if (firstNarration && onAiSpeak) {
-              onAiSpeak(`${data.lesson.topic}. ${firstNarration}`);
+            if (firstNarration && (onAiSpeak || autoVoiceNarrate)) {
+              speakText(`${data.lesson.topic}. ${firstNarration}`);
             }
             toast.success(`AI drew & started simulating: ${data.lesson.topic}`);
             return;
@@ -460,13 +546,69 @@ export function AiWhiteboard({
       setStepIndex(0);
       setIsPlayingSteps(true);
       if (!customQuery) setAiQueryInput("");
-      if (fallback.frames[0]?.narration && onAiSpeak) {
-        onAiSpeak(`${fallback.topic}. ${fallback.frames[0].narration}`);
+      if (fallback.frames[0]?.narration && (onAiSpeak || autoVoiceNarrate)) {
+        speakText(`${fallback.topic}. ${fallback.frames[0].narration}`);
       }
       toast.success(`AI drew & started simulating: ${fallback.topic}`);
     },
-    [aiQueryInput, roomId, problemTitle, currentCode, onAiSpeak]
+    [
+      aiQueryInput,
+      roomId,
+      problemTitle,
+      currentCode,
+      onAiSpeak,
+      autoVoiceNarrate,
+      speakText,
+    ]
   );
+
+  // Voice query via Web Speech API SpeechRecognition
+  const toggleVoiceQuery = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const SpeechRec =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      toast.warning(
+        "Voice recognition is not supported in this browser. Try Chrome or Edge."
+      );
+      return;
+    }
+
+    if (isListeningVoiceQuery && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListeningVoiceQuery(false);
+      return;
+    }
+
+    try {
+      const rec = new SpeechRec();
+      rec.lang = "en-US";
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      rec.onstart = () => {
+        setIsListeningVoiceQuery(true);
+        toast.info("🎙️ Listening... Ask the AI Co-Teacher what to draw & simulate!");
+      };
+      rec.onresult = (event: any) => {
+        const transcript = event?.results?.[0]?.[0]?.transcript;
+        if (transcript) {
+          setAiQueryInput(transcript);
+          void handleRunAiWhiteboardQuery(transcript);
+        }
+      };
+      rec.onerror = () => {
+        setIsListeningVoiceQuery(false);
+      };
+      rec.onend = () => {
+        setIsListeningVoiceQuery(false);
+      };
+      recognitionRef.current = rec;
+      rec.start();
+    } catch {
+      setIsListeningVoiceQuery(false);
+    }
+  }, [isListeningVoiceQuery, handleRunAiWhiteboardQuery]);
 
   // Listen to external AI diagram triggers from Live Interview voice / chat
   const lastExternalIdRef = useRef<string | null>(null);
@@ -510,15 +652,19 @@ export function AiWhiteboard({
     }
   }, [externalElements, handleRunAiWhiteboardQuery]);
 
-  // Preset Switcher
-  const handleSelectPreset = (
-    preset: "two_pointers" | "binary_search" | "linked_list" | "tree"
-  ) => {
+  // Preset Switcher supporting all 7 interactive lessons
+  const handleSelectPreset = (preset: WhiteboardPresetId) => {
     const lesson =
       preset === "two_pointers"
         ? buildExcalidrawTwoPointersLesson()
+        : preset === "sliding_window"
+        ? buildExcalidrawSlidingWindowLesson()
         : preset === "binary_search"
         ? buildExcalidrawBinarySearchLesson()
+        : preset === "monotonic_stack"
+        ? buildExcalidrawMonotonicStackLesson()
+        : preset === "dp_table"
+        ? buildExcalidrawDpTableLesson()
         : preset === "linked_list"
         ? buildExcalidrawLinkedListLesson()
         : buildExcalidrawTreeLesson();
@@ -529,11 +675,76 @@ export function AiWhiteboard({
     onElementCreated?.({
       id: `wb-preset-${Date.now()}`,
       type: "ai_diagram",
-      aiDiagramType: preset,
+      aiDiagramType:
+        preset === "two_pointers" ||
+        preset === "binary_search" ||
+        preset === "linked_list" ||
+        preset === "tree"
+          ? preset
+          : "array_pointers",
       timestamp: Date.now(),
       authorId: "ai_interviewer",
     });
     toast.info(`Loaded ${lesson.topic} on Excalidraw whiteboard`);
+  };
+
+  // Run custom array + target simulation directly on the Excalidraw canvas
+  const handleRunCustomDataset = (mode: "two_pointers" | "binary_search" | "sliding_window") => {
+    const nums = customArrayInput
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => !Number.isNaN(n))
+      .slice(0, 10);
+    const target = Number(customTargetInput.trim()) || 18;
+    if (nums.length < 2) {
+      toast.warning("Enter at least 2 comma-separated numbers.");
+      return;
+    }
+    const sorted = [...nums].sort((a, b) => a - b);
+    const lesson =
+      mode === "two_pointers"
+        ? buildExcalidrawTwoPointersLesson(sorted, target)
+        : mode === "binary_search"
+        ? buildExcalidrawBinarySearchLesson(sorted, target)
+        : buildExcalidrawSlidingWindowLesson(nums, Math.min(3, nums.length));
+
+    setActiveLesson(lesson);
+    setStepIndex(0);
+    setIsPlayingSteps(true);
+    setShowCustomBuilder(false);
+    toast.success(`Simulating ${lesson.topic} with your custom array!`);
+  };
+
+  // Export current lesson notes + Excalidraw JSON
+  const handleExportSceneJson = () => {
+    try {
+      const elements = excalidrawAPI
+        ? excalidrawAPI.getSceneElements()
+        : currentFrame?.elements || [];
+      const payload = {
+        type: "excalidraw",
+        version: 2,
+        source: "https://dsa.viz.co/ai-learning",
+        lessonTopic: activeLesson.topic,
+        lessonBadge: activeLesson.badge,
+        elements,
+        appState: {
+          viewBackgroundColor: "#ffffff",
+        },
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${activeLesson.id || "ai-whiteboard"}-scene.excalidraw`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Exported .excalidraw whiteboard file!");
+    } catch {
+      toast.error("Could not export whiteboard scene.");
+    }
   };
 
   const ExcalidrawComp = excalidrawModule?.Excalidraw;
@@ -544,30 +755,32 @@ export function AiWhiteboard({
     <div
       className={`wb-window flex flex-col overflow-hidden transition-all ${
         isFullScreen
-          ? "fixed inset-3 z-50 h-[calc(100vh-24px)]"
+          ? "fixed inset-2 z-50 h-[calc(100vh-16px)]"
+          : fullScreenStage
+          ? "h-full w-full flex-1 min-h-[620px]"
           : "h-[600px] w-full"
       }`}
       style={{
         background: "#fffaf3",
         border: "3px solid #2b2d42",
-        borderRadius: "20px",
+        borderRadius: isFullScreen ? "18px" : fullScreenStage ? "16px" : "20px",
         boxShadow: "0 6px 0 #2b2d42",
       }}
-      role="dialog"
-      aria-label="Whiteboard"
+      role="region"
+      aria-label="Interactive AI Excalidraw Whiteboard"
     >
       {/* 1. Agentic-Hub-office Signature Header (.wb-window > header) */}
       <header
-        className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 shrink-0"
+        className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 shrink-0"
         style={{
           borderBottom: "3px solid #2b2d42",
           background: "#f4ede2",
           color: "#2b2d42",
         }}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <h2 className="m-0 text-base font-black tracking-tight shrink-0 flex items-center gap-1.5">
-            <span>📝 Whiteboard</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="m-0 text-sm sm:text-base font-black tracking-tight shrink-0 flex items-center gap-1.5">
+            <span>📝 AI Whiteboard</span>
           </h2>
 
           {/* .wb-people Collaborator Strip (exact Agentic-Hub-office style) */}
@@ -612,18 +825,21 @@ export function AiWhiteboard({
               <span>🤖 AI Co-Teacher</span>
             </span>
 
-            <span className="hidden xl:inline text-[11px] font-bold text-slate-600 truncate">
+            <span className="hidden 2xl:inline text-[11px] font-bold text-slate-700 truncate">
               • {activeLesson.topic} ({activeLesson.badge})
             </span>
           </div>
         </div>
 
-        {/* Right: Quick Presets + Fullscreen Button */}
-        <div className="flex items-center gap-1.5">
+        {/* Right: Quick Presets + Custom Data + Export + Fullscreen Button */}
+        <div className="flex flex-wrap items-center gap-1">
           {(
             [
               { id: "two_pointers", label: "Two Pointers" },
+              { id: "sliding_window", label: "Sliding Window" },
               { id: "binary_search", label: "Binary Search" },
+              { id: "monotonic_stack", label: "Mono Stack" },
+              { id: "dp_table", label: "DP Table" },
               { id: "linked_list", label: "Linked List" },
               { id: "tree", label: "BST / Tree" },
             ] as const
@@ -645,6 +861,35 @@ export function AiWhiteboard({
 
           <button
             type="button"
+            onClick={() => setShowCustomBuilder((v) => !v)}
+            className="px-2 py-0.5 text-[11px] font-extrabold rounded-full flex items-center gap-1 transition cursor-pointer"
+            style={{
+              background: showCustomBuilder ? "#ffd166" : "#ffffff",
+              color: "#2b2d42",
+              border: "2px solid #2b2d42",
+            }}
+            title="Custom Array & Target Input Builder"
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+            <span className="hidden sm:inline">Custom Data</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportSceneJson}
+            className="p-1.5 rounded-lg font-black transition cursor-pointer"
+            style={{
+              background: "#ffffff",
+              border: "2px solid #2b2d42",
+              color: "#2b2d42",
+            }}
+            title="Export .excalidraw Scene"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsFullScreen(!isFullScreen)}
             className="p-1.5 rounded-lg font-black transition cursor-pointer"
             style={{
@@ -652,7 +897,9 @@ export function AiWhiteboard({
               border: "2px solid #2b2d42",
               color: "#2b2d42",
             }}
-            title={isFullScreen ? "Exit Fullscreen (Esc)" : "Fullscreen Whiteboard"}
+            title={
+              isFullScreen ? "Exit Fullscreen (Esc)" : "Fullscreen Whiteboard"
+            }
           >
             {isFullScreen ? (
               <Minimize2 className="w-3.5 h-3.5" />
@@ -663,9 +910,84 @@ export function AiWhiteboard({
         </div>
       </header>
 
-      {/* 2. AI Prompt & Teaching Command Bar (Give AI direct access to draw/simulate any query) */}
+      {/* Optional Custom Array / Target Input Strip */}
+      {showCustomBuilder && (
+        <div
+          className="px-3.5 py-2 flex flex-wrap items-center gap-2 text-xs shrink-0"
+          style={{
+            background: "#fef3c7",
+            borderBottom: "2px solid #2b2d42",
+            color: "#2b2d42",
+          }}
+        >
+          <span className="font-extrabold">Custom Array:</span>
+          <input
+            type="text"
+            value={customArrayInput}
+            onChange={(e) => setCustomArrayInput(e.target.value)}
+            className="px-2.5 py-1 rounded-lg font-mono text-xs font-bold w-48"
+            style={{
+              background: "#ffffff",
+              border: "2px solid #2b2d42",
+              color: "#2b2d42",
+            }}
+            placeholder="2, 4, 7, 11, 15, 19"
+          />
+          <span className="font-extrabold">Target / K:</span>
+          <input
+            type="text"
+            value={customTargetInput}
+            onChange={(e) => setCustomTargetInput(e.target.value)}
+            className="px-2 py-1 rounded-lg font-mono text-xs font-bold w-16"
+            style={{
+              background: "#ffffff",
+              border: "2px solid #2b2d42",
+              color: "#2b2d42",
+            }}
+            placeholder="18"
+          />
+          <button
+            type="button"
+            onClick={() => handleRunCustomDataset("two_pointers")}
+            className="px-2.5 py-1 rounded-lg font-extrabold cursor-pointer"
+            style={{
+              background: "#06d6a0",
+              border: "2px solid #2b2d42",
+              color: "#2b2d42",
+            }}
+          >
+            Simulate Two Pointers
+          </button>
+          <button
+            type="button"
+            onClick={() => handleRunCustomDataset("binary_search")}
+            className="px-2.5 py-1 rounded-lg font-extrabold cursor-pointer"
+            style={{
+              background: "#60a5fa",
+              border: "2px solid #2b2d42",
+              color: "#ffffff",
+            }}
+          >
+            Simulate Binary Search
+          </button>
+          <button
+            type="button"
+            onClick={() => handleRunCustomDataset("sliding_window")}
+            className="px-2.5 py-1 rounded-lg font-extrabold cursor-pointer"
+            style={{
+              background: "#a78bfa",
+              border: "2px solid #2b2d42",
+              color: "#ffffff",
+            }}
+          >
+            Simulate Sliding Window
+          </button>
+        </div>
+      )}
+
+      {/* 2. AI Prompt & Voice Teaching Command Bar */}
       <div
-        className="px-3 py-2 flex flex-wrap items-center gap-2 shrink-0 text-xs"
+        className="px-3.5 py-2 flex flex-wrap items-center gap-2 shrink-0 text-xs"
         style={{
           background: "#fffaf3",
           borderBottom: "2px solid #2b2d42",
@@ -674,7 +996,7 @@ export function AiWhiteboard({
       >
         <div className="flex items-center gap-1.5 font-extrabold text-xs shrink-0">
           <Sparkles className="w-4 h-4 text-rose-500" />
-          <span>Ask AI to Draw & Simulate:</span>
+          <span>Ask AI to Draw &amp; Simulate:</span>
         </div>
 
         <input
@@ -687,7 +1009,7 @@ export function AiWhiteboard({
               void handleRunAiWhiteboardQuery();
             }
           }}
-          placeholder='e.g. "Simulate Two Pointers on [2, 4, 7, 11, 15] target 18" or "Draw Dijkstra / LRU Cache / Recursion Tree"...'
+          placeholder='Ask anything: e.g. "Simulate Two Pointers on [2, 4, 7, 11, 15] target 18", "Draw Monotonic Stack", "Explain Knapsack DP"...'
           className="flex-1 min-w-[200px] px-3 py-1 rounded-lg text-xs font-bold outline-none"
           style={{
             background: "#ffffff",
@@ -695,6 +1017,31 @@ export function AiWhiteboard({
             color: "#2b2d42",
           }}
         />
+
+        {/* Live Voice Mic Query Button */}
+        <button
+          type="button"
+          onClick={toggleVoiceQuery}
+          className="px-2.5 py-1 rounded-lg font-extrabold text-xs flex items-center gap-1 cursor-pointer transition"
+          style={{
+            background: isListeningVoiceQuery ? "#ef476f" : "#ffffff",
+            color: isListeningVoiceQuery ? "#ffffff" : "#2b2d42",
+            border: "2px solid #2b2d42",
+          }}
+          title="Speak your algorithm question aloud — AI will draw & simulate it"
+        >
+          {isListeningVoiceQuery ? (
+            <>
+              <MicOff className="w-3.5 h-3.5 animate-pulse" />
+              <span>Listening...</span>
+            </>
+          ) : (
+            <>
+              <Mic className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Voice Ask</span>
+            </>
+          )}
+        </button>
 
         <button
           type="button"
@@ -716,7 +1063,7 @@ export function AiWhiteboard({
           ) : (
             <>
               <Send className="w-3.5 h-3.5" />
-              <span>AI Draw & Teach</span>
+              <span>AI Draw &amp; Teach</span>
             </>
           )}
         </button>
@@ -787,7 +1134,8 @@ export function AiWhiteboard({
                 <WelcomeScreenComp.Hints.HelpHint />
                 <WelcomeScreenComp.Center>
                   <WelcomeScreenComp.Center.Heading>
-                    Draw together: everyone on this floor sees it live, and AI can simulate any query on the board
+                    Draw together: everyone on this floor sees it live, and AI
+                    can simulate any query on the board
                   </WelcomeScreenComp.Center.Heading>
                 </WelcomeScreenComp.Center>
               </WelcomeScreenComp>
@@ -806,7 +1154,7 @@ export function AiWhiteboard({
         }}
       >
         {/* Left: Step Playback Controls */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => {
@@ -871,7 +1219,9 @@ export function AiWhiteboard({
           <button
             type="button"
             onClick={() =>
-              setStepIndex((p) => Math.min(activeLesson.frames.length - 1, p + 1))
+              setStepIndex((p) =>
+                Math.min(activeLesson.frames.length - 1, p + 1)
+              )
             }
             disabled={stepIndex >= activeLesson.frames.length - 1}
             className="px-2 py-1 rounded-lg font-extrabold flex items-center gap-1 cursor-pointer disabled:opacity-40"
@@ -883,6 +1233,48 @@ export function AiWhiteboard({
           >
             <span>Next</span>
             <SkipForward className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Direct Step Timeline Pills */}
+          <div className="hidden md:flex items-center gap-1 px-1">
+            {activeLesson.frames.map((frame, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setIsPlayingSteps(false);
+                  setStepIndex(idx);
+                }}
+                className="w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center transition cursor-pointer"
+                style={{
+                  background: idx === stepIndex ? "#ef476f" : "#ffffff",
+                  color: idx === stepIndex ? "#ffffff" : "#2b2d42",
+                  border: "2px solid #2b2d42",
+                }}
+                title={`Step ${idx + 1}: ${frame.title}`}
+              >
+                {idx + 1}
+              </button>
+            ))}
+          </div>
+
+          {/* Speed Selector */}
+          <button
+            type="button"
+            onClick={() =>
+              setPlaybackSpeed((s) =>
+                s === 1 ? 1.5 : s === 1.5 ? 2 : s === 2 ? 0.75 : 1
+              )
+            }
+            className="px-2 py-1 rounded-lg font-mono text-[11px] font-extrabold cursor-pointer"
+            style={{
+              background: "#ffffff",
+              border: "2px solid #2b2d42",
+              color: "#2b2d42",
+            }}
+            title="Simulation Playback Speed"
+          >
+            {playbackSpeed}x
           </button>
 
           <button
@@ -907,27 +1299,47 @@ export function AiWhiteboard({
             <Crosshair className="w-3.5 h-3.5" />
           </button>
 
-          {onAiSpeak && currentFrame && (
-            <button
-              type="button"
-              onClick={() => onAiSpeak(currentFrame.narration)}
-              className="p-1.5 rounded-lg font-bold cursor-pointer"
-              style={{
-                background: "#ffffff",
-                border: "2px solid #2b2d42",
-                color: "#2b2d42",
-              }}
-              title="Hear AI Explain This Step Aloud"
-            >
-              <Volume2 className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              const nextState = !autoVoiceNarrate;
+              setAutoVoiceNarrate(nextState);
+              if (nextState && currentFrame?.narration) {
+                speakText(currentFrame.narration);
+              } else if (
+                !nextState &&
+                typeof window !== "undefined" &&
+                "speechSynthesis" in window
+              ) {
+                window.speechSynthesis.cancel();
+              }
+            }}
+            className="px-2 py-1 rounded-lg font-extrabold flex items-center gap-1 cursor-pointer"
+            style={{
+              background: autoVoiceNarrate ? "#06d6a0" : "#ffffff",
+              border: "2px solid #2b2d42",
+              color: "#2b2d42",
+            }}
+            title="Toggle AI Voice Narration for Every Step"
+          >
+            {autoVoiceNarrate ? (
+              <>
+                <Volume2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Voice ON</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Voice OFF</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Center/Right: Live AI Narration & Step Counter */}
         <div className="flex-1 min-w-[200px] flex items-center justify-end gap-2">
           <span
-            className="px-2.5 py-1 rounded-lg font-bold text-[11px] truncate max-w-xl"
+            className="px-2.5 py-1 rounded-lg font-bold text-[11px] truncate max-w-2xl"
             style={{
               background: "#ffffff",
               border: "2px solid #2b2d42",

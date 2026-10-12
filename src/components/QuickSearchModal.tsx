@@ -27,6 +27,7 @@ const TOP_SHEETS = [
 ];
 
 const CORE_PLATFORMS = [
+  { name: "AI Learning Whiteboard", to: "/ai-learning", icon: Sparkles, desc: "Full-screen Excalidraw AI Co-Teacher & live simulation" },
   { name: "Interactive Visualizer", to: "/playground", icon: Sparkles, desc: "Step-by-step algorithm trace sandbox" },
   { name: "Problem Catalog", to: "/problems", icon: Layers, desc: "1,500+ company-tagged problems" },
   { name: "C++ Online Compiler", to: "/compiler", icon: Code2, desc: "C++20 in-browser execution with STL" },

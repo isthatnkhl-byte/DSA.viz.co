@@ -10,7 +10,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const rawPathname = location.pathname || "/";
   const pathname = rawPathname === "/" ? "/" : rawPathname.replace(/\/+$/, "");
-  const isPublicRoute = pathname === "/" || pathname === "/auth";
+  const isPublicRoute =
+    pathname === "/" ||
+    pathname === "/auth" ||
+    pathname === "/ai-learning" ||
+    pathname === "/terms" ||
+    pathname === "/privacy" ||
+    pathname === "/cookies";
 
   useEffect(() => {
     if (!loading && !user && !isPublicRoute) {

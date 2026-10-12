@@ -17,6 +17,7 @@ import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as ProblemsRouteImport } from './routes/problems'
 import { Route as SheetsRouteImport } from './routes/sheets'
 import { Route as LiveInterviewRouteImport } from './routes/live-interview'
+import { Route as AiLearningRouteImport } from './routes/ai-learning'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as CookiesRouteImport } from './routes/cookies'
@@ -56,6 +57,11 @@ const SheetsRoute = SheetsRouteImport.update({
 const LiveInterviewRoute = LiveInterviewRouteImport.update({
   id: '/live-interview',
   path: '/live-interview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiLearningRoute = AiLearningRouteImport.update({
+  id: '/ai-learning',
+  path: '/ai-learning',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/problems': typeof ProblemsRoute
   '/sheets': typeof SheetsRoute
   '/live-interview': typeof LiveInterviewRoute
+  '/ai-learning': typeof AiLearningRoute
   '/terms': typeof TermsRoute
   '/privacy': typeof PrivacyRoute
   '/cookies': typeof CookiesRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/problems': typeof ProblemsRoute
   '/sheets': typeof SheetsRoute
   '/live-interview': typeof LiveInterviewRoute
+  '/ai-learning': typeof AiLearningRoute
   '/terms': typeof TermsRoute
   '/privacy': typeof PrivacyRoute
   '/cookies': typeof CookiesRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/problems': typeof ProblemsRoute
   '/sheets': typeof SheetsRoute
   '/live-interview': typeof LiveInterviewRoute
+  '/ai-learning': typeof AiLearningRoute
   '/terms': typeof TermsRoute
   '/privacy': typeof PrivacyRoute
   '/cookies': typeof CookiesRoute
@@ -152,6 +161,7 @@ export interface FileRouteTypes {
     | '/problems'
     | '/sheets'
     | '/live-interview'
+    | '/ai-learning'
     | '/terms'
     | '/privacy'
     | '/cookies'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/problems'
     | '/sheets'
     | '/live-interview'
+    | '/ai-learning'
     | '/terms'
     | '/privacy'
     | '/cookies'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/problems'
     | '/sheets'
     | '/live-interview'
+    | '/ai-learning'
     | '/terms'
     | '/privacy'
     | '/cookies'
@@ -200,6 +212,7 @@ export interface RootRouteChildren {
   ProblemsRoute: typeof ProblemsRoute
   SheetsRoute: typeof SheetsRoute
   LiveInterviewRoute: typeof LiveInterviewRoute
+  AiLearningRoute: typeof AiLearningRoute
   TermsRoute: typeof TermsRoute
   PrivacyRoute: typeof PrivacyRoute
   CookiesRoute: typeof CookiesRoute
@@ -255,6 +268,13 @@ declare module '@tanstack/react-router' {
       path: '/live-interview'
       fullPath: '/live-interview'
       preLoaderRoute: typeof LiveInterviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-learning': {
+      id: '/ai-learning'
+      path: '/ai-learning'
+      fullPath: '/ai-learning'
+      preLoaderRoute: typeof AiLearningRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -331,6 +351,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProblemsRoute: ProblemsRoute,
   SheetsRoute: SheetsRoute,
   LiveInterviewRoute: LiveInterviewRoute,
+  AiLearningRoute: AiLearningRoute,
   TermsRoute: TermsRoute,
   PrivacyRoute: PrivacyRoute,
   CookiesRoute: CookiesRoute,

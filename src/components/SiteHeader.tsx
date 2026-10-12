@@ -167,6 +167,16 @@ export function SiteHeader({
               </Link>
 
               <Link
+                to={"/ai-learning" as any}
+                activeProps={{
+                  className: "!bg-primary !text-primary-foreground !border-primary font-semibold",
+                }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-none border border-[#625B52] bg-transparent px-3.5 lg:px-4 py-2 font-mono text-[11px] lg:text-xs font-medium uppercase tracking-[0.18em] text-[#EAE6DF] transition-colors hover:border-primary hover:text-white whitespace-nowrap"
+              >
+                <span>AI LEARNING</span>
+              </Link>
+
+              <Link
                 to="/compiler"
                 activeProps={{
                   className: "!bg-primary !text-primary-foreground !border-primary font-semibold",
@@ -305,6 +315,15 @@ export function SiteHeader({
               className="inline-flex items-center rounded-none px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-[#EAE6DF] border border-[#625B52] shrink-0"
             >
               <span>VISUALIZER</span>
+            </Link>
+            <Link
+              to={"/ai-learning" as any}
+              activeProps={{
+                className: "!bg-primary !text-primary-foreground !border-primary font-semibold",
+              }}
+              className="inline-flex items-center rounded-none px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-[#EAE6DF] border border-[#625B52] shrink-0"
+            >
+              <span>AI LEARNING</span>
             </Link>
             <Link
               to="/compiler"
@@ -504,6 +523,30 @@ export function SiteHeader({
                             </div>
                           </div>
                           <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                        </Link>
+
+                        <Link
+                          to={"/ai-learning" as any}
+                          onClick={() => setNavDrawerOpen(false)}
+                          activeProps={{
+                            className: "border-amber-500/50 bg-amber-950/20",
+                          }}
+                          className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-amber-500/40 hover:bg-secondary transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400">
+                              <Sparkles className="size-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-foreground group-hover:text-amber-400 transition-colors">
+                                AI Learning Whiteboard
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                Full-screen Excalidraw AI Co-Teacher &amp; live simulations
+                              </div>
+                            </div>
+                          </div>
+                          <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-amber-400 transition-colors" />
                         </Link>
 
                         <Link

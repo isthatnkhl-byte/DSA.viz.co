@@ -176,6 +176,11 @@ const ROUTE_SEO_MAP: Record<string, { title: string; description: string }> = {
     description:
       "Practice live proctored technical interviews with Socratic AI coaching, Brute Force to Optimal progression, voice synthesis, and FAANG hiring committee scorecards.",
   },
+  "/ai-learning": {
+    title: "AI Learning Studio — Full-Screen Excalidraw AI Whiteboard & Visual Co-Teacher | DSA.viz.co",
+    description:
+      "Learn Data Structures & Algorithms on a full-screen interactive Excalidraw AI Whiteboard. Ask any query or speak aloud and watch the AI Co-Teacher draw, point with a live laser cursor, and simulate step by step.",
+  },
   "/profile": {
     title: "Algorithmic Telemetry Profile & 52-Week Activity Dashboard — DSA.viz.co",
     description:

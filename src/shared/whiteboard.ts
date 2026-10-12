@@ -1695,12 +1695,24 @@ export function measureLessonZoneDimensions(
     for (const el of frame.elements) {
       const x = Number(el.x) || 0;
       const y = Number(el.y) || 0;
-      const w = Math.max(20, Number(el.width) || 60);
-      const h = Math.max(20, Number(el.height) || 40);
-      rawMinX = Math.min(rawMinX, x);
-      rawMinY = Math.min(rawMinY, y);
-      rawMaxX = Math.max(rawMaxX, x + w);
-      rawMaxY = Math.max(rawMaxY, y + h);
+      const pts = (el as { points?: Array<[number, number]> }).points;
+      if (Array.isArray(pts) && pts.length > 0) {
+        for (const pt of pts) {
+          const px = x + (Number(pt?.[0]) || 0);
+          const py = y + (Number(pt?.[1]) || 0);
+          rawMinX = Math.min(rawMinX, px);
+          rawMinY = Math.min(rawMinY, py);
+          rawMaxX = Math.max(rawMaxX, px);
+          rawMaxY = Math.max(rawMaxY, py);
+        }
+      } else {
+        const w = Math.max(20, Number(el.width) || 60);
+        const h = Math.max(20, Number(el.height) || 40);
+        rawMinX = Math.min(rawMinX, x);
+        rawMinY = Math.min(rawMinY, y);
+        rawMaxX = Math.max(rawMaxX, x + w);
+        rawMaxY = Math.max(rawMaxY, y + h);
+      }
     }
   }
 
@@ -1731,6 +1743,178 @@ export function measureLessonZoneDimensions(
     padTop,
   };
 }
+
+/**
+ * Dynamically finds a clean, open, non-overlapping coordinate `(originX, originY)` on the
+ * whiteboard by inspecting the real bounding boxes of all existing zones and live canvas elements.
+ * Zero hardcoded grid coordinates — adapts to any diagram width/height and user drawings.
+ */
+export function findDynamicCleanBoardPosition(opts: {
+  newZoneWidth: number;
+  newZoneHeight: number;
+  occupiedRects: Array<{ x: number; y: number; width: number; height: number }>;
+  lastZoneBounds?: { x: number; y: number; width: number; height: number } | null;
+  selCtx?: WhiteboardSelectionContext | null;
+  mode?: "branch" | "takeover";
+  gap?: number;
+}): {
+  originX: number;
+  originY: number;
+  connectedFromBounds?: WhiteboardSelectionContext["bounds"];
+} {
+  const {
+    newZoneWidth,
+    newZoneHeight,
+    occupiedRects,
+    lastZoneBounds,
+    selCtx,
+    mode = "branch",
+    gap = 88,
+  } = opts;
+
+  const findCollision = (
+    cx: number,
+    cy: number
+  ): { x: number; y: number; width: number; height: number } | null => {
+    for (const r of occupiedRects) {
+      const hitX =
+        cx < r.x + r.width + gap && cx + newZoneWidth + gap > r.x;
+      const hitY =
+        cy < r.y + r.height + gap && cy + newZoneHeight + gap > r.y;
+      if (hitX && hitY) {
+        return r;
+      }
+    }
+    return null;
+  };
+
+  // 1. If the user explicitly drag-selected an area on the board to branch from or take over
+  if (selCtx?.bounds && selCtx.selectedElements.length > 0) {
+    if (mode === "takeover") {
+      let cx = selCtx.bounds.minX;
+      const cy = selCtx.bounds.minY;
+      let guard = 0;
+      while ( guard < 50) {
+        const hit = findCollision(cx, cy);
+        if (!hit) break;
+        cx = hit.x + hit.width + gap;
+        guard++;
+      }
+      return {
+        originX: Math.round(cx),
+        originY: Math.round(cy),
+        connectedFromBounds: null,
+      };
+    }
+
+    // Branch mode: place cleanly to the right of the selected region, shifting down/right if occupied
+    let cx = selCtx.bounds.maxX + gap;
+    let cy = selCtx.bounds.minY;
+    let guard = 0;
+    while (guard < 60) {
+      const hit = findCollision(cx, cy);
+      if (!hit) break;
+      if (guard % 3 !== 2) {
+        cy = hit.y + hit.height + gap;
+      } else {
+        cx = hit.x + hit.width + gap;
+        cy = selCtx.bounds.minY;
+      }
+      guard++;
+    }
+    return {
+      originX: Math.round(cx),
+      originY: Math.round(cy),
+      connectedFromBounds: selCtx.bounds,
+    };
+  }
+
+  // 2. If the board is completely empty, place the first zone near the top-left origin
+  if (occupiedRects.length === 0) {
+    return {
+      originX: 40,
+      originY: 40,
+      connectedFromBounds: null,
+    };
+  }
+
+  // 3. Compute dynamic bounding envelope of all existing teachings and user drawings on the board
+  let boardMinX = Infinity;
+  let boardMinY = Infinity;
+  let boardMaxX = -Infinity;
+  let boardMaxY = -Infinity;
+
+  for (const r of occupiedRects) {
+    boardMinX = Math.min(boardMinX, r.x);
+    boardMinY = Math.min(boardMinY, r.y);
+    boardMaxX = Math.max(boardMaxX, r.x + r.width);
+    boardMaxY = Math.max(boardMaxY, r.y + r.height);
+  }
+
+  if (!Number.isFinite(boardMinX)) {
+    boardMinX = 40;
+    boardMinY = 40;
+    boardMaxX = 800;
+    boardMaxY = 560;
+  }
+
+  // Build dynamic candidate positions anchored to existing zone bounding boxes (2 zones per dynamic row)
+  const candidates: Array<{ x: number; y: number }> = [];
+
+  if (lastZoneBounds) {
+    const rightOfLastX = lastZoneBounds.x + lastZoneBounds.width + gap;
+    const rightOfLastY = lastZoneBounds.y;
+    const isLastInFirstColumn =
+      lastZoneBounds.x - boardMinX < Math.max(420, newZoneWidth * 0.75);
+
+    if (isLastInFirstColumn) {
+      // Place directly to the right of the most recent zone on the same row
+      candidates.push({ x: rightOfLastX, y: rightOfLastY });
+      // Or start a new row below all existing content
+      candidates.push({ x: boardMinX, y: boardMaxY + gap });
+    } else {
+      // Previous row has 2 zones; start a fresh row below all existing content
+      candidates.push({ x: boardMinX, y: boardMaxY + gap });
+      candidates.push({ x: rightOfLastX, y: rightOfLastY });
+    }
+  }
+
+  // Additional dynamic candidate anchors around every existing bounding box
+  candidates.push({ x: boardMinX, y: boardMaxY + gap });
+  candidates.push({ x: boardMaxX + gap, y: boardMinY });
+  for (const r of occupiedRects) {
+    candidates.push({ x: r.x + r.width + gap, y: r.y });
+    candidates.push({ x: r.x, y: r.y + r.height + gap });
+  }
+
+  for (const cand of candidates) {
+    if (!findCollision(cand.x, cand.y)) {
+      return {
+        originX: Math.round(cand.x),
+        originY: Math.round(cand.y),
+        connectedFromBounds: null,
+      };
+    }
+  }
+
+  // Fallback resolution loop: guarantee zero overlap by shifting below/right of any colliding box
+  let fallbackX = boardMinX;
+  let fallbackY = boardMaxY + gap;
+  let guard = 0;
+  while (guard < 80) {
+    const hit = findCollision(fallbackX, fallbackY);
+    if (!hit) break;
+    fallbackY = hit.y + hit.height + gap;
+    guard++;
+  }
+
+  return {
+    originX: Math.round(fallbackX),
+    originY: Math.round(fallbackY),
+    connectedFromBounds: null,
+  };
+}
+
 
 /**
  * Surrounds an entire AiWhiteboardLesson inside its own dedicated, non-overlapping

@@ -296142,35 +296142,37 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
         const frames = parsed.steps.map(
           (st, sIdx) => {
             const ver = sIdx + 1;
-            const els = [
-              excalidrawRect("ai-hdr-box", 60, 32, 680, 94, {
-                strokeColor: "#0284c7",
-                backgroundColor: "#f0f9ff",
-                version: ver
-              }),
-              excalidrawText(
-                "ai-hdr-title",
-                78,
-                44,
-                `Step ${ver}/${parsed.steps.length}: ${String(st.title || "Simulation Step")}`,
-                { fontSize: 16, strokeColor: "#0369a1", maxCharsPerLine: 58, maxLines: 1, version: ver }
-              ),
-              excalidrawText(
-                "ai-hdr-inv",
-                78,
-                76,
-                `Invariant: ${String(st.mathInvariant || st.narration || "")}`,
-                { fontSize: 13, strokeColor: "#0f172a", maxCharsPerLine: 68, maxLines: 2, version: ver }
-              )
-            ];
             const stepWaypoints = [];
+            const placedNodeRects = [];
+            let maxNodeRight = 740;
+            const shapeEls = [];
             if (Array.isArray(st.nodes)) {
               st.nodes.forEach((n, nIdx) => {
-                const nid = String(n.id || `node-${nIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
-                const nx = Math.max(60, Math.min(730, Number(n.x) || 80 + nIdx * 124));
-                const ny = Math.max(155, Math.min(395, Number(n.y) || 195));
-                const nw = Math.max(64, Math.min(220, Number(n.width) || 96));
-                const nh = Math.max(48, Math.min(130, Number(n.height) || 60));
+                const nid = String(n.id || `node-${nIdx}`).replace(
+                  /[^a-zA-Z0-9_-]/g,
+                  "-"
+                );
+                const nw = Math.max(76, Math.min(240, Number(n.width) || 104));
+                const nh = Math.max(52, Math.min(140, Number(n.height) || 64));
+                let nx = Math.max(60, Number(n.x) || 70 + nIdx * (nw + 28));
+                let ny = Math.max(158, Number(n.y) || 195);
+                const gapX = 24;
+                const gapY = n.sublabel ? 34 : 22;
+                let guard = 0;
+                while (guard < 40) {
+                  const hit = placedNodeRects.find(
+                    (r2) => nx < r2.x + r2.width + gapX && nx + nw + gapX > r2.x && ny < r2.y + r2.height + gapY && ny + nh + gapY > r2.y
+                  );
+                  if (!hit) break;
+                  nx = hit.x + hit.width + gapX;
+                  if (nx + nw > 1120) {
+                    nx = 70;
+                    ny = hit.y + hit.height + gapY + 18;
+                  }
+                  guard++;
+                }
+                placedNodeRects.push({ x: nx, y: ny, width: nw, height: nh });
+                maxNodeRight = Math.max(maxNodeRight, nx + nw);
                 const theme = colorMap[String(n.color || "slate")] || colorMap.slate;
                 const strokeW = n.highlight ? 3 : 2;
                 if (n.highlight) {
@@ -296180,7 +296182,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   });
                 }
                 if (n.shape === "ellipse") {
-                  els.push(
+                  shapeEls.push(
                     excalidrawEllipse(`ai-sh-${nid}`, nx, ny, nw, nh, {
                       strokeColor: theme.stroke,
                       backgroundColor: theme.bg,
@@ -296189,7 +296191,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                     })
                   );
                 } else if (n.shape === "diamond") {
-                  els.push(
+                  shapeEls.push(
                     excalidrawDiamond(`ai-sh-${nid}`, nx, ny, nw, nh, {
                       strokeColor: theme.stroke,
                       backgroundColor: theme.bg,
@@ -296198,7 +296200,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                     })
                   );
                 } else {
-                  els.push(
+                  shapeEls.push(
                     excalidrawRect(`ai-sh-${nid}`, nx, ny, nw, nh, {
                       strokeColor: theme.stroke,
                       backgroundColor: theme.bg,
@@ -296208,8 +296210,8 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   );
                 }
                 if (n.label !== void 0) {
-                  const maxChars = Math.max(8, Math.floor((nw - 16) / 9));
-                  els.push(
+                  const maxChars = Math.max(8, Math.floor((nw - 16) / 10));
+                  shapeEls.push(
                     excalidrawText(
                       `ai-lbl-${nid}`,
                       nx + 10,
@@ -296226,7 +296228,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   );
                 }
                 if (n.sublabel) {
-                  els.push(
+                  shapeEls.push(
                     excalidrawText(
                       `ai-sub-${nid}`,
                       nx + 8,
@@ -296244,6 +296246,41 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 }
               });
             }
+            const hdrWidth = Math.max(680, maxNodeRight - 60);
+            const els = [
+              excalidrawRect("ai-hdr-box", 60, 32, hdrWidth, 94, {
+                strokeColor: "#0284c7",
+                backgroundColor: "#f0f9ff",
+                version: ver
+              }),
+              excalidrawText(
+                "ai-hdr-title",
+                78,
+                44,
+                `Step ${ver}/${parsed.steps.length}: ${String(st.title || "Simulation Step")}`,
+                {
+                  fontSize: 16,
+                  strokeColor: "#0369a1",
+                  maxCharsPerLine: 60,
+                  maxLines: 1,
+                  version: ver
+                }
+              ),
+              excalidrawText(
+                "ai-hdr-inv",
+                78,
+                76,
+                `Invariant: ${String(st.mathInvariant || st.narration || "")}`,
+                {
+                  fontSize: 13,
+                  strokeColor: "#0f172a",
+                  maxCharsPerLine: 72,
+                  maxLines: 2,
+                  version: ver
+                }
+              ),
+              ...shapeEls
+            ];
             if (Array.isArray(st.arrows)) {
               st.arrows.forEach((a, aIdx) => {
                 const aid = String(a.id || `arr-${aIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");

@@ -72,11 +72,19 @@ function readLegacyNonNullAuthFields(uid: string): Partial<UserProfile> {
         } catch {}
       }
     }
-    const ghToken =
-      window.localStorage.getItem(`dsa_viz_github_token_${uid}`) ||
+    const rawGhToken = window.localStorage.getItem(`dsa_viz_github_token_${uid}`);
+    if (rawGhToken && (!rawGhToken.startsWith("enc_v1:") || rawGhToken.length < 32)) {
+      try {
+        window.localStorage.removeItem(`dsa_viz_github_token_${uid}`);
+      } catch {}
+    }
+    const candidateGh =
+      (rawGhToken && rawGhToken.startsWith("enc_v1:") ? rawGhToken : null) ||
       v2Prof?.githubToken ||
       v1?.githubToken ||
       null;
+    const ghToken =
+      typeof candidateGh === "string" && candidateGh.startsWith("enc_v1:") ? candidateGh : null;
     return {
       leetcodeUsername: lcUser,
       leetcode_username: lcUser,

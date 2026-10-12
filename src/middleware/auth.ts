@@ -26,9 +26,29 @@ async function getGooglePublicCerts(): Promise<Record<string, string> | null> {
     if (!res.ok) return cachedGoogleCerts;
     const certs = (await res.json()) as Record<string, string>;
     if (certs && typeof certs === 'object' && Object.keys(certs).length > 0) {
-      cachedGoogleCerts = certs;
-      cachedGoogleCertsExpiresAt = now + 60 * 60 * 1000; // 1 hour cache
-      return certs;
+      const validCerts: Record<string, string> = {};
+      for (const [k, v] of Object.entries(certs)) {
+        if (typeof v === 'string' && v.includes('-----BEGIN CERTIFICATE-----')) {
+          validCerts[k] = v;
+        }
+      }
+      if (Object.keys(validCerts).length === 0) {
+        return cachedGoogleCerts;
+      }
+      let ttlMs = 60 * 60 * 1000;
+      const cacheControl = typeof res.headers?.get === 'function' ? res.headers.get('cache-control') : null;
+      if (cacheControl) {
+        const match = cacheControl.match(/max-age=(\d+)/i);
+        if (match && match[1]) {
+          const parsedSec = Number.parseInt(match[1], 10);
+          if (Number.isFinite(parsedSec) && parsedSec >= 60) {
+            ttlMs = Math.min(parsedSec * 1000, 6 * 60 * 60 * 1000);
+          }
+        }
+      }
+      cachedGoogleCerts = validCerts;
+      cachedGoogleCertsExpiresAt = now + ttlMs;
+      return validCerts;
     }
     return cachedGoogleCerts;
   } catch {
@@ -85,10 +105,21 @@ function setCachedVerifiedToken(tokenHash: string, decoded: DecodedIdToken): voi
   verifiedTokenCache.set(tokenHash, { decoded, expiresAt });
 }
 
+const MIN_JWT_LENGTH = 64;
+const MAX_JWT_LENGTH = 8192;
+
 export async function verifyFirebaseIdTokenCryptographically(
   token: string
 ): Promise<DecodedIdToken | null> {
-  if (!token || token === 'undefined' || token === 'null' || token === 'local-dev-token') {
+  if (
+    !token ||
+    typeof token !== 'string' ||
+    token.length < MIN_JWT_LENGTH ||
+    token.length > MAX_JWT_LENGTH ||
+    token === 'undefined' ||
+    token === 'null' ||
+    token === 'local-dev-token'
+  ) {
     return null;
   }
 
@@ -129,19 +160,27 @@ export async function verifyFirebaseIdTokenCryptographically(
 
       const now = Math.floor(Date.now() / 1000);
       const isNotExpired = typeof payload.exp === 'number' && payload.exp > now - 120;
-      const isValidIssuedAt = typeof payload.iat === 'number' && payload.iat <= now + 120;
+      const isValidIssuedAt =
+        typeof payload.iat === 'number' &&
+        payload.iat <= now + 120 &&
+        payload.exp - payload.iat <= 86400;
+      const isValidAuthTime =
+        payload.auth_time === undefined ||
+        (typeof payload.auth_time === 'number' && payload.auth_time <= now + 120);
       const isMatchingAudience = payload.aud === projectId;
       const isMatchingIssuer = payload.iss === expectedIssuer;
       const uid = payload.sub || payload.user_id;
       const hasValidUid =
         typeof uid === 'string' &&
         uid.length >= 6 &&
+        uid.length <= 128 &&
         uid !== 'local-dev-user' &&
         uid !== 'explorer';
 
       if (
         isNotExpired &&
         isValidIssuedAt &&
+        isValidAuthTime &&
         isMatchingAudience &&
         isMatchingIssuer &&
         hasValidUid
@@ -187,8 +226,15 @@ export const requireAuth = async (
     return res.status(401).json({ error: 'Unauthorized: Missing or malformed Google OAuth authorization header' });
   }
 
-  const token = authHeader.split('Bearer ')[1]?.trim();
-  if (!token || token === 'undefined' || token === 'null' || token === 'local-dev-token') {
+  const token = authHeader.slice(7).trim();
+  if (
+    !token ||
+    token.length < MIN_JWT_LENGTH ||
+    token.length > MAX_JWT_LENGTH ||
+    token === 'undefined' ||
+    token === 'null' ||
+    token === 'local-dev-token'
+  ) {
     return res.status(401).json({ error: 'Unauthorized: Valid Google OAuth token required' });
   }
 

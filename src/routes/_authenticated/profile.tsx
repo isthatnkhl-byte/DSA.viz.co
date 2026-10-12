@@ -70,6 +70,7 @@ import {
   persistGithubAuthToClient,
   pushSolutionToGithub,
   resumePendingGithubPushIfPresent,
+  isSealedGithubTokenEnvelope,
 } from "@/lib/github-sync";
 import { toast } from "sonner";
 
@@ -222,13 +223,18 @@ function readLegacyNonNullSnapshotFields(uid?: string | null): {
       v2?.profile?.github_avatar ||
       v1?.profile?.githubAvatar ||
       null;
-    const ghToken =
-      window.localStorage.getItem(`dsa_viz_github_token_${uid}`) ||
+    const rawStoredGhToken = window.localStorage.getItem(`dsa_viz_github_token_${uid}`);
+    if (rawStoredGhToken && !isSealedGithubTokenEnvelope(rawStoredGhToken)) {
+      window.localStorage.removeItem(`dsa_viz_github_token_${uid}`);
+    }
+    const candidateGhToken =
+      (rawStoredGhToken && isSealedGithubTokenEnvelope(rawStoredGhToken) ? rawStoredGhToken : null) ||
       authV3?.githubToken ||
       v2?.profile?.githubToken ||
       v1?.profile?.githubToken ||
       authV1?.githubToken ||
       null;
+    const ghToken = isSealedGithubTokenEnvelope(candidateGhToken) ? candidateGhToken : null;
 
     const submissions =
       Array.isArray(v2?.submissions) && v2.submissions.length > 0
@@ -810,7 +816,11 @@ function ProfilePage() {
         localConnected;
 
       if (typeof window !== "undefined" && uid && effectiveGithubToken) {
-        localStorage.setItem(`dsa_viz_github_token_${uid}`, effectiveGithubToken);
+        if (isSealedGithubTokenEnvelope(effectiveGithubToken)) {
+          localStorage.setItem(`dsa_viz_github_token_${uid}`, effectiveGithubToken);
+        } else {
+          localStorage.removeItem(`dsa_viz_github_token_${uid}`);
+        }
         localStorage.setItem(`dsa_viz_github_connected_${uid}`, "true");
       }
 
@@ -1162,13 +1172,15 @@ function ProfilePage() {
     void resumePendingGithubPushIfPresent();
 
     const handleMessage = async (event: MessageEvent) => {
+      if (typeof window === "undefined" || event.origin !== window.location.origin) return;
       const msgType = event.data?.type;
       if (msgType === "GITHUB_AUTH_SUCCESS" || msgType === "GITHUB_CONNECTED") {
         const auth = getAuth();
         const currentUser = auth.currentUser;
         const ghUsername = event.data?.githubUsername || null;
         const ghAvatar = event.data?.githubAvatar || null;
-        const ghToken = event.data?.githubToken || null;
+        const rawToken = event.data?.githubToken || null;
+        const ghToken = isSealedGithubTokenEnvelope(rawToken) ? rawToken : null;
         const ghUrl =
           event.data?.githubUrl || (ghUsername ? `https://github.com/${ghUsername}` : null);
         if (currentUser) {

@@ -162,4 +162,100 @@ export function securityHeadersMiddleware(req: Request, res: Response, next: Nex
   next();
 }
 
+const DANGEROUS_PROTOTYPE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const MAX_SANITIZE_DEPTH = 12;
+
+/**
+ * Recursively strips prototype-pollution keys (__proto__, constructor, prototype)
+ * from parsed request bodies, query objects, and route parameters with bounded depth.
+ */
+export function sanitizeUntrustedObject(value: unknown, depth = 0): void {
+  if (!value || typeof value !== "object" || depth > MAX_SANITIZE_DEPTH) {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      sanitizeUntrustedObject(value[i], depth + 1);
+    }
+    return;
+  }
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    if (DANGEROUS_PROTOTYPE_KEYS.has(key)) {
+      delete (value as Record<string, unknown>)[key];
+    } else {
+      sanitizeUntrustedObject((value as Record<string, unknown>)[key], depth + 1);
+    }
+  }
+}
+
+/**
+ * Middleware that sanitizes req.body, req.query, and req.params against prototype pollution.
+ */
+export function prototypePollutionGuardMiddleware(req: Request, _res: Response, next: NextFunction) {
+  try {
+    if (req.body && typeof req.body === "object") {
+      sanitizeUntrustedObject(req.body);
+    }
+    if (req.query && typeof req.query === "object") {
+      sanitizeUntrustedObject(req.query);
+    }
+    if (req.params && typeof req.params === "object") {
+      sanitizeUntrustedObject(req.params);
+    }
+  } catch {
+    // Non-fatal
+  }
+  next();
+}
+
+const STATE_MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/**
+ * Defense-in-depth CSRF & Cross-Site State-Mutation Guard using W3C Fetch Metadata
+ * (Sec-Fetch-Site) and Origin/Host verification.
+ */
+export function csrfFetchMetadataGuard(req: Request, res: Response, next: NextFunction) {
+  const method = (req.method || "GET").toUpperCase();
+  if (!STATE_MUTATING_METHODS.has(method)) {
+    return next();
+  }
+
+  const headers = req.headers || {};
+  const secFetchSite = typeof headers["sec-fetch-site"] === "string"
+    ? headers["sec-fetch-site"].trim().toLowerCase()
+    : "";
+
+  // Block explicit browser cross-site state-mutating requests
+  if (secFetchSite === "cross-site") {
+    return res.status(403).json({
+      error: "Forbidden: Cross-site state-mutating request blocked by Fetch Metadata policy",
+    });
+  }
+
+  const originHeader = typeof headers.origin === "string" ? headers.origin.trim() : "";
+  if (originHeader && originHeader !== "null") {
+    try {
+      const parsedOrigin = new URL(originHeader);
+      const targetHost = getSanitizedHost(req);
+      if (targetHost) {
+        const originHost = parsedOrigin.host.toLowerCase();
+        const normalizedTarget = targetHost.toLowerCase();
+        const bothLocal = isLocalhostHost(originHost) && isLocalhostHost(normalizedTarget);
+        if (originHost !== normalizedTarget && !bothLocal) {
+          return res.status(403).json({
+            error: "Forbidden: Origin header does not match target host",
+          });
+        }
+      }
+    } catch {
+      return res.status(403).json({
+        error: "Forbidden: Malformed Origin header",
+      });
+    }
+  }
+
+  return next();
+}
+
+
 

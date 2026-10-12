@@ -329,3 +329,44 @@ export function createHybridRateLimitStore(prefix: string, windowMs: number) {
     },
   };
 }
+
+const MAX_LOCAL_NONCES = 5000;
+const localUsedOAuthNonces = new Map<string, number>();
+
+/**
+ * Atomically marks an OAuth state nonce as consumed across serverless instances.
+ * Uses Redis `SET ... PX ... NX` when connected, with a bounded in-memory Map fallback.
+ * Returns `true` if the nonce is fresh and was claimed for the first time, or `false` if replayed.
+ */
+export async function consumeOAuthNonceOnce(nonce: string, expiresAtMs: number): Promise<boolean> {
+  if (!nonce || typeof nonce !== 'string' || nonce.length > 128) return false;
+  const now = Date.now();
+  const ttlMs = Math.min(Math.max(1000, expiresAtMs - now), 15 * 60 * 1000);
+
+  // Clean expired local nonces
+  for (const [k, exp] of localUsedOAuthNonces.entries()) {
+    if (now > exp) localUsedOAuthNonces.delete(k);
+  }
+  if (localUsedOAuthNonces.has(nonce)) {
+    return false;
+  }
+
+  if (redisClient && isConnectedToRedis) {
+    try {
+      const res = await redisClient.set(`oauth_nonce:${nonce}`, '1', 'PX', ttlMs, 'NX');
+      if (res !== 'OK') {
+        return false;
+      }
+    } catch {
+      // Fall through to local nonce store
+    }
+  }
+
+  if (localUsedOAuthNonces.size >= MAX_LOCAL_NONCES) {
+    const oldest = localUsedOAuthNonces.keys().next().value;
+    if (oldest) localUsedOAuthNonces.delete(oldest);
+  }
+  localUsedOAuthNonces.set(nonce, now + ttlMs);
+  return true;
+}
+

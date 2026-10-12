@@ -1,11 +1,22 @@
 import crypto from 'crypto';
 import express, { Request, Response } from "express";
 import { requireAuth, AuthRequest } from './src/middleware/auth';
-import { httpsEnforcer, securityHeadersMiddleware } from './src/middleware/security';
+import {
+  httpsEnforcer,
+  securityHeadersMiddleware,
+  prototypePollutionGuardMiddleware,
+  csrfFetchMetadataGuard,
+} from './src/middleware/security';
 import { getOrCreateUser, updateUser } from './src/db/users';
 import { getProfile, updateProfile } from './src/db/profiles';
 import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submissions';
-import { getCache, setCache, deleteCache, createHybridRateLimitStore } from './src/lib/redis-cache';
+import {
+  getCache,
+  setCache,
+  deleteCache,
+  createHybridRateLimitStore,
+  consumeOAuthNonceOnce,
+} from './src/lib/redis-cache';
 import { adminAuth, adminDb, isAdminDbAvailable, markAdminDbUnavailable } from './src/lib/firebase-admin';
 import { saveAiReport, getUserAiReports, saveChatSession, getUserChatSessions, logUserActivity } from './src/db/ai-diagnostics';
 import {
@@ -281,6 +292,7 @@ function fromFirestoreRestValue(val: any): any {
     if (!fields || typeof fields !== "object") return {};
     const out: Record<string, any> = {};
     for (const [k, v] of Object.entries(fields)) {
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
       out[k] = fromFirestoreRestValue(v);
     }
     return out;
@@ -292,6 +304,7 @@ function fromFirestoreRestFields(fields: Record<string, any> | undefined): Recor
   if (!fields || typeof fields !== "object") return {};
   const out: Record<string, any> = {};
   for (const [k, v] of Object.entries(fields)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
     out[k] = fromFirestoreRestValue(v);
   }
   return out;
@@ -487,6 +500,8 @@ app.use((req, _res, next) => {
 // Security: Constrain global JSON & urlencoded payload sizes to 512KB
 app.use(express.json({ limit: "512kb" }));
 app.use(express.urlencoded({ extended: true, limit: "512kb" }));
+// Strip __proto__, constructor, and prototype from req.body, req.query, and req.params
+app.use(prototypePollutionGuardMiddleware);
 
 // Composite Rate-Limiter Key Generator (isolates authenticated users behind shared Campus/Corporate NATs)
 function rateLimitKeyGenerator(req: Request): string {
@@ -496,7 +511,7 @@ function rateLimitKeyGenerator(req: Request): string {
   }
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith("Bearer ")) {
-    const token = authHeader.slice(7).trim();
+    const token = authHeader.slice(7, 4103).trim();
     if (token.length > 32) {
       const tokenDigest = crypto.createHash("sha256").update(token).digest("hex").slice(0, 16);
       return `tok:${tokenDigest}:${req.ip || "unknown"}`;
@@ -533,39 +548,26 @@ const compilerLimiter = rateLimit({
   validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 
+const vaultAndOAuthLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 20,
+  store: createHybridRateLimitStore("vault_oauth", 60 * 1000),
+  keyGenerator: rateLimitKeyGenerator,
+  message: { error: "Sensitive auth/vault rate limit exceeded. Please wait a moment and try again." },
+  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+});
+
 // Compiler concurrency tracker
 let inFlightCompilations = 0;
 const MAX_CONCURRENT_COMPILATIONS = 5;
 
-// Single-use OAuth nonce tracker with TTL and bounded capacity
-const MAX_OAUTH_NONCES = 5000;
-const usedOAuthNonces = new Map<string, number>();
-const cleanupExpiredNonces = () => {
-  const now = Date.now();
-  for (const [nonce, expiresAt] of usedOAuthNonces.entries()) {
-    if (now > expiresAt) usedOAuthNonces.delete(nonce);
-  }
-};
-setInterval(cleanupExpiredNonces, 5 * 60 * 1000).unref();
-
-function recordUsedOAuthNonce(nonce: string, expiresAt: number): boolean {
-  cleanupExpiredNonces();
-  if (usedOAuthNonces.has(nonce)) return false;
-  if (usedOAuthNonces.size >= MAX_OAUTH_NONCES) {
-    const oldest = usedOAuthNonces.keys().next().value;
-    if (oldest) usedOAuthNonces.delete(oldest);
-  }
-  const boundedExpiry = Math.min(expiresAt, Date.now() + 15 * 60 * 1000);
-  usedOAuthNonces.set(nonce, boundedExpiry);
-  return true;
-}
-
 app.use("/api/", apiLimiter);
+app.use("/api/", csrfFetchMetadataGuard);
 // Per-request User API Key Vault Context (AES-256-GCM decrypted strictly in backend memory)
 app.use("/api/", attachUserKeyVaultContext);
 
 // --- User-Specific Encrypted API Key Vault Endpoints (Zero Frontend Exposure) ---
-app.get("/api/user-keys/status", requireAuth, async (req: Request, res: Response) => {
+app.get("/api/user-keys/status", requireAuth, vaultAndOAuthLimiter, async (req: Request, res: Response) => {
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     const status = await getUserKeyVaultStatus(req, undefined, res);
@@ -575,7 +577,7 @@ app.get("/api/user-keys/status", requireAuth, async (req: Request, res: Response
   }
 });
 
-app.post("/api/user-keys", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+app.post("/api/user-keys", requireAuth, vaultAndOAuthLimiter, aiLimiter, async (req: Request, res: Response) => {
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     const { apiKey, provider, verify } = req.body || {};
@@ -593,7 +595,7 @@ app.post("/api/user-keys", requireAuth, aiLimiter, async (req: Request, res: Res
   }
 });
 
-app.delete("/api/user-keys", requireAuth, async (req: Request, res: Response) => {
+app.delete("/api/user-keys", requireAuth, vaultAndOAuthLimiter, async (req: Request, res: Response) => {
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     const provider = (req.body?.provider || req.query?.provider || "all") as any;
@@ -3015,7 +3017,25 @@ function sanitizeInternalReturnToPath(rawPath: unknown): string {
 }
 
 // GitHub OAuth Lifecycle
-app.get("/api/github/url", requireAuth, (req: any, res) => {
+function escapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function safeJsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+app.get("/api/github/url", requireAuth, vaultAndOAuthLimiter, (req: any, res) => {
   const uid = req.user.uid;
   const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
   const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
@@ -3090,15 +3110,22 @@ app.get("/api/github/url", requireAuth, (req: any, res) => {
   res.json({ url: authUrl });
 });
 
-app.get("/api/github/callback", async (req, res) => {
+app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
   const { code, state } = req.query;
-  if (!code || !state || typeof state !== "string" || typeof code !== "string") {
-    return res.status(400).send("Missing code or state parameter");
+  if (
+    !code ||
+    !state ||
+    typeof state !== "string" ||
+    typeof code !== "string" ||
+    state.length > 4096 ||
+    code.length > 512
+  ) {
+    return res.status(400).type("text/plain").send("Missing or invalid code or state parameter");
   }
 
   const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
   if (!secret) {
-    return res.status(500).send("Server configuration error: GITHUB_CLIENT_SECRET missing");
+    return res.status(500).type("text/plain").send("Server configuration error: GITHUB_CLIENT_SECRET missing");
   }
 
   let uid: string;
@@ -3111,7 +3138,7 @@ app.get("/api/github/callback", async (req, res) => {
     const decodedWrapper = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
     const { payload, signature } = decodedWrapper;
     if (typeof payload !== "string" || typeof signature !== "string") {
-      return res.status(400).send("Invalid state structure");
+      return res.status(400).type("text/plain").send("Invalid state structure");
     }
 
     // 1. Verify HMAC cryptographic signature in constant time
@@ -3122,7 +3149,7 @@ app.get("/api/github/callback", async (req, res) => {
     const sigBuf = Buffer.from(signature, "utf8");
     const expectedBuf = Buffer.from(expectedSignature, "utf8");
     if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
-      return res.status(403).send("State signature mismatch - possible CSRF attack");
+      return res.status(403).type("text/plain").send("State signature mismatch - possible CSRF attack");
     }
 
     const decoded = JSON.parse(payload);
@@ -3133,17 +3160,17 @@ app.get("/api/github/callback", async (req, res) => {
     returnTo = sanitizeInternalReturnToPath(decoded.returnTo);
 
     // 2. Verify state expiration
-    if (Date.now() > expiresAt) {
-      return res.status(400).send("OAuth state expired. Please initiate GitHub login again.");
+    if (typeof expiresAt !== "number" || Date.now() > expiresAt) {
+      return res.status(400).type("text/plain").send("OAuth state expired. Please initiate GitHub login again.");
     }
 
-    // 3. Verify single-use nonce to prevent replay attacks
-    if (usedOAuthNonces.has(nonce)) {
-      return res.status(400).send("OAuth state has already been used.");
+    // 3. Atomically verify single-use nonce across Redis + in-memory to prevent replay attacks
+    const claimed = await consumeOAuthNonceOnce(nonce, expiresAt);
+    if (!claimed) {
+      return res.status(400).type("text/plain").send("OAuth state has already been used.");
     }
-    recordUsedOAuthNonce(nonce, expiresAt);
   } catch (e) {
-    return res.status(400).send("Invalid or malformed state payload");
+    return res.status(400).type("text/plain").send("Invalid or malformed state payload");
   }
 
   try {
@@ -3168,12 +3195,13 @@ app.get("/api/github/callback", async (req, res) => {
     const tokenData = await tokenRes.json();
     if (tokenData.error) {
       console.error("GitHub token exchange error:", tokenData);
-      return res.status(400).send(`Error: ${tokenData.error_description || tokenData.error}`);
+      const safeErr = String(tokenData.error_description || tokenData.error || "OAuth error").slice(0, 200);
+      return res.status(400).type("text/plain").send(`Error: ${safeErr}`);
     }
 
     const accessToken = tokenData.access_token;
     if (!accessToken) {
-      return res.status(400).send("No access token returned by GitHub");
+      return res.status(400).type("text/plain").send("No access token returned by GitHub");
     }
 
     // Fetch GitHub user profile info (username, avatar, url)
@@ -3283,13 +3311,14 @@ app.get("/api/github/callback", async (req, res) => {
     const redirectWithSync = `${returnTo}${
       returnTo.includes("#") ? "&" : "#"
     }gh_sync=${encodeURIComponent(syncPayloadBase64)}`;
+    const safeMetaUrl = escapeHtmlAttr(redirectWithSync);
 
     res.send(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>GitHub Connected</title>
-          <meta http-equiv="refresh" content="1; url=${redirectWithSync}" />
+          <meta http-equiv="refresh" content="1; url=${safeMetaUrl}" />
           <style>
             body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; }
             .card { text-align: center; padding: 2rem; background: #1e293b; border-radius: 1rem; border: 1px solid #334155; }
@@ -3302,21 +3331,23 @@ app.get("/api/github/callback", async (req, res) => {
           </div>
           <script>
             try {
-              var uid = ${JSON.stringify(uid)};
-              var encryptedToken = ${JSON.stringify(encryptedToken)};
-              var ghUsername = ${JSON.stringify(ghUsername)};
-              var ghAvatar = ${JSON.stringify(ghAvatar)};
-              var ghUrl = ${JSON.stringify(ghUrl)};
-              var targetUrl = ${JSON.stringify(redirectWithSync)};
+              var uid = ${safeJsonForScript(uid)};
+              var encryptedToken = ${safeJsonForScript(encryptedToken)};
+              var ghUsername = ${safeJsonForScript(ghUsername)};
+              var ghAvatar = ${safeJsonForScript(ghAvatar)};
+              var ghUrl = ${safeJsonForScript(ghUrl)};
+              var targetUrl = ${safeJsonForScript(redirectWithSync)};
 
               if (typeof localStorage !== 'undefined' && uid) {
-                if (encryptedToken) localStorage.setItem('dsa_viz_github_token_' + uid, encryptedToken);
+                if (encryptedToken && encryptedToken.indexOf('enc_v1:') === 0) {
+                  localStorage.setItem('dsa_viz_github_token_' + uid, encryptedToken);
+                }
                 if (ghUsername) localStorage.setItem('dsa_viz_github_username_' + uid, ghUsername);
                 if (ghAvatar) localStorage.setItem('dsa_viz_github_avatar_' + uid, ghAvatar);
                 localStorage.setItem('dsa_viz_github_connected_' + uid, 'true');
               }
 
-              if (window.opener && !window.opener.closed) {
+              if (window.opener && !window.opener.closed && window.location.origin) {
                 var msgPayload = {
                   githubConnected: true,
                   githubToken: encryptedToken,
@@ -3324,7 +3355,7 @@ app.get("/api/github/callback", async (req, res) => {
                   githubAvatar: ghAvatar,
                   githubUrl: ghUrl
                 };
-                var targetOrigin = window.location.origin || '*';
+                var targetOrigin = window.location.origin;
                 window.opener.postMessage(Object.assign({ type: 'GITHUB_AUTH_SUCCESS' }, msgPayload), targetOrigin);
                 window.opener.postMessage(Object.assign({ type: 'GITHUB_CONNECTED' }, msgPayload), targetOrigin);
                 setTimeout(function() { window.close(); }, 300);
@@ -3332,7 +3363,7 @@ app.get("/api/github/callback", async (req, res) => {
                 window.location.replace(targetUrl);
               }
             } catch (e) {
-              window.location.replace(${JSON.stringify(redirectWithSync)});
+              window.location.replace(${safeJsonForScript(redirectWithSync)});
             }
           </script>
         </body>
@@ -3340,11 +3371,11 @@ app.get("/api/github/callback", async (req, res) => {
     `);
   } catch (error) {
     console.error("Failed to connect GitHub:", error);
-    res.status(500).send("Failed to connect GitHub");
+    res.status(500).type("text/plain").send("Failed to connect GitHub");
   }
 });
 
-app.post("/api/github/disconnect", requireAuth, async (req: any, res) => {
+app.post("/api/github/disconnect", requireAuth, vaultAndOAuthLimiter, async (req: any, res) => {
   try {
     const uid = req.user.uid;
     const bearerToken = extractRequestBearerToken(req);

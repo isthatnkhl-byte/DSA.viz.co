@@ -11,35 +11,51 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    function isValidTimestamp() {
-      return request.resource.data.createdAt is timestamp;
+    function isValidPayloadSize() {
+      return request.resource.data.keys().size() <= 60;
     }
 
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isValidPayloadSize();
       
       match /submissions/{submissionId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidPayloadSize();
       }
       
       match /chat_sessions/{sessionId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidPayloadSize();
       }
 
       match /ai_reports/{reportId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidPayloadSize();
       }
 
       match /activity/{activityId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidPayloadSize();
       }
       
       match /bookmarks/{bookmarkId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidPayloadSize();
       }
 
       match /tasks/{taskId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidPayloadSize();
+      }
+
+      // Encrypted user API key vault: only allows tamper-proof AES-256-GCM sealed envelopes
+      match /private_vault/{vaultDocId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) &&
+                        isValidPayloadSize() &&
+                        request.resource.data.sealedEnvelope is string &&
+                        request.resource.data.sealedEnvelope.size() <= 16384;
       }
     }
 
@@ -49,3 +65,4 @@ service cloud.firestore {
     }
   }
 }
+

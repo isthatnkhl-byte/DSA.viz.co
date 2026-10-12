@@ -20,6 +20,10 @@ export interface PendingGithubPush {
   createdAt: number;
 }
 
+export function isSealedGithubTokenEnvelope(token: unknown): boolean {
+  return typeof token === "string" && token.startsWith("enc_v1:") && token.length >= 32;
+}
+
 export async function persistGithubAuthToClient(
   uid: string,
   payload: GithubSyncPayload
@@ -35,7 +39,11 @@ export async function persistGithubAuthToClient(
   try {
     localStorage.setItem(`dsa_viz_github_connected_${uid}`, "true");
     if (ghToken) {
-      localStorage.setItem(`dsa_viz_github_token_${uid}`, ghToken);
+      if (isSealedGithubTokenEnvelope(ghToken)) {
+        localStorage.setItem(`dsa_viz_github_token_${uid}`, ghToken);
+      } else {
+        localStorage.removeItem(`dsa_viz_github_token_${uid}`);
+      }
     }
     if (ghUsername) {
       localStorage.setItem(`dsa_viz_github_username_${uid}`, ghUsername);
@@ -197,12 +205,16 @@ export async function connectGithubWithPopupOrRedirect(options?: {
     };
 
     const onMessage = (event: MessageEvent) => {
+      if (typeof window === "undefined" || event.origin !== window.location.origin) return;
+      if (popup && event.source && event.source !== popup) return;
       const msgType = event.data?.type;
       if (msgType === "GITHUB_AUTH_SUCCESS" || msgType === "GITHUB_CONNECTED") {
+        const rawToken = event.data?.githubToken;
+        const validToken = isSealedGithubTokenEnvelope(rawToken) ? rawToken : null;
         void finish({
           uid,
           githubConnected: true,
-          githubToken: event.data?.githubToken || null,
+          githubToken: validToken,
           githubUsername: event.data?.githubUsername || null,
           githubAvatar: event.data?.githubAvatar || null,
           githubUrl:

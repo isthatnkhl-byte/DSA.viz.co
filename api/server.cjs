@@ -168899,9 +168899,29 @@ async function getGooglePublicCerts() {
     if (!res.ok) return cachedGoogleCerts;
     const certs = await res.json();
     if (certs && typeof certs === "object" && Object.keys(certs).length > 0) {
-      cachedGoogleCerts = certs;
-      cachedGoogleCertsExpiresAt = now + 60 * 60 * 1e3;
-      return certs;
+      const validCerts = {};
+      for (const [k, v] of Object.entries(certs)) {
+        if (typeof v === "string" && v.includes("-----BEGIN CERTIFICATE-----")) {
+          validCerts[k] = v;
+        }
+      }
+      if (Object.keys(validCerts).length === 0) {
+        return cachedGoogleCerts;
+      }
+      let ttlMs = 60 * 60 * 1e3;
+      const cacheControl = typeof res.headers?.get === "function" ? res.headers.get("cache-control") : null;
+      if (cacheControl) {
+        const match2 = cacheControl.match(/max-age=(\d+)/i);
+        if (match2 && match2[1]) {
+          const parsedSec = Number.parseInt(match2[1], 10);
+          if (Number.isFinite(parsedSec) && parsedSec >= 60) {
+            ttlMs = Math.min(parsedSec * 1e3, 6 * 60 * 60 * 1e3);
+          }
+        }
+      }
+      cachedGoogleCerts = validCerts;
+      cachedGoogleCertsExpiresAt = now + ttlMs;
+      return validCerts;
     }
     return cachedGoogleCerts;
   } catch {
@@ -168948,8 +168968,10 @@ function setCachedVerifiedToken(tokenHash, decoded) {
   }
   verifiedTokenCache.set(tokenHash, { decoded, expiresAt });
 }
+var MIN_JWT_LENGTH = 64;
+var MAX_JWT_LENGTH = 8192;
 async function verifyFirebaseIdTokenCryptographically(token) {
-  if (!token || token === "undefined" || token === "null" || token === "local-dev-token") {
+  if (!token || typeof token !== "string" || token.length < MIN_JWT_LENGTH || token.length > MAX_JWT_LENGTH || token === "undefined" || token === "null" || token === "local-dev-token") {
     return null;
   }
   const tokenHash = import_node_crypto.default.createHash("sha256").update(token).digest("hex");
@@ -168980,12 +169002,13 @@ async function verifyFirebaseIdTokenCryptographically(token) {
       const expectedIssuer = `https://securetoken.google.com/${projectId2}`;
       const now = Math.floor(Date.now() / 1e3);
       const isNotExpired = typeof payload.exp === "number" && payload.exp > now - 120;
-      const isValidIssuedAt = typeof payload.iat === "number" && payload.iat <= now + 120;
+      const isValidIssuedAt = typeof payload.iat === "number" && payload.iat <= now + 120 && payload.exp - payload.iat <= 86400;
+      const isValidAuthTime = payload.auth_time === void 0 || typeof payload.auth_time === "number" && payload.auth_time <= now + 120;
       const isMatchingAudience = payload.aud === projectId2;
       const isMatchingIssuer = payload.iss === expectedIssuer;
       const uid = payload.sub || payload.user_id;
-      const hasValidUid = typeof uid === "string" && uid.length >= 6 && uid !== "local-dev-user" && uid !== "explorer";
-      if (isNotExpired && isValidIssuedAt && isMatchingAudience && isMatchingIssuer && hasValidUid) {
+      const hasValidUid = typeof uid === "string" && uid.length >= 6 && uid.length <= 128 && uid !== "local-dev-user" && uid !== "explorer";
+      if (isNotExpired && isValidIssuedAt && isValidAuthTime && isMatchingAudience && isMatchingIssuer && hasValidUid) {
         const certs = await getGooglePublicCerts();
         if (certs) {
           const certPem = certs[header.kid];
@@ -169016,8 +169039,8 @@ var requireAuth = async (req, res, next) => {
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized: Missing or malformed Google OAuth authorization header" });
   }
-  const token = authHeader.split("Bearer ")[1]?.trim();
-  if (!token || token === "undefined" || token === "null" || token === "local-dev-token") {
+  const token = authHeader.slice(7).trim();
+  if (!token || token.length < MIN_JWT_LENGTH || token.length > MAX_JWT_LENGTH || token === "undefined" || token === "null" || token === "local-dev-token") {
     return res.status(401).json({ error: "Unauthorized: Valid Google OAuth token required" });
   }
   if (req.user?.uid && req._verifiedBearerToken === token) {
@@ -169134,6 +169157,77 @@ function securityHeadersMiddleware(req, res, next) {
     }
   }
   next();
+}
+var DANGEROUS_PROTOTYPE_KEYS = /* @__PURE__ */ new Set(["__proto__", "constructor", "prototype"]);
+var MAX_SANITIZE_DEPTH = 12;
+function sanitizeUntrustedObject(value, depth = 0) {
+  if (!value || typeof value !== "object" || depth > MAX_SANITIZE_DEPTH) {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (let i2 = 0; i2 < value.length; i2++) {
+      sanitizeUntrustedObject(value[i2], depth + 1);
+    }
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    if (DANGEROUS_PROTOTYPE_KEYS.has(key)) {
+      delete value[key];
+    } else {
+      sanitizeUntrustedObject(value[key], depth + 1);
+    }
+  }
+}
+function prototypePollutionGuardMiddleware(req, _res, next) {
+  try {
+    if (req.body && typeof req.body === "object") {
+      sanitizeUntrustedObject(req.body);
+    }
+    if (req.query && typeof req.query === "object") {
+      sanitizeUntrustedObject(req.query);
+    }
+    if (req.params && typeof req.params === "object") {
+      sanitizeUntrustedObject(req.params);
+    }
+  } catch {
+  }
+  next();
+}
+var STATE_MUTATING_METHODS = /* @__PURE__ */ new Set(["POST", "PUT", "PATCH", "DELETE"]);
+function csrfFetchMetadataGuard(req, res, next) {
+  const method = (req.method || "GET").toUpperCase();
+  if (!STATE_MUTATING_METHODS.has(method)) {
+    return next();
+  }
+  const headers = req.headers || {};
+  const secFetchSite = typeof headers["sec-fetch-site"] === "string" ? headers["sec-fetch-site"].trim().toLowerCase() : "";
+  if (secFetchSite === "cross-site") {
+    return res.status(403).json({
+      error: "Forbidden: Cross-site state-mutating request blocked by Fetch Metadata policy"
+    });
+  }
+  const originHeader = typeof headers.origin === "string" ? headers.origin.trim() : "";
+  if (originHeader && originHeader !== "null") {
+    try {
+      const parsedOrigin = new URL(originHeader);
+      const targetHost = getSanitizedHost(req);
+      if (targetHost) {
+        const originHost = parsedOrigin.host.toLowerCase();
+        const normalizedTarget = targetHost.toLowerCase();
+        const bothLocal = isLocalhostHost(originHost) && isLocalhostHost(normalizedTarget);
+        if (originHost !== normalizedTarget && !bothLocal) {
+          return res.status(403).json({
+            error: "Forbidden: Origin header does not match target host"
+          });
+        }
+      }
+    } catch {
+      return res.status(403).json({
+        error: "Forbidden: Malformed Origin header"
+      });
+    }
+  }
+  return next();
 }
 
 // src/db/users.ts
@@ -169366,6 +169460,34 @@ function createHybridRateLimitStore(prefix, windowMs) {
       }
     }
   };
+}
+var MAX_LOCAL_NONCES = 5e3;
+var localUsedOAuthNonces = /* @__PURE__ */ new Map();
+async function consumeOAuthNonceOnce(nonce, expiresAtMs) {
+  if (!nonce || typeof nonce !== "string" || nonce.length > 128) return false;
+  const now = Date.now();
+  const ttlMs = Math.min(Math.max(1e3, expiresAtMs - now), 15 * 60 * 1e3);
+  for (const [k, exp] of localUsedOAuthNonces.entries()) {
+    if (now > exp) localUsedOAuthNonces.delete(k);
+  }
+  if (localUsedOAuthNonces.has(nonce)) {
+    return false;
+  }
+  if (redisClient && isConnectedToRedis) {
+    try {
+      const res = await redisClient.set(`oauth_nonce:${nonce}`, "1", "PX", ttlMs, "NX");
+      if (res !== "OK") {
+        return false;
+      }
+    } catch {
+    }
+  }
+  if (localUsedOAuthNonces.size >= MAX_LOCAL_NONCES) {
+    const oldest = localUsedOAuthNonces.keys().next().value;
+    if (oldest) localUsedOAuthNonces.delete(oldest);
+  }
+  localUsedOAuthNonces.set(nonce, now + ttlMs);
+  return true;
 }
 
 // src/db/users.ts
@@ -291153,6 +291275,7 @@ function fromFirestoreRestValue(val) {
     if (!fields || typeof fields !== "object") return {};
     const out = {};
     for (const [k, v] of Object.entries(fields)) {
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
       out[k] = fromFirestoreRestValue(v);
     }
     return out;
@@ -291163,6 +291286,7 @@ function fromFirestoreRestFields(fields) {
   if (!fields || typeof fields !== "object") return {};
   const out = {};
   for (const [k, v] of Object.entries(fields)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
     out[k] = fromFirestoreRestValue(v);
   }
   return out;
@@ -291334,6 +291458,7 @@ app.use((req, _res, next) => {
 });
 app.use(import_express.default.json({ limit: "512kb" }));
 app.use(import_express.default.urlencoded({ extended: true, limit: "512kb" }));
+app.use(prototypePollutionGuardMiddleware);
 function rateLimitKeyGenerator(req) {
   const anyReq = req;
   if (anyReq.user?.uid) {
@@ -291341,7 +291466,7 @@ function rateLimitKeyGenerator(req) {
   }
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith("Bearer ")) {
-    const token = authHeader.slice(7).trim();
+    const token = authHeader.slice(7, 4103).trim();
     if (token.length > 32) {
       const tokenDigest = import_crypto2.default.createHash("sha256").update(token).digest("hex").slice(0, 16);
       return `tok:${tokenDigest}:${req.ip || "unknown"}`;
@@ -291376,31 +291501,21 @@ var compilerLimiter = rate_limit_default({
   message: { error: "Compiler rate limit exceeded. Please wait a moment before running again." },
   validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
+var vaultAndOAuthLimiter = rate_limit_default({
+  windowMs: 1 * 60 * 1e3,
+  // 1 minute
+  max: 20,
+  store: createHybridRateLimitStore("vault_oauth", 60 * 1e3),
+  keyGenerator: rateLimitKeyGenerator,
+  message: { error: "Sensitive auth/vault rate limit exceeded. Please wait a moment and try again." },
+  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+});
 var inFlightCompilations = 0;
 var MAX_CONCURRENT_COMPILATIONS = 5;
-var MAX_OAUTH_NONCES = 5e3;
-var usedOAuthNonces = /* @__PURE__ */ new Map();
-var cleanupExpiredNonces = () => {
-  const now = Date.now();
-  for (const [nonce, expiresAt] of usedOAuthNonces.entries()) {
-    if (now > expiresAt) usedOAuthNonces.delete(nonce);
-  }
-};
-setInterval(cleanupExpiredNonces, 5 * 60 * 1e3).unref();
-function recordUsedOAuthNonce(nonce, expiresAt) {
-  cleanupExpiredNonces();
-  if (usedOAuthNonces.has(nonce)) return false;
-  if (usedOAuthNonces.size >= MAX_OAUTH_NONCES) {
-    const oldest = usedOAuthNonces.keys().next().value;
-    if (oldest) usedOAuthNonces.delete(oldest);
-  }
-  const boundedExpiry = Math.min(expiresAt, Date.now() + 15 * 60 * 1e3);
-  usedOAuthNonces.set(nonce, boundedExpiry);
-  return true;
-}
 app.use("/api/", apiLimiter);
+app.use("/api/", csrfFetchMetadataGuard);
 app.use("/api/", attachUserKeyVaultContext);
-app.get("/api/user-keys/status", requireAuth, async (req, res) => {
+app.get("/api/user-keys/status", requireAuth, vaultAndOAuthLimiter, async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     const status = await getUserKeyVaultStatus(req, void 0, res);
@@ -291409,7 +291524,7 @@ app.get("/api/user-keys/status", requireAuth, async (req, res) => {
     return res.status(500).json({ error: err?.message || "Failed to read key vault status" });
   }
 });
-app.post("/api/user-keys", requireAuth, aiLimiter, async (req, res) => {
+app.post("/api/user-keys", requireAuth, vaultAndOAuthLimiter, aiLimiter, async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     const { apiKey, provider, verify: verify2 } = req.body || {};
@@ -291426,7 +291541,7 @@ app.post("/api/user-keys", requireAuth, aiLimiter, async (req, res) => {
     return res.status(500).json({ error: err?.message || "Failed to store API key securely" });
   }
 });
-app.delete("/api/user-keys", requireAuth, async (req, res) => {
+app.delete("/api/user-keys", requireAuth, vaultAndOAuthLimiter, async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     const provider = req.body?.provider || req.query?.provider || "all";
@@ -293481,7 +293596,13 @@ function sanitizeInternalReturnToPath(rawPath) {
   }
   return trimmed;
 }
-app.get("/api/github/url", requireAuth, (req, res) => {
+function escapeHtmlAttr(value) {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function safeJsonForScript(value) {
+  return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+}
+app.get("/api/github/url", requireAuth, vaultAndOAuthLimiter, (req, res) => {
   const uid = req.user.uid;
   const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
   const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
@@ -293535,14 +293656,14 @@ app.get("/api/github/url", requireAuth, (req, res) => {
   const authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
   res.json({ url: authUrl });
 });
-app.get("/api/github/callback", async (req, res) => {
+app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
   const { code, state } = req.query;
-  if (!code || !state || typeof state !== "string" || typeof code !== "string") {
-    return res.status(400).send("Missing code or state parameter");
+  if (!code || !state || typeof state !== "string" || typeof code !== "string" || state.length > 4096 || code.length > 512) {
+    return res.status(400).type("text/plain").send("Missing or invalid code or state parameter");
   }
   const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
   if (!secret) {
-    return res.status(500).send("Server configuration error: GITHUB_CLIENT_SECRET missing");
+    return res.status(500).type("text/plain").send("Server configuration error: GITHUB_CLIENT_SECRET missing");
   }
   let uid;
   let nonce;
@@ -293553,7 +293674,7 @@ app.get("/api/github/callback", async (req, res) => {
     const decodedWrapper = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
     const { payload, signature } = decodedWrapper;
     if (typeof payload !== "string" || typeof signature !== "string") {
-      return res.status(400).send("Invalid state structure");
+      return res.status(400).type("text/plain").send("Invalid state structure");
     }
     const hmac2 = import_crypto2.default.createHmac("sha256", secret);
     hmac2.update(payload);
@@ -293561,7 +293682,7 @@ app.get("/api/github/callback", async (req, res) => {
     const sigBuf = Buffer.from(signature, "utf8");
     const expectedBuf = Buffer.from(expectedSignature, "utf8");
     if (sigBuf.length !== expectedBuf.length || !import_crypto2.default.timingSafeEqual(sigBuf, expectedBuf)) {
-      return res.status(403).send("State signature mismatch - possible CSRF attack");
+      return res.status(403).type("text/plain").send("State signature mismatch - possible CSRF attack");
     }
     const decoded = JSON.parse(payload);
     uid = decoded.uid;
@@ -293569,15 +293690,15 @@ app.get("/api/github/callback", async (req, res) => {
     expiresAt = decoded.expiresAt;
     redirectUri = decoded.redirectUri;
     returnTo = sanitizeInternalReturnToPath(decoded.returnTo);
-    if (Date.now() > expiresAt) {
-      return res.status(400).send("OAuth state expired. Please initiate GitHub login again.");
+    if (typeof expiresAt !== "number" || Date.now() > expiresAt) {
+      return res.status(400).type("text/plain").send("OAuth state expired. Please initiate GitHub login again.");
     }
-    if (usedOAuthNonces.has(nonce)) {
-      return res.status(400).send("OAuth state has already been used.");
+    const claimed = await consumeOAuthNonceOnce(nonce, expiresAt);
+    if (!claimed) {
+      return res.status(400).type("text/plain").send("OAuth state has already been used.");
     }
-    recordUsedOAuthNonce(nonce, expiresAt);
   } catch (e2) {
-    return res.status(400).send("Invalid or malformed state payload");
+    return res.status(400).type("text/plain").send("Invalid or malformed state payload");
   }
   try {
     const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
@@ -293599,11 +293720,12 @@ app.get("/api/github/callback", async (req, res) => {
     const tokenData = await tokenRes.json();
     if (tokenData.error) {
       console.error("GitHub token exchange error:", tokenData);
-      return res.status(400).send(`Error: ${tokenData.error_description || tokenData.error}`);
+      const safeErr = String(tokenData.error_description || tokenData.error || "OAuth error").slice(0, 200);
+      return res.status(400).type("text/plain").send(`Error: ${safeErr}`);
     }
     const accessToken = tokenData.access_token;
     if (!accessToken) {
-      return res.status(400).send("No access token returned by GitHub");
+      return res.status(400).type("text/plain").send("No access token returned by GitHub");
     }
     let ghUsername = null;
     let ghAvatar = null;
@@ -293702,12 +293824,13 @@ app.get("/api/github/callback", async (req, res) => {
       })
     ).toString("base64url");
     const redirectWithSync = `${returnTo}${returnTo.includes("#") ? "&" : "#"}gh_sync=${encodeURIComponent(syncPayloadBase64)}`;
+    const safeMetaUrl = escapeHtmlAttr(redirectWithSync);
     res.send(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>GitHub Connected</title>
-          <meta http-equiv="refresh" content="1; url=${redirectWithSync}" />
+          <meta http-equiv="refresh" content="1; url=${safeMetaUrl}" />
           <style>
             body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; }
             .card { text-align: center; padding: 2rem; background: #1e293b; border-radius: 1rem; border: 1px solid #334155; }
@@ -293720,21 +293843,23 @@ app.get("/api/github/callback", async (req, res) => {
           </div>
           <script>
             try {
-              var uid = ${JSON.stringify(uid)};
-              var encryptedToken = ${JSON.stringify(encryptedToken)};
-              var ghUsername = ${JSON.stringify(ghUsername)};
-              var ghAvatar = ${JSON.stringify(ghAvatar)};
-              var ghUrl = ${JSON.stringify(ghUrl)};
-              var targetUrl = ${JSON.stringify(redirectWithSync)};
+              var uid = ${safeJsonForScript(uid)};
+              var encryptedToken = ${safeJsonForScript(encryptedToken)};
+              var ghUsername = ${safeJsonForScript(ghUsername)};
+              var ghAvatar = ${safeJsonForScript(ghAvatar)};
+              var ghUrl = ${safeJsonForScript(ghUrl)};
+              var targetUrl = ${safeJsonForScript(redirectWithSync)};
 
               if (typeof localStorage !== 'undefined' && uid) {
-                if (encryptedToken) localStorage.setItem('dsa_viz_github_token_' + uid, encryptedToken);
+                if (encryptedToken && encryptedToken.indexOf('enc_v1:') === 0) {
+                  localStorage.setItem('dsa_viz_github_token_' + uid, encryptedToken);
+                }
                 if (ghUsername) localStorage.setItem('dsa_viz_github_username_' + uid, ghUsername);
                 if (ghAvatar) localStorage.setItem('dsa_viz_github_avatar_' + uid, ghAvatar);
                 localStorage.setItem('dsa_viz_github_connected_' + uid, 'true');
               }
 
-              if (window.opener && !window.opener.closed) {
+              if (window.opener && !window.opener.closed && window.location.origin) {
                 var msgPayload = {
                   githubConnected: true,
                   githubToken: encryptedToken,
@@ -293742,7 +293867,7 @@ app.get("/api/github/callback", async (req, res) => {
                   githubAvatar: ghAvatar,
                   githubUrl: ghUrl
                 };
-                var targetOrigin = window.location.origin || '*';
+                var targetOrigin = window.location.origin;
                 window.opener.postMessage(Object.assign({ type: 'GITHUB_AUTH_SUCCESS' }, msgPayload), targetOrigin);
                 window.opener.postMessage(Object.assign({ type: 'GITHUB_CONNECTED' }, msgPayload), targetOrigin);
                 setTimeout(function() { window.close(); }, 300);
@@ -293750,7 +293875,7 @@ app.get("/api/github/callback", async (req, res) => {
                 window.location.replace(targetUrl);
               }
             } catch (e) {
-              window.location.replace(${JSON.stringify(redirectWithSync)});
+              window.location.replace(${safeJsonForScript(redirectWithSync)});
             }
           </script>
         </body>
@@ -293758,10 +293883,10 @@ app.get("/api/github/callback", async (req, res) => {
     `);
   } catch (error61) {
     console.error("Failed to connect GitHub:", error61);
-    res.status(500).send("Failed to connect GitHub");
+    res.status(500).type("text/plain").send("Failed to connect GitHub");
   }
 });
-app.post("/api/github/disconnect", requireAuth, async (req, res) => {
+app.post("/api/github/disconnect", requireAuth, vaultAndOAuthLimiter, async (req, res) => {
   try {
     const uid = req.user.uid;
     const bearerToken = extractRequestBearerToken(req);

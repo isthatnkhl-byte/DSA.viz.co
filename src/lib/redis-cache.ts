@@ -31,20 +31,36 @@ try {
   // Graceful fallback if file corrupted
 }
 
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let isPersisting = false;
+
 function persistMemoryCache() {
-  try {
-    const dir = path.dirname(CACHE_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const now = Date.now();
-    const dataToSave: Record<string, CacheEntry> = {};
-    for (const [k, v] of MEMORY_CACHE.entries()) {
-      if (v.expiresAt > now) {
-        dataToSave[k] = v;
+  if (persistTimer) return;
+  persistTimer = setTimeout(async () => {
+    persistTimer = null;
+    if (isPersisting) return;
+    isPersisting = true;
+    try {
+      const dir = path.dirname(CACHE_FILE);
+      if (!fs.existsSync(dir)) {
+        await fs.promises.mkdir(dir, { recursive: true });
       }
+      const now = Date.now();
+      const dataToSave: Record<string, CacheEntry> = {};
+      for (const [k, v] of MEMORY_CACHE.entries()) {
+        if (v.expiresAt > now) {
+          dataToSave[k] = v;
+        }
+      }
+      await fs.promises.writeFile(CACHE_FILE, JSON.stringify(dataToSave), 'utf-8');
+    } catch {
+      // Non-blocking disk warning
+    } finally {
+      isPersisting = false;
     }
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(dataToSave), 'utf-8');
-  } catch (e) {
-    // Non-blocking disk warning
+  }, 500);
+  if (typeof persistTimer.unref === 'function') {
+    persistTimer.unref();
   }
 }
 
@@ -164,10 +180,11 @@ export async function deleteCache(key: string): Promise<void> {
 }
 
 /**
- * Invalidate multiple keys matching a prefix or pattern.
+ * Invalidate multiple keys matching a prefix or pattern using non-blocking SCAN.
  */
 export async function deleteCachePattern(pattern: string): Promise<void> {
-  const regex = new RegExp(`^${pattern.replace('*', '.*')}`);
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  const regex = new RegExp(`^${escaped}$`);
   for (const k of MEMORY_CACHE.keys()) {
     if (regex.test(k)) {
       MEMORY_CACHE.delete(k);
@@ -177,10 +194,14 @@ export async function deleteCachePattern(pattern: string): Promise<void> {
 
   if (redisClient && isConnectedToRedis) {
     try {
-      const keys = await redisClient.keys(pattern);
-      if (keys.length > 0) {
-        await redisClient.del(...keys);
-      }
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+        if (Array.isArray(keys) && keys.length > 0) {
+          await redisClient.del(...keys);
+        }
+      } while (cursor !== '0');
     } catch {
       // Ignored
     }

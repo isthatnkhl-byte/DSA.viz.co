@@ -105,3 +105,53 @@ test('requireAuth - rejects local-dev-token and mock user header bypasses', asyn
   assert.equal(statusCode, 401);
   assert.equal(req.user, undefined);
 });
+
+test('requireAuth - rejects forged RS256 JWT with valid claims and 64+ char fake signature', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'gen-lang-client-0937971784';
+  const fakeHeader = Buffer.from(
+    JSON.stringify({ alg: 'RS256', kid: 'forged_key_id_12345', typ: 'JWT' })
+  ).toString('base64url');
+  const fakePayload = Buffer.from(
+    JSON.stringify({
+      iss: `https://securetoken.google.com/${projectId}`,
+      aud: projectId,
+      sub: 'forged_victim_uid_999',
+      user_id: 'forged_victim_uid_999',
+      email: 'victim@example.com',
+      iat: now - 10,
+      exp: now + 3600,
+    })
+  ).toString('base64url');
+  const fakeSig = 'a'.repeat(86);
+  const forgedRs256Token = `${fakeHeader}.${fakePayload}.${fakeSig}`;
+
+  const req = {
+    headers: {
+      authorization: `Bearer ${forgedRs256Token}`,
+    },
+  } as unknown as AuthRequest;
+
+  let statusCode = 0;
+  const res = {
+    status(code: number) {
+      statusCode = code;
+      return this;
+    },
+    json() {
+      return this;
+    },
+  } as unknown as Response;
+
+  let nextCalled = false;
+  const next = (() => {
+    nextCalled = true;
+  }) as NextFunction;
+
+  await requireAuth(req, res, next);
+
+  assert.equal(nextCalled, false);
+  assert.equal(statusCode, 401);
+  assert.equal(req.user, undefined);
+});
+

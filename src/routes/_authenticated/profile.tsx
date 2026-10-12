@@ -51,7 +51,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Visualizer } from "@/components/Visualizer";
 import { useAuth } from "@/hooks/useAuth";
-import { getAuth } from "firebase/auth";
+import { getAuth, updateProfile as updateFirebaseAuthProfile } from "firebase/auth";
 import {
   getOrCreateUserProfile,
   updateUserProfile,
@@ -1386,7 +1386,6 @@ function ProfilePage() {
             displayName: username,
             display_name: username,
           });
-          const { updateProfile: updateFirebaseAuthProfile } = await import("firebase/auth");
           await updateFirebaseAuthProfile(currentUser, { displayName: username }).catch(() => {});
         } catch {}
       }

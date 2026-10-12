@@ -32,8 +32,8 @@ import {
   type TestDataset,
   type VizStep,
 } from "@/lib/problems";
-import { getStatement } from "@/lib/problem.functions";
 import { statementForSlug } from "@/lib/statements";
+import { saveUserSubmission } from "@/lib/firestore-service";
 import type { ReviewResult, DatasetPlanResult, ExecutionPlanStep } from "@/lib/review.functions";
 import { apiReviewPseudocode, apiGenerateDatasetsAndPlan, apiGenerateDatasetViz, apiVerifyDatasetTrace } from "@/lib/api-client";
 import { saveSubmission, getProfileStats } from "@/lib/submissions.functions";
@@ -334,7 +334,6 @@ function ProblemPage() {
           createdAt: new Date().toISOString(),
         };
         try {
-          const { saveUserSubmission } = await import("@/lib/firestore-service");
           const currentAuthUser = getAuth().currentUser;
           if (currentAuthUser) {
             await saveUserSubmission(currentAuthUser.uid, subPayload).catch(() => {});
@@ -402,7 +401,6 @@ function ProblemPage() {
         };
 
         try {
-          const { saveUserSubmission } = await import("@/lib/firestore-service");
           const currentAuthUser = getAuth().currentUser;
           if (currentAuthUser) {
             await saveUserSubmission(currentAuthUser.uid, submissionData).catch(() => {});

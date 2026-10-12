@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
+import { getUserAiReports, saveUserAiReport } from "@/lib/firestore-service";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 
@@ -117,7 +118,6 @@ export function AiMistakesSection({
       let clientReports: any[] = [];
       if (serverReports.length === 0 && currentUser) {
         try {
-          const { getUserAiReports } = await import("@/lib/firestore-service");
           clientReports = await getUserAiReports(currentUser.uid);
         } catch {
           // Ignore client Firestore fallback error
@@ -166,7 +166,6 @@ export function AiMistakesSection({
       }
       if (currentUser) {
         try {
-          const { saveUserAiReport } = await import("@/lib/firestore-service");
           await saveUserAiReport(currentUser.uid, data).catch(() => {});
         } catch {
           // Non-blocking Firestore persistence

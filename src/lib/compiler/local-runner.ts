@@ -139,6 +139,31 @@ interface ProcessOutput {
   isNotFound?: boolean;
 }
 
+const SENSITIVE_ENV_KEY_PATTERN =
+  /KEY|SECRET|TOKEN|PASSWORD|PASS|CREDENTIAL|AUTH|PRIVATE|REDIS|DATABASE|DB_|PG|POSTGRES|SUPABASE|FIREBASE|GOOGLE|GEMINI|OPENAI|OPENROUTER|GITHUB|VERCEL|AWS|AZURE|GCP|COOKIE|SESSION|ENCRYPTION/i;
+
+export function buildSanitizedSandboxEnv(sandboxDir: string): NodeJS.ProcessEnv {
+  const safeEnv: NodeJS.ProcessEnv = {};
+
+  for (const [key, val] of Object.entries(process.env)) {
+    if (typeof val === "string" && !SENSITIVE_ENV_KEY_PATTERN.test(key)) {
+      safeEnv[key] = val;
+    }
+  }
+
+  safeEnv.PYTHONUNBUFFERED = "1";
+  safeEnv.PYTHONDONTWRITEBYTECODE = "1";
+  safeEnv.LC_ALL = "C.UTF-8";
+  safeEnv.LANG = "C.UTF-8";
+  if (!safeEnv.TMP && !safeEnv.TEMP) {
+    safeEnv.TMP = sandboxDir;
+    safeEnv.TEMP = sandboxDir;
+    safeEnv.TMPDIR = sandboxDir;
+  }
+
+  return safeEnv;
+}
+
 function runSpawnedProcess(
   cmd: string,
   args: string[],
@@ -155,12 +180,7 @@ function runSpawnedProcess(
     const child = spawn(cmd, args, {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        PYTHONUNBUFFERED: "1",
-        LC_ALL: "C.UTF-8",
-        LANG: "C.UTF-8",
-      },
+      env: buildSanitizedSandboxEnv(cwd),
     });
 
     const timer = setTimeout(() => {

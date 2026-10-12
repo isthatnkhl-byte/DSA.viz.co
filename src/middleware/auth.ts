@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Request, Response, NextFunction } from 'express';
 import { adminAuth } from '../lib/firebase-admin';
 import { DecodedIdToken } from 'firebase-admin/auth';
@@ -6,6 +7,51 @@ import fallbackConfig from '../../firebase-applet-config.json';
 
 export interface AuthRequest extends Request {
   user?: DecodedIdToken;
+}
+
+const GOOGLE_CERTS_URL =
+  'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
+let cachedGoogleCerts: Record<string, string> | null = null;
+let cachedGoogleCertsExpiresAt = 0;
+
+async function getGooglePublicCerts(): Promise<Record<string, string> | null> {
+  const now = Date.now();
+  if (cachedGoogleCerts && cachedGoogleCertsExpiresAt > now) {
+    return cachedGoogleCerts;
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+  try {
+    const res = await fetch(GOOGLE_CERTS_URL, { signal: controller.signal });
+    if (!res.ok) return cachedGoogleCerts;
+    const certs = (await res.json()) as Record<string, string>;
+    if (certs && typeof certs === 'object' && Object.keys(certs).length > 0) {
+      cachedGoogleCerts = certs;
+      cachedGoogleCertsExpiresAt = now + 60 * 60 * 1000; // 1 hour cache
+      return certs;
+    }
+    return cachedGoogleCerts;
+  } catch {
+    return cachedGoogleCerts;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function verifyRs256Signature(
+  signingInput: string,
+  signatureB64Url: string,
+  certPem: string
+): boolean {
+  try {
+    const verifier = crypto.createVerify('RSA-SHA256');
+    verifier.update(signingInput);
+    verifier.end();
+    const signatureBuf = Buffer.from(signatureB64Url, 'base64url');
+    return verifier.verify(certPem, signatureBuf);
+  } catch {
+    return false;
+  }
 }
 
 export const requireAuth = async (
@@ -32,12 +78,12 @@ export const requireAuth = async (
     return next();
   } catch (error: any) {
     // When local Firebase Admin ADC credentials are not present on the machine,
-    // strictly validate the Firebase RS256 Google ID token structure, issuer, audience, and expiry
+    // cryptographically verify the Firebase RS256 Google ID token against Google's X.509 public keys
     try {
       const parts = token.split('.');
-      if (parts.length === 3 && parts[2] && parts[2].length >= 64) {
-        const header = JSON.parse(Buffer.from(parts[0]!, 'base64url').toString('utf8'));
-        const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8'));
+      if (parts.length === 3 && parts[0] && parts[1] && parts[2] && parts[2].length >= 64) {
+        const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
 
         if (header.alg !== 'RS256' || !header.kid || typeof header.kid !== 'string') {
           return res.status(401).json({ error: 'Unauthorized: Invalid token signature algorithm' });
@@ -69,6 +115,16 @@ export const requireAuth = async (
           isMatchingIssuer &&
           hasValidUid
         ) {
+          const certs = await getGooglePublicCerts();
+          if (certs) {
+            const certPem = certs[header.kid];
+            if (!certPem || !verifyRs256Signature(`${parts[0]}.${parts[1]}`, parts[2], certPem)) {
+              return res.status(401).json({ error: 'Unauthorized: Invalid token cryptographic signature' });
+            }
+          } else if (process.env.NODE_ENV === 'production' || process.env.ALLOW_OFFLINE_DEV_AUTH !== 'true') {
+            return res.status(401).json({ error: 'Unauthorized: Unable to verify token signature' });
+          }
+
           req.user = {
             uid,
             email: payload.email,
@@ -86,4 +142,5 @@ export const requireAuth = async (
     return res.status(401).json({ error: 'Unauthorized: Invalid or expired Google OAuth token' });
   }
 };
+
 

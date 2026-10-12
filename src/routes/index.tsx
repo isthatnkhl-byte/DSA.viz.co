@@ -75,13 +75,11 @@ export function LandingPage() {
 
   // Unlock document scrolling smoothly as soon as the logo docks back on the top-left and the website appears
   useEffect(() => {
-    if (scrollUnlocked) return;
-    if (introPhase === "complete") {
-      const timer = window.setTimeout(() => {
-        setScrollUnlocked(true);
-      }, 420);
-      return () => window.clearTimeout(timer);
-    }
+    if (scrollUnlocked || introPhase !== "complete") return undefined;
+    const timer = window.setTimeout(() => {
+      setScrollUnlocked(true);
+    }, 420);
+    return () => window.clearTimeout(timer);
   }, [introPhase, scrollUnlocked]);
 
   // Keep the site 100% static at scrollY = 0 while wheel / touch / keyboard gestures drive the intro animation

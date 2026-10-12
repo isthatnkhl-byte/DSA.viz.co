@@ -12,7 +12,7 @@ import { processReviewPseudocode, processGenerateDatasetsAndPlan, processDataset
 import { processPlaygroundReview } from './src/lib/playground.functions';
 import { runSecureCpp, runSecureCode } from './src/lib/compiler/index';
 import { fetchLeetCodeStats } from './src/lib/leetcode-service';
-import { statementForSlug } from './src/lib/statements';
+import { statementForSlug } from './src/lib/statements.server';
 import localStatementsJson from './src/data/statements.json';
 import {
   evaluateInterviewTier,
@@ -69,20 +69,32 @@ const cleanSecretEnv = (val?: string | null): string => {
   return val.trim().replace(/^["']|["']$/g, "").trim();
 };
 
+let cachedEncryptionKey: Buffer | null = null;
+
 const getEncryptionKey = (): Buffer => {
+  if (cachedEncryptionKey) return cachedEncryptionKey;
   const encKey = cleanSecretEnv(process.env.ENCRYPTION_KEY);
   if (encKey && encKey.length >= 32) {
-    return Buffer.from(encKey.slice(0, 32));
+    cachedEncryptionKey = Buffer.from(encKey.slice(0, 32));
+    return cachedEncryptionKey;
   }
   if (encKey && encKey.length > 0) {
-    return crypto.scryptSync(encKey, "dsaviz_salt", 32);
+    cachedEncryptionKey = crypto.scryptSync(encKey, "dsaviz_salt", 32);
+    return cachedEncryptionKey;
   }
   const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
   if (secret) {
-    return crypto.scryptSync(secret, "dsaviz_salt", 32);
+    cachedEncryptionKey = crypto.scryptSync(secret, "dsaviz_salt", 32);
+    return cachedEncryptionKey;
   }
-  console.warn("⚠️ [Security Notice]: ENCRYPTION_KEY is not configured. Deriving fallback encryption key.");
-  return crypto.scryptSync("dev_insecure_local_encryption_fallback_32", "dsaviz_salt", 32);
+  if (process.env.NODE_ENV === "production") {
+    console.error("🚨 [Security Alert]: ENCRYPTION_KEY is not configured in production. Generating ephemeral per-process encryption key.");
+    cachedEncryptionKey = crypto.randomBytes(32);
+    return cachedEncryptionKey;
+  }
+  console.warn("⚠️ [Security Notice]: ENCRYPTION_KEY is not configured. Deriving local dev fallback encryption key.");
+  cachedEncryptionKey = crypto.scryptSync("dev_insecure_local_encryption_fallback_32", "dsaviz_salt", 32);
+  return cachedEncryptionKey;
 };
 
 function encryptToken(text: string): string {

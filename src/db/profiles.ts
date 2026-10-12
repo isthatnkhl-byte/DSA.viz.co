@@ -20,26 +20,42 @@ try {
   // Silent fallback
 }
 
+let persistProfilesTimer: ReturnType<typeof setTimeout> | null = null;
+let isPersistingProfiles = false;
+
 function persistProfiles() {
-  try {
-    const dir = path.dirname(PROFILES_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const obj: Record<string, any> = {};
-    for (const [k, v] of memoryProfileStore.entries()) {
-      obj[k] = v;
+  if (persistProfilesTimer) return;
+  persistProfilesTimer = setTimeout(async () => {
+    persistProfilesTimer = null;
+    if (isPersistingProfiles) return;
+    isPersistingProfiles = true;
+    try {
+      const dir = path.dirname(PROFILES_FILE);
+      if (!fs.existsSync(dir)) {
+        await fs.promises.mkdir(dir, { recursive: true });
+      }
+      const obj: Record<string, any> = {};
+      for (const [k, v] of memoryProfileStore.entries()) {
+        obj[k] = v;
+      }
+      await fs.promises.writeFile(PROFILES_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    } catch {
+      // Non-blocking disk persist fallback
+    } finally {
+      isPersistingProfiles = false;
     }
-    fs.writeFileSync(PROFILES_FILE, JSON.stringify(obj, null, 2), 'utf-8');
-  } catch {
-    // Non-blocking disk persist fallback
+  }, 500);
+  if (typeof persistProfilesTimer.unref === 'function') {
+    persistProfilesTimer.unref();
   }
 }
 
 export async function getProfile(userId: string) {
   if (!userId) return null;
 
-  // 1. Check Redis cache first
+  // 1. Check unified Redis cache first
   try {
-    const cached = await getCache<any>(`profile:${userId}`);
+    const cached = (await getCache<any>(`profile:v2:${userId}`)) ?? (await getCache<any>(`profile:${userId}`));
     if (cached) return cached;
   } catch {
     // Fall through
@@ -54,7 +70,7 @@ export async function getProfile(userId: string) {
       const merged = { ...existing, ...data };
       memoryProfileStore.set(userId, merged);
       persistProfiles();
-      await setCache(`profile:${userId}`, merged, 1800).catch(() => {});
+      await setCache(`profile:v2:${userId}`, merged).catch(() => {});
       return merged;
     }
   } catch {
@@ -64,7 +80,7 @@ export async function getProfile(userId: string) {
   // 3. Fall back to local store
   const local = memoryProfileStore.get(userId) || null;
   if (local) {
-    await setCache(`profile:${userId}`, local, 1800).catch(() => {});
+    await setCache(`profile:v2:${userId}`, local).catch(() => {});
   }
   return local;
 }
@@ -77,8 +93,8 @@ export async function updateProfile(userId: string, data: any) {
   memoryProfileStore.set(userId, merged);
   persistProfiles();
 
-  // Write through to Redis cache
-  await setCache(`profile:${userId}`, merged, 1800).catch(() => {});
+  // Write through to unified Redis cache
+  await setCache(`profile:v2:${userId}`, merged).catch(() => {});
 
   try {
     await adminDb.collection('users').doc(userId).set(data, { merge: true });
@@ -87,7 +103,7 @@ export async function updateProfile(userId: string, data: any) {
       const cloudData = { ...doc.data(), ...merged, ...data };
       memoryProfileStore.set(userId, cloudData);
       persistProfiles();
-      await setCache(`profile:${userId}`, cloudData, 1800).catch(() => {});
+      await setCache(`profile:v2:${userId}`, cloudData).catch(() => {});
       return cloudData;
     }
   } catch {
@@ -99,6 +115,10 @@ export async function updateProfile(userId: string, data: any) {
 
 export async function clearProfileCache(userId: string) {
   if (!userId) return;
-  await deleteCache(`profile:${userId}`).catch(() => {});
+  await Promise.all([
+    deleteCache(`profile:v2:${userId}`).catch(() => {}),
+    deleteCache(`profile:${userId}`).catch(() => {}),
+  ]);
 }
+
 

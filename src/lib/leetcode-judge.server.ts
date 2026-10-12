@@ -15,7 +15,7 @@ import {
   type LeetCodeSubmitCategory,
   type LeetCodeLearningDiagnostics,
 } from "./leetcode-testcases";
-import { statementForSlug } from "./statements";
+import { statementForSlug } from "./statements.server";
 
 const GEMINI_JUDGE_MODELS = [
   "gemini-2.5-flash",

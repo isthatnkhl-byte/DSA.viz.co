@@ -769,138 +769,29 @@ export function AiWhiteboard({
   ]);
 
   /**
-   * CONTINUOUS LIVE PATH-INTERPOLATED AI CO-TEACHER CURSOR & LASER TRAIL ENGINE
-   * Smoothly travels point-to-point across the step's active elements using cubic easing
-   * (`easeInOutCubic`) with a brief steady pointer pause at each node — ZERO circular spinning!
+   * ON-DEMAND AI CO-TEACHER CURSOR ENGINE
+   * Moves ONLY when it needs to travel to the current step's target element(s),
+   * and then STOPS COMPLETELY (terminating requestAnimationFrame) until the next step requires movement.
    */
   useEffect(() => {
     if (!excalidrawAPI || !currentFrame) return;
 
-    let animFrameId = 0;
-    let lastCollaboratorUpdate = 0;
     const aiColor = "#ef476f";
     const collaboratorId = tintedId("ai-co-teacher", aiColor);
+    const finalTarget = currentFrame.aiLaserTarget ?? { x: 320, y: 220 };
 
-    const rawWaypoints =
-      currentFrame.aiLaserWaypoints && currentFrame.aiLaserWaypoints.length > 0
-        ? currentFrame.aiLaserWaypoints
-        : [currentFrame.aiLaserTarget];
-
-    // Build deduplicated ordered path from cursor's starting coordinate through all waypoints in the step
-    const fullCandidates = [stepStartCursorPosRef.current, ...rawWaypoints];
-    const cleanPath: Array<{ x: number; y: number }> = [];
-    for (const pt of fullCandidates) {
-      if (!pt) continue;
-      const last = cleanPath[cleanPath.length - 1];
-      if (!last || Math.hypot(pt.x - last.x, pt.y - last.y) > 4) {
-        cleanPath.push({ x: pt.x, y: pt.y });
-      }
-    }
-    if (cleanPath.length < 2) {
-      const anchor = cleanPath[0] ??
-        currentFrame.aiLaserTarget ?? { x: 320, y: 220 };
-      cleanPath.push(
-        { x: anchor.x + 140, y: anchor.y },
-        { x: anchor.x, y: anchor.y }
-      );
-    }
-
-    const animateCursor = (now: number) => {
-      animFrameId = window.requestAnimationFrame(animateCursor);
-
-      // Throttle Excalidraw collaborator updates to ~30fps (every 33ms)
-      if (now - lastCollaboratorUpdate < 33) return;
-      lastCollaboratorUpdate = now;
-
-      let nextX = cursorPosRef.current.x;
-      let nextY = cursorPosRef.current.y;
-      let isDrawingLaserTrail = false;
-
-      if (!isPlayingSteps && !isAiTeaching) {
-        // Paused: smoothly glide to the step's primary target and hold completely still (zero rotation!)
-        const target = currentFrame.aiLaserTarget ?? { x: 320, y: 220 };
-        const dist = Math.hypot(
-          target.x - cursorPosRef.current.x,
-          target.y - cursorPosRef.current.y
-        );
-        if (dist <= 1.5) {
-          if (settledAtTargetRef.current) return;
-          settledAtTargetRef.current = true;
-          nextX = target.x;
-          nextY = target.y;
-          isDrawingLaserTrail = false;
-        } else {
-          nextX =
-            cursorPosRef.current.x +
-            (target.x - cursorPosRef.current.x) * 0.24;
-          nextY =
-            cursorPosRef.current.y +
-            (target.y - cursorPosRef.current.y) * 0.24;
-          isDrawingLaserTrail = dist > 8;
-        }
-      } else {
-        settledAtTargetRef.current = false;
-        const numSegments = Math.max(1, cleanPath.length - 1);
-        const segDurationMs = Math.max(
-          520,
-          Math.round(860 / playbackSpeed)
-        );
-        const firstPassTotalMs = numSegments * segDurationMs;
-        const elapsed = Math.max(0, now - stepStartTimeRef.current);
-
-        if (elapsed >= firstPassTotalMs) {
-          cursorPassDoneRef.current = true;
-        }
-
-        let fromPt: { x: number; y: number };
-        let toPt: { x: number; y: number };
-
-        if (elapsed < firstPassTotalMs) {
-          const segIdx = Math.min(
-            numSegments - 1,
-            Math.floor(elapsed / segDurationMs)
-          );
-          fromPt = cleanPath[segIdx]!;
-          toPt = cleanPath[segIdx + 1]!;
-          waypointIndexRef.current = Math.min(rawWaypoints.length - 1, segIdx);
-        } else {
-          // Cursor finished first pass and is waiting for voice narration to finish:
-          // smoothly traverse between the step's waypoints without spinning in place
-          const loopPts =
-            rawWaypoints.length >= 2 ? rawWaypoints : cleanPath;
-          const totalSegs = Math.floor(elapsed / segDurationMs);
-          const loopIdx = (totalSegs - numSegments) % loopPts.length;
-          fromPt = loopPts[loopIdx]!;
-          toPt = loopPts[(loopIdx + 1) % loopPts.length]!;
-          waypointIndexRef.current = loopIdx;
-        }
-
-        const localProgress = (elapsed % segDurationMs) / segDurationMs;
-        if (localProgress <= 0.82) {
-          // 82% of segment: smooth cubic-eased travel from `fromPt` to `toPt`
-          const t = localProgress / 0.82;
-          const eased =
-            t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-          nextX = fromPt.x + (toPt.x - fromPt.x) * eased;
-          nextY = fromPt.y + (toPt.y - fromPt.y) * eased;
-          isDrawingLaserTrail = Math.hypot(toPt.x - fromPt.x, toPt.y - fromPt.y) > 8;
-        } else {
-          // 18% of segment: steady pointer pause directly on `toPt` (no circular spinning!)
-          nextX = toPt.x;
-          nextY = toPt.y;
-          isDrawingLaserTrail = false;
-        }
-      }
-
-      cursorPosRef.current = { x: nextX, y: nextY };
-
+    const updateCollaboratorCursor = (
+      x: number,
+      y: number,
+      isMoving: boolean
+    ) => {
+      cursorPosRef.current = { x, y };
       const pointer: WbPointer = {
-        x: Math.round(nextX * 10) / 10,
-        y: Math.round(nextY * 10) / 10,
+        x: Math.round(x * 10) / 10,
+        y: Math.round(y * 10) / 10,
         tool: "laser",
-        button: isDrawingLaserTrail ? "down" : "up",
+        button: isMoving ? "down" : "up",
       };
-
       const collaborators = new Map<string, any>();
       collaborators.set("ai-co-teacher", {
         id: collaboratorId,
@@ -912,7 +803,6 @@ export function AiWhiteboard({
         pointer,
         button: pointer.button,
       });
-
       try {
         excalidrawAPI.updateScene({ collaborators });
       } catch {
@@ -920,9 +810,103 @@ export function AiWhiteboard({
       }
     };
 
+    // If the cursor has already settled at this step's target, keep it 100% stationary!
+    if (settledAtTargetRef.current) {
+      updateCollaboratorCursor(finalTarget.x, finalTarget.y, false);
+      return;
+    }
+
+    // Build concise one-way path from the cursor's current position to the step's target
+    const rawWaypoints =
+      (isPlayingSteps || isAiTeaching) &&
+      currentFrame.aiLaserWaypoints &&
+      currentFrame.aiLaserWaypoints.length > 0
+        ? currentFrame.aiLaserWaypoints.slice(-2)
+        : [finalTarget];
+
+    const fullCandidates = [
+      { ...cursorPosRef.current },
+      ...rawWaypoints,
+      finalTarget,
+    ];
+    const cleanPath: Array<{ x: number; y: number }> = [];
+    for (const pt of fullCandidates) {
+      if (!pt) continue;
+      const last = cleanPath[cleanPath.length - 1];
+      if (!last || Math.hypot(pt.x - last.x, pt.y - last.y) > 4) {
+        cleanPath.push({ x: pt.x, y: pt.y });
+      }
+    }
+
+    let animFrameId = 0;
+    let dwellTimerId = 0;
+    let lastCollaboratorUpdate = 0;
+
+    // If the cursor is already at the target (cleanPath.length < 2), do NOT move at all!
+    if (cleanPath.length < 2) {
+      settledAtTargetRef.current = true;
+      updateCollaboratorCursor(finalTarget.x, finalTarget.y, false);
+      const holdMs = autoVoiceNarrate
+        ? 150
+        : Math.max(700, Math.round(1300 / playbackSpeed));
+      dwellTimerId = window.setTimeout(() => {
+        cursorPassDoneRef.current = true;
+      }, holdMs);
+      return () => {
+        window.clearTimeout(dwellTimerId);
+      };
+    }
+
+    const moveStartTime =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    const numSegments = cleanPath.length - 1;
+    const segDurationMs = Math.max(420, Math.round(620 / playbackSpeed));
+    const totalMoveMs = numSegments * segDurationMs;
+
+    const animateCursor = (now: number) => {
+      const elapsed = Math.max(0, now - moveStartTime);
+
+      // Once the cursor reaches the destination, STOP COMPLETELY (no more requestAnimationFrame!)
+      if (elapsed >= totalMoveMs) {
+        settledAtTargetRef.current = true;
+        updateCollaboratorCursor(finalTarget.x, finalTarget.y, false);
+
+        // Hold stationary at the target before allowing step progression (if Voice is OFF)
+        const holdMs = autoVoiceNarrate
+          ? 150
+          : Math.max(700, Math.round(1300 / playbackSpeed));
+        dwellTimerId = window.setTimeout(() => {
+          cursorPassDoneRef.current = true;
+        }, holdMs);
+        return;
+      }
+
+      animFrameId = window.requestAnimationFrame(animateCursor);
+
+      // Throttle Excalidraw collaborator updates to ~30fps (every 33ms) while moving
+      if (now - lastCollaboratorUpdate < 33) return;
+      lastCollaboratorUpdate = now;
+
+      const segIdx = Math.min(
+        numSegments - 1,
+        Math.floor(elapsed / segDurationMs)
+      );
+      const fromPt = cleanPath[segIdx]!;
+      const toPt = cleanPath[segIdx + 1]!;
+      const t = (elapsed % segDurationMs) / segDurationMs;
+      const eased =
+        t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+      const nextX = fromPt.x + (toPt.x - fromPt.x) * eased;
+      const nextY = fromPt.y + (toPt.y - fromPt.y) * eased;
+
+      updateCollaboratorCursor(nextX, nextY, true);
+    };
+
     animFrameId = window.requestAnimationFrame(animateCursor);
     return () => {
       window.cancelAnimationFrame(animFrameId);
+      window.clearTimeout(dwellTimerId);
     };
   }, [
     excalidrawAPI,
@@ -933,6 +917,7 @@ export function AiWhiteboard({
     isPlayingSteps,
     isAiTeaching,
     playbackSpeed,
+    autoVoiceNarrate,
   ]);
 
   /**

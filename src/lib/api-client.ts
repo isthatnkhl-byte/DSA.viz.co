@@ -29,6 +29,8 @@ async function loadSealedVaultForUid(uid: string): Promise<string | null> {
     // Ignore storage read error
   }
 
+  if (uid === "anon") return null;
+
   let inflight = inflightVaultLoadByUid.get(uid);
   if (!inflight) {
     inflight = (async () => {
@@ -72,24 +74,26 @@ async function persistSealedVaultForUid(uid: string, sealedVault?: string | null
     } catch {
       // Ignore
     }
-    try {
-      await setDoc(
-        doc(db, "users", uid, "tasks", "encrypted_key_vault"),
-        {
-          ownerId: `uid:${uid}`,
-          sealedVault,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-    } catch {
-      // Non-blocking Firestore sync
+    if (uid !== "anon") {
+      try {
+        await setDoc(
+          doc(db, "users", uid, "tasks", "encrypted_key_vault"),
+          {
+            ownerId: `uid:${uid}`,
+            sealedVault,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch {
+        // Non-blocking Firestore sync
+      }
     }
   }
 }
 
 /** Helper to retrieve the current user's Firebase Bearer ID Token and encrypted account vault envelope */
-async function getAuthHeaders(): Promise<Record<string, string>> {
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
     const auth = getAuth();
     const user = auth.currentUser;
@@ -102,13 +106,18 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
-      if (sealedVault) {
-        headers["X-Encrypted-Account-Vault"] = sealedVault;
+      const effectiveVault = sealedVault || (await loadSealedVaultForUid("anon"));
+      if (effectiveVault) {
+        headers["X-Encrypted-Account-Vault"] = effectiveVault;
       }
       return headers;
     }
   } catch {
     // Unauthenticated or Firebase not initialized
+  }
+  const anonVault = await loadSealedVaultForUid("anon");
+  if (anonVault) {
+    return { "X-Encrypted-Account-Vault": anonVault };
   }
   return {};
 }
@@ -126,6 +135,7 @@ export async function apiReviewPseudocode(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/review", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -156,6 +166,7 @@ export async function apiGenerateDatasetsAndPlan(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/generate-plan", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -189,6 +200,7 @@ export async function apiGenerateDatasetViz(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/visualize-dataset", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -217,6 +229,7 @@ export async function apiVerifyDatasetTrace(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/verify-trace", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -245,6 +258,7 @@ export async function apiPlaygroundReview(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/playground-review", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -271,6 +285,7 @@ export async function apiExecuteCode(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/compiler/execute", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -302,6 +317,7 @@ export async function apiInterviewEvaluate(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/interview-evaluate", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -334,6 +350,7 @@ export async function apiInterviewScorecard(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/interview-scorecard", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -366,6 +383,7 @@ export async function apiInterviewRespond(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/interview-respond", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -400,6 +418,7 @@ export async function apiGetLiveKitToken(room?: string, identity?: string): Prom
   const qs = params.toString() ? `?${params.toString()}` : "";
   const response = await fetch(`/api/livekit-token${qs}`, {
     method: "GET",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -426,6 +445,7 @@ export async function apiInterviewRunTests(payload: {
   const authHeaders = await getAuthHeaders();
   const response = await fetch("/api/interview-run-tests", {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders,
@@ -543,8 +563,8 @@ export async function apiGetUserKeyVaultStatus(): Promise<UserKeyVaultStatus> {
   }
   const data = (await response.json()) as UserKeyVaultStatus;
   try {
-    const uid = getAuth().currentUser?.uid;
-    if (uid && data?.sealedVault) {
+    const uid = getAuth().currentUser?.uid || "anon";
+    if (data?.sealedVault) {
       void persistSealedVaultForUid(uid, data.sealedVault);
     }
   } catch {
@@ -585,9 +605,9 @@ export async function apiSaveUserApiKey(payload: {
     throw new Error(data.error || `Failed to save API key (${response.status})`);
   }
   try {
-    const uid = getAuth().currentUser?.uid;
+    const uid = getAuth().currentUser?.uid || "anon";
     const sealed = data?.sealedVault || data?.status?.sealedVault;
-    if (uid && sealed) {
+    if (sealed) {
       await persistSealedVaultForUid(uid, sealed);
     }
   } catch {
@@ -617,16 +637,18 @@ export async function apiDeleteUserApiKey(
     throw new Error(data.error || `Failed to remove API key (${response.status})`);
   }
   try {
-    const uid = getAuth().currentUser?.uid;
-    if (uid) {
-      const sealed = data?.status?.sealedVault;
-      if (sealed && data?.status?.hasPersonalKey) {
-        await persistSealedVaultForUid(uid, sealed);
-      } else {
-        memorySealedVaultByUid.delete(uid);
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem(getSealedVaultCacheKey(uid));
-        }
+    const uid = getAuth().currentUser?.uid || "anon";
+    const sealed = data?.status?.sealedVault;
+    if (sealed && data?.status?.hasPersonalKey) {
+      await persistSealedVaultForUid(uid, sealed);
+    } else {
+      memorySealedVaultByUid.delete(uid);
+      memorySealedVaultByUid.delete("anon");
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(getSealedVaultCacheKey(uid));
+        window.localStorage.removeItem(getSealedVaultCacheKey("anon"));
+      }
+      if (uid !== "anon") {
         await setDoc(
           doc(db, "users", uid, "tasks", "encrypted_key_vault"),
           {

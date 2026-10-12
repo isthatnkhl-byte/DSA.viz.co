@@ -242417,29 +242417,33 @@ function hydrateVaultFromRequestEnvelope(req, uid, vaultSid) {
   const headerBlob = typeof req.headers["x-encrypted-account-vault"] === "string" ? req.headers["x-encrypted-account-vault"] : null;
   if (uid) {
     const uidOwner = `uid:${uid}`;
-    if (!memoryVaultStore.has(uidOwner)) {
-      const fromHeader = unsealVaultRecord(headerBlob, uidOwner);
-      if (fromHeader) {
-        setMemoryVaultRecord(uidOwner, fromHeader);
-        persistVaultToDisk();
-        return;
-      }
-      const fromCookie = unsealVaultRecord(cookieBlob, uidOwner);
-      if (fromCookie) {
-        setMemoryVaultRecord(uidOwner, fromCookie);
-        persistVaultToDisk();
-        return;
-      }
+    const existing = memoryVaultStore.get(uidOwner);
+    const fromHeader = unsealVaultRecord(headerBlob, uidOwner);
+    if (fromHeader && (!existing || fromHeader.updatedAt >= existing.updatedAt)) {
+      setMemoryVaultRecord(uidOwner, fromHeader);
+      persistVaultToDisk();
+      return;
+    }
+    const fromCookie = unsealVaultRecord(cookieBlob, uidOwner);
+    if (fromCookie && (!existing || fromCookie.updatedAt >= existing.updatedAt)) {
+      setMemoryVaultRecord(uidOwner, fromCookie);
+      persistVaultToDisk();
+      return;
     }
   }
   if (vaultSid) {
     const sidOwner = `sid:${vaultSid}`;
-    if (!memoryVaultStore.has(sidOwner)) {
-      const fromCookie = unsealVaultRecord(cookieBlob, sidOwner);
-      if (fromCookie) {
-        setMemoryVaultRecord(sidOwner, fromCookie);
-        persistVaultToDisk();
-      }
+    const existing = memoryVaultStore.get(sidOwner);
+    const fromHeader = unsealVaultRecord(headerBlob, sidOwner);
+    if (fromHeader && (!existing || fromHeader.updatedAt >= existing.updatedAt)) {
+      setMemoryVaultRecord(sidOwner, fromHeader);
+      persistVaultToDisk();
+      return;
+    }
+    const fromCookie = unsealVaultRecord(cookieBlob, sidOwner);
+    if (fromCookie && (!existing || fromCookie.updatedAt >= existing.updatedAt)) {
+      setMemoryVaultRecord(sidOwner, fromCookie);
+      persistVaultToDisk();
     }
   }
 }
@@ -242576,7 +242580,7 @@ async function getUserKeyVaultStatus(req, overrideVaultSid, res) {
     hasPersonalKey: activeProvider !== "none",
     activeProvider,
     providers,
-    sealedVault: uidRecord ? sealVaultRecord(uidRecord) : null,
+    sealedVault: primaryRecord ? sealVaultRecord(primaryRecord) : null,
     securityMode: "Persistent Account Vault (Firebase + Backend AES-256-GCM)"
   };
 }
@@ -242593,9 +242597,9 @@ async function verifyUserApiKeyLive(provider, rawKey) {
       }
     });
     const candidateModels = [
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
-      "gemini-flash-latest"
+      "gemini-flash-lite-latest",
+      "gemini-flash-latest",
+      "gemini-2.5-flash"
     ];
     let lastErr = "Invalid Gemini API key";
     for (const model of candidateModels) {
@@ -242696,6 +242700,7 @@ async function saveUserApiKeyToVault(req, res, params) {
     targetOwnerIds.push(`uid:${uid}`);
   }
   let savedUidRecord = null;
+  let savedSidRecord = null;
   for (const ownerId of targetOwnerIds) {
     const existing = await getVaultRecord(ownerId, uid, bearerToken) || {
       ownerId,
@@ -242712,10 +242717,13 @@ async function saveUserApiKeyToVault(req, res, params) {
     await saveVaultRecord(existing, uid, bearerToken);
     if (uid && ownerId === `uid:${uid}`) {
       savedUidRecord = existing;
+    } else if (ownerId === `sid:${vaultSid}`) {
+      savedSidRecord = existing;
     }
   }
-  if (savedUidRecord) {
-    writeHttpOnlyVaultBlobCookie(req, res, savedUidRecord);
+  const recordForCookie = savedUidRecord || savedSidRecord;
+  if (recordForCookie) {
+    writeHttpOnlyVaultBlobCookie(req, res, recordForCookie);
   }
   const status = await getUserKeyVaultStatus(req, vaultSid, res);
   return {
@@ -288698,11 +288706,12 @@ async function generateContentWithFallback(ai, preferredModel, params) {
   if (geminiKey) {
     const candidateModels = [
       preferredModel,
+      "gemini-flash-lite-latest",
+      "gemini-flash-latest",
       "gemini-3.6-flash",
       "gemini-3.8-flash",
       "gemini-3.5-flash",
       "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
       "gemini-3.7-flash"
     ].filter((m2, i2, arr) => m2 && arr.indexOf(m2) === i2);
     for (const model of candidateModels) {

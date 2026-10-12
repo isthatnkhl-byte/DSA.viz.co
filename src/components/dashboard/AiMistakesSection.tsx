@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
+import { getAuthHeaders } from "@/lib/api-client";
 import { getUserAiReports, saveUserAiReport } from "@/lib/firestore-service";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
@@ -152,11 +153,14 @@ export function AiMistakesSection({
       const auth = getAuth();
       const currentUser = auth.currentUser;
       const token = await currentUser?.getIdToken().catch(() => null);
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/generate-mistakes-report", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...authHeaders,
         },
         body: JSON.stringify({}),
       });

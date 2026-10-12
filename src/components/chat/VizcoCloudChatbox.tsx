@@ -29,6 +29,7 @@ import {
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/hooks/useAuth";
 import { getAuth } from "firebase/auth";
+import { getAuthHeaders } from "@/lib/api-client";
 import { toast } from "sonner";
 import { generateClientOfflineSocraticReply } from "@/lib/client-socratic-chat";
 import { VizcoBuddyAvatar } from "@/components/brand/VizcoBuddyAvatar";
@@ -259,11 +260,14 @@ export function VizcoCloudChatbox() {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 20000);
 
+          const authHeaders = await getAuthHeaders();
           const res = await fetch("/api/chat", {
             method: "POST",
+            credentials: "include",
             headers: {
               "Content-Type": "application/json",
               ...(idToken ? { Authorization: "Bearer " + idToken } : {}),
+              ...authHeaders,
             },
             body: JSON.stringify({
               messages: apiMessages.length ? apiMessages : [{ role: "user", content: text }],

@@ -20,6 +20,7 @@ import {
   Play,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getAuthHeaders } from "@/lib/api-client";
 import { SiteHeader } from "@/components/SiteHeader";
 import { AiWhiteboard } from "@/components/interview/AiWhiteboard";
 import {
@@ -1072,9 +1073,14 @@ export function AiLearningPage() {
                                 `🤖 AI Co-Teacher is generating live simulation for "${prompt.slice(0, 44)}..."`
                               );
                               try {
+                                const authHeaders = await getAuthHeaders();
                                 const res = await fetch("/api/whiteboard/ai-teach", {
                                   method: "POST",
-                                  headers: { "Content-Type": "application/json" },
+                                  credentials: "include",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    ...authHeaders,
+                                  },
                                   body: JSON.stringify({
                                     query: prompt,
                                     roomId: "ai-learning-main-stage",

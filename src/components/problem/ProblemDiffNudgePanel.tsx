@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/context/ChatContext";
 import { getAuth } from "firebase/auth";
+import { getAuthHeaders } from "@/lib/api-client";
 import { toast } from "sonner";
 
 export interface InterviewerNudge {
@@ -88,11 +89,14 @@ export function ProblemDiffNudgePanel({
     try {
       const auth = getAuth();
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/code-diff-nudge", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...authHeaders,
         },
         body: JSON.stringify({
           code: effectiveCode,

@@ -31,6 +31,7 @@ import {
   Layers,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getAuthHeaders } from "@/lib/api-client";
 import type { WhiteboardElement } from "@/lib/crdt-collab.server";
 import {
   WB_MAX_ELEMENT_BYTES,
@@ -1108,9 +1109,14 @@ export function AiWhiteboard({
       );
 
       try {
+        const authHeaders = await getAuthHeaders();
         const res = await fetch("/api/whiteboard/ai-teach", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+          },
           body: JSON.stringify({
             query: finalQuery,
             roomId,

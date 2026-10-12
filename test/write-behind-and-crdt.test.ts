@@ -194,4 +194,68 @@ test('Excalidraw Whiteboard - merges elements by version/versionNonce and genera
   }
 });
 
+test('User Key Vault strictly routes AI calls to each user personal API key in AsyncLocalStorage', async () => {
+  const { saveUserApiKeyToVault, attachUserKeyVaultContext, getActiveRequestUserKeys } = await import(
+    '../src/lib/user-keys.server.ts'
+  );
+  const { getGeminiKey, getOpenRouterKey, getOpenAIKey } = await import(
+    '../src/lib/openrouter.server.ts'
+  );
+
+  const setCookies: string[] = [];
+  const mockReqSave: any = {
+    headers: {},
+    secure: false,
+  };
+  const mockResSave: any = {
+    append: (_header: string, val: string) => {
+      setCookies.push(val);
+    },
+  };
+
+  const fakeUserGeminiKey = 'AIzaSyUserPersonalVaultKeyTest999888777';
+  const saved = await saveUserApiKeyToVault(mockReqSave, mockResSave, {
+    apiKey: fakeUserGeminiKey,
+    provider: 'gemini',
+    verify: false,
+  });
+
+  assert.strictEqual(saved.ok, true);
+  assert.strictEqual(saved.provider, 'gemini');
+  assert.ok(saved.sealedVault && saved.sealedVault.split('.').length === 3);
+  assert.ok(setCookies.length >= 2);
+
+  const cookieHeader = setCookies
+    .map((c) => c.split(';')[0])
+    .filter(Boolean)
+    .join('; ');
+
+  const mockReqAiCall: any = {
+    headers: {
+      cookie: cookieHeader,
+      'x-encrypted-account-vault': saved.sealedVault,
+    },
+  };
+  const mockResAiCall: any = {};
+
+  await new Promise<void>((resolve, reject) => {
+    attachUserKeyVaultContext(mockReqAiCall, mockResAiCall, () => {
+      try {
+        const active = getActiveRequestUserKeys();
+        assert.ok(active);
+        assert.strictEqual(active.hasPersonalKey, true);
+        assert.strictEqual(active.geminiKey, fakeUserGeminiKey);
+        assert.strictEqual(getGeminiKey(), fakeUserGeminiKey);
+        // When user has a personal Gemini key, other providers they did not configure must NOT leak server .env keys
+        assert.strictEqual(getOpenRouterKey(), '');
+        assert.strictEqual(getOpenAIKey(), '');
+        resolve();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+});
+
+
 

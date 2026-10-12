@@ -39,11 +39,12 @@ async function generateContentWithFallback(
   if (geminiKey) {
     const candidateModels = [
       preferredModel,
+      "gemini-flash-lite-latest",
+      "gemini-flash-latest",
       "gemini-3.6-flash",
       "gemini-3.8-flash",
       "gemini-3.5-flash",
       "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
       "gemini-3.7-flash",
     ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 

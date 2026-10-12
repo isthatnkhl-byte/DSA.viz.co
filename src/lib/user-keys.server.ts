@@ -637,30 +637,34 @@ function hydrateVaultFromRequestEnvelope(
 
   if (uid) {
     const uidOwner = `uid:${uid}`;
-    if (!memoryVaultStore.has(uidOwner)) {
-      const fromHeader = unsealVaultRecord(headerBlob, uidOwner);
-      if (fromHeader) {
-        setMemoryVaultRecord(uidOwner, fromHeader);
-        persistVaultToDisk();
-        return;
-      }
-      const fromCookie = unsealVaultRecord(cookieBlob, uidOwner);
-      if (fromCookie) {
-        setMemoryVaultRecord(uidOwner, fromCookie);
-        persistVaultToDisk();
-        return;
-      }
+    const existing = memoryVaultStore.get(uidOwner);
+    const fromHeader = unsealVaultRecord(headerBlob, uidOwner);
+    if (fromHeader && (!existing || fromHeader.updatedAt >= existing.updatedAt)) {
+      setMemoryVaultRecord(uidOwner, fromHeader);
+      persistVaultToDisk();
+      return;
+    }
+    const fromCookie = unsealVaultRecord(cookieBlob, uidOwner);
+    if (fromCookie && (!existing || fromCookie.updatedAt >= existing.updatedAt)) {
+      setMemoryVaultRecord(uidOwner, fromCookie);
+      persistVaultToDisk();
+      return;
     }
   }
 
   if (vaultSid) {
     const sidOwner = `sid:${vaultSid}`;
-    if (!memoryVaultStore.has(sidOwner)) {
-      const fromCookie = unsealVaultRecord(cookieBlob, sidOwner);
-      if (fromCookie) {
-        setMemoryVaultRecord(sidOwner, fromCookie);
-        persistVaultToDisk();
-      }
+    const existing = memoryVaultStore.get(sidOwner);
+    const fromHeader = unsealVaultRecord(headerBlob, sidOwner);
+    if (fromHeader && (!existing || fromHeader.updatedAt >= existing.updatedAt)) {
+      setMemoryVaultRecord(sidOwner, fromHeader);
+      persistVaultToDisk();
+      return;
+    }
+    const fromCookie = unsealVaultRecord(cookieBlob, sidOwner);
+    if (fromCookie && (!existing || fromCookie.updatedAt >= existing.updatedAt)) {
+      setMemoryVaultRecord(sidOwner, fromCookie);
+      persistVaultToDisk();
     }
   }
 }
@@ -870,7 +874,7 @@ export async function getUserKeyVaultStatus(
     hasPersonalKey: activeProvider !== "none",
     activeProvider,
     providers,
-    sealedVault: uidRecord ? sealVaultRecord(uidRecord) : null,
+    sealedVault: primaryRecord ? sealVaultRecord(primaryRecord) : null,
     securityMode: "Persistent Account Vault (Firebase + Backend AES-256-GCM)",
   };
 }
@@ -894,9 +898,9 @@ export async function verifyUserApiKeyLive(
       },
     });
     const candidateModels = [
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
+      "gemini-flash-lite-latest",
       "gemini-flash-latest",
+      "gemini-2.5-flash",
     ];
     let lastErr = "Invalid Gemini API key";
     for (const model of candidateModels) {
@@ -1034,6 +1038,7 @@ export async function saveUserApiKeyToVault(
   }
 
   let savedUidRecord: UserVaultRecord | null = null;
+  let savedSidRecord: UserVaultRecord | null = null;
 
   for (const ownerId of targetOwnerIds) {
     const existing = (await getVaultRecord(ownerId, uid, bearerToken)) || {
@@ -1051,11 +1056,14 @@ export async function saveUserApiKeyToVault(
     await saveVaultRecord(existing, uid, bearerToken);
     if (uid && ownerId === `uid:${uid}`) {
       savedUidRecord = existing;
+    } else if (ownerId === `sid:${vaultSid}`) {
+      savedSidRecord = existing;
     }
   }
 
-  if (savedUidRecord) {
-    writeHttpOnlyVaultBlobCookie(req, res, savedUidRecord);
+  const recordForCookie = savedUidRecord || savedSidRecord;
+  if (recordForCookie) {
+    writeHttpOnlyVaultBlobCookie(req, res, recordForCookie);
   }
 
   const status = await getUserKeyVaultStatus(req, vaultSid, res);

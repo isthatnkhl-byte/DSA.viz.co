@@ -10,6 +10,11 @@ import {
   applyCollabDelta,
   subscribeToCollabRoom,
 } from '../src/lib/crdt-collab.server';
+import {
+  newer,
+  checkElement,
+  generateAiExcalidrawLessonForQuery,
+} from '../src/shared/whiteboard';
 
 test('Write-Behind Buffer - enqueues high-frequency operations with sub-millisecond latency', async () => {
   const start = performance.now();
@@ -111,3 +116,23 @@ test('CRDT Collab Server - listener receives real-time delta broadcasts', async 
 
   unsubscribe();
 });
+
+test('Excalidraw Whiteboard - merges elements by version/versionNonce and generates AI simulation frames', () => {
+  assert.strictEqual(
+    newer({ version: 2, versionNonce: 500 }, { version: 1, versionNonce: 100 }),
+    true
+  );
+  assert.strictEqual(
+    newer({ version: 2, versionNonce: 50 }, { version: 2, versionNonce: 100 }),
+    true
+  );
+
+  const lesson = generateAiExcalidrawLessonForQuery(
+    'Simulate Two Pointers on [1, 3, 5, 8, 12, 17, 21] target 17'
+  );
+  assert.ok(lesson.frames.length >= 3);
+  assert.ok(lesson.frames[0].elements.length > 0);
+  const checked = checkElement(lesson.frames[0].elements[0]);
+  assert.ok(checked !== undefined);
+});
+

@@ -62,6 +62,18 @@ import {
   getOpenAIKey,
   getOpenRouterKey,
 } from './src/lib/openrouter.server';
+import { getRoomWhiteboard } from './src/server/whiteboard';
+import {
+  generateAiExcalidrawLessonForQuery,
+  excalidrawRect,
+  excalidrawEllipse,
+  excalidrawDiamond,
+  excalidrawText,
+  excalidrawArrow,
+  type AiWhiteboardLesson,
+  type AiWhiteboardStepFrame,
+  type WbElement,
+} from './src/shared/whiteboard';
 
 
 import path from "path";
@@ -3834,6 +3846,285 @@ app.post("/api/github/push", requireAuth, async (req: any, res) => {
     console.error("GitHub push error:", error);
     res.status(500).json({ error: error?.message || "Failed to push to GitHub" });
   }
+});
+
+// ============================================================================
+// EXCALIDRAW WHITEBOARD ENDPOINTS (Ported from Agentic-Hub-office + AI Teacher)
+// ============================================================================
+
+app.get("/api/whiteboard/file", (req: Request, res: Response) => {
+  const floor = String(req.query.floor || req.query.roomId || "default");
+  const id = String(req.query.id || "");
+  if (!id) return res.status(400).json({ error: "Missing file id" });
+  const board = getRoomWhiteboard(floor);
+  const file = board.file(id);
+  if (!file) return res.status(404).json({ error: "Picture not found on whiteboard" });
+  return res.json(file);
+});
+
+app.post("/api/whiteboard/file", (req: Request, res: Response) => {
+  const floor = String(req.query.floor || req.query.roomId || "default");
+  const board = getRoomWhiteboard(floor);
+  const err = board.addFile(req.body);
+  if (err) return res.status(400).json({ error: err });
+  return res.json({ ok: true });
+});
+
+app.get("/api/whiteboard/scene", (req: Request, res: Response) => {
+  const roomId = String(req.query.roomId || req.query.floor || "default");
+  const board = getRoomWhiteboard(roomId);
+  return res.json({ elements: board.scene() });
+});
+
+app.post("/api/whiteboard/scene", (req: Request, res: Response) => {
+  const roomId = String(req.query.roomId || req.body?.roomId || "default");
+  const board = getRoomWhiteboard(roomId);
+  const result = board.apply(req.body?.elements || []);
+  return res.json(result);
+});
+
+app.post("/api/whiteboard/ai-teach", aiLimiter, async (req: Request, res: Response) => {
+  const query = String(req.body?.query || req.body?.prompt || "Two Pointers Target Sum").trim();
+  const roomId = String(req.body?.roomId || "default");
+  const problemTitle = String(req.body?.problemTitle || "").trim();
+  const code = String(req.body?.code || "").trim();
+
+  const fullPromptContext = [
+    query,
+    problemTitle ? `(Problem: ${problemTitle})` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const colorMap: Record<string, { stroke: string; bg: string }> = {
+    blue: { stroke: "#0284c7", bg: "#e0f2fe" },
+    green: { stroke: "#16a34a", bg: "#dcfce7" },
+    amber: { stroke: "#d97706", bg: "#fef3c7" },
+    rose: { stroke: "#e11d48", bg: "#ffe4e6" },
+    purple: { stroke: "#7c3aed", bg: "#f3e8ff" },
+    slate: { stroke: "#334155", bg: "#f8fafc" },
+  };
+
+  try {
+    const geminiKey = getGeminiKey();
+    if (geminiKey && query.length > 3) {
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Teacher with direct control over an Excalidraw Whiteboard (canvas coordinates x: 60..760, y: 40..440).
+The user asked: "${fullPromptContext}"
+${code ? `Candidate's current code snippet:\n${code.slice(0, 600)}` : ""}
+
+Design a 3 to 5 step animated visual simulation on the Excalidraw whiteboard that teaches, demonstrates, and simulates this exact concept or dry-run clearly.
+Return ONLY valid JSON matching this exact structure:
+{
+  "topic": "Concise Title of the Simulation",
+  "badge": "Time & Space Complexity (e.g. O(N) Time • O(1) Space)",
+  "steps": [
+    {
+      "title": "Step Title",
+      "narration": "1-2 sentence spoken explanation for the student",
+      "mathInvariant": "Key mathematical / pointer invariant at this step",
+      "laserX": 260,
+      "laserY": 210,
+      "nodes": [
+        {
+          "id": "node-1",
+          "shape": "rect",
+          "x": 100,
+          "y": 180,
+          "width": 90,
+          "height": 56,
+          "label": "Main text inside shape",
+          "sublabel": "Optional index/pointer label below",
+          "color": "blue",
+          "highlight": true
+        }
+      ],
+      "arrows": [
+        {
+          "id": "arr-1",
+          "fromX": 190,
+          "fromY": 208,
+          "toX": 240,
+          "toY": 208,
+          "color": "slate"
+        }
+      ]
+    }
+  ]
+}
+Rules:
+- "shape" must be "rect", "ellipse", or "diamond".
+- "color" must be "blue", "green", "amber", "rose", "purple", or "slate".
+- Keep x between 60 and 740, y between 150 and 410 so shapes never overlap the top header banner (y: 35..125).`;
+
+      const llmRes = await Promise.race([
+        ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: sysPrompt,
+          config: { responseMimeType: "application/json" },
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("AI Whiteboard timeout")), 8500)
+        ),
+      ]);
+
+      const rawText = llmRes.text || "";
+      const parsed = JSON.parse(rawText);
+      if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+        const frames: AiWhiteboardStepFrame[] = parsed.steps.map(
+          (st: any, sIdx: number) => {
+            const ver = sIdx + 1;
+            const els: WbElement[] = [
+              excalidrawRect("ai-hdr-box", 60, 32, 680, 88, {
+                strokeColor: "#0284c7",
+                backgroundColor: "#f0f9ff",
+                version: ver,
+              }),
+              excalidrawText(
+                "ai-hdr-title",
+                78,
+                44,
+                `Step ${ver}/${parsed.steps.length}: ${String(st.title || "Simulation Step")}`,
+                { fontSize: 18, strokeColor: "#0369a1", version: ver }
+              ),
+              excalidrawText(
+                "ai-hdr-inv",
+                78,
+                78,
+                `Invariant: ${String(st.mathInvariant || st.narration || "").slice(0, 78)}`,
+                { fontSize: 14, strokeColor: "#0f172a", version: ver }
+              ),
+            ];
+
+            if (Array.isArray(st.nodes)) {
+              st.nodes.forEach((n: any, nIdx: number) => {
+                const nid = String(n.id || `node-${nIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
+                const nx = Math.max(40, Math.min(760, Number(n.x) || 90 + nIdx * 110));
+                const ny = Math.max(140, Math.min(430, Number(n.y) || 195));
+                const nw = Math.max(48, Math.min(240, Number(n.width) || 84));
+                const nh = Math.max(44, Math.min(140, Number(n.height) || 58));
+                const theme = colorMap[String(n.color || "slate")] || colorMap.slate!;
+                const strokeW = n.highlight ? 3 : 2;
+
+                if (n.shape === "ellipse") {
+                  els.push(
+                    excalidrawEllipse(`ai-sh-${nid}`, nx, ny, nw, nh, {
+                      strokeColor: theme.stroke,
+                      backgroundColor: theme.bg,
+                      strokeWidth: strokeW,
+                      version: ver,
+                    })
+                  );
+                } else if (n.shape === "diamond") {
+                  els.push(
+                    excalidrawDiamond(`ai-sh-${nid}`, nx, ny, nw, nh, {
+                      strokeColor: theme.stroke,
+                      backgroundColor: theme.bg,
+                      strokeWidth: strokeW,
+                      version: ver,
+                    })
+                  );
+                } else {
+                  els.push(
+                    excalidrawRect(`ai-sh-${nid}`, nx, ny, nw, nh, {
+                      strokeColor: theme.stroke,
+                      backgroundColor: theme.bg,
+                      strokeWidth: strokeW,
+                      version: ver,
+                    })
+                  );
+                }
+
+                if (n.label !== undefined) {
+                  els.push(
+                    excalidrawText(
+                      `ai-lbl-${nid}`,
+                      nx + 12,
+                      ny + Math.max(10, Math.floor(nh / 2) - 10),
+                      String(n.label),
+                      {
+                        fontSize: 16,
+                        strokeColor: "#0f172a",
+                        version: ver,
+                      }
+                    )
+                  );
+                }
+                if (n.sublabel) {
+                  els.push(
+                    excalidrawText(
+                      `ai-sub-${nid}`,
+                      nx + 10,
+                      ny + nh + 6,
+                      String(n.sublabel),
+                      {
+                        fontSize: 12,
+                        strokeColor: theme.stroke,
+                        version: ver,
+                      }
+                    )
+                  );
+                }
+              });
+            }
+
+            if (Array.isArray(st.arrows)) {
+              st.arrows.forEach((a: any, aIdx: number) => {
+                const aid = String(a.id || `arr-${aIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
+                const theme = colorMap[String(a.color || "blue")] || colorMap.blue!;
+                els.push(
+                  excalidrawArrow(
+                    `ai-ar-${aid}`,
+                    Number(a.fromX) || 150,
+                    Number(a.fromY) || 210,
+                    Number(a.toX) || 220,
+                    Number(a.toY) || 210,
+                    {
+                      strokeColor: theme.stroke,
+                      strokeWidth: 2.5,
+                      version: ver,
+                    }
+                  )
+                );
+              });
+            }
+
+            return {
+              stepIndex: sIdx,
+              title: String(st.title || `Step ${ver}`),
+              narration: String(st.narration || ""),
+              mathInvariant: String(st.mathInvariant || ""),
+              elements: els,
+              aiLaserTarget: {
+                x: Number(st.laserX) || 260,
+                y: Number(st.laserY) || 210,
+              },
+            };
+          }
+        );
+
+        const lesson: AiWhiteboardLesson = {
+          id: `ai_lesson_${Date.now()}`,
+          topic: String(parsed.topic || query),
+          badge: String(parsed.badge || "AI Live Simulation"),
+          frames,
+        };
+
+        if (frames[0]?.elements) {
+          getRoomWhiteboard(roomId).apply(frames[0].elements);
+        }
+        return res.json({ ok: true, lesson });
+      }
+    }
+  } catch (err) {
+    console.warn("[AI Whiteboard] Using deterministic Excalidraw generator fallback:", (err as Error)?.message);
+  }
+
+  const fallbackLesson = generateAiExcalidrawLessonForQuery(query);
+  if (fallbackLesson.frames[0]?.elements) {
+    getRoomWhiteboard(roomId).apply(fallbackLesson.frames[0].elements);
+  }
+  return res.json({ ok: true, lesson: fallbackLesson });
 });
 
 async function startServer() {

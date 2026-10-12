@@ -1572,8 +1572,38 @@ function LiveInterviewPage() {
 
         speakInterviewerText(resp.spokenText);
 
-        const lowerResp = resp.spokenText.toLowerCase();
-        if (lowerResp.includes("pointer") || lowerResp.includes("two pointer") || lowerResp.includes("left") || lowerResp.includes("right")) {
+        const combinedCheck = `${textToSend} ${resp.spokenText}`.toLowerCase();
+        const userAskedBoard =
+          textToSend.toLowerCase().includes("draw") ||
+          textToSend.toLowerCase().includes("whiteboard") ||
+          textToSend.toLowerCase().includes("simulate") ||
+          textToSend.toLowerCase().includes("demonstrate") ||
+          textToSend.toLowerCase().includes("teach") ||
+          textToSend.toLowerCase().includes("diagram");
+
+        if (userAskedBoard) {
+          setActiveTab("whiteboard");
+          setWhiteboardElements((prev) => [
+            ...prev,
+            {
+              id: `ai-diag-${Date.now()}`,
+              type: "ai_diagram",
+              aiDiagramPayload: {
+                title: textToSend,
+                stepDescription: textToSend,
+              },
+              timestamp: Date.now(),
+              authorId: "ai_interviewer",
+            },
+          ]);
+          setIsAiTeaching(true);
+          setAiWhiteboardMessage(`AI is drawing & simulating: "${textToSend.slice(0, 60)}"`);
+        } else if (
+          combinedCheck.includes("pointer") ||
+          combinedCheck.includes("two pointer") ||
+          combinedCheck.includes("left") ||
+          combinedCheck.includes("right")
+        ) {
           setWhiteboardElements((prev) => [
             ...prev,
             {
@@ -1589,8 +1619,12 @@ function LiveInterviewPage() {
             },
           ]);
           setIsAiTeaching(true);
-          setAiWhiteboardMessage("AI illustrated two-pointer invariant on the whiteboard.");
-        } else if (lowerResp.includes("binary search") || lowerResp.includes("mid") || lowerResp.includes("halv")) {
+          setAiWhiteboardMessage("AI illustrated two-pointer invariant on the Excalidraw whiteboard.");
+        } else if (
+          combinedCheck.includes("binary search") ||
+          combinedCheck.includes("mid") ||
+          combinedCheck.includes("halv")
+        ) {
           setWhiteboardElements((prev) => [
             ...prev,
             {
@@ -1606,7 +1640,7 @@ function LiveInterviewPage() {
             },
           ]);
           setIsAiTeaching(true);
-          setAiWhiteboardMessage("AI illustrated binary search intervals on the whiteboard.");
+          setAiWhiteboardMessage("AI illustrated binary search intervals on the Excalidraw whiteboard.");
         }
       }
     } catch {
@@ -3211,6 +3245,9 @@ function LiveInterviewPage() {
                       externalElements={whiteboardElements}
                       onElementCreated={(el) => setWhiteboardElements((prev) => [...prev, el])}
                       onClearBoard={() => setWhiteboardElements([])}
+                      problemTitle={currentQuestion.title}
+                      currentCode={code}
+                      onAiSpeak={speakInterviewerText}
                     />
                   </div>
                 )}

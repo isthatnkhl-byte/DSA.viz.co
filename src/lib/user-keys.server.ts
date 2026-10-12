@@ -893,6 +893,40 @@ export async function verifyUserApiKeyLive(
 ): Promise<{ valid: boolean; error?: string; verifiedModel?: string }> {
   const key = rawKey.trim();
   if (provider === "gemini") {
+    // Fast-path 1: Check v1beta/models metadata endpoint (150ms, zero token quota used)
+    try {
+      const modelsRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
+        {
+          method: "GET",
+          headers: { "User-Agent": "aistudio-build" },
+          signal: AbortSignal.timeout(6000),
+        }
+      );
+      if (modelsRes.ok) {
+        const modelsData = (await modelsRes.json()) as {
+          models?: Array<{ name?: string }>;
+        };
+        if (Array.isArray(modelsData?.models) && modelsData.models.length > 0) {
+          return { valid: true, verifiedModel: "gemini-3.5-flash-lite" };
+        }
+      } else if (modelsRes.status === 400 || modelsRes.status === 401 || modelsRes.status === 403) {
+        const errJson = await modelsRes.text().catch(() => "");
+        if (
+          errJson.includes("API_KEY_INVALID") ||
+          errJson.toLowerCase().includes("api key not valid")
+        ) {
+          return {
+            valid: false,
+            error: "Gemini API rejected this key: API key not valid. Please check your key.",
+          };
+        }
+      }
+    } catch {
+      // Fall through to SDK generateContent check below
+    }
+
+    // Fast-path 2: Live generateContent check across ONLY new & working Gemini models
     const ai = new GoogleGenAI({
       apiKey: key,
       httpOptions: {
@@ -903,19 +937,25 @@ export async function verifyUserApiKeyLive(
       },
     });
     const candidateModels = [
+      "gemini-3.5-flash-lite",
       "gemini-flash-lite-latest",
-      "gemini-flash-latest",
-      "gemini-2.5-flash",
+      "gemini-3.5-flash",
+      "gemini-3.6-flash",
+      "gemini-3-flash-preview",
     ];
     let lastErr = "Invalid Gemini API key";
     for (const model of candidateModels) {
       try {
         const resp = await ai.models.generateContent({
           model,
-          contents: "Reply with OK",
-          config: { maxOutputTokens: 5, temperature: 0 },
+          contents: "Reply OK",
+          config: { maxOutputTokens: 64, temperature: 0 },
         });
-        if (resp && typeof resp.text === "string") {
+        if (
+          resp &&
+          (typeof resp.text === "string" ||
+            (Array.isArray(resp.candidates) && resp.candidates.length > 0))
+        ) {
           return { valid: true, verifiedModel: model };
         }
       } catch (err: any) {

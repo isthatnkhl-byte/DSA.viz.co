@@ -10,19 +10,23 @@ const GEMINI_API_BASE_URL = (
   env["GEMINI_API_BASE_URL"] || "https://generativelanguage.googleapis.com/v1beta"
 ).replace(/\/+$/, "");
 
-const rawDefaultGeminiModel = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-flash-latest";
-const DEFAULT_GEMINI_MODEL = /^gemini-(2\.5|2\.0|3\.)/i.test(rawDefaultGeminiModel)
-  ? "gemini-flash-latest"
-  : rawDefaultGeminiModel;
+const rawDefaultGeminiModel =
+  env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-3.5-flash-lite";
+const DEFAULT_GEMINI_MODEL =
+  /^gemini-(2\.5|2\.0|1\.5|3\.1-flash-lite|3\.7)/i.test(rawDefaultGeminiModel)
+    ? "gemini-3.5-flash-lite"
+    : rawDefaultGeminiModel;
 const API_TIMEOUT_MS = Number(env["AI_TIMEOUT_MS"]) || 25000;
 
 /** Supported review models prioritized by speed, availability, and capability. */
 export const REVIEW_MODELS = Array.from(
   new Set([
+    "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
-    "gemini-flash-latest",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
     DEFAULT_GEMINI_MODEL,
-    "gemini-2.5-flash",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",
@@ -36,10 +40,12 @@ export const REVIEW_MODELS = Array.from(
 /** Supported visualizer models prioritized by speed, availability, and capability. */
 export const VIZ_MODELS = Array.from(
   new Set([
+    "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
-    "gemini-flash-latest",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
     DEFAULT_GEMINI_MODEL,
-    "gemini-2.5-flash",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",
@@ -490,12 +496,9 @@ export async function queryModelWithFallbacks(
       }
       // 2. OpenRouter routing for gemini model if OpenRouter key is available
       if (effectiveOpenRouterKey) {
-        const orModel =
-          model === "gemini-2.0-flash"
-            ? "google/gemini-2.0-flash-001"
-            : model.startsWith("google/")
-              ? model
-              : `google/${model}`;
+        const orModel = model.startsWith("google/")
+          ? model
+          : `google/${model}`;
         executableCandidates.push({
           model,
           targetModel: orModel,

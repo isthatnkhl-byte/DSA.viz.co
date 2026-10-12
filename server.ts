@@ -682,14 +682,18 @@ async function generateContentWithFallback(
   );
   let lastError: any = null;
 
-  const normalizedPreferred = /^gemini-(2\.5|2\.0|3\.)/i.test(preferredModel)
-    ? "gemini-flash-latest"
-    : preferredModel;
+  const normalizedPreferred =
+    /^gemini-(2\.5|2\.0|1\.5|3\.1-flash-lite|3\.7)/i.test(preferredModel)
+      ? "gemini-3.5-flash-lite"
+      : preferredModel;
   const candidateModels = [
     normalizedPreferred,
+    "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
-    "gemini-flash-latest",
-    "gemini-2.5-flash",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
+    "gemini-3.8-flash",
   ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
   for (let kIdx = 0; kIdx < geminiKeysToTry.length; kIdx++) {
@@ -785,7 +789,7 @@ async function generateContentWithFallback(
       }
 
       if (openRouterKey) {
-        console.log("[AI Fallback] Attempting OpenRouter fallback candidate (google/gemini-2.0-flash-001)...");
+        console.log("[AI Fallback] Attempting OpenRouter fallback candidate (openai/gpt-4o-mini)...");
         let res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -793,7 +797,7 @@ async function generateContentWithFallback(
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.0-flash-001",
+            model: "openai/gpt-4o-mini",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt },
@@ -813,7 +817,7 @@ async function generateContentWithFallback(
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.0-flash-001",
+              model: "openai/gpt-4o-mini",
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt },
@@ -833,7 +837,7 @@ async function generateContentWithFallback(
             if (isJson && text.startsWith("```json")) {
                text = text.replace(/^```json\s*/, "").replace(/\s*```$/, "");
             }
-            return { text, modelUsed: "openrouter/google/gemini-2.0-flash-001" };
+            return { text, modelUsed: "openrouter/openai/gpt-4o-mini" };
           }
         } else {
           const errBody = await res.text().catch(() => "");
@@ -1996,13 +2000,16 @@ ${userSubmissionsContext}`.trim();
 
     const ai = getGeminiClient();
     const allowedModels = [
-      "gemini-3.8-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-flash-lite-latest",
       "gemini-3.5-flash",
-      "gemini-3.1-pro-preview",
-      "gemini-3.1-flash-lite",
-      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3-flash-preview",
+      "gemini-3.8-flash",
     ];
-    const selectedModel = allowedModels.includes(model) ? model : "gemini-3.8-flash";
+    const selectedModel = allowedModels.includes(model)
+      ? model
+      : "gemini-3.5-flash-lite";
 
     const formattedContents = messages.map((m: { role: string; content: string }) => ({
       role: m.role === "assistant" || m.role === "model" ? "model" : "user",
@@ -2137,7 +2144,7 @@ Return a strictly valid JSON object matching this schema:
   "promptSuggestion": "Suggested question the user can ask the AI interviewer"
 }`;
 
-    const { text } = await generateContentWithFallback(ai, "gemini-2.5-flash", {
+    const { text } = await generateContentWithFallback(ai, "gemini-3.5-flash-lite", {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -2214,7 +2221,7 @@ Return a strictly valid JSON object matching this schema:
   "interviewerFeedback": "Detailed constructive paragraph providing encouragement and senior perspective."
 }`;
 
-    const { text } = await generateContentWithFallback(ai, "gemini-2.5-flash", {
+    const { text } = await generateContentWithFallback(ai, "gemini-3.5-flash-lite", {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -4093,7 +4100,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
 5. Space adjacent horizontal nodes by at least (width + 22) pixels inside x: 65..780, y: 165..280.`;
 
       let llmRes = await Promise.race([
-        generateContentWithFallback(ai, "gemini-flash-lite-latest", {
+        generateContentWithFallback(ai, "gemini-3.5-flash-lite", {
           contents: sysPrompt,
           config: { responseMimeType: "application/json" },
         }),
@@ -4110,10 +4117,10 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
           ? parsed.viz_steps
           : [];
 
-      // If first model returned truncated or unparseable JSON, retry once with gemini-flash-latest
+      // If first model returned truncated or unparseable JSON, retry once with gemini-3.5-flash
       if (!parsed || rawSteps.length === 0) {
         llmRes = await Promise.race([
-          generateContentWithFallback(ai, "gemini-flash-latest", {
+          generateContentWithFallback(ai, "gemini-3.5-flash", {
             contents: sysPrompt,
             config: { responseMimeType: "application/json" },
           }),

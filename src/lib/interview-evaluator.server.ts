@@ -39,13 +39,12 @@ async function generateContentWithFallback(
   if (geminiKey) {
     const candidateModels = [
       preferredModel,
+      "gemini-3.5-flash-lite",
       "gemini-flash-lite-latest",
-      "gemini-flash-latest",
-      "gemini-3.6-flash",
-      "gemini-3.8-flash",
       "gemini-3.5-flash",
-      "gemini-3.1-flash-lite",
-      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3-flash-preview",
+      "gemini-3.8-flash",
     ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
     for (const model of candidateModels) {
@@ -119,7 +118,7 @@ async function generateContentWithFallback(
           "X-Title": "DSA.viz",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.0-flash-001",
+          model: "openai/gpt-4o-mini",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -137,7 +136,7 @@ async function generateContentWithFallback(
           if (isJson && text.startsWith("```json")) {
             text = text.replace(/^```json\s*/, "").replace(/\s*```$/, "");
           }
-          return { text, modelUsed: "openrouter/google/gemini-2.0-flash-001" };
+          return { text, modelUsed: "openrouter/openai/gpt-4o-mini" };
         }
       }
     } catch (orErr) {

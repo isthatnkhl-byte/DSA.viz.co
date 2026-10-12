@@ -19,10 +19,11 @@ import {
 import { statementForSlug } from "./statements.server";
 
 const GEMINI_JUDGE_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-flash-latest",
+  "gemini-3.5-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-3-flash-preview",
 ];
 
 const EPHEMERAL_JUDGE_SECRET = crypto.randomBytes(32).toString("hex");

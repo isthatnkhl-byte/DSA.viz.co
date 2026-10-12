@@ -242587,6 +242587,31 @@ async function getUserKeyVaultStatus(req, overrideVaultSid, res) {
 async function verifyUserApiKeyLive(provider, rawKey) {
   const key = rawKey.trim();
   if (provider === "gemini") {
+    try {
+      const modelsRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
+        {
+          method: "GET",
+          headers: { "User-Agent": "aistudio-build" },
+          signal: AbortSignal.timeout(6e3)
+        }
+      );
+      if (modelsRes.ok) {
+        const modelsData = await modelsRes.json();
+        if (Array.isArray(modelsData?.models) && modelsData.models.length > 0) {
+          return { valid: true, verifiedModel: "gemini-3.5-flash-lite" };
+        }
+      } else if (modelsRes.status === 400 || modelsRes.status === 401 || modelsRes.status === 403) {
+        const errJson = await modelsRes.text().catch(() => "");
+        if (errJson.includes("API_KEY_INVALID") || errJson.toLowerCase().includes("api key not valid")) {
+          return {
+            valid: false,
+            error: "Gemini API rejected this key: API key not valid. Please check your key."
+          };
+        }
+      }
+    } catch {
+    }
     const ai = new GoogleGenAI2({
       apiKey: key,
       httpOptions: {
@@ -242597,19 +242622,21 @@ async function verifyUserApiKeyLive(provider, rawKey) {
       }
     });
     const candidateModels = [
+      "gemini-3.5-flash-lite",
       "gemini-flash-lite-latest",
-      "gemini-flash-latest",
-      "gemini-2.5-flash"
+      "gemini-3.5-flash",
+      "gemini-3.6-flash",
+      "gemini-3-flash-preview"
     ];
     let lastErr = "Invalid Gemini API key";
     for (const model of candidateModels) {
       try {
         const resp = await ai.models.generateContent({
           model,
-          contents: "Reply with OK",
-          config: { maxOutputTokens: 5, temperature: 0 }
+          contents: "Reply OK",
+          config: { maxOutputTokens: 64, temperature: 0 }
         });
-        if (resp && typeof resp.text === "string") {
+        if (resp && (typeof resp.text === "string" || Array.isArray(resp.candidates) && resp.candidates.length > 0)) {
           return { valid: true, verifiedModel: model };
         }
       } catch (err) {
@@ -242766,15 +242793,17 @@ var env2 = typeof process !== "undefined" && process?.env ? process.env : {};
 var OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 var OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 var GEMINI_API_BASE_URL = (env2["GEMINI_API_BASE_URL"] || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/, "");
-var rawDefaultGeminiModel = env2["DEFAULT_MODEL_NAME"] || env2["GEMINI_MODEL"] || "gemini-flash-latest";
-var DEFAULT_GEMINI_MODEL = /^gemini-(2\.5|2\.0|3\.)/i.test(rawDefaultGeminiModel) ? "gemini-flash-latest" : rawDefaultGeminiModel;
+var rawDefaultGeminiModel = env2["DEFAULT_MODEL_NAME"] || env2["GEMINI_MODEL"] || "gemini-3.5-flash-lite";
+var DEFAULT_GEMINI_MODEL = /^gemini-(2\.5|2\.0|1\.5|3\.1-flash-lite|3\.7)/i.test(rawDefaultGeminiModel) ? "gemini-3.5-flash-lite" : rawDefaultGeminiModel;
 var API_TIMEOUT_MS = Number(env2["AI_TIMEOUT_MS"]) || 25e3;
 var REVIEW_MODELS = Array.from(
   /* @__PURE__ */ new Set([
+    "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
-    "gemini-flash-latest",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
     DEFAULT_GEMINI_MODEL,
-    "gemini-2.5-flash",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",
@@ -242786,10 +242815,12 @@ var REVIEW_MODELS = Array.from(
 );
 var VIZ_MODELS = Array.from(
   /* @__PURE__ */ new Set([
+    "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
-    "gemini-flash-latest",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
     DEFAULT_GEMINI_MODEL,
-    "gemini-2.5-flash",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",
@@ -243144,7 +243175,7 @@ async function queryModelWithFallbacks(models, key, system, user, ok) {
         });
       }
       if (effectiveOpenRouterKey) {
-        const orModel = model === "gemini-2.0-flash" ? "google/gemini-2.0-flash-001" : model.startsWith("google/") ? model : `google/${model}`;
+        const orModel = model.startsWith("google/") ? model : `google/${model}`;
         executableCandidates.push({
           model,
           targetModel: orModel,
@@ -288711,13 +288742,12 @@ async function generateContentWithFallback(ai, preferredModel, params) {
   if (geminiKey) {
     const candidateModels = [
       preferredModel,
+      "gemini-3.5-flash-lite",
       "gemini-flash-lite-latest",
-      "gemini-flash-latest",
-      "gemini-3.6-flash",
-      "gemini-3.8-flash",
       "gemini-3.5-flash",
-      "gemini-3.1-flash-lite",
-      "gemini-3.7-flash"
+      "gemini-3.6-flash",
+      "gemini-3-flash-preview",
+      "gemini-3.8-flash"
     ].filter((m2, i2, arr) => m2 && arr.indexOf(m2) === i2);
     for (const model of candidateModels) {
       try {
@@ -288780,7 +288810,7 @@ async function generateContentWithFallback(ai, preferredModel, params) {
           "X-Title": "DSA.viz"
         },
         body: JSON.stringify({
-          model: "google/gemini-2.0-flash-001",
+          model: "openai/gpt-4o-mini",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
@@ -288797,7 +288827,7 @@ async function generateContentWithFallback(ai, preferredModel, params) {
           if (isJson && text.startsWith("```json")) {
             text = text.replace(/^```json\s*/, "").replace(/\s*```$/, "");
           }
-          return { text, modelUsed: "openrouter/google/gemini-2.0-flash-001" };
+          return { text, modelUsed: "openrouter/openai/gpt-4o-mini" };
         }
       }
     } catch (orErr) {
@@ -289733,10 +289763,11 @@ INSTRUCTIONS:
 // src/lib/leetcode-judge.server.ts
 var import_node_crypto2 = __toESM(require("node:crypto"), 1);
 var GEMINI_JUDGE_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-flash-latest"
+  "gemini-3.5-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-3-flash-preview"
 ];
 var EPHEMERAL_JUDGE_SECRET = import_node_crypto2.default.randomBytes(32).toString("hex");
 var PREVERIFIED_RESULT_TTL_MS = 10 * 60 * 1e3;
@@ -294803,12 +294834,15 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
     (k, i2, arr) => Boolean(k) && arr.indexOf(k) === i2
   );
   let lastError = null;
-  const normalizedPreferred = /^gemini-(2\.5|2\.0|3\.)/i.test(preferredModel) ? "gemini-flash-latest" : preferredModel;
+  const normalizedPreferred = /^gemini-(2\.5|2\.0|1\.5|3\.1-flash-lite|3\.7)/i.test(preferredModel) ? "gemini-3.5-flash-lite" : preferredModel;
   const candidateModels = [
     normalizedPreferred,
+    "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
-    "gemini-flash-latest",
-    "gemini-2.5-flash"
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
+    "gemini-3.8-flash"
   ].filter((m2, i2, arr) => m2 && arr.indexOf(m2) === i2);
   for (let kIdx = 0; kIdx < geminiKeysToTry.length; kIdx++) {
     const activeKey = geminiKeysToTry[kIdx];
@@ -294882,7 +294916,7 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
         }
       }
       if (openRouterKey) {
-        console.log("[AI Fallback] Attempting OpenRouter fallback candidate (google/gemini-2.0-flash-001)...");
+        console.log("[AI Fallback] Attempting OpenRouter fallback candidate (openai/gpt-4o-mini)...");
         let res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -294890,7 +294924,7 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "google/gemini-2.0-flash-001",
+            model: "openai/gpt-4o-mini",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt }
@@ -294909,7 +294943,7 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              model: "google/gemini-2.0-flash-001",
+              model: "openai/gpt-4o-mini",
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
@@ -294927,7 +294961,7 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
             if (isJson && text.startsWith("```json")) {
               text = text.replace(/^```json\s*/, "").replace(/\s*```$/, "");
             }
-            return { text, modelUsed: "openrouter/google/gemini-2.0-flash-001" };
+            return { text, modelUsed: "openrouter/openai/gpt-4o-mini" };
           }
         } else {
           const errBody = await res.text().catch(() => "");
@@ -295896,13 +295930,14 @@ ${userProfileContext}
 ${userSubmissionsContext}`.trim();
     const ai = getGeminiClient2();
     const allowedModels = [
-      "gemini-3.8-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-flash-lite-latest",
       "gemini-3.5-flash",
-      "gemini-3.1-pro-preview",
-      "gemini-3.1-flash-lite",
-      "gemini-3.7-flash"
+      "gemini-3.6-flash",
+      "gemini-3-flash-preview",
+      "gemini-3.8-flash"
     ];
-    const selectedModel = allowedModels.includes(model) ? model : "gemini-3.8-flash";
+    const selectedModel = allowedModels.includes(model) ? model : "gemini-3.5-flash-lite";
     const formattedContents = messages.map((m2) => ({
       role: m2.role === "assistant" || m2.role === "model" ? "model" : "user",
       parts: [{ text: m2.content || "" }]
@@ -296025,7 +296060,7 @@ Return a strictly valid JSON object matching this schema:
   ],
   "promptSuggestion": "Suggested question the user can ask the AI interviewer"
 }`;
-    const { text } = await generateContentWithFallback2(ai, "gemini-2.5-flash", {
+    const { text } = await generateContentWithFallback2(ai, "gemini-3.5-flash-lite", {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -296094,7 +296129,7 @@ Return a strictly valid JSON object matching this schema:
   "improvements": ["Guard against empty input array"],
   "interviewerFeedback": "Detailed constructive paragraph providing encouragement and senior perspective."
 }`;
-    const { text } = await generateContentWithFallback2(ai, "gemini-2.5-flash", {
+    const { text } = await generateContentWithFallback2(ai, "gemini-3.5-flash-lite", {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -297710,7 +297745,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
 4. "widgets" is optional \u2014 include ONLY when needed ("grid2d", "hashmap", "container", or "intervals").
 5. Space adjacent horizontal nodes by at least (width + 22) pixels inside x: 65..780, y: 165..280.`;
       let llmRes = await Promise.race([
-        generateContentWithFallback2(ai, "gemini-flash-lite-latest", {
+        generateContentWithFallback2(ai, "gemini-3.5-flash-lite", {
           contents: sysPrompt,
           config: { responseMimeType: "application/json" }
         }),
@@ -297723,7 +297758,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
       let rawSteps = Array.isArray(parsed?.steps) ? parsed.steps : Array.isArray(parsed?.viz_steps) ? parsed.viz_steps : [];
       if (!parsed || rawSteps.length === 0) {
         llmRes = await Promise.race([
-          generateContentWithFallback2(ai, "gemini-flash-latest", {
+          generateContentWithFallback2(ai, "gemini-3.5-flash", {
             contents: sysPrompt,
             config: { responseMimeType: "application/json" }
           }),

@@ -12,7 +12,7 @@ import {
 test("uses active Gemini model aliases instead of retired legacy names for review", () => {
   assert.ok(REVIEW_MODELS.length > 0);
   assert.ok(
-    REVIEW_MODELS.every((model) => !/gemini-(?:1\.5|pro)/i.test(model)),
+    REVIEW_MODELS.every((model) => !/gemini-(?:1\.5|2\.0|2\.5|pro)/i.test(model)),
     `Legacy Gemini model aliases are still present: ${REVIEW_MODELS.join(", ")}`,
   );
   const geminiModels = REVIEW_MODELS.filter((m) => m.startsWith("gemini-"));
@@ -26,7 +26,7 @@ test("uses active Gemini model aliases instead of retired legacy names for revie
 test("includes active Gemini models in VIZ_MODELS for AI visualizer generation", () => {
   assert.ok(VIZ_MODELS.length > 0);
   assert.ok(
-    VIZ_MODELS.every((model) => !/gemini-(?:1\.5|pro)/i.test(model)),
+    VIZ_MODELS.every((model) => !/gemini-(?:1\.5|2\.0|2\.5|pro)/i.test(model)),
     `Legacy Gemini model aliases are still present in VIZ_MODELS: ${VIZ_MODELS.join(", ")}`,
   );
   const geminiModels = VIZ_MODELS.filter((m) => m.startsWith("gemini-"));
@@ -81,8 +81,9 @@ test("extractJson cleans trailing commas in LLM JSON output", () => {
 
 test("models list includes reliable high-availability models across providers", () => {
   assert.ok(VIZ_MODELS.includes("openai/gpt-4o-mini"));
+  assert.ok(VIZ_MODELS.includes("gemini-3.5-flash-lite"));
   assert.ok(VIZ_MODELS.includes("gemini-flash-lite-latest"));
-  assert.ok(VIZ_MODELS.includes("gemini-flash-latest"));
+  assert.ok(VIZ_MODELS.includes("gemini-3.5-flash"));
   assert.ok(VIZ_MODELS.includes("qwen/qwen-2.5-coder-32b-instruct"));
   assert.ok(REVIEW_MODELS.length >= 10);
   assert.ok(VIZ_MODELS.length >= 10);

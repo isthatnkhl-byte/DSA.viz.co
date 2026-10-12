@@ -3617,9 +3617,8 @@ export function createSelectionContextForZone(
       y: Math.round(Number(el.y) || 0),
       width: Math.round(Number(el.width) || 40),
       height: Math.round(Number(el.height) || 40),
-      text: typeof el.text === "string" ? el.text.slice(0, 120) : undefined,
-      strokeColor: el.strokeColor,
-      backgroundColor: el.backgroundColor,
+      strokeColor: typeof el.strokeColor === "string" ? el.strokeColor : undefined,
+      backgroundColor: typeof el.backgroundColor === "string" ? el.backgroundColor : undefined,
     }));
 
   return {
@@ -3813,9 +3812,8 @@ export function extractWhiteboardSelectionContext(
       y: Math.round(Number(el.y) || 0),
       width: Math.round(Number(el.width) || 40),
       height: Math.round(Number(el.height) || 40),
-      text: typeof el.text === "string" ? el.text.slice(0, 120) : undefined,
-      strokeColor: el.strokeColor,
-      backgroundColor: el.backgroundColor,
+      strokeColor: typeof el.strokeColor === "string" ? el.strokeColor : undefined,
+      backgroundColor: typeof el.backgroundColor === "string" ? el.backgroundColor : undefined,
     }));
 
   const effectiveBounds = linkedZone?.bounds ?? {

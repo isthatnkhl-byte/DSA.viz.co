@@ -101,7 +101,8 @@ const CLASSES = ["Incomplete", "Brute Force", "Better", "Optimal"];
 function userCodeLinesFromPseudocode(pseudocode: string): string[] {
   if (!pseudocode || typeof pseudocode !== "string") return ["const result = solve(input);"];
 
-  const rawLines = pseudocode
+  const boundedPseudocode = pseudocode.slice(0, 10000);
+  const rawLines = boundedPseudocode
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
@@ -110,8 +111,8 @@ function userCodeLinesFromPseudocode(pseudocode: string): string[] {
     return rawLines.slice(0, 60);
   }
 
-  // Break compact or single-line pasted pseudocode into discrete logical lines
-  let text = pseudocode;
+  // Break compact or single-line pasted pseudocode into discrete logical lines (bounded to 4KB to prevent regex CPU spikes)
+  let text = boundedPseudocode.slice(0, 4000);
   text = text.replace(
     /(\/\/[^\n]*?\s+)(?=(?:prev\s*=|curr\s*=|m\s*=|n\s*=|for\s+[a-zA-Z_]|if\s+|return\b))/gi,
     "$1\n",

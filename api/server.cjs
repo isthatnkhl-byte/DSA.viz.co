@@ -22952,14 +22952,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports2, module2) {
     "use strict";
     module2.exports = etag;
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     var Stats = require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash2 = crypto5.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash2 = crypto6.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash2 + '"';
     }
@@ -26509,17 +26509,17 @@ var require_content_disposition = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports2) {
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     exports2.sign = function(val, secret) {
       if ("string" != typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto5.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto6.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports2.unsign = function(input2, secret) {
       if ("string" != typeof input2) throw new TypeError("Signed cookie string must be provided.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
       var tentativeValue = input2.slice(0, input2.lastIndexOf(".")), expectedInput = exports2.sign(tentativeValue, secret), expectedBuffer = Buffer.from(expectedInput), inputBuffer = Buffer.from(input2);
-      return expectedBuffer.length === inputBuffer.length && crypto5.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
+      return expectedBuffer.length === inputBuffer.length && crypto6.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
     };
   }
 });
@@ -38574,22 +38574,22 @@ var require_crypto2 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.NodeCrypto = void 0;
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     var NodeCrypto = class {
       async sha256DigestBase64(str) {
-        return crypto5.createHash("sha256").update(str).digest("base64");
+        return crypto6.createHash("sha256").update(str).digest("base64");
       }
       randomBytesBase64(count) {
-        return crypto5.randomBytes(count).toString("base64");
+        return crypto6.randomBytes(count).toString("base64");
       }
       async verify(pubkey, data, signature) {
-        const verifier = crypto5.createVerify("RSA-SHA256");
+        const verifier = crypto6.createVerify("RSA-SHA256");
         verifier.update(data);
         verifier.end();
         return verifier.verify(pubkey, signature, "base64");
       }
       async sign(privateKey, data) {
-        const signer = crypto5.createSign("RSA-SHA256");
+        const signer = crypto6.createSign("RSA-SHA256");
         signer.update(data);
         signer.end();
         return signer.sign(privateKey, "base64");
@@ -38607,7 +38607,7 @@ var require_crypto2 = __commonJS({
        *   string in hexadecimal encoding.
        */
       async sha256DigestHex(str) {
-        return crypto5.createHash("sha256").update(str).digest("hex");
+        return crypto6.createHash("sha256").update(str).digest("hex");
       }
       /**
        * Computes the HMAC hash of a message using the provided crypto key and the
@@ -38619,7 +38619,7 @@ var require_crypto2 = __commonJS({
        */
       async signWithHmacSha256(key, msg) {
         const cryptoKey = typeof key === "string" ? key : toBuffer(key);
-        return toArrayBuffer(crypto5.createHmac("sha256", cryptoKey).update(msg).digest());
+        return toArrayBuffer(crypto6.createHmac("sha256", cryptoKey).update(msg).digest());
       }
     };
     exports2.NodeCrypto = NodeCrypto;
@@ -39532,10 +39532,10 @@ var require_oauth2client = __commonJS({
        * https://github.com/googleapis/google-auth-library-nodejs/blob/main/samples/oauth2-codeVerifier.js
        */
       async generateCodeVerifierAsync() {
-        const crypto5 = (0, crypto_1.createCrypto)();
-        const randomString2 = crypto5.randomBytesBase64(96);
+        const crypto6 = (0, crypto_1.createCrypto)();
+        const randomString2 = crypto6.randomBytesBase64(96);
         const codeVerifier = randomString2.replace(/\+/g, "~").replace(/=/g, "_").replace(/\//g, "-");
-        const unencodedCodeChallenge = await crypto5.sha256DigestBase64(codeVerifier);
+        const unencodedCodeChallenge = await crypto6.sha256DigestBase64(codeVerifier);
         const codeChallenge = unencodedCodeChallenge.split("=")[0].replace(/\+/g, "-").replace(/\//g, "_");
         return { codeVerifier, codeChallenge };
       }
@@ -39976,7 +39976,7 @@ var require_oauth2client = __commonJS({
        * @return Returns a promise resolving to LoginTicket on verification.
        */
       async verifySignedJwtWithCertsAsync(jwt2, certs, requiredAudience, issuers, maxExpiry) {
-        const crypto5 = (0, crypto_1.createCrypto)();
+        const crypto6 = (0, crypto_1.createCrypto)();
         if (!maxExpiry) {
           maxExpiry = _OAuth2Client.DEFAULT_MAX_TOKEN_LIFETIME_SECS_;
         }
@@ -39989,7 +39989,7 @@ var require_oauth2client = __commonJS({
         let envelope;
         let payload;
         try {
-          envelope = JSON.parse(crypto5.decodeBase64StringUtf8(segments[0]));
+          envelope = JSON.parse(crypto6.decodeBase64StringUtf8(segments[0]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token envelope: ${segments[0]}': ${err.message}`;
@@ -40000,7 +40000,7 @@ var require_oauth2client = __commonJS({
           throw new Error("Can't parse token envelope: " + segments[0]);
         }
         try {
-          payload = JSON.parse(crypto5.decodeBase64StringUtf8(segments[1]));
+          payload = JSON.parse(crypto6.decodeBase64StringUtf8(segments[1]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token payload '${segments[0]}`;
@@ -40017,7 +40017,7 @@ var require_oauth2client = __commonJS({
         if (envelope.alg === "ES256") {
           signature = formatEcdsa.joseToDer(signature, "ES256").toString("base64");
         }
-        const verified = await crypto5.verify(cert2, signed, signature);
+        const verified = await crypto6.verify(cert2, signed, signature);
         if (!verified) {
           throw new Error("Invalid token signature: " + jwt2);
         }
@@ -40392,14 +40392,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "node_modules/jwa/index.js"(exports2, module2) {
     var Buffer5 = require_safe_buffer().Buffer;
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util = require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto5.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto6.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -40489,17 +40489,17 @@ var require_jwa = __commonJS({
       return function sign2(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac2 = crypto5.createHmac("sha" + bits, secret);
+        var hmac2 = crypto6.createHmac("sha" + bits, secret);
         var sig2 = (hmac2.update(thing), hmac2.digest("base64"));
         return fromBase64(sig2);
       };
     }
     var bufferEqual;
-    var timingSafeEqual2 = "timingSafeEqual" in crypto5 ? function timingSafeEqual3(a, b) {
+    var timingSafeEqual2 = "timingSafeEqual" in crypto6 ? function timingSafeEqual3(a, b) {
       if (a.byteLength !== b.byteLength) {
         return false;
       }
-      return crypto5.timingSafeEqual(a, b);
+      return crypto6.timingSafeEqual(a, b);
     } : function timingSafeEqual3(a, b) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -40516,7 +40516,7 @@ var require_jwa = __commonJS({
       return function sign2(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto5.createSign("RSA-SHA" + bits);
+        var signer = crypto6.createSign("RSA-SHA" + bits);
         var sig2 = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase64(sig2);
       };
@@ -40526,7 +40526,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto5.createVerify("RSA-SHA" + bits);
+        var verifier = crypto6.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -40535,11 +40535,11 @@ var require_jwa = __commonJS({
       return function sign2(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto5.createSign("RSA-SHA" + bits);
+        var signer = crypto6.createSign("RSA-SHA" + bits);
         var sig2 = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto5.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto5.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto6.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto6.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase64(sig2);
       };
@@ -40549,12 +40549,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto5.createVerify("RSA-SHA" + bits);
+        var verifier = crypto6.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto5.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto5.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto6.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto6.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -43130,14 +43130,14 @@ var require_awsrequestsigner = __commonJS({
       }
     };
     exports2.AwsRequestSigner = AwsRequestSigner;
-    async function sign2(crypto5, key, msg) {
-      return await crypto5.signWithHmacSha256(key, msg);
+    async function sign2(crypto6, key, msg) {
+      return await crypto6.signWithHmacSha256(key, msg);
     }
-    async function getSigningKey(crypto5, key, dateStamp, region, serviceName) {
-      const kDate = await sign2(crypto5, `AWS4${key}`, dateStamp);
-      const kRegion = await sign2(crypto5, kDate, region);
-      const kService = await sign2(crypto5, kRegion, serviceName);
-      const kSigning = await sign2(crypto5, kService, "aws4_request");
+    async function getSigningKey(crypto6, key, dateStamp, region, serviceName) {
+      const kDate = await sign2(crypto6, `AWS4${key}`, dateStamp);
+      const kRegion = await sign2(crypto6, kDate, region);
+      const kService = await sign2(crypto6, kRegion, serviceName);
+      const kSigning = await sign2(crypto6, kService, "aws4_request");
       return kSigning;
     }
     async function generateAuthenticationHeaderMap(options) {
@@ -44103,7 +44103,7 @@ var require_gdchclient = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GdchClient = exports2.GDCH_SERVICE_ACCOUNT_TYPE = void 0;
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     var fs11 = require("fs");
     var https2 = require("https");
     var oauth2client_1 = require_oauth2client();
@@ -44294,7 +44294,7 @@ var require_gdchclient = __commonJS({
         const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
         const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
         const signingInput = `${encodedHeader}.${encodedPayload}`;
-        const signature = crypto5.sign("sha256", Buffer.from(signingInput), {
+        const signature = crypto6.sign("sha256", Buffer.from(signingInput), {
           key: this.privateKey,
           dsaEncoding: "ieee-p1363"
         });
@@ -45157,24 +45157,24 @@ var require_googleauth = __commonJS({
           const signed = await client.sign(data);
           return signed.signedBlob;
         }
-        const crypto5 = (0, crypto_1.createCrypto)();
+        const crypto6 = (0, crypto_1.createCrypto)();
         if (client instanceof jwtclient_1.JWT && client.key) {
-          const sign2 = await crypto5.sign(client.key, data);
+          const sign2 = await crypto6.sign(client.key, data);
           return sign2;
         }
         const creds = await this.getCredentials();
         if (!creds.client_email) {
           throw new Error("Cannot sign data without `client_email`.");
         }
-        return this.signBlob(crypto5, creds.client_email, data, endpoint);
+        return this.signBlob(crypto6, creds.client_email, data, endpoint);
       }
-      async signBlob(crypto5, emailOrUniqueId, data, endpoint) {
+      async signBlob(crypto6, emailOrUniqueId, data, endpoint) {
         const url2 = new URL(endpoint + `${emailOrUniqueId}:signBlob`);
         const res = await this.request({
           method: "POST",
           url: url2.href,
           data: {
-            payload: crypto5.encodeBase64StringUtf8(data)
+            payload: crypto6.encodeBase64StringUtf8(data)
           },
           retry: true,
           retryConfig: {
@@ -54356,8 +54356,8 @@ var require_crypto_signer = __commonJS({
        * @inheritDoc
        */
       sign(buffer) {
-        const crypto5 = require("node:crypto");
-        const sign2 = crypto5.createSign("RSA-SHA256");
+        const crypto6 = require("node:crypto");
+        const sign2 = crypto6.createSign("RSA-SHA256");
         sign2.update(buffer);
         return Promise.resolve(sign2.sign(this.credential.privateKey));
       }
@@ -66239,7 +66239,7 @@ var require_firestore_client_config = __commonJS({
 var require_object_hash = __commonJS({
   "node_modules/object-hash/index.js"(exports2, module2) {
     "use strict";
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     exports2 = module2.exports = objectHash;
     function objectHash(object2, options) {
       options = applyDefaults(object2, options);
@@ -66257,7 +66257,7 @@ var require_object_hash = __commonJS({
     exports2.keysMD5 = function(object2) {
       return objectHash(object2, { algorithm: "md5", encoding: "hex", excludeValues: true });
     };
-    var hashes = crypto5.getHashes ? crypto5.getHashes().slice() : ["sha1", "md5"];
+    var hashes = crypto6.getHashes ? crypto6.getHashes().slice() : ["sha1", "md5"];
     hashes.push("passthrough");
     var encodings = ["buffer", "hex", "binary", "base64"];
     function applyDefaults(object2, sourceOptions) {
@@ -66303,7 +66303,7 @@ var require_object_hash = __commonJS({
     function hash2(object2, options) {
       var hashingStream;
       if (options.algorithm !== "passthrough") {
-        hashingStream = crypto5.createHash(options.algorithm);
+        hashingStream = crypto6.createHash(options.algorithm);
       } else {
         hashingStream = new PassThrough3();
       }
@@ -73919,22 +73919,22 @@ var require_crypto5 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.NodeCrypto = void 0;
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     var NodeCrypto = class {
       async sha256DigestBase64(str) {
-        return crypto5.createHash("sha256").update(str).digest("base64");
+        return crypto6.createHash("sha256").update(str).digest("base64");
       }
       randomBytesBase64(count) {
-        return crypto5.randomBytes(count).toString("base64");
+        return crypto6.randomBytes(count).toString("base64");
       }
       async verify(pubkey, data, signature) {
-        const verifier = crypto5.createVerify("RSA-SHA256");
+        const verifier = crypto6.createVerify("RSA-SHA256");
         verifier.update(data);
         verifier.end();
         return verifier.verify(pubkey, signature, "base64");
       }
       async sign(privateKey, data) {
-        const signer = crypto5.createSign("RSA-SHA256");
+        const signer = crypto6.createSign("RSA-SHA256");
         signer.update(data);
         signer.end();
         return signer.sign(privateKey, "base64");
@@ -73952,7 +73952,7 @@ var require_crypto5 = __commonJS({
        *   string in hexadecimal encoding.
        */
       async sha256DigestHex(str) {
-        return crypto5.createHash("sha256").update(str).digest("hex");
+        return crypto6.createHash("sha256").update(str).digest("hex");
       }
       /**
        * Computes the HMAC hash of a message using the provided crypto key and the
@@ -73964,7 +73964,7 @@ var require_crypto5 = __commonJS({
        */
       async signWithHmacSha256(key, msg) {
         const cryptoKey = typeof key === "string" ? key : toBuffer(key);
-        return toArrayBuffer(crypto5.createHmac("sha256", cryptoKey).update(msg).digest());
+        return toArrayBuffer(crypto6.createHmac("sha256", cryptoKey).update(msg).digest());
       }
     };
     exports2.NodeCrypto = NodeCrypto;
@@ -74648,10 +74648,10 @@ var require_oauth2client2 = __commonJS({
        * https://github.com/googleapis/google-auth-library-nodejs/blob/main/samples/oauth2-codeVerifier.js
        */
       async generateCodeVerifierAsync() {
-        const crypto5 = (0, crypto_1.createCrypto)();
-        const randomString2 = crypto5.randomBytesBase64(96);
+        const crypto6 = (0, crypto_1.createCrypto)();
+        const randomString2 = crypto6.randomBytesBase64(96);
         const codeVerifier = randomString2.replace(/\+/g, "~").replace(/=/g, "_").replace(/\//g, "-");
-        const unencodedCodeChallenge = await crypto5.sha256DigestBase64(codeVerifier);
+        const unencodedCodeChallenge = await crypto6.sha256DigestBase64(codeVerifier);
         const codeChallenge = unencodedCodeChallenge.split("=")[0].replace(/\+/g, "-").replace(/\//g, "_");
         return { codeVerifier, codeChallenge };
       }
@@ -75092,7 +75092,7 @@ var require_oauth2client2 = __commonJS({
        * @return Returns a promise resolving to LoginTicket on verification.
        */
       async verifySignedJwtWithCertsAsync(jwt2, certs, requiredAudience, issuers, maxExpiry) {
-        const crypto5 = (0, crypto_1.createCrypto)();
+        const crypto6 = (0, crypto_1.createCrypto)();
         if (!maxExpiry) {
           maxExpiry = _OAuth2Client.DEFAULT_MAX_TOKEN_LIFETIME_SECS_;
         }
@@ -75105,7 +75105,7 @@ var require_oauth2client2 = __commonJS({
         let envelope;
         let payload;
         try {
-          envelope = JSON.parse(crypto5.decodeBase64StringUtf8(segments[0]));
+          envelope = JSON.parse(crypto6.decodeBase64StringUtf8(segments[0]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token envelope: ${segments[0]}': ${err.message}`;
@@ -75116,7 +75116,7 @@ var require_oauth2client2 = __commonJS({
           throw new Error("Can't parse token envelope: " + segments[0]);
         }
         try {
-          payload = JSON.parse(crypto5.decodeBase64StringUtf8(segments[1]));
+          payload = JSON.parse(crypto6.decodeBase64StringUtf8(segments[1]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token payload '${segments[0]}`;
@@ -75133,7 +75133,7 @@ var require_oauth2client2 = __commonJS({
         if (envelope.alg === "ES256") {
           signature = formatEcdsa.joseToDer(signature, "ES256").toString("base64");
         }
-        const verified = await crypto5.verify(cert2, signed, signature);
+        const verified = await crypto6.verify(cert2, signed, signature);
         if (!verified) {
           throw new Error("Invalid token signature: " + jwt2);
         }
@@ -77925,14 +77925,14 @@ var require_awsrequestsigner2 = __commonJS({
       }
     };
     exports2.AwsRequestSigner = AwsRequestSigner;
-    async function sign2(crypto5, key, msg) {
-      return await crypto5.signWithHmacSha256(key, msg);
+    async function sign2(crypto6, key, msg) {
+      return await crypto6.signWithHmacSha256(key, msg);
     }
-    async function getSigningKey(crypto5, key, dateStamp, region, serviceName) {
-      const kDate = await sign2(crypto5, `AWS4${key}`, dateStamp);
-      const kRegion = await sign2(crypto5, kDate, region);
-      const kService = await sign2(crypto5, kRegion, serviceName);
-      const kSigning = await sign2(crypto5, kService, "aws4_request");
+    async function getSigningKey(crypto6, key, dateStamp, region, serviceName) {
+      const kDate = await sign2(crypto6, `AWS4${key}`, dateStamp);
+      const kRegion = await sign2(crypto6, kDate, region);
+      const kService = await sign2(crypto6, kRegion, serviceName);
+      const kSigning = await sign2(crypto6, kService, "aws4_request");
       return kSigning;
     }
     async function generateAuthenticationHeaderMap(options) {
@@ -79646,24 +79646,24 @@ var require_googleauth2 = __commonJS({
           const signed = await client.sign(data);
           return signed.signedBlob;
         }
-        const crypto5 = (0, crypto_1.createCrypto)();
+        const crypto6 = (0, crypto_1.createCrypto)();
         if (client instanceof jwtclient_1.JWT && client.key) {
-          const sign2 = await crypto5.sign(client.key, data);
+          const sign2 = await crypto6.sign(client.key, data);
           return sign2;
         }
         const creds = await this.getCredentials();
         if (!creds.client_email) {
           throw new Error("Cannot sign data without `client_email`.");
         }
-        return this.signBlob(crypto5, creds.client_email, data, endpoint);
+        return this.signBlob(crypto6, creds.client_email, data, endpoint);
       }
-      async signBlob(crypto5, emailOrUniqueId, data, endpoint) {
+      async signBlob(crypto6, emailOrUniqueId, data, endpoint) {
         const url2 = new URL(endpoint + `${emailOrUniqueId}:signBlob`);
         const res = await this.request({
           method: "POST",
           url: url2.href,
           data: {
-            payload: crypto5.encodeBase64StringUtf8(data)
+            payload: crypto6.encodeBase64StringUtf8(data)
           },
           retry: true,
           retryConfig: {
@@ -167758,7 +167758,7 @@ var require_main = __commonJS({
     var fs11 = require("fs");
     var path9 = require("path");
     var os2 = require("os");
-    var crypto5 = require("crypto");
+    var crypto6 = require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -168002,7 +168002,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto5.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto6.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error61) {
@@ -168268,14 +168268,47 @@ function verifyRs256Signature(signingInput, signatureB64Url, certPem) {
     return false;
   }
 }
+var MAX_VERIFIED_TOKEN_CACHE = 500;
+var verifiedTokenCache = /* @__PURE__ */ new Map();
+function getCachedVerifiedToken(tokenHash) {
+  const entry = verifiedTokenCache.get(tokenHash);
+  if (!entry) return null;
+  if (entry.expiresAt > Date.now()) {
+    return entry.decoded;
+  }
+  verifiedTokenCache.delete(tokenHash);
+  return null;
+}
+function setCachedVerifiedToken(tokenHash, decoded) {
+  const now = Date.now();
+  const expMs = typeof decoded.exp === "number" ? decoded.exp * 1e3 : now + 6e4;
+  const expiresAt = Math.min(expMs, now + 6e4);
+  if (expiresAt <= now) return;
+  if (verifiedTokenCache.size >= MAX_VERIFIED_TOKEN_CACHE) {
+    for (const [k, v] of verifiedTokenCache.entries()) {
+      if (v.expiresAt <= now) verifiedTokenCache.delete(k);
+    }
+    if (verifiedTokenCache.size >= MAX_VERIFIED_TOKEN_CACHE) {
+      const oldestKey = verifiedTokenCache.keys().next().value;
+      if (oldestKey) verifiedTokenCache.delete(oldestKey);
+    }
+  }
+  verifiedTokenCache.set(tokenHash, { decoded, expiresAt });
+}
 async function verifyFirebaseIdTokenCryptographically(token) {
   if (!token || token === "undefined" || token === "null" || token === "local-dev-token") {
     return null;
+  }
+  const tokenHash = import_node_crypto.default.createHash("sha256").update(token).digest("hex");
+  const cached3 = getCachedVerifiedToken(tokenHash);
+  if (cached3) {
+    return cached3;
   }
   if (isAdminDbAvailable()) {
     try {
       const decodedToken = await adminAuth.verifyIdToken(token, true);
       if (decodedToken && decodedToken.uid) {
+        setCachedVerifiedToken(tokenHash, decodedToken);
         return decodedToken;
       }
     } catch {
@@ -168309,13 +168342,15 @@ async function verifyFirebaseIdTokenCryptographically(token) {
         } else if (process.env.NODE_ENV === "production" || process.env.ALLOW_OFFLINE_DEV_AUTH !== "true") {
           return null;
         }
-        return {
+        const decoded = {
           uid,
           email: payload.email,
           name: payload.name,
           picture: payload.picture,
           ...payload
         };
+        setCachedVerifiedToken(tokenHash, decoded);
+        return decoded;
       }
     }
   } catch {
@@ -168332,11 +168367,15 @@ var requireAuth = async (req, res, next) => {
   if (!token || token === "undefined" || token === "null" || token === "local-dev-token") {
     return res.status(401).json({ error: "Unauthorized: Valid Google OAuth token required" });
   }
+  if (req.user?.uid && req._verifiedBearerToken === token) {
+    return next();
+  }
   const decoded = await verifyFirebaseIdTokenCryptographically(token);
   if (!decoded || !decoded.uid) {
     return res.status(401).json({ error: "Unauthorized: Invalid or expired Google OAuth token" });
   }
   req.user = decoded;
+  req._verifiedBearerToken = token;
   return next();
 };
 
@@ -168453,9 +168492,28 @@ var import_ioredis = __toESM(require_built3(), 1);
 var import_fs = __toESM(require("fs"), 1);
 var import_path = __toESM(require("path"), 1);
 var MEMORY_CACHE = /* @__PURE__ */ new Map();
+var MAX_MEMORY_CACHE_ENTRIES = 1e3;
 var DATA_DIR = process.env.VERCEL ? import_path.default.join("/tmp", ".data") : import_path.default.join(process.cwd(), ".data");
 var CACHE_FILE = import_path.default.join(DATA_DIR, "backend-cache.json");
 var DEFAULT_RETENTION_TTL_SECONDS = 60 * 60 * 24 * 7;
+function setMemoryCacheBounded(key, entry) {
+  if (MEMORY_CACHE.has(key)) {
+    MEMORY_CACHE.delete(key);
+  } else if (MEMORY_CACHE.size >= MAX_MEMORY_CACHE_ENTRIES) {
+    const now = Date.now();
+    for (const [k, v] of MEMORY_CACHE.entries()) {
+      if (v.expiresAt <= now) {
+        MEMORY_CACHE.delete(k);
+      }
+    }
+    while (MEMORY_CACHE.size >= MAX_MEMORY_CACHE_ENTRIES) {
+      const oldestKey = MEMORY_CACHE.keys().next().value;
+      if (!oldestKey) break;
+      MEMORY_CACHE.delete(oldestKey);
+    }
+  }
+  MEMORY_CACHE.set(key, entry);
+}
 try {
   if (import_fs.default.existsSync(CACHE_FILE)) {
     const raw = import_fs.default.readFileSync(CACHE_FILE, "utf-8");
@@ -168464,7 +168522,7 @@ try {
     for (const [k, v] of Object.entries(parsed)) {
       const entry = v;
       if (entry && entry.expiresAt > now) {
-        MEMORY_CACHE.set(k, entry);
+        setMemoryCacheBounded(k, entry);
       }
     }
   }
@@ -168537,6 +168595,8 @@ async function getCache(key) {
   const memEntry = MEMORY_CACHE.get(key);
   if (memEntry) {
     if (memEntry.expiresAt > Date.now()) {
+      MEMORY_CACHE.delete(key);
+      MEMORY_CACHE.set(key, memEntry);
       return memEntry.value;
     }
     MEMORY_CACHE.delete(key);
@@ -168551,7 +168611,7 @@ async function getCache(key) {
         } catch {
           parsedVal = data;
         }
-        MEMORY_CACHE.set(key, {
+        setMemoryCacheBounded(key, {
           value: parsedVal,
           expiresAt: Date.now() + DEFAULT_RETENTION_TTL_SECONDS * 1e3
         });
@@ -168564,7 +168624,7 @@ async function getCache(key) {
 }
 async function setCache(key, value, ttlSeconds = DEFAULT_RETENTION_TTL_SECONDS) {
   const expiresAt = Date.now() + ttlSeconds * 1e3;
-  MEMORY_CACHE.set(key, { value, expiresAt });
+  setMemoryCacheBounded(key, { value, expiresAt });
   persistMemoryCache();
   if (redisClient && isConnectedToRedis) {
     try {
@@ -168937,7 +168997,7 @@ async function addSubmission(userId, data) {
   const rawPseudocode = String(data.pseudocode || data.code || "").slice(0, 5e4);
   const lang = String(data.lang || data.language || "pseudocode").slice(0, 40);
   const classification = String(data.classification || data.status || "Incomplete").slice(0, 40);
-  const difficulty2 = String(data.difficulty || "Medium").slice(0, 20);
+  const difficulty = String(data.difficulty || "Medium").slice(0, 20);
   const timeComplexity = data.timeComplexity || data.time_complexity || data.complexity?.time || null;
   const spaceComplexity = data.spaceComplexity || data.space_complexity || data.complexity?.space || null;
   const timeTakenMs = data.timeTakenMs || data.time_taken_ms || null;
@@ -168953,7 +169013,7 @@ async function addSubmission(userId, data) {
     pseudocode: rawPseudocode,
     lang,
     classification,
-    difficulty: difficulty2,
+    difficulty,
     timeTakenMs: typeof timeTakenMs === "number" ? timeTakenMs : null,
     timeComplexity: timeComplexity ? String(timeComplexity).slice(0, 60) : null,
     spaceComplexity: spaceComplexity ? String(spaceComplexity).slice(0, 60) : null,
@@ -216763,7 +216823,7 @@ function generateSynthesizedStatement(slug, customProblem) {
     companies: []
   };
   const title = p.title || slug;
-  const difficulty2 = p.difficulty || "Medium";
+  const difficulty = p.difficulty || "Medium";
   const topics = p.topics && p.topics.length > 0 ? p.topics : ["Algorithms", "Data Structures"];
   const companies2 = p.companies && p.companies.length > 0 ? p.companies : [];
   const isStreamOrLogger = topics.some((t2) => /data stream|logger|rate limit/i.test(t2)) || /logger|rate-limit|hit-counter/i.test(s2);
@@ -216803,7 +216863,7 @@ function generateSynthesizedStatement(slug, customProblem) {
 
 Given the problem **${title}**, write an optimal algorithm to solve the task using appropriate data structures and algorithmic patterns.
 
-**Difficulty**: **${difficulty2}**  
+**Difficulty**: **${difficulty}**  
 **Core Topics**: ${topicBadges}${companySection}
 
 ---
@@ -216829,7 +216889,7 @@ Explanation: Boundary condition handled with expected default response.
 ### Constraints:
 - 1 &le; \`${inputLabel}.length\` &le; 10<sup>5</sup>
 - Elements satisfy standard integer / character domains
-- Time Complexity Target: **Optimal ${difficulty2 === "Easy" ? "O(N) or O(log N)" : difficulty2 === "Medium" ? "O(N log N) or O(N)" : "O(N) / O(V+E)"}**
+- Time Complexity Target: **Optimal ${difficulty === "Easy" ? "O(N) or O(log N)" : difficulty === "Medium" ? "O(N log N) or O(N)" : "O(N) / O(V+E)"}**
 - Auxiliary Space Target: Minimize memory allocation where possible
 `;
 }
@@ -240944,13 +241004,37 @@ var DATA_DIR5 = process.env.VERCEL ? import_path5.default.join("/tmp", ".data") 
 var VAULT_FILE = import_path5.default.join(DATA_DIR5, "user_keys_vault.json");
 var MAX_VAULT_RECORDS = 5e3;
 var memoryVaultStore = /* @__PURE__ */ new Map();
+var MAX_EMPTY_VAULT_CACHE = 2e3;
+var EMPTY_VAULT_TTL_MS = 5 * 60 * 1e3;
+var checkedEmptyVaultOwners = /* @__PURE__ */ new Map();
 var requestKeyStorage = new import_async_hooks.AsyncLocalStorage();
 function setMemoryVaultRecord(key, record2) {
+  checkedEmptyVaultOwners.delete(key);
   if (!memoryVaultStore.has(key) && memoryVaultStore.size >= MAX_VAULT_RECORDS) {
     const oldestKey = memoryVaultStore.keys().next().value;
     if (oldestKey) memoryVaultStore.delete(oldestKey);
   }
   memoryVaultStore.set(key, record2);
+}
+function markOwnerVaultEmpty(ownerId) {
+  const now = Date.now();
+  if (checkedEmptyVaultOwners.size >= MAX_EMPTY_VAULT_CACHE) {
+    for (const [k, exp] of checkedEmptyVaultOwners.entries()) {
+      if (exp <= now) checkedEmptyVaultOwners.delete(k);
+    }
+    if (checkedEmptyVaultOwners.size >= MAX_EMPTY_VAULT_CACHE) {
+      const oldest = checkedEmptyVaultOwners.keys().next().value;
+      if (oldest) checkedEmptyVaultOwners.delete(oldest);
+    }
+  }
+  checkedEmptyVaultOwners.set(ownerId, now + EMPTY_VAULT_TTL_MS);
+}
+function isOwnerKnownEmpty(ownerId) {
+  const exp = checkedEmptyVaultOwners.get(ownerId);
+  if (!exp) return false;
+  if (exp > Date.now()) return true;
+  checkedEmptyVaultOwners.delete(ownerId);
+  return false;
 }
 try {
   if (import_fs6.default.existsSync(VAULT_FILE)) {
@@ -241162,8 +241246,17 @@ function extractBearerToken(req) {
 async function extractVerifiedUidFromRequest(req) {
   const token = extractBearerToken(req);
   if (!token) return null;
+  const anyReq = req;
+  if (anyReq.user?.uid && anyReq._verifiedBearerToken === token) {
+    return anyReq.user.uid;
+  }
   const decoded = await verifyFirebaseIdTokenCryptographically(token);
-  return decoded?.uid || null;
+  if (decoded?.uid) {
+    anyReq.user = decoded;
+    anyReq._verifiedBearerToken = token;
+    return decoded.uid;
+  }
+  return null;
 }
 async function fetchVaultFromFirestoreRest(uid, bearerToken) {
   if (!uid || !bearerToken) return null;
@@ -241299,6 +241392,9 @@ async function getVaultRecord(ownerId, uid, bearerToken) {
   if (local && local.providers && Object.keys(local.providers).length > 0) {
     return local;
   }
+  if (isOwnerKnownEmpty(ownerId)) {
+    return local || null;
+  }
   if (uid && ownerId === `uid:${uid}` && bearerToken) {
     const restRecord = await fetchVaultFromFirestoreRest(uid, bearerToken);
     if (restRecord) return restRecord;
@@ -241316,6 +241412,7 @@ async function getVaultRecord(ownerId, uid, bearerToken) {
       markAdminDbUnavailable();
     }
   }
+  markOwnerVaultEmpty(ownerId);
   return local || null;
 }
 async function saveVaultRecord(record2, uid, bearerToken) {
@@ -241434,12 +241531,11 @@ async function verifyUserApiKeyLive(provider, rawKey) {
       httpOptions: {
         headers: {
           "User-Agent": "aistudio-build"
-        }
+        },
+        timeout: 8e3
       }
     });
     const candidateModels = [
-      "gemini-3.8-flash",
-      "gemini-3.6-flash",
       "gemini-2.5-flash",
       "gemini-2.0-flash",
       "gemini-flash-latest"
@@ -241458,7 +241554,7 @@ async function verifyUserApiKeyLive(provider, rawKey) {
       } catch (err) {
         const msg = err?.message || String(err);
         lastErr = msg;
-        if (msg.includes("API_KEY_INVALID") || msg.includes("401") || msg.includes("403")) {
+        if (msg.includes("API_KEY_INVALID") || msg.toLowerCase().includes("api key not valid") || msg.includes("401") || msg.includes("403")) {
           break;
         }
       }
@@ -241472,7 +241568,8 @@ async function verifyUserApiKeyLive(provider, rawKey) {
     try {
       const res = await fetch("https://api.openai.com/v1/models", {
         method: "GET",
-        headers: { Authorization: `Bearer ${key}` }
+        headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(8e3)
       });
       if (res.ok) {
         return { valid: true, verifiedModel: "gpt-4o-mini" };
@@ -241489,7 +241586,8 @@ async function verifyUserApiKeyLive(provider, rawKey) {
     try {
       const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
         method: "GET",
-        headers: { Authorization: `Bearer ${key}` }
+        headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(8e3)
       });
       if (res.ok) {
         return { valid: true, verifiedModel: "openrouter/auto" };
@@ -241603,14 +241701,12 @@ var env2 = typeof process !== "undefined" && process?.env ? process.env : {};
 var OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 var OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 var GEMINI_API_BASE_URL = (env2["GEMINI_API_BASE_URL"] || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/, "");
-var DEFAULT_GEMINI_MODEL = env2["DEFAULT_MODEL_NAME"] || env2["GEMINI_MODEL"] || "gemini-2.5-flash";
-var API_TIMEOUT_MS = Number(env2["AI_TIMEOUT_MS"]) || 12e4;
+var rawDefaultGeminiModel = env2["DEFAULT_MODEL_NAME"] || env2["GEMINI_MODEL"] || "gemini-2.5-flash";
+var DEFAULT_GEMINI_MODEL = /^gemini-3\./i.test(rawDefaultGeminiModel) ? "gemini-2.5-flash" : rawDefaultGeminiModel;
+var API_TIMEOUT_MS = Number(env2["AI_TIMEOUT_MS"]) || 25e3;
 var REVIEW_MODELS = Array.from(
   /* @__PURE__ */ new Set([
     DEFAULT_GEMINI_MODEL,
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
@@ -241628,9 +241724,6 @@ var REVIEW_MODELS = Array.from(
 var VIZ_MODELS = Array.from(
   /* @__PURE__ */ new Set([
     DEFAULT_GEMINI_MODEL,
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
@@ -241868,7 +241961,8 @@ async function callGeminiModel(model, key, system, user) {
       httpOptions: {
         headers: {
           "User-Agent": "aistudio-build"
-        }
+        },
+        timeout: API_TIMEOUT_MS
       }
     });
     const resp = await ai.models.generateContent({
@@ -241882,7 +241976,18 @@ async function callGeminiModel(model, key, system, user) {
     });
     const parsed = extractJson(resp.text || "");
     if (parsed) return parsed;
-  } catch {
+  } catch (sdkErr) {
+    const msg = String(sdkErr?.message || sdkErr || "");
+    const status = Number(sdkErr?.status || sdkErr?.code || 0);
+    if (msg.includes("API_KEY_INVALID") || msg.toLowerCase().includes("api key not valid") || status === 401 || status === 403) {
+      throw new Error(describe3(401, model, "Gemini"));
+    }
+    if (status === 429 || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("429")) {
+      throw new Error(describe3(429, model, "Gemini"));
+    }
+    if (status === 404 || msg.includes("NOT_FOUND") || msg.includes("is not found")) {
+      throw new Error(describe3(404, model, "Gemini"));
+    }
   }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
@@ -241909,6 +242014,10 @@ async function callGeminiModel(model, key, system, user) {
       signal: controller.signal
     });
     if (!res.ok && res.status === 400) {
+      const errBody = await res.text().catch(() => "");
+      if (errBody.includes("API_KEY_INVALID") || errBody.toLowerCase().includes("api key not valid")) {
+        throw new Error(describe3(401, model, "Gemini"));
+      }
       res = await fetch(url2, {
         method: "POST",
         headers: geminiHeaders,
@@ -242074,7 +242183,7 @@ async function queryModelWithFallbacks(models, key, system, user, ok) {
       error61 = `${candidate.model} returned an unusable response.`;
     } catch (e2) {
       error61 = e2 instanceof Error ? e2.message : String(e2);
-      if (error61.includes("(401)") || error61.includes("(403)") || error61.includes("(429)")) {
+      if (error61.includes("(401)") || error61.includes("(403)") || error61.includes("(429)") || error61.includes("API_KEY_INVALID") || error61.toLowerCase().includes("api key not valid")) {
         failedProviders.add(candidate.provider);
       }
     }
@@ -284500,12 +284609,12 @@ Respond ONLY with a valid JSON object in this exact schema with no surrounding m
 }`;
 function buildReviewUserPrompt({
   title,
-  difficulty: difficulty2,
+  difficulty,
   topics,
   statement,
   pseudocode
 }) {
-  return `Target Problem: "${title}" (${difficulty2 ?? "Unknown"})
+  return `Target Problem: "${title}" (${difficulty ?? "Unknown"})
 Topics / Category: ${(topics ?? []).join(", ") || "n/a"}
 
 Problem Statement & Requirements:
@@ -285198,11 +285307,12 @@ var Input = external_exports.object({
 var CLASSES = ["Incomplete", "Brute Force", "Better", "Optimal"];
 function userCodeLinesFromPseudocode(pseudocode) {
   if (!pseudocode || typeof pseudocode !== "string") return ["const result = solve(input);"];
-  const rawLines = pseudocode.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+  const boundedPseudocode = pseudocode.slice(0, 1e4);
+  const rawLines = boundedPseudocode.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
   if (rawLines.length > 3) {
     return rawLines.slice(0, 60);
   }
-  let text = pseudocode;
+  let text = boundedPseudocode.slice(0, 4e3);
   text = text.replace(
     /(\/\/[^\n]*?\s+)(?=(?:prev\s*=|curr\s*=|m\s*=|n\s*=|for\s+[a-zA-Z_]|if\s+|return\b))/gi,
     "$1\n"
@@ -286653,43 +286763,109 @@ function buildSanitizedSandboxEnv(sandboxDir) {
   }
   return safeEnv;
 }
+function terminateProcessTree(child) {
+  const pid = child.pid;
+  try {
+    child.stdin?.destroy();
+    child.stdout?.destroy();
+    child.stderr?.destroy();
+  } catch {
+  }
+  if (!pid) {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+    }
+    return;
+  }
+  if (process.platform === "win32") {
+    try {
+      const killer = (0, import_node_child_process.spawn)("taskkill", ["/PID", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true
+      });
+      killer.on("error", () => {
+      });
+      killer.unref();
+    } catch {
+    }
+    try {
+      child.kill("SIGKILL");
+    } catch {
+    }
+  } else {
+    try {
+      process.kill(-pid, "SIGKILL");
+    } catch {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+      }
+    }
+  }
+}
 function runSpawnedProcess(cmd, args, cwd, stdinText = "", timeoutMs = DEFAULT_TIMEOUT_MS) {
   return new Promise((resolve) => {
     let stdoutBuffer = "";
     let stderrBuffer = "";
     let timedOut = false;
     let isSettled = false;
+    let forceSettleTimer = null;
     const child = (0, import_node_child_process.spawn)(cmd, args, {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
-      env: buildSanitizedSandboxEnv(cwd)
+      env: buildSanitizedSandboxEnv(cwd),
+      detached: process.platform !== "win32",
+      windowsHide: true
     });
+    const settle = (exitCode, isNotFound = false) => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timer);
+      if (forceSettleTimer) clearTimeout(forceSettleTimer);
+      resolve({
+        stdout: stdoutBuffer,
+        stderr: stderrBuffer,
+        exitCode,
+        timedOut,
+        isNotFound
+      });
+    };
     const timer = setTimeout(() => {
       timedOut = true;
       try {
         child.kill("SIGTERM");
-        setTimeout(() => {
-          try {
-            child.kill("SIGKILL");
-          } catch {
-          }
-        }, 500);
       } catch {
+      }
+      terminateProcessTree(child);
+      forceSettleTimer = setTimeout(() => {
+        settle(124, false);
+      }, 300);
+      if (typeof forceSettleTimer.unref === "function") {
+        forceSettleTimer.unref();
       }
     }, timeoutMs);
     child.stdout.on("data", (chunk) => {
       if (stdoutBuffer.length < MAX_OUTPUT_LENGTH) {
-        stdoutBuffer += chunk.toString("utf-8");
-        if (stdoutBuffer.length > MAX_OUTPUT_LENGTH) {
-          stdoutBuffer = stdoutBuffer.slice(0, MAX_OUTPUT_LENGTH) + "\n... [Output truncated (size exceeded 150KB)]";
+        const remaining = MAX_OUTPUT_LENGTH - stdoutBuffer.length;
+        if (chunk.length > remaining) {
+          stdoutBuffer += chunk.subarray(0, remaining).toString("utf-8") + "\n... [Output truncated (size exceeded 150KB)]";
+          terminateProcessTree(child);
+          settle(0, false);
+        } else {
+          stdoutBuffer += chunk.toString("utf-8");
         }
       }
     });
     child.stderr.on("data", (chunk) => {
       if (stderrBuffer.length < MAX_OUTPUT_LENGTH) {
-        stderrBuffer += chunk.toString("utf-8");
-        if (stderrBuffer.length > MAX_OUTPUT_LENGTH) {
-          stderrBuffer = stderrBuffer.slice(0, MAX_OUTPUT_LENGTH) + "\n... [Error truncated (size exceeded 150KB)]";
+        const remaining = MAX_OUTPUT_LENGTH - stderrBuffer.length;
+        if (chunk.length > remaining) {
+          stderrBuffer += chunk.subarray(0, remaining).toString("utf-8") + "\n... [Error truncated (size exceeded 150KB)]";
+          terminateProcessTree(child);
+          settle(1, false);
+        } else {
+          stderrBuffer += chunk.toString("utf-8");
         }
       }
     });
@@ -286705,18 +286881,6 @@ function runSpawnedProcess(cmd, args, cwd, stdinText = "", timeoutMs = DEFAULT_T
       } catch {
       }
     }
-    const settle = (exitCode, isNotFound = false) => {
-      if (isSettled) return;
-      isSettled = true;
-      clearTimeout(timer);
-      resolve({
-        stdout: stdoutBuffer,
-        stderr: stderrBuffer,
-        exitCode,
-        timedOut,
-        isNotFound
-      });
-    };
     child.on("error", (err) => {
       const isEnoent = err?.code === "ENOENT" || typeof err?.message === "string" && err.message.includes("ENOENT");
       stderrBuffer += "\nProcess execution error: " + (err?.message || String(err));
@@ -288500,15 +288664,64 @@ INSTRUCTIONS:
 }
 
 // src/lib/leetcode-judge.server.ts
+var import_node_crypto2 = __toESM(require("node:crypto"), 1);
 var GEMINI_JUDGE_MODELS = [
   "gemini-2.5-flash",
   "gemini-2.0-flash",
-  "gemini-3.8-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-3.1-flash-lite",
+  "gemini-2.0-flash-lite",
   "gemini-flash-latest"
 ];
+var EPHEMERAL_JUDGE_SECRET = import_node_crypto2.default.randomBytes(32).toString("hex");
+var PREVERIFIED_RESULT_TTL_MS = 10 * 60 * 1e3;
+function getJudgeHmacSecret() {
+  return process.env.JUDGE_HMAC_SECRET || process.env.VAULT_MASTER_SECRET || process.env.GITHUB_CLIENT_SECRET || EPHEMERAL_JUDGE_SECRET;
+}
+function computeRunResultSignature(params) {
+  const canonicalPayload = JSON.stringify({
+    slug: params.slug,
+    language: params.language,
+    code: params.code,
+    status: params.status,
+    passedCount: params.passedCount,
+    totalCount: params.totalCount,
+    verifiedAt: params.verifiedAt,
+    cases: (params.cases || []).map((c) => ({
+      caseNumber: c.caseNumber,
+      input: c.input,
+      expectedOutput: c.expectedOutput,
+      actualOutput: c.actualOutput,
+      passed: Boolean(c.passed)
+    }))
+  });
+  return import_node_crypto2.default.createHmac("sha256", getJudgeHmacSecret()).update(canonicalPayload).digest("hex");
+}
+function verifyPreverifiedRunResult(runResult, expected) {
+  if (!runResult || typeof runResult !== "object" || !Array.isArray(runResult.cases) || runResult.cases.length === 0 || typeof runResult.verificationToken !== "string" || typeof runResult.verifiedAt !== "number") {
+    return false;
+  }
+  const now = Date.now();
+  if (runResult.verifiedAt > now + 3e4 || now - runResult.verifiedAt > PREVERIFIED_RESULT_TTL_MS) {
+    return false;
+  }
+  const expectedSig = computeRunResultSignature({
+    slug: expected.slug,
+    language: expected.language,
+    code: expected.code,
+    status: runResult.status,
+    passedCount: runResult.passedCount,
+    totalCount: runResult.totalCount,
+    verifiedAt: runResult.verifiedAt,
+    cases: runResult.cases
+  });
+  try {
+    const actualBuf = Buffer.from(runResult.verificationToken, "utf8");
+    const expectedBuf = Buffer.from(expectedSig, "utf8");
+    if (actualBuf.length !== expectedBuf.length) return false;
+    return import_node_crypto2.default.timingSafeEqual(actualBuf, expectedBuf);
+  } catch {
+    return false;
+  }
+}
 async function queryAiJudgeJson(systemPrompt, userPrompt, validator) {
   const geminiKey = getGeminiKey();
   if (geminiKey) {
@@ -288517,7 +288730,8 @@ async function queryAiJudgeJson(systemPrompt, userPrompt, validator) {
       httpOptions: {
         headers: {
           "User-Agent": "aistudio-build"
-        }
+        },
+        timeout: 25e3
       }
     });
     for (const modelName of GEMINI_JUDGE_MODELS) {
@@ -288537,7 +288751,11 @@ ${userPrompt}`,
         if (parsed && validator(parsed)) {
           return { json: parsed, modelUsed: modelName };
         }
-      } catch {
+      } catch (err) {
+        const msg = String(err?.message || err || "");
+        if (msg.includes("API_KEY_INVALID") || msg.toLowerCase().includes("api key not valid") || msg.includes("401") || msg.includes("403") || msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+          break;
+        }
       }
     }
   }
@@ -288553,7 +288771,7 @@ ${userPrompt}`,
   }
   return { json: res.json, modelUsed: res.model || "AI Judge" };
 }
-function analyzeSolutionCode(code, difficulty2 = "Medium", topics = []) {
+function analyzeSolutionCode(code, difficulty = "Medium", topics = []) {
   const stripped = (code || "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").replace(/#.*$/gm, "").replace(/"""[\s\S]*?"""/g, "").trim();
   const allBodyLines = stripped.split(/[\n;{}]/).map((l) => l.trim()).filter(
     (l) => l.length > 0 && !l.startsWith("#include") && !l.startsWith("using namespace") && !l.startsWith("from ") && !l.startsWith("import ") && !l.startsWith("class ") && !l.startsWith("public:") && !l.startsWith("private:") && !l.startsWith("protected:") && !l.startsWith("def ") && !l.startsWith("var ") && !l.startsWith("function ") && !l.startsWith("public ") && !/^(?:vector|int|long|double|bool|boolean|string|String|ListNode|TreeNode)\b[^(]*\(/.test(l)
@@ -288564,11 +288782,12 @@ function analyzeSolutionCode(code, difficulty2 = "Medium", topics = []) {
     )
   );
   const hasStarterCommentMarkers = /Write your|Step 1:\s*Initialize|Implement your solution/i.test(code || "");
-  const isStarterTemplate = allBodyLines.length === 0 || nonPlaceholderLines.length === 0 && hasStarterCommentMarkers;
+  const isOnlyPass = allBodyLines.length > 0 && allBodyLines.every((l) => l === "pass");
+  const isStarterTemplate = allBodyLines.length === 0 || isOnlyPass || nonPlaceholderLines.length === 0 && hasStarterCommentMarkers;
   return {
     isStarterTemplate,
     hasMeaningfulCode: !isStarterTemplate && allBodyLines.length >= 1,
-    difficulty: difficulty2,
+    difficulty,
     topics
   };
 }
@@ -288615,14 +288834,14 @@ function outputsMatch(actualRaw, expectedRaw) {
 async function runProblemSampleTests(payload) {
   const {
     slug,
-    difficulty: difficulty2 = "Medium",
+    difficulty = "Medium",
     topics = [],
     code = "",
     language = "python",
     customInput
   } = payload;
   const title = payload.title || payload.problemTitle || slug || "Problem";
-  const statement = payload.statement || payload.problemStatement || statementForSlug(slug, { slug, title, difficulty: difficulty2, topics });
+  const statement = payload.statement || payload.problemStatement || statementForSlug(slug, { slug, title, difficulty, topics });
   const baseCases = payload.sampleCases && payload.sampleCases.length > 0 ? payload.sampleCases : payload.testCases && payload.testCases.length > 0 ? payload.testCases : extractThreeSampleCasesForProblem({ slug, title, topics, statement });
   const providedCases = [...baseCases];
   if (customInput && customInput.trim()) {
@@ -288635,7 +288854,7 @@ async function runProblemSampleTests(payload) {
       isCustom: true
     });
   }
-  const analysis = analyzeSolutionCode(code, difficulty2, topics);
+  const analysis = analyzeSolutionCode(code, difficulty, topics);
   if (analysis.isStarterTemplate) {
     return {
       status: "Starter Template",
@@ -288694,7 +288913,7 @@ async function runProblemSampleTests(payload) {
   ).join("\n") : "No pre-extracted examples; extract the official examples from the problem statement below.";
   const targetTotalCases = Math.max(4, providedCases.length + (providedCases.length < 3 ? 2 : 1));
   const systemPrompt = "You are an exact, deterministic Online Code Judge and Algorithm Test Runner. You test user code across official sample testcases AND additional constraint-valid boundary/edge testcases, trace the user's exact code on every testcase, and return the exact testcases tested with their pass/fail results as valid JSON.";
-  const userPrompt = `Test and evaluate this user's ${language.toUpperCase()} code for the problem "${title}" (slug: ${slug}, difficulty: ${difficulty2}, topics: ${topics.join(
+  const userPrompt = `Test and evaluate this user's ${language.toUpperCase()} code for the problem "${title}" (slug: ${slug}, difficulty: ${difficulty}, topics: ${topics.join(
     ", "
   )}).
 
@@ -288805,8 +289024,20 @@ YOUR TASK \u2014 FOLLOW THESE RULES STRICTLY:
   const totalCount = mappedCases.length;
   const totalRuntimeMs = Math.round(mappedCases.reduce((acc, c) => acc + (c.runtimeMs || 1), 0) * 10) / 10;
   const allPassed = totalCount > 0 && passedCount === totalCount;
+  const status = allPassed ? "Accepted" : "Wrong Answer";
+  const verifiedAt = Date.now();
+  const verificationToken = computeRunResultSignature({
+    slug,
+    language,
+    code,
+    status,
+    passedCount,
+    totalCount,
+    verifiedAt,
+    cases: mappedCases
+  });
   return {
-    status: allPassed ? "Accepted" : "Wrong Answer",
+    status,
     summaryMessage: allPassed ? `Accepted \u2014 All ${totalCount}/${totalCount} AI-tested testcases passed (${totalRuntimeMs} ms)` : `Wrong Answer \u2014 ${passedCount}/${totalCount} testcases passed`,
     passedCount,
     totalCount,
@@ -288817,7 +289048,9 @@ YOUR TASK \u2014 FOLLOW THESE RULES STRICTLY:
     optimalSpaceComplexity: parsed.optimalSpaceComplexity || "O(1)",
     executionEngine: `AI Test Judge (${modelUsed})`,
     learningDiagnostics: parsed.learningDiagnostics,
-    cases: mappedCases
+    cases: mappedCases,
+    verifiedAt,
+    verificationToken
   };
 }
 function buildCategoryBreakdownFromTestedCases(testedCases) {
@@ -288842,17 +289075,22 @@ async function submitProblemSolution(payload) {
   const {
     slug,
     title,
-    difficulty: difficulty2 = "Medium",
+    difficulty = "Medium",
     topics = [],
     code = "",
     language = "python",
     preverifiedRunResult
   } = payload;
-  const statement = payload.statement || statementForSlug(slug, { slug, title, difficulty: difficulty2, topics });
-  const testRun = preverifiedRunResult && preverifiedRunResult.cases && preverifiedRunResult.cases.length > 0 ? preverifiedRunResult : await runProblemSampleTests({
+  const statement = payload.statement || statementForSlug(slug, { slug, title, difficulty, topics });
+  const isVerifiedPreRun = verifyPreverifiedRunResult(preverifiedRunResult, {
+    slug,
+    language,
+    code
+  });
+  const testRun = isVerifiedPreRun && preverifiedRunResult ? preverifiedRunResult : await runProblemSampleTests({
     slug,
     title,
-    difficulty: difficulty2,
+    difficulty,
     topics,
     statement,
     code,
@@ -288946,7 +289184,7 @@ var import_ip_address = __toESM(require_ip_address(), 1);
 var import_node_net3 = require("node:net");
 var import_debug = __toESM(require_src(), 1);
 var import_node_buffer3 = require("node:buffer");
-var import_node_crypto2 = require("node:crypto");
+var import_node_crypto3 = require("node:crypto");
 var import_node_net4 = require("node:net");
 var ipv4CompatibleSubnet = new import_ip_address.Address6("::/96");
 function ipKeyGenerator(ip, ipv6Subnet = 56) {
@@ -289128,7 +289366,7 @@ var getResetSeconds = (windowMs, resetTime) => {
   return resetSeconds;
 };
 var getPartitionKey = (key) => {
-  const hash2 = (0, import_node_crypto2.createHash)("sha256");
+  const hash2 = (0, import_node_crypto3.createHash)("sha256");
   hash2.update(key);
   const partitionKey = hash2.digest("hex").slice(0, 12);
   return import_node_buffer3.Buffer.from(partitionKey).toString("base64");
@@ -290158,7 +290396,8 @@ async function fetchUserProfileFromFirestoreRest(uid, bearerToken) {
   try {
     const res = await fetch(docUrl, {
       method: "GET",
-      headers: { Authorization: `Bearer ${bearerToken}` }
+      headers: { Authorization: `Bearer ${bearerToken}` },
+      signal: AbortSignal.timeout(5e3)
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -290183,7 +290422,8 @@ async function fetchUserCollectionFromFirestoreRest(uid, subcollection, bearerTo
   try {
     const res = await fetch(colUrl, {
       method: "GET",
-      headers: { Authorization: `Bearer ${bearerToken}` }
+      headers: { Authorization: `Bearer ${bearerToken}` },
+      signal: AbortSignal.timeout(5e3)
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -290259,7 +290499,8 @@ async function saveGithubProfileToFirestoreRest(uid, bearerToken, data) {
           githubUrl: toFirestoreStrOrNull(data.githubUrl),
           updatedAt: { stringValue: (/* @__PURE__ */ new Date()).toISOString() }
         }
-      })
+      }),
+      signal: AbortSignal.timeout(5e3)
     });
   } catch {
   }
@@ -290313,26 +290554,44 @@ app.use((req, _res, next) => {
 });
 app.use(import_express.default.json({ limit: "2mb" }));
 app.use(import_express.default.urlencoded({ extended: true, limit: "2mb" }));
+function rateLimitKeyGenerator(req) {
+  const anyReq = req;
+  if (anyReq.user?.uid) {
+    return `uid:${anyReq.user.uid}`;
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token.length > 32) {
+      const tokenDigest = import_crypto2.default.createHash("sha256").update(token).digest("hex").slice(0, 16);
+      return `tok:${tokenDigest}:${req.ip || "unknown"}`;
+    }
+  }
+  return `ip:${req.ip || "unknown"}`;
+}
 var apiLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
   // 1 minute
   max: 100,
+  keyGenerator: rateLimitKeyGenerator,
   message: { error: "Too many requests, please try again later." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false }
+  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 var aiLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
   // 1 minute
   max: 40,
+  keyGenerator: rateLimitKeyGenerator,
   message: { error: "AI rate limit exceeded. Please wait a moment and try again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false }
+  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 var compilerLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
   // 1 minute
   max: 20,
+  keyGenerator: rateLimitKeyGenerator,
   message: { error: "Compiler rate limit exceeded. Please wait a moment before running again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false }
+  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 var inFlightCompilations = 0;
 var MAX_CONCURRENT_COMPILATIONS = 5;
@@ -290405,7 +290664,8 @@ function getGeminiClient2() {
     httpOptions: {
       headers: {
         "User-Agent": "aistudio-build"
-      }
+      },
+      timeout: 25e3
     }
   });
 }
@@ -290413,14 +290673,13 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
   const geminiKey = getGeminiKey();
   let lastError = null;
   if (geminiKey) {
+    const normalizedPreferred = /^gemini-3\./i.test(preferredModel) ? "gemini-2.5-flash" : preferredModel;
     const candidateModels = [
-      preferredModel,
-      "gemini-3.6-flash",
-      "gemini-3.8-flash",
-      "gemini-3.5-flash",
-      "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
-      "gemini-3.7-flash"
+      normalizedPreferred,
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
+      "gemini-flash-latest"
     ].filter((m2, i2, arr) => m2 && arr.indexOf(m2) === i2);
     for (const model of candidateModels) {
       try {
@@ -290436,7 +290695,11 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
       } catch (err) {
         lastError = err;
         const status = err?.status || err?.code || err?.error && err?.error?.code;
-        console.log(`[Gemini Fallback] Model ${model} returned (${status}): ${err?.message || err}. Attempting fallback candidate...`);
+        const msg = String(err?.message || err || "");
+        console.log(`[Gemini Fallback] Model ${model} returned (${status}): ${msg}. Attempting fallback candidate...`);
+        if (status === 401 || status === 403 || status === 429 || msg.includes("API_KEY_INVALID") || msg.toLowerCase().includes("api key not valid") || msg.includes("RESOURCE_EXHAUSTED")) {
+          break;
+        }
       }
     }
   }
@@ -290464,7 +290727,8 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
             ...isJson ? { response_format: { type: "json_object" } } : {},
             temperature: params.config?.temperature || 0.4,
             max_tokens: 4096
-          })
+          }),
+          signal: AbortSignal.timeout(25e3)
         });
         if (res.ok) {
           const data = await res.json();
@@ -290492,7 +290756,8 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
             ...isJson ? { response_format: { type: "json_object" } } : {},
             temperature: params.config?.temperature || 0.4,
             max_tokens: 4096
-          })
+          }),
+          signal: AbortSignal.timeout(25e3)
         });
         if (!res.ok && res.status === 400) {
           res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -290509,7 +290774,8 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
               ],
               temperature: params.config?.temperature || 0.4,
               max_tokens: 4096
-            })
+            }),
+            signal: AbortSignal.timeout(25e3)
           });
         }
         if (res.ok) {
@@ -290532,11 +290798,11 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
   }
   throw lastError;
 }
-function generateOfflineRating(sourceCode2, problemTitle2, problemSlug2, _difficulty = "Medium") {
-  const codeLen = sourceCode2.trim().length;
-  const hasGuard = /if\s*\(.*(?:null|empty|\.length\s*===?\s*0|!root|size\(\)\s*===?\s*0)/i.test(sourceCode2);
-  const hasTwoPointers = /(?:left|right|ptr|head|tail|prev|curr|slow|fast)/i.test(sourceCode2);
-  const hasMapOrSet = /(?:map|set|dict|unordered_map|HashMap|HashSet)/i.test(sourceCode2);
+function generateOfflineRating(sourceCode, problemTitle, problemSlug, _difficulty = "Medium") {
+  const codeLen = sourceCode.trim().length;
+  const hasGuard = /if\s*\(.*(?:null|empty|\.length\s*===?\s*0|!root|size\(\)\s*===?\s*0)/i.test(sourceCode);
+  const hasTwoPointers = /(?:left|right|ptr|head|tail|prev|curr|slow|fast)/i.test(sourceCode);
+  const hasMapOrSet = /(?:map|set|dict|unordered_map|HashMap|HashSet)/i.test(sourceCode);
   let score = 8;
   if (codeLen < 40) score = 6;
   else if (hasGuard && (hasTwoPointers || hasMapOrSet)) score = 9;
@@ -290560,7 +290826,7 @@ function generateOfflineRating(sourceCode2, problemTitle2, problemSlug2, _diffic
       hasGuard ? "Consider testing against single-element edge inputs" : "Add explicit edge-case guards for empty/null inputs",
       "Document the invariant in a leading docstring for interviewers"
     ],
-    interviewerFeedback: `Your submission for "${problemTitle2 || problemSlug2}" demonstrates solid mechanical execution and clean logic. Ensure you communicate your invariants clearly and articulate edge cases to the interviewer before writing the loop body.`
+    interviewerFeedback: `Your submission for "${problemTitle || problemSlug}" demonstrates solid mechanical execution and clean logic. Ensure you communicate your invariants clearly and articulate edge cases to the interviewer before writing the loop body.`
   };
 }
 function generateOfflineMistakesReport(userSubmissions) {
@@ -290622,8 +290888,9 @@ function generateOfflineMistakesReport(userSubmissions) {
     ]
   };
 }
-function generateOfflineDiffAnalysis(sourceCode2, problemTitle2, problemSlug2, _difficulty, compilerError2 = "") {
-  const lines = sourceCode2.split("\n");
+function generateOfflineDiffAnalysis(sourceCode, problemTitle, problemSlug, _difficulty, compilerError = "") {
+  const boundedCode = String(sourceCode || "").slice(0, 5e4);
+  const lines = boundedCode.split(/\r?\n/).slice(0, 1e3);
   const issues = [];
   const diffHunks = [];
   lines.forEach((line, idx) => {
@@ -290658,10 +290925,10 @@ function generateOfflineDiffAnalysis(sourceCode2, problemTitle2, problemSlug2, _
       hint: hint || void 0
     });
   });
-  const hasErrors = issues.length > 0 || !!compilerError2;
+  const hasErrors = issues.length > 0 || !!compilerError;
   return {
     hasErrors,
-    summary: compilerError2 ? `Compiler note: ${compilerError2.slice(0, 120)}. Verify variable types, closing delimiters, and function signatures.` : issues.length > 0 ? `Identified ${issues.length} potential syntax or indexing boundary concern(s) in your code.` : `Code structure appears clean. Double check your base cases and loop invariants on empty or single-element inputs.`,
+    summary: compilerError ? `Compiler note: ${compilerError.slice(0, 120)}. Verify variable types, closing delimiters, and function signatures.` : issues.length > 0 ? `Identified ${issues.length} potential syntax or indexing boundary concern(s) in your code.` : `Code structure appears clean. Double check your base cases and loop invariants on empty or single-element inputs.`,
     interviewerNudges: [
       {
         level: 1,
@@ -290671,7 +290938,7 @@ function generateOfflineDiffAnalysis(sourceCode2, problemTitle2, problemSlug2, _
       {
         level: 2,
         title: "Edge Case Testing",
-        text: `How does your solution handle extreme constraints for "${problemTitle2 || problemSlug2}" (e.g. n = 0, n = 1, or duplicate elements)?`
+        text: `How does your solution handle extreme constraints for "${problemTitle || problemSlug}" (e.g. n = 0, n = 1, or duplicate elements)?`
       },
       {
         level: 3,
@@ -290681,7 +290948,7 @@ function generateOfflineDiffAnalysis(sourceCode2, problemTitle2, problemSlug2, _
     ],
     detectedIssues: issues,
     diffHunks,
-    promptSuggestion: `Can you explain the loop invariants and termination conditions for ${problemTitle2 || "this problem"}?`
+    promptSuggestion: `Can you explain the loop invariants and termination conditions for ${problemTitle || "this problem"}?`
   };
 }
 function generateOfflineSocraticChatReply(options) {
@@ -291548,30 +291815,34 @@ app.post("/api/code-diff-nudge", requireAuth, aiLimiter, async (req, res) => {
     const {
       code = "",
       pseudocode = "",
-      problemSlug: problemSlug2 = "",
-      problemTitle: problemTitle2 = "",
-      difficulty: difficulty2 = "Medium",
+      problemSlug = "",
+      problemTitle = "",
+      difficulty = "Medium",
       topics = [],
-      compilerError: compilerError2 = ""
-    } = req.body;
-    const sourceCode2 = (code || pseudocode || "").trim();
-    if (!sourceCode2) {
+      compilerError = ""
+    } = req.body || {};
+    const sourceCode = String(code || pseudocode || "").trim();
+    if (!sourceCode) {
       return res.status(400).json({ error: "Code or pseudocode is required." });
     }
+    if (sourceCode.length > 5e4) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
+    const boundedCompilerError = String(compilerError || "").slice(0, 15e3);
     const ai = getGeminiClient2();
-    const prompt = `Analyze the user's algorithmic code/pseudocode for the problem "${problemTitle2 || problemSlug2}" (${difficulty2}).
+    const prompt = `Analyze the user's algorithmic code/pseudocode for the problem "${problemTitle || problemSlug}" (${difficulty}).
 Identify if there are any typing mistakes, syntax slips, off-by-one errors, boundary omissions, or logical flaws.
 CRITICAL CONSTRAINT: You must act as a SOCRATIC INTERVIEWER. You must NEVER give away the complete code solution or direct answer!
 Generate 3 progressive levels of interviewer nudges (Level 1: Gentle thought, Level 2: Directional clue, Level 3: Deep invariant question).
 
 USER CODE:
 \`\`\`
-${sourceCode2}
+${sourceCode}
 \`\`\`
 
 COMPILER / RUNTIME OUTPUT:
 \`\`\`
-${compilerError2 || "None provided"}
+${boundedCompilerError || "None provided"}
 \`\`\`
 
 Return a strictly valid JSON object matching this schema:
@@ -291602,7 +291873,7 @@ Return a strictly valid JSON object matching this schema:
   ],
   "promptSuggestion": "Suggested question the user can ask the AI interviewer"
 }`;
-    const { text } = await generateContentWithFallback2(ai, "gemini-3.8-flash", {
+    const { text } = await generateContentWithFallback2(ai, "gemini-2.5-flash", {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -291613,12 +291884,20 @@ Return a strictly valid JSON object matching this schema:
     return res.json(parsed);
   } catch (error61) {
     console.log("Code diff nudge fallback to heuristic analysis:", error61?.message || error61);
+    const {
+      code = "",
+      pseudocode = "",
+      problemSlug = "",
+      problemTitle = "",
+      difficulty = "Medium",
+      compilerError = ""
+    } = req.body || {};
     const offlineResult = generateOfflineDiffAnalysis(
-      sourceCode,
-      problemTitle,
-      problemSlug,
-      difficulty,
-      compilerError
+      String(code || pseudocode || "").trim().slice(0, 5e4),
+      String(problemTitle || ""),
+      String(problemSlug || ""),
+      String(difficulty || "Medium"),
+      String(compilerError || "").slice(0, 15e3)
     );
     return res.json(offlineResult);
   }
@@ -291628,22 +291907,25 @@ app.post("/api/rate-submission", requireAuth, aiLimiter, async (req, res) => {
     const {
       code = "",
       pseudocode = "",
-      problemSlug: problemSlug2 = "",
-      problemTitle: problemTitle2 = "",
-      difficulty: difficulty2 = "Medium",
+      problemSlug = "",
+      problemTitle = "",
+      difficulty = "Medium",
       submissionId = ""
-    } = req.body;
-    const sourceCode2 = (code || pseudocode || "").trim();
-    if (!sourceCode2) {
+    } = req.body || {};
+    const sourceCode = String(code || pseudocode || "").trim();
+    if (!sourceCode) {
       return res.status(400).json({ error: "Submission code is required." });
     }
+    if (sourceCode.length > 5e4) {
+      return res.status(400).json({ error: "Submission code exceeds maximum allowed length of 50,000 characters." });
+    }
     const ai = getGeminiClient2();
-    const prompt = `You are a senior algorithmic hiring reviewer. Evaluate this algorithmic submission for "${problemTitle2 || problemSlug2}" (${difficulty2}).
+    const prompt = `You are a senior algorithmic hiring reviewer. Evaluate this algorithmic submission for "${problemTitle || problemSlug}" (${difficulty}).
 Rate the submission strictly and constructivley.
 
 SUBMISSION:
 \`\`\`
-${sourceCode2}
+${sourceCode}
 \`\`\`
 
 Return a strictly valid JSON object matching this schema:
@@ -291660,7 +291942,7 @@ Return a strictly valid JSON object matching this schema:
   "improvements": ["Guard against empty input array"],
   "interviewerFeedback": "Detailed constructive paragraph providing encouragement and senior perspective."
 }`;
-    const { text } = await generateContentWithFallback2(ai, "gemini-3.8-flash", {
+    const { text } = await generateContentWithFallback2(ai, "gemini-2.5-flash", {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -291687,31 +291969,34 @@ Return a strictly valid JSON object matching this schema:
     const {
       code = "",
       pseudocode = "",
-      problemSlug: problemSlug2 = "",
-      problemTitle: problemTitle2 = "",
-      difficulty: difficulty2 = "Medium"
+      problemSlug = "",
+      problemTitle = "",
+      difficulty = "Medium"
     } = req.body || {};
     const offlineRating = generateOfflineRating(
-      (code || pseudocode || "").trim(),
-      problemTitle2,
-      problemSlug2,
-      difficulty2
+      String(code || pseudocode || "").trim().slice(0, 5e4),
+      String(problemTitle || ""),
+      String(problemSlug || ""),
+      String(difficulty || "Medium")
     );
     return res.json(offlineRating);
   }
 });
 app.post("/api/interview-evaluate", requireAuth, aiLimiter, async (req, res) => {
   try {
-    const { question, tier, code, language, transcript, previousTiers } = req.body;
+    const { question, tier, code, language, transcript, previousTiers } = req.body || {};
     if (!question || !tier || !code) {
       return res.status(400).json({ error: "Missing required interview evaluation fields (question, tier, code)." });
+    }
+    if (typeof code === "string" && code.length > 5e4) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
     }
     const evaluation = await evaluateInterviewTier({
       question,
       tier,
-      code,
+      code: String(code).slice(0, 5e4),
       language: language || "cpp",
-      transcript,
+      transcript: typeof transcript === "string" ? transcript.slice(0, 2e4) : transcript,
       previousTiers
     });
     return res.json(evaluation);
@@ -291732,17 +292017,23 @@ app.post("/api/interview-respond", requireAuth, aiLimiter, async (req, res) => {
       interviewStage,
       coachingAction,
       hintLevel
-    } = req.body;
+    } = req.body || {};
     if (!candidateSpeech && !coachingAction) {
       return res.status(400).json({ error: "Missing candidateSpeech or coachingAction field." });
+    }
+    if (typeof code === "string" && code.length > 5e4) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
+    if (typeof candidateSpeech === "string" && candidateSpeech.length > 1e4) {
+      return res.status(400).json({ error: "Candidate speech exceeds maximum allowed length of 10,000 characters." });
     }
     const response = await generateInterviewerResponse({
       question,
       tier: tier || "bruteForce",
-      code: code || "",
+      code: String(code || "").slice(0, 5e4),
       language: language || "cpp",
-      candidateSpeech: candidateSpeech || "",
-      transcriptHistory,
+      candidateSpeech: String(candidateSpeech || "").slice(0, 1e4),
+      transcriptHistory: Array.isArray(transcriptHistory) ? transcriptHistory.slice(-50) : void 0,
       interviewStage,
       coachingAction,
       hintLevel
@@ -291755,15 +292046,21 @@ app.post("/api/interview-respond", requireAuth, aiLimiter, async (req, res) => {
 });
 app.post("/api/interview-run-tests", requireAuth, apiLimiter, async (req, res) => {
   try {
-    const { question, code, language, customInput } = req.body;
+    const { question, code, language, customInput } = req.body || {};
     if (!question) {
       return res.status(400).json({ error: "Missing question object for sample test execution." });
     }
+    if (typeof code === "string" && code.length > 5e4) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
+    if (typeof customInput === "string" && customInput.length > 2e4) {
+      return res.status(400).json({ error: "Custom input exceeds maximum allowed length of 20,000 characters." });
+    }
     const result = await runInterviewSampleTests({
       question,
-      code: code || "",
+      code: String(code || "").slice(0, 5e4),
       language: language || "cpp",
-      customInput
+      customInput: customInput ? String(customInput).slice(0, 2e4) : void 0
     });
     return res.json(result);
   } catch (error61) {
@@ -291773,20 +292070,26 @@ app.post("/api/interview-run-tests", requireAuth, apiLimiter, async (req, res) =
 });
 app.post("/api/problem-run-tests", requireAuth, apiLimiter, async (req, res) => {
   try {
-    const { slug, title, difficulty: difficulty2, topics, statement, code, language, sampleCases, customInput } = req.body || {};
+    const { slug, title, difficulty, topics, statement, code, language, sampleCases, customInput } = req.body || {};
     if (!slug && !title) {
       return res.status(400).json({ error: "Missing problem slug or title for sample test execution." });
     }
+    if (typeof code === "string" && code.length > 5e4) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
+    if (typeof customInput === "string" && customInput.length > 2e4) {
+      return res.status(400).json({ error: "Custom input exceeds maximum allowed length of 20,000 characters." });
+    }
     const result = await runProblemSampleTests({
-      slug: String(slug || "problem"),
-      title: String(title || slug || "Problem"),
-      difficulty: difficulty2 ? String(difficulty2) : "Medium",
-      topics: Array.isArray(topics) ? topics : [],
-      statement: statement ? String(statement) : void 0,
-      code: String(code || ""),
-      language: String(language || "python"),
-      sampleCases: Array.isArray(sampleCases) ? sampleCases : void 0,
-      customInput: customInput ? String(customInput) : void 0
+      slug: String(slug || "problem").slice(0, 255),
+      title: String(title || slug || "Problem").slice(0, 255),
+      difficulty: difficulty ? String(difficulty).slice(0, 32) : "Medium",
+      topics: Array.isArray(topics) ? topics.slice(0, 30) : [],
+      statement: statement ? String(statement).slice(0, 5e4) : void 0,
+      code: String(code || "").slice(0, 5e4),
+      language: String(language || "python").slice(0, 32),
+      sampleCases: Array.isArray(sampleCases) ? sampleCases.slice(0, 20) : void 0,
+      customInput: customInput ? String(customInput).slice(0, 2e4) : void 0
     });
     return res.json(result);
   } catch (error61) {
@@ -291796,18 +292099,21 @@ app.post("/api/problem-run-tests", requireAuth, apiLimiter, async (req, res) => 
 });
 app.post("/api/problem-submit", requireAuth, aiLimiter, async (req, res) => {
   try {
-    const { slug, title, difficulty: difficulty2, topics, statement, code, language, preverifiedRunResult } = req.body || {};
+    const { slug, title, difficulty, topics, statement, code, language, preverifiedRunResult } = req.body || {};
     if (!slug && !title) {
       return res.status(400).json({ error: "Missing problem slug or title for submission judge." });
     }
+    if (typeof code === "string" && code.length > 5e4) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
     const result = await submitProblemSolution({
-      slug: String(slug || "problem"),
-      title: String(title || slug || "Problem"),
-      difficulty: difficulty2 ? String(difficulty2) : "Medium",
-      topics: Array.isArray(topics) ? topics : [],
-      statement: statement ? String(statement) : void 0,
-      code: String(code || ""),
-      language: String(language || "python"),
+      slug: String(slug || "problem").slice(0, 255),
+      title: String(title || slug || "Problem").slice(0, 255),
+      difficulty: difficulty ? String(difficulty).slice(0, 32) : "Medium",
+      topics: Array.isArray(topics) ? topics.slice(0, 30) : [],
+      statement: statement ? String(statement).slice(0, 5e4) : void 0,
+      code: String(code || "").slice(0, 5e4),
+      language: String(language || "python").slice(0, 32),
       preverifiedRunResult: preverifiedRunResult && typeof preverifiedRunResult === "object" ? preverifiedRunResult : void 0
     });
     return res.json(result);
@@ -292504,7 +292810,8 @@ app.get("/api/github/callback", async (req, res) => {
         client_secret: clientSecret,
         code,
         ...redirectUri ? { redirect_uri: redirectUri } : {}
-      })
+      }),
+      signal: AbortSignal.timeout(1e4)
     });
     const tokenData = await tokenRes.json();
     if (tokenData.error) {
@@ -292525,7 +292832,8 @@ app.get("/api/github/callback", async (req, res) => {
           "User-Agent": "DSA-viz-App",
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28"
-        }
+        },
+        signal: AbortSignal.timeout(1e4)
       });
       if (userRes.ok) {
         const ghUser = await userRes.json();
@@ -292820,7 +293128,8 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
       "X-GitHub-Api-Version": "2022-11-28"
     };
     const userRes = await fetch("https://api.github.com/user", {
-      headers: githubHeaders
+      headers: githubHeaders,
+      signal: AbortSignal.timeout(1e4)
     });
     const userData = await userRes.json().catch(() => ({}));
     if (!userRes.ok) {
@@ -292865,7 +293174,8 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
       });
     }
     let repoRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
-      headers: githubHeaders
+      headers: githubHeaders,
+      signal: AbortSignal.timeout(1e4)
     });
     let defaultBranch = "main";
     if (repoRes.status === 404) {
@@ -292877,7 +293187,8 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
           description: "My LeetCode & DSA solutions synced automatically with DSA.viz.co",
           private: false,
           auto_init: true
-        })
+        }),
+        signal: AbortSignal.timeout(15e3)
       });
       if (!createRes.ok) {
         const repoErr = await createRes.json().catch(() => ({}));
@@ -292903,7 +293214,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
       const query = branchName ? `?ref=${encodeURIComponent(branchName)}` : "";
       const fileRes = await fetch(
         `https://api.github.com/repos/${owner}/${repoName}/contents/${path9}${query}`,
-        { headers: githubHeaders }
+        { headers: githubHeaders, signal: AbortSignal.timeout(1e4) }
       );
       if (fileRes.ok) {
         const fileData = await fileRes.json().catch(() => null);
@@ -292922,7 +293233,8 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
           content,
           ...targetSha ? { sha: targetSha } : {},
           ...includeBranch && defaultBranch ? { branch: defaultBranch } : {}
-        })
+        }),
+        signal: AbortSignal.timeout(15e3)
       });
     };
     let pushRes = await putFile(sha, true);

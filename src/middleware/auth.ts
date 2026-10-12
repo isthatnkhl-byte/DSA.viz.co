@@ -54,6 +54,37 @@ function verifyRs256Signature(
   }
 }
 
+const MAX_VERIFIED_TOKEN_CACHE = 500;
+const verifiedTokenCache = new Map<string, { decoded: DecodedIdToken; expiresAt: number }>();
+
+function getCachedVerifiedToken(tokenHash: string): DecodedIdToken | null {
+  const entry = verifiedTokenCache.get(tokenHash);
+  if (!entry) return null;
+  if (entry.expiresAt > Date.now()) {
+    return entry.decoded;
+  }
+  verifiedTokenCache.delete(tokenHash);
+  return null;
+}
+
+function setCachedVerifiedToken(tokenHash: string, decoded: DecodedIdToken): void {
+  const now = Date.now();
+  const expMs = typeof decoded.exp === 'number' ? decoded.exp * 1000 : now + 60_000;
+  const expiresAt = Math.min(expMs, now + 60_000);
+  if (expiresAt <= now) return;
+
+  if (verifiedTokenCache.size >= MAX_VERIFIED_TOKEN_CACHE) {
+    for (const [k, v] of verifiedTokenCache.entries()) {
+      if (v.expiresAt <= now) verifiedTokenCache.delete(k);
+    }
+    if (verifiedTokenCache.size >= MAX_VERIFIED_TOKEN_CACHE) {
+      const oldestKey = verifiedTokenCache.keys().next().value;
+      if (oldestKey) verifiedTokenCache.delete(oldestKey);
+    }
+  }
+  verifiedTokenCache.set(tokenHash, { decoded, expiresAt });
+}
+
 export async function verifyFirebaseIdTokenCryptographically(
   token: string
 ): Promise<DecodedIdToken | null> {
@@ -61,10 +92,17 @@ export async function verifyFirebaseIdTokenCryptographically(
     return null;
   }
 
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const cached = getCachedVerifiedToken(tokenHash);
+  if (cached) {
+    return cached;
+  }
+
   if (isAdminDbAvailable()) {
     try {
       const decodedToken = await adminAuth.verifyIdToken(token, true);
       if (decodedToken && decodedToken.uid) {
+        setCachedVerifiedToken(tokenHash, decodedToken);
         return decodedToken;
       }
     } catch {
@@ -121,13 +159,15 @@ export async function verifyFirebaseIdTokenCryptographically(
           return null;
         }
 
-        return {
+        const decoded = {
           uid,
           email: payload.email,
           name: payload.name,
           picture: payload.picture,
           ...payload,
         } as unknown as DecodedIdToken;
+        setCachedVerifiedToken(tokenHash, decoded);
+        return decoded;
       }
     }
   } catch {
@@ -152,12 +192,17 @@ export const requireAuth = async (
     return res.status(401).json({ error: 'Unauthorized: Valid Google OAuth token required' });
   }
 
+  if (req.user?.uid && (req as any)._verifiedBearerToken === token) {
+    return next();
+  }
+
   const decoded = await verifyFirebaseIdTokenCryptographically(token);
   if (!decoded || !decoded.uid) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or expired Google OAuth token' });
   }
 
   req.user = decoded;
+  (req as any)._verifiedBearerToken = token;
   return next();
 };
 

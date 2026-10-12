@@ -10,16 +10,16 @@ const GEMINI_API_BASE_URL = (
   env["GEMINI_API_BASE_URL"] || "https://generativelanguage.googleapis.com/v1beta"
 ).replace(/\/+$/, "");
 
-const DEFAULT_GEMINI_MODEL = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-2.5-flash";
-const API_TIMEOUT_MS = Number(env["AI_TIMEOUT_MS"]) || 120000;
+const rawDefaultGeminiModel = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-2.5-flash";
+const DEFAULT_GEMINI_MODEL = /^gemini-3\./i.test(rawDefaultGeminiModel)
+  ? "gemini-2.5-flash"
+  : rawDefaultGeminiModel;
+const API_TIMEOUT_MS = Number(env["AI_TIMEOUT_MS"]) || 25000;
 
 /** Supported review models prioritized by speed, availability, and capability. */
 export const REVIEW_MODELS = Array.from(
   new Set([
     DEFAULT_GEMINI_MODEL,
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
@@ -39,9 +39,6 @@ export const REVIEW_MODELS = Array.from(
 export const VIZ_MODELS = Array.from(
   new Set([
     DEFAULT_GEMINI_MODEL,
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
@@ -332,6 +329,7 @@ export async function callGeminiModel(model: string, key: string, system: string
         headers: {
           "User-Agent": "aistudio-build",
         },
+        timeout: API_TIMEOUT_MS,
       },
     });
     const resp = await ai.models.generateContent({
@@ -345,8 +343,24 @@ export async function callGeminiModel(model: string, key: string, system: string
     });
     const parsed = extractJson(resp.text || "");
     if (parsed) return parsed;
-  } catch {
-    // Fall through to direct REST fetch below
+  } catch (sdkErr: any) {
+    const msg = String(sdkErr?.message || sdkErr || "");
+    const status = Number(sdkErr?.status || sdkErr?.code || 0);
+    if (
+      msg.includes("API_KEY_INVALID") ||
+      msg.toLowerCase().includes("api key not valid") ||
+      status === 401 ||
+      status === 403
+    ) {
+      throw new Error(describe(401, model, "Gemini"));
+    }
+    if (status === 429 || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("429")) {
+      throw new Error(describe(429, model, "Gemini"));
+    }
+    if (status === 404 || msg.includes("NOT_FOUND") || msg.includes("is not found")) {
+      throw new Error(describe(404, model, "Gemini"));
+    }
+    // Otherwise fall through to direct REST fetch below
   }
 
   const controller = new AbortController();
@@ -375,6 +389,13 @@ export async function callGeminiModel(model: string, key: string, system: string
     });
 
     if (!res.ok && res.status === 400) {
+      const errBody = await res.text().catch(() => "");
+      if (
+        errBody.includes("API_KEY_INVALID") ||
+        errBody.toLowerCase().includes("api key not valid")
+      ) {
+        throw new Error(describe(401, model, "Gemini"));
+      }
       res = await fetch(url, {
         method: "POST",
         headers: geminiHeaders,
@@ -589,7 +610,13 @@ export async function queryModelWithFallbacks(
       error = `${candidate.model} returned an unusable response.`;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
-      if (error.includes("(401)") || error.includes("(403)") || error.includes("(429)")) {
+      if (
+        error.includes("(401)") ||
+        error.includes("(403)") ||
+        error.includes("(429)") ||
+        error.includes("API_KEY_INVALID") ||
+        error.toLowerCase().includes("api key not valid")
+      ) {
         // If the API key is unauthorized or out of credits, don't keep trying other models on the same provider
         failedProviders.add(candidate.provider);
       }

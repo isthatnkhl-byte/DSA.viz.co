@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Search,
@@ -81,10 +82,13 @@ export function QuickSearchModal({ isOpen, onClose }: QuickSearchModalProps) {
       .slice(0, 12);
   }, [query]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-6 md:p-10">
+  return createPortal(
+    <div
+      data-modal-overlay="true"
+      className="fixed inset-0 z-[100] flex items-start justify-center p-3 sm:p-6 md:p-10"
+    >
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in"
@@ -268,6 +272,7 @@ export function QuickSearchModal({ isOpen, onClose }: QuickSearchModalProps) {
           </Link>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

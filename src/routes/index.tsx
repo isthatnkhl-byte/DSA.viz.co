@@ -94,8 +94,22 @@ export function LandingPage() {
     document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
 
+    const shouldBypassIntroGesture = (target: EventTarget | null) => {
+      if (document.querySelector('[data-modal-overlay="true"]')) return true;
+      if (target instanceof Element) {
+        if (
+          target.closest(
+            'header, [data-modal-overlay="true"], input, textarea, select, [contenteditable="true"]'
+          )
+        ) {
+          return true;
+        }
+      }
+      return false;
+    };
+
     const handleWheel = (e: WheelEvent) => {
-      if (scrollUnlocked) return;
+      if (scrollUnlocked || shouldBypassIntroGesture(e.target)) return;
       e.preventDefault();
       const rawDelta = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY;
       const clampedDelta = Math.max(-110, Math.min(110, rawDelta));
@@ -105,12 +119,22 @@ export function LandingPage() {
     };
 
     const handleTouchStart = (e: TouchEvent) => {
-      if (scrollUnlocked || !e.touches[0]) return;
+      if (scrollUnlocked || !e.touches[0] || shouldBypassIntroGesture(e.target)) {
+        touchStartYRef.current = null;
+        return;
+      }
       touchStartYRef.current = e.touches[0].clientY;
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (scrollUnlocked || !e.touches[0] || touchStartYRef.current === null) return;
+      if (
+        scrollUnlocked ||
+        !e.touches[0] ||
+        touchStartYRef.current === null ||
+        shouldBypassIntroGesture(e.target)
+      ) {
+        return;
+      }
       e.preventDefault();
       const currentY = e.touches[0].clientY;
       const deltaY = touchStartYRef.current - currentY;
@@ -122,7 +146,7 @@ export function LandingPage() {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (scrollUnlocked) return;
+      if (scrollUnlocked || shouldBypassIntroGesture(e.target)) return;
       if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") {
         e.preventDefault();
         const cur = targetProgress.get();
@@ -179,7 +203,16 @@ export function LandingPage() {
 
     const anchor = target.closest("a") as HTMLAnchorElement | null;
     const href = anchor?.getAttribute("href") || "";
-    if (href === "#main-content") return;
+    if (
+      href === "#main-content" ||
+      href === "/" ||
+      href === "/auth" ||
+      href === "/terms" ||
+      href === "/privacy" ||
+      href === "/cookies"
+    ) {
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
@@ -212,16 +245,13 @@ export function LandingPage() {
         initial={false}
         animate={{
           opacity: isNavbarAndHeroVisible ? 1 : 0,
-          y: isNavbarAndHeroVisible ? 0 : -12,
         }}
         transition={{
           duration: 0.34,
           delay: isNavbarAndHeroVisible ? 0 : 0.06,
           ease: [0.22, 1, 0.36, 1],
         }}
-        className={`sticky top-0 w-full will-change-transform ${
-          scrollUnlocked ? "z-40" : "z-30"
-        } ${
+        className={`sticky top-0 w-full z-50 ${
           isNavbarAndHeroVisible ? "pointer-events-auto" : "pointer-events-none"
         }`}
       >

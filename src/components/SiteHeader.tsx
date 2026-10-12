@@ -1,4 +1,5 @@
 import { useState, useEffect, useId } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Terminal,
@@ -61,15 +62,13 @@ export function SiteHeader({ hideBrandLogo = false }: SiteHeaderProps = {}) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navDrawerOpen, searchModalOpen, user, navigate]);
 
-  // Prevent background scroll when navigation drawer is open
+  // Prevent background scroll when navigation drawer is open without clobbering landing page scroll lock
   useEffect(() => {
-    if (navDrawerOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (!navDrawerOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = prevOverflow;
     };
   }, [navDrawerOpen]);
 
@@ -187,7 +186,7 @@ export function SiteHeader({ hideBrandLogo = false }: SiteHeaderProps = {}) {
             </nav>
 
             {/* Right: Quick Search, Theme Picker, Account & Menu Button */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0" data-allow-guest="true">
               {/* 1. Quick Search Button */}
               <button
                 type="button"
@@ -199,7 +198,7 @@ export function SiteHeader({ hideBrandLogo = false }: SiteHeaderProps = {}) {
                   }
                   setSearchModalOpen(true);
                 }}
-                className="flex size-9 items-center justify-center rounded-none border border-[#625B52] bg-[#2C2724] text-[#EAE6DF] hover:border-primary hover:text-white transition-all shrink-0"
+                className="flex size-9 items-center justify-center rounded-none border border-[#625B52] bg-[#2C2724] text-[#EAE6DF] hover:border-primary hover:text-white transition-all shrink-0 cursor-pointer"
                 aria-label="Search problems and sheets (⌘K)"
                 title="Search (⌘K)"
               >
@@ -336,320 +335,329 @@ export function SiteHeader({ hideBrandLogo = false }: SiteHeaderProps = {}) {
         onClose={() => setSearchModalOpen(false)}
       />
 
-      {/* Cozy, Well-Proportioned Navigation Drawer Panel Overlay */}
-      {navDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Backdrop Dimmer */}
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 animate-in fade-in"
-            onClick={() => setNavDrawerOpen(false)}
-            aria-hidden="true"
-          />
+      {/* Cozy, Well-Proportioned Navigation Drawer Panel Overlay — Portaled to document.body */}
+      {navDrawerOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              data-modal-overlay="true"
+              className="fixed inset-0 z-[100] flex justify-end"
+            >
+              {/* Backdrop Dimmer */}
+              <div
+                data-allow-guest="true"
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 animate-in fade-in"
+                onClick={() => setNavDrawerOpen(false)}
+                aria-hidden="true"
+              />
 
-          {/* Sized Comfortably for Both Android Phone and Laptop */}
-          <aside
-            role="dialog"
-            aria-modal="true"
-            aria-label="Navigation Menu"
-            className="relative z-10 flex h-full w-full max-w-md sm:max-w-lg flex-col justify-between border-l border-border/80 bg-background/95 p-5 sm:p-7 shadow-2xl backdrop-blur-2xl overflow-y-auto animate-in slide-in-from-right duration-250"
-          >
-            {/* Drawer Header: Title & Close Button */}
-            <div>
-              <div className="flex items-center justify-between border-b border-border/70 pb-4 mb-4">
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className="flex size-8.5 items-center justify-center rounded-xl shadow-xs text-primary-foreground"
-                    style={{ backgroundImage: "var(--gradient-primary)" }}
-                  >
-                    <Terminal className="size-4.5" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-black tracking-tight text-foreground font-display">
-                      DSA<span className="gradient-text">.viz</span>
-                    </h2>
-                    <p className="font-mono text-[11px] text-muted-foreground">
-                      1,500+ Algorithms & Interactive Visualizers
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setNavDrawerOpen(false)}
-                  className="flex size-9 items-center justify-center rounded-xl border border-border/70 bg-secondary/80 text-muted-foreground hover:border-primary/50 hover:bg-secondary hover:text-foreground active:scale-95 transition-all shadow-xs cursor-pointer"
-                  aria-label="Close menu"
-                >
-                  <X className="size-4.5" />
-                </button>
-              </div>
-
-              {/* Quick Search Shortcut inside Drawer */}
-              <div className="mb-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNavDrawerOpen(false);
-                    if (!user) {
-                      toast.info("Sign in with Google to search problems and roadmaps.");
-                      navigate({ to: "/auth" });
-                      return;
-                    }
-                    setSearchModalOpen(true);
-                  }}
-                  className="w-full flex items-center justify-between rounded-xl border border-border/80 bg-card/80 px-3.5 py-2.5 font-mono text-xs text-muted-foreground hover:border-primary/50 hover:bg-secondary transition-all text-left shadow-xs"
-                >
-                  <span className="flex items-center gap-2">
-                    <Search className="size-3.5 text-primary" />
-                    <span>Search 1,500+ problems, roadmaps...</span>
-                  </span>
-                  <kbd className="rounded bg-background/90 border border-border/70 px-1.5 py-0.5 text-[9px]">
-                    ⌘K
-                  </kbd>
-                </button>
-              </div>
-
-              {/* Navigation Links Group */}
-              <div className="space-y-5">
-                {/* Core Tools */}
+              {/* Sized Comfortably for Both Android Phone and Laptop */}
+              <aside
+                role="dialog"
+                aria-modal="true"
+                aria-label="Navigation Menu"
+                className="relative z-10 flex h-full w-full max-w-md sm:max-w-lg flex-col justify-between border-l border-border/80 bg-background/95 p-5 sm:p-7 shadow-2xl backdrop-blur-2xl overflow-y-auto animate-in slide-in-from-right duration-250"
+              >
+                {/* Drawer Header: Title & Close Button */}
                 <div>
-                  <span className="block px-1 pb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Core Learning Platforms
-                  </span>
-                  <div className="space-y-1.5">
-                    <Link
-                      to="/problems"
-                      onClick={() => setNavDrawerOpen(false)}
-                      activeProps={{
-                        className: "border-primary/50 bg-primary/10",
-                      }}
-                      className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-primary/40 hover:bg-secondary transition-all"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-                          <Layers className="size-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
-                            Problem Catalog
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            1,500+ curated problems by pattern & company
-                          </div>
-                        </div>
+                  <div className="flex items-center justify-between border-b border-border/70 pb-4 mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="flex size-8.5 items-center justify-center rounded-xl shadow-xs text-primary-foreground"
+                        style={{ backgroundImage: "var(--gradient-primary)" }}
+                      >
+                        <Terminal className="size-4.5" />
                       </div>
-                      <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
-                    </Link>
+                      <div>
+                        <h2 className="text-base font-black tracking-tight text-foreground font-display">
+                          DSA<span className="gradient-text">.viz</span>
+                        </h2>
+                        <p className="font-mono text-[11px] text-muted-foreground">
+                          1,500+ Algorithms & Interactive Visualizers
+                        </p>
+                      </div>
+                    </div>
 
-                    <Link
-                      to={"/sheets" as any}
+                    <button
+                      type="button"
+                      data-allow-guest="true"
                       onClick={() => setNavDrawerOpen(false)}
-                      activeProps={{
-                        className: "border-primary/50 bg-primary/10",
-                      }}
-                      className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-primary/40 hover:bg-secondary transition-all"
+                      className="flex size-9 items-center justify-center rounded-xl border border-border/70 bg-secondary/80 text-muted-foreground hover:border-primary/50 hover:bg-secondary hover:text-foreground active:scale-95 transition-all shadow-xs cursor-pointer"
+                      aria-label="Close menu"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-                          <BookOpen className="size-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
-                            Curated DSA Sheets
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            NeetCode 150, Striver SDE, Blind 75, Grind 75
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
-                    </Link>
+                      <X className="size-4.5" />
+                    </button>
+                  </div>
 
-                    <Link
-                      to="/playground"
-                      onClick={() => setNavDrawerOpen(false)}
-                      activeProps={{
-                        className: "border-primary/50 bg-primary/10",
+                  {/* Quick Search Shortcut inside Drawer */}
+                  <div className="mb-5">
+                    <button
+                      type="button"
+                      data-allow-guest="true"
+                      onClick={() => {
+                        setNavDrawerOpen(false);
+                        if (!user) {
+                          toast.info("Sign in with Google to search problems and roadmaps.");
+                          navigate({ to: "/auth" });
+                          return;
+                        }
+                        setSearchModalOpen(true);
                       }}
-                      className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-primary/40 hover:bg-secondary transition-all"
+                      className="w-full flex items-center justify-between rounded-xl border border-border/80 bg-card/80 px-3.5 py-2.5 font-mono text-xs text-muted-foreground hover:border-primary/50 hover:bg-secondary transition-all text-left shadow-xs cursor-pointer"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-                          <Sparkles className="size-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
-                            Interactive Visualizer
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            Step-by-step array pointers, recursion & call stack
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
-                    </Link>
+                      <span className="flex items-center gap-2">
+                        <Search className="size-3.5 text-primary" />
+                        <span>Search 1,500+ problems, roadmaps...</span>
+                      </span>
+                      <kbd className="rounded bg-background/90 border border-border/70 px-1.5 py-0.5 text-[9px]">
+                        ⌘K
+                      </kbd>
+                    </button>
+                  </div>
 
-                    <Link
-                      to="/compiler"
-                      onClick={() => setNavDrawerOpen(false)}
-                      activeProps={{
-                        className: "border-emerald-500/50 bg-emerald-950/20",
-                      }}
-                      className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-emerald-500/40 hover:bg-secondary transition-all"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
-                          <Code2 className="size-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-foreground group-hover:text-emerald-400 transition-colors">
-                            C++ Online Sandbox
+                  {/* Navigation Links Group */}
+                  <div className="space-y-5">
+                    {/* Core Tools */}
+                    <div>
+                      <span className="block px-1 pb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Core Learning Platforms
+                      </span>
+                      <div className="space-y-1.5">
+                        <Link
+                          to="/problems"
+                          onClick={() => setNavDrawerOpen(false)}
+                          activeProps={{
+                            className: "border-primary/50 bg-primary/10",
+                          }}
+                          className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-primary/40 hover:bg-secondary transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                              <Layers className="size-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+                                Problem Catalog
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                1,500+ curated problems by pattern & company
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            In-browser C++20 compiler with standard library
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-emerald-400 transition-colors" />
-                    </Link>
+                          <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                        </Link>
 
-                    <Link
-                      to={"/live-interview" as any}
-                      onClick={() => setNavDrawerOpen(false)}
-                      activeProps={{
-                        className: "border-rose-500/50 bg-rose-950/20",
-                      }}
-                      className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-rose-500/40 hover:bg-secondary transition-all"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-rose-500/15 text-rose-400">
-                          <Video className="size-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-foreground group-hover:text-rose-400 transition-colors">
-                            Live Interview Simulator
+                        <Link
+                          to={"/sheets" as any}
+                          onClick={() => setNavDrawerOpen(false)}
+                          activeProps={{
+                            className: "border-primary/50 bg-primary/10",
+                          }}
+                          className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-primary/40 hover:bg-secondary transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                              <BookOpen className="size-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+                                Curated DSA Sheets
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                NeetCode 150, Striver SDE, Blind 75, Grind 75
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            Spoken AI proctor with real-time feedback
+                          <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                        </Link>
+
+                        <Link
+                          to="/playground"
+                          onClick={() => setNavDrawerOpen(false)}
+                          activeProps={{
+                            className: "border-primary/50 bg-primary/10",
+                          }}
+                          className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-primary/40 hover:bg-secondary transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                              <Sparkles className="size-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+                                Interactive Visualizer
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                Step-by-step array pointers, recursion & call stack
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                          <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                        </Link>
+
+                        <Link
+                          to="/compiler"
+                          onClick={() => setNavDrawerOpen(false)}
+                          activeProps={{
+                            className: "border-emerald-500/50 bg-emerald-950/20",
+                          }}
+                          className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-emerald-500/40 hover:bg-secondary transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
+                              <Code2 className="size-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-foreground group-hover:text-emerald-400 transition-colors">
+                                C++ Online Sandbox
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                In-browser C++20 compiler with standard library
+                              </div>
+                            </div>
+                          </div>
+                          <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-emerald-400 transition-colors" />
+                        </Link>
+
+                        <Link
+                          to={"/live-interview" as any}
+                          onClick={() => setNavDrawerOpen(false)}
+                          activeProps={{
+                            className: "border-rose-500/50 bg-rose-950/20",
+                          }}
+                          className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-rose-500/40 hover:bg-secondary transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-rose-500/15 text-rose-400">
+                              <Video className="size-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-foreground group-hover:text-rose-400 transition-colors">
+                                Live Interview Simulator
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                Spoken AI proctor with real-time feedback
+                              </div>
+                            </div>
+                          </div>
+                          <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-rose-400 transition-colors" />
+                        </Link>
                       </div>
-                      <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-rose-400 transition-colors" />
-                    </Link>
+                    </div>
+
+                    {/* Progress & Account */}
+                    <div>
+                      <span className="block px-1 pb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Personal Learning &amp; Telemetry
+                      </span>
+                      <Link
+                        to="/profile"
+                        onClick={() => setNavDrawerOpen(false)}
+                        className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-3 hover:border-primary/40 hover:bg-secondary transition-all"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                            <UserIcon className="size-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors truncate">
+                              Profile &amp; Telemetry Hub
+                            </div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              Submissions, Topic Radar, Heatmaps, AI Reports &amp; BYOK Vault
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors shrink-0" />
+                      </Link>
+                    </div>
+
+                    {/* Legal & Privacy Compliance */}
+                    <div className="pt-1" data-allow-guest="true">
+                      <span className="block px-1 pb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Legal &amp; Privacy
+                      </span>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1 font-mono text-xs text-muted-foreground">
+                        <Link
+                          to="/terms"
+                          onClick={() => setNavDrawerOpen(false)}
+                          className="hover:text-primary transition-colors"
+                        >
+                          Terms of Service
+                        </Link>
+                        <span>•</span>
+                        <Link
+                          to="/privacy"
+                          onClick={() => setNavDrawerOpen(false)}
+                          className="hover:text-primary transition-colors"
+                        >
+                          Privacy Policy
+                        </Link>
+                        <span>•</span>
+                        <Link
+                          to="/cookies"
+                          onClick={() => setNavDrawerOpen(false)}
+                          className="hover:text-primary transition-colors"
+                        >
+                          Cookie Policy
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Progress & Account */}
-                <div>
-                  <span className="block px-1 pb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Personal Learning &amp; Telemetry
-                  </span>
-                  <Link
-                    to="/profile"
-                    onClick={() => setNavDrawerOpen(false)}
-                    className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-3 hover:border-primary/40 hover:bg-secondary transition-all"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-                        <UserIcon className="size-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors truncate">
-                          Profile &amp; Telemetry Hub
+                {/* Bottom Footer in Drawer */}
+                <div className="pt-4 border-t border-border/70 mt-6 space-y-3" data-allow-guest="true">
+                  {user ? (
+                    <div className="flex items-center justify-between gap-3 bg-secondary/40 rounded-xl p-2.5 border border-border/50">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="size-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-mono font-bold text-xs shrink-0">
+                          {user.displayName ? user.displayName.slice(0, 2).toUpperCase() : "U"}
                         </div>
-                        <div className="text-[10px] text-muted-foreground truncate">
-                          Submissions, Topic Radar, Heatmaps, AI Reports &amp; BYOK Vault
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-foreground truncate">
+                            {user.displayName || "User"}
+                          </div>
+                          <div className="text-[10px] font-mono text-muted-foreground truncate">
+                            {user.email || "Signed in"}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors shrink-0" />
-                  </Link>
-                </div>
 
-                {/* Legal & Privacy Compliance */}
-                <div className="pt-1">
-                  <span className="block px-1 pb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Legal &amp; Privacy
-                  </span>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1 font-mono text-xs text-muted-foreground">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setNavDrawerOpen(false);
+                          signOut();
+                        }}
+                        className="h-7.5 rounded-lg px-2.5 font-mono text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive border-border/70 shrink-0"
+                      >
+                        <LogOut className="size-3 mr-1" />
+                        Sign Out
+                      </Button>
+                    </div>
+                  ) : (
                     <Link
-                      to="/terms"
+                      to="/auth"
                       onClick={() => setNavDrawerOpen(false)}
-                      className="hover:text-primary transition-colors"
+                      className="block"
                     >
-                      Terms of Service
+                      <Button className="w-full h-10 rounded-xl font-sans text-xs sm:text-sm font-bold tracking-wide shadow-xs btn-moving-theme-gradient text-white">
+                        Sign In or Create Account
+                      </Button>
                     </Link>
-                    <span>•</span>
-                    <Link
-                      to="/privacy"
-                      onClick={() => setNavDrawerOpen(false)}
-                      className="hover:text-primary transition-colors"
-                    >
-                      Privacy Policy
-                    </Link>
-                    <span>•</span>
-                    <Link
-                      to="/cookies"
-                      onClick={() => setNavDrawerOpen(false)}
-                      className="hover:text-primary transition-colors"
-                    >
-                      Cookie Policy
-                    </Link>
+                  )}
+
+                  <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground px-1">
+                    <span>Press Esc to close</span>
+                    <span>DSA.viz</span>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Bottom Footer in Drawer */}
-            <div className="pt-4 border-t border-border/70 mt-6 space-y-3">
-              {user ? (
-                <div className="flex items-center justify-between gap-3 bg-secondary/40 rounded-xl p-2.5 border border-border/50">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="size-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-mono font-bold text-xs shrink-0">
-                      {user.displayName ? user.displayName.slice(0, 2).toUpperCase() : "U"}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-foreground truncate">
-                        {user.displayName || "User"}
-                      </div>
-                      <div className="text-[10px] font-mono text-muted-foreground truncate">
-                        {user.email || "Signed in"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setNavDrawerOpen(false);
-                      signOut();
-                    }}
-                    className="h-7.5 rounded-lg px-2.5 font-mono text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive border-border/70 shrink-0"
-                  >
-                    <LogOut className="size-3 mr-1" />
-                    Sign Out
-                  </Button>
-                </div>
-              ) : (
-                <Link
-                  to="/auth"
-                  onClick={() => setNavDrawerOpen(false)}
-                  className="block"
-                >
-                  <Button className="w-full h-10 rounded-xl font-sans text-xs sm:text-sm font-bold tracking-wide shadow-xs btn-moving-theme-gradient text-white">
-                    Sign In or Create Account
-                  </Button>
-                </Link>
-              )}
-
-              <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground px-1">
-                <span>Press Esc to close</span>
-                <span>DSA.viz</span>
-              </div>
-            </div>
-          </aside>
-        </div>
-      )}
+              </aside>
+            </div>,
+            document.body
+          )
+        : null}
     </>
   );
 }

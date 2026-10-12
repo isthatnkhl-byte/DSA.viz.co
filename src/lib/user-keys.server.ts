@@ -54,14 +54,40 @@ const DATA_DIR = process.env.VERCEL
 const VAULT_FILE = path.join(DATA_DIR, "user_keys_vault.json");
 const MAX_VAULT_RECORDS = 5000;
 const memoryVaultStore = new Map<string, UserVaultRecord>();
+const MAX_EMPTY_VAULT_CACHE = 2000;
+const EMPTY_VAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const checkedEmptyVaultOwners = new Map<string, number>();
 const requestKeyStorage = new AsyncLocalStorage<RequestUserKeys>();
 
 function setMemoryVaultRecord(key: string, record: UserVaultRecord): void {
+  checkedEmptyVaultOwners.delete(key);
   if (!memoryVaultStore.has(key) && memoryVaultStore.size >= MAX_VAULT_RECORDS) {
     const oldestKey = memoryVaultStore.keys().next().value;
     if (oldestKey) memoryVaultStore.delete(oldestKey);
   }
   memoryVaultStore.set(key, record);
+}
+
+function markOwnerVaultEmpty(ownerId: string): void {
+  const now = Date.now();
+  if (checkedEmptyVaultOwners.size >= MAX_EMPTY_VAULT_CACHE) {
+    for (const [k, exp] of checkedEmptyVaultOwners.entries()) {
+      if (exp <= now) checkedEmptyVaultOwners.delete(k);
+    }
+    if (checkedEmptyVaultOwners.size >= MAX_EMPTY_VAULT_CACHE) {
+      const oldest = checkedEmptyVaultOwners.keys().next().value;
+      if (oldest) checkedEmptyVaultOwners.delete(oldest);
+    }
+  }
+  checkedEmptyVaultOwners.set(ownerId, now + EMPTY_VAULT_TTL_MS);
+}
+
+function isOwnerKnownEmpty(ownerId: string): boolean {
+  const exp = checkedEmptyVaultOwners.get(ownerId);
+  if (!exp) return false;
+  if (exp > Date.now()) return true;
+  checkedEmptyVaultOwners.delete(ownerId);
+  return false;
 }
 
 // Load encrypted vault from disk on startup
@@ -357,8 +383,18 @@ export async function extractVerifiedUidFromRequest(req: Request): Promise<strin
   const token = extractBearerToken(req);
   if (!token) return null;
 
+  const anyReq = req as any;
+  if (anyReq.user?.uid && anyReq._verifiedBearerToken === token) {
+    return anyReq.user.uid;
+  }
+
   const decoded = await verifyFirebaseIdTokenCryptographically(token);
-  return decoded?.uid || null;
+  if (decoded?.uid) {
+    anyReq.user = decoded;
+    anyReq._verifiedBearerToken = token;
+    return decoded.uid;
+  }
+  return null;
 }
 
 /**
@@ -562,6 +598,10 @@ async function getVaultRecord(
     return local;
   }
 
+  if (isOwnerKnownEmpty(ownerId)) {
+    return local || null;
+  }
+
   // 1. Try Firebase Firestore REST API with user's Google OAuth Bearer token (works on Vercel!)
   if (uid && ownerId === `uid:${uid}` && bearerToken) {
     const restRecord = await fetchVaultFromFirestoreRest(uid, bearerToken);
@@ -583,6 +623,7 @@ async function getVaultRecord(
     }
   }
 
+  markOwnerVaultEmpty(ownerId);
   return local || null;
 }
 
@@ -771,11 +812,10 @@ export async function verifyUserApiKeyLive(
         headers: {
           "User-Agent": "aistudio-build",
         },
+        timeout: 8000,
       },
     });
     const candidateModels = [
-      "gemini-3.8-flash",
-      "gemini-3.6-flash",
       "gemini-2.5-flash",
       "gemini-2.0-flash",
       "gemini-flash-latest",
@@ -794,7 +834,12 @@ export async function verifyUserApiKeyLive(
       } catch (err: any) {
         const msg = err?.message || String(err);
         lastErr = msg;
-        if (msg.includes("API_KEY_INVALID") || msg.includes("401") || msg.includes("403")) {
+        if (
+          msg.includes("API_KEY_INVALID") ||
+          msg.toLowerCase().includes("api key not valid") ||
+          msg.includes("401") ||
+          msg.includes("403")
+        ) {
           break;
         }
       }
@@ -810,6 +855,7 @@ export async function verifyUserApiKeyLive(
       const res = await fetch("https://api.openai.com/v1/models", {
         method: "GET",
         headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(8000),
       });
       if (res.ok) {
         return { valid: true, verifiedModel: "gpt-4o-mini" };
@@ -828,6 +874,7 @@ export async function verifyUserApiKeyLive(
       const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
         method: "GET",
         headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(8000),
       });
       if (res.ok) {
         return { valid: true, verifiedModel: "openrouter/auto" };

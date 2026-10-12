@@ -310,6 +310,7 @@ async function fetchUserProfileFromFirestoreRest(
     const res = await fetch(docUrl, {
       method: "GET",
       headers: { Authorization: `Bearer ${bearerToken}` },
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as any;
@@ -341,6 +342,7 @@ async function fetchUserCollectionFromFirestoreRest(
     const res = await fetch(colUrl, {
       method: "GET",
       headers: { Authorization: `Bearer ${bearerToken}` },
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as any;
@@ -448,6 +450,7 @@ async function saveGithubProfileToFirestoreRest(
           updatedAt: { stringValue: new Date().toISOString() },
         },
       }),
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     // Non-blocking Firestore REST write
@@ -485,26 +488,46 @@ app.use((req, _res, next) => {
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
+// Composite Rate-Limiter Key Generator (isolates authenticated users behind shared Campus/Corporate NATs)
+function rateLimitKeyGenerator(req: Request): string {
+  const anyReq = req as any;
+  if (anyReq.user?.uid) {
+    return `uid:${anyReq.user.uid}`;
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token.length > 32) {
+      const tokenDigest = crypto.createHash("sha256").update(token).digest("hex").slice(0, 16);
+      return `tok:${tokenDigest}:${req.ip || "unknown"}`;
+    }
+  }
+  return `ip:${req.ip || "unknown"}`;
+}
+
 // Rate Limiters
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 100,
+  keyGenerator: rateLimitKeyGenerator,
   message: { error: "Too many requests, please try again later." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false }
+  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 
 const aiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 40,
+  keyGenerator: rateLimitKeyGenerator,
   message: { error: "AI rate limit exceeded. Please wait a moment and try again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false }
+  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 
 const compilerLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 20,
+  keyGenerator: rateLimitKeyGenerator,
   message: { error: "Compiler rate limit exceeded. Please wait a moment before running again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false }
+  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 
 // Compiler concurrency tracker
@@ -593,6 +616,7 @@ function getGeminiClient(): GoogleGenAI {
       headers: {
         "User-Agent": "aistudio-build",
       },
+      timeout: 25000,
     },
   });
 }
@@ -613,14 +637,15 @@ async function generateContentWithFallback(
   let lastError: any = null;
 
   if (geminiKey) {
+    const normalizedPreferred = /^gemini-3\./i.test(preferredModel)
+      ? "gemini-2.5-flash"
+      : preferredModel;
     const candidateModels = [
-      preferredModel,
-      "gemini-3.6-flash",
-      "gemini-3.8-flash",
-      "gemini-3.5-flash",
-      "gemini-3.1-flash-lite",
+      normalizedPreferred,
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
       "gemini-flash-latest",
-      "gemini-3.7-flash",
     ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
     for (const model of candidateModels) {
@@ -637,7 +662,18 @@ async function generateContentWithFallback(
       } catch (err: any) {
         lastError = err;
         const status = err?.status || err?.code || (err?.error && err?.error?.code);
-        console.log(`[Gemini Fallback] Model ${model} returned (${status}): ${err?.message || err}. Attempting fallback candidate...`);
+        const msg = String(err?.message || err || "");
+        console.log(`[Gemini Fallback] Model ${model} returned (${status}): ${msg}. Attempting fallback candidate...`);
+        if (
+          status === 401 ||
+          status === 403 ||
+          status === 429 ||
+          msg.includes("API_KEY_INVALID") ||
+          msg.toLowerCase().includes("api key not valid") ||
+          msg.includes("RESOURCE_EXHAUSTED")
+        ) {
+          break;
+        }
       }
     }
   }
@@ -674,6 +710,7 @@ async function generateContentWithFallback(
             temperature: params.config?.temperature || 0.4,
             max_tokens: 4096,
           }),
+          signal: AbortSignal.timeout(25000),
         });
 
         if (res.ok) {
@@ -704,6 +741,7 @@ async function generateContentWithFallback(
             temperature: params.config?.temperature || 0.4,
             max_tokens: 4096,
           }),
+          signal: AbortSignal.timeout(25000),
         });
 
         if (!res.ok && res.status === 400) {
@@ -722,6 +760,7 @@ async function generateContentWithFallback(
               temperature: params.config?.temperature || 0.4,
               max_tokens: 4096,
             }),
+            signal: AbortSignal.timeout(25000),
           });
         }
 
@@ -864,7 +903,8 @@ function generateOfflineDiffAnalysis(
   _difficulty: string,
   compilerError = ""
 ) {
-  const lines = sourceCode.split("\n");
+  const boundedCode = String(sourceCode || "").slice(0, 50000);
+  const lines = boundedCode.split(/\r?\n/).slice(0, 1000);
   const issues: any[] = [];
   const diffHunks: any[] = [];
 
@@ -1967,12 +2007,16 @@ app.post("/api/code-diff-nudge", requireAuth, aiLimiter, async (req: Request, re
       difficulty = "Medium",
       topics = [],
       compilerError = "",
-    } = req.body;
+    } = req.body || {};
 
-    const sourceCode = (code || pseudocode || "").trim();
+    const sourceCode = String(code || pseudocode || "").trim();
     if (!sourceCode) {
       return res.status(400).json({ error: "Code or pseudocode is required." });
     }
+    if (sourceCode.length > 50000) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
+    const boundedCompilerError = String(compilerError || "").slice(0, 15000);
 
     const ai = getGeminiClient();
 
@@ -1988,7 +2032,7 @@ ${sourceCode}
 
 COMPILER / RUNTIME OUTPUT:
 \`\`\`
-${compilerError || "None provided"}
+${boundedCompilerError || "None provided"}
 \`\`\`
 
 Return a strictly valid JSON object matching this schema:
@@ -2020,7 +2064,7 @@ Return a strictly valid JSON object matching this schema:
   "promptSuggestion": "Suggested question the user can ask the AI interviewer"
 }`;
 
-    const { text } = await generateContentWithFallback(ai, "gemini-3.8-flash", {
+    const { text } = await generateContentWithFallback(ai, "gemini-2.5-flash", {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -2032,13 +2076,21 @@ Return a strictly valid JSON object matching this schema:
     return res.json(parsed);
   } catch (error: any) {
     console.log("Code diff nudge fallback to heuristic analysis:", error?.message || error);
+    const {
+      code = "",
+      pseudocode = "",
+      problemSlug = "",
+      problemTitle = "",
+      difficulty = "Medium",
+      compilerError = "",
+    } = req.body || {};
     // Provide deterministic offline heuristic analysis so UI never breaks with 500 error
     const offlineResult = generateOfflineDiffAnalysis(
-      sourceCode,
-      problemTitle,
-      problemSlug,
-      difficulty,
-      compilerError
+      String(code || pseudocode || "").trim().slice(0, 50000),
+      String(problemTitle || ""),
+      String(problemSlug || ""),
+      String(difficulty || "Medium"),
+      String(compilerError || "").slice(0, 15000)
     );
     return res.json(offlineResult);
   }
@@ -2054,11 +2106,14 @@ app.post("/api/rate-submission", requireAuth, aiLimiter, async (req: any, res: R
       problemTitle = "",
       difficulty = "Medium",
       submissionId = "",
-    } = req.body;
+    } = req.body || {};
 
-    const sourceCode = (code || pseudocode || "").trim();
+    const sourceCode = String(code || pseudocode || "").trim();
     if (!sourceCode) {
       return res.status(400).json({ error: "Submission code is required." });
+    }
+    if (sourceCode.length > 50000) {
+      return res.status(400).json({ error: "Submission code exceeds maximum allowed length of 50,000 characters." });
     }
 
     const ai = getGeminiClient();
@@ -2086,7 +2141,7 @@ Return a strictly valid JSON object matching this schema:
   "interviewerFeedback": "Detailed constructive paragraph providing encouragement and senior perspective."
 }`;
 
-    const { text } = await generateContentWithFallback(ai, "gemini-3.8-flash", {
+    const { text } = await generateContentWithFallback(ai, "gemini-2.5-flash", {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -2122,10 +2177,10 @@ Return a strictly valid JSON object matching this schema:
       difficulty = "Medium",
     } = req.body || {};
     const offlineRating = generateOfflineRating(
-      (code || pseudocode || "").trim(),
-      problemTitle,
-      problemSlug,
-      difficulty
+      String(code || pseudocode || "").trim().slice(0, 50000),
+      String(problemTitle || ""),
+      String(problemSlug || ""),
+      String(difficulty || "Medium")
     );
     return res.json(offlineRating);
   }
@@ -2134,17 +2189,20 @@ Return a strictly valid JSON object matching this schema:
 // API: Live Interview - Evaluate Solution Tier
 app.post("/api/interview-evaluate", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
-    const { question, tier, code, language, transcript, previousTiers } = req.body;
+    const { question, tier, code, language, transcript, previousTiers } = req.body || {};
     if (!question || !tier || !code) {
       return res.status(400).json({ error: "Missing required interview evaluation fields (question, tier, code)." });
+    }
+    if (typeof code === "string" && code.length > 50000) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
     }
 
     const evaluation = await evaluateInterviewTier({
       question,
       tier,
-      code,
+      code: String(code).slice(0, 50000),
       language: language || "cpp",
-      transcript,
+      transcript: typeof transcript === "string" ? transcript.slice(0, 20000) : transcript,
       previousTiers,
     });
 
@@ -2168,18 +2226,24 @@ app.post("/api/interview-respond", requireAuth, aiLimiter, async (req: Request, 
       interviewStage,
       coachingAction,
       hintLevel,
-    } = req.body;
+    } = req.body || {};
     if (!candidateSpeech && !coachingAction) {
       return res.status(400).json({ error: "Missing candidateSpeech or coachingAction field." });
+    }
+    if (typeof code === "string" && code.length > 50000) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
+    if (typeof candidateSpeech === "string" && candidateSpeech.length > 10000) {
+      return res.status(400).json({ error: "Candidate speech exceeds maximum allowed length of 10,000 characters." });
     }
 
     const response = await generateInterviewerResponse({
       question,
       tier: tier || "bruteForce",
-      code: code || "",
+      code: String(code || "").slice(0, 50000),
       language: language || "cpp",
-      candidateSpeech: candidateSpeech || "",
-      transcriptHistory,
+      candidateSpeech: String(candidateSpeech || "").slice(0, 10000),
+      transcriptHistory: Array.isArray(transcriptHistory) ? transcriptHistory.slice(-50) : undefined,
       interviewStage,
       coachingAction,
       hintLevel,
@@ -2195,16 +2259,22 @@ app.post("/api/interview-respond", requireAuth, aiLimiter, async (req: Request, 
 // API: Live Interview - Run Sample Tests & Dry-Run Trace
 app.post("/api/interview-run-tests", requireAuth, apiLimiter, async (req: Request, res: Response) => {
   try {
-    const { question, code, language, customInput } = req.body;
+    const { question, code, language, customInput } = req.body || {};
     if (!question) {
       return res.status(400).json({ error: "Missing question object for sample test execution." });
+    }
+    if (typeof code === "string" && code.length > 50000) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
+    if (typeof customInput === "string" && customInput.length > 20000) {
+      return res.status(400).json({ error: "Custom input exceeds maximum allowed length of 20,000 characters." });
     }
 
     const result = await runInterviewSampleTests({
       question,
-      code: code || "",
+      code: String(code || "").slice(0, 50000),
       language: language || "cpp",
-      customInput,
+      customInput: customInput ? String(customInput).slice(0, 20000) : undefined,
     });
 
     return res.json(result);
@@ -2221,17 +2291,23 @@ app.post("/api/problem-run-tests", requireAuth, apiLimiter, async (req: Request,
     if (!slug && !title) {
       return res.status(400).json({ error: "Missing problem slug or title for sample test execution." });
     }
+    if (typeof code === "string" && code.length > 50000) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
+    if (typeof customInput === "string" && customInput.length > 20000) {
+      return res.status(400).json({ error: "Custom input exceeds maximum allowed length of 20,000 characters." });
+    }
 
     const result = await runProblemSampleTests({
-      slug: String(slug || "problem"),
-      title: String(title || slug || "Problem"),
-      difficulty: difficulty ? String(difficulty) : "Medium",
-      topics: Array.isArray(topics) ? topics : [],
-      statement: statement ? String(statement) : undefined,
-      code: String(code || ""),
-      language: String(language || "python"),
-      sampleCases: Array.isArray(sampleCases) ? sampleCases : undefined,
-      customInput: customInput ? String(customInput) : undefined,
+      slug: String(slug || "problem").slice(0, 255),
+      title: String(title || slug || "Problem").slice(0, 255),
+      difficulty: difficulty ? String(difficulty).slice(0, 32) : "Medium",
+      topics: Array.isArray(topics) ? topics.slice(0, 30) : [],
+      statement: statement ? String(statement).slice(0, 50000) : undefined,
+      code: String(code || "").slice(0, 50000),
+      language: String(language || "python").slice(0, 32),
+      sampleCases: Array.isArray(sampleCases) ? sampleCases.slice(0, 20) : undefined,
+      customInput: customInput ? String(customInput).slice(0, 20000) : undefined,
     });
 
     return res.json(result);
@@ -2248,15 +2324,18 @@ app.post("/api/problem-submit", requireAuth, aiLimiter, async (req: Request, res
     if (!slug && !title) {
       return res.status(400).json({ error: "Missing problem slug or title for submission judge." });
     }
+    if (typeof code === "string" && code.length > 50000) {
+      return res.status(400).json({ error: "Code exceeds maximum allowed length of 50,000 characters." });
+    }
 
     const result = await submitProblemSolution({
-      slug: String(slug || "problem"),
-      title: String(title || slug || "Problem"),
-      difficulty: difficulty ? String(difficulty) : "Medium",
-      topics: Array.isArray(topics) ? topics : [],
-      statement: statement ? String(statement) : undefined,
-      code: String(code || ""),
-      language: String(language || "python"),
+      slug: String(slug || "problem").slice(0, 255),
+      title: String(title || slug || "Problem").slice(0, 255),
+      difficulty: difficulty ? String(difficulty).slice(0, 32) : "Medium",
+      topics: Array.isArray(topics) ? topics.slice(0, 30) : [],
+      statement: statement ? String(statement).slice(0, 50000) : undefined,
+      code: String(code || "").slice(0, 50000),
+      language: String(language || "python").slice(0, 32),
       preverifiedRunResult:
         preverifiedRunResult && typeof preverifiedRunResult === "object"
           ? preverifiedRunResult
@@ -3080,6 +3159,7 @@ app.get("/api/github/callback", async (req, res) => {
         code,
         ...(redirectUri ? { redirect_uri: redirectUri } : {}),
       }),
+      signal: AbortSignal.timeout(10000),
     });
 
     const tokenData = await tokenRes.json();
@@ -3105,6 +3185,7 @@ app.get("/api/github/callback", async (req, res) => {
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
         },
+        signal: AbortSignal.timeout(10000),
       });
       if (userRes.ok) {
         const ghUser = await userRes.json();
@@ -3436,6 +3517,7 @@ app.post("/api/github/push", requireAuth, async (req: any, res) => {
     // 1. Get GitHub Username & verify token validity
     const userRes = await fetch("https://api.github.com/user", {
       headers: githubHeaders,
+      signal: AbortSignal.timeout(10000),
     });
     const userData = await userRes.json().catch(() => ({}));
     if (!userRes.ok) {
@@ -3486,6 +3568,7 @@ app.post("/api/github/push", requireAuth, async (req: any, res) => {
     // 2. Check if repo exists, create if not
     let repoRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
       headers: githubHeaders,
+      signal: AbortSignal.timeout(10000),
     });
     let defaultBranch = "main";
     if (repoRes.status === 404) {
@@ -3498,6 +3581,7 @@ app.post("/api/github/push", requireAuth, async (req: any, res) => {
           private: false,
           auto_init: true,
         }),
+        signal: AbortSignal.timeout(15000),
       });
       if (!createRes.ok) {
         const repoErr = await createRes.json().catch(() => ({}));
@@ -3527,7 +3611,7 @@ app.post("/api/github/push", requireAuth, async (req: any, res) => {
       const query = branchName ? `?ref=${encodeURIComponent(branchName)}` : "";
       const fileRes = await fetch(
         `https://api.github.com/repos/${owner}/${repoName}/contents/${path}${query}`,
-        { headers: githubHeaders }
+        { headers: githubHeaders, signal: AbortSignal.timeout(10000) }
       );
       if (fileRes.ok) {
         const fileData = await fileRes.json().catch(() => null);
@@ -3550,6 +3634,7 @@ app.post("/api/github/push", requireAuth, async (req: any, res) => {
           ...(targetSha ? { sha: targetSha } : {}),
           ...(includeBranch && defaultBranch ? { branch: defaultBranch } : {}),
         }),
+        signal: AbortSignal.timeout(15000),
       });
     };
 

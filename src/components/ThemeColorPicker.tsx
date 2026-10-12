@@ -36,7 +36,11 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
   }, [isOpen]);
 
   return (
-    <div className="relative inline-flex items-center gap-1.5 shrink-0" ref={containerRef}>
+    <div
+      className="relative inline-flex items-center gap-1.5 shrink-0"
+      ref={containerRef}
+      data-allow-guest="true"
+    >
       {/* 1. Light / Dark Mode Toggle Button */}
       <button
         type="button"
@@ -79,7 +83,8 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
       {/* Expanded Theme Popover */}
       {isOpen && (
         <div
-          className={`absolute top-full mt-2 z-50 w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/80 bg-popover/98 p-3.5 shadow-2xl backdrop-blur-2xl animate-fade ${
+          data-modal-overlay="true"
+          className={`absolute top-full mt-2 z-[100] w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/80 bg-popover/98 p-3.5 shadow-2xl backdrop-blur-2xl animate-fade ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >

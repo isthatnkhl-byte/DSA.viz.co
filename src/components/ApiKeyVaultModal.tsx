@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   KeyRound,
   ShieldCheck,
@@ -173,15 +174,30 @@ export function ApiKeyVaultModal({
   open: boolean;
   onClose: () => void;
 }) {
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
 
-  return (
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+      data-modal-overlay="true"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl border-2 border-[#3A3530] bg-[#181513] text-[#F5F2EB] shadow-2xl overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Account-Bound AI Key Vault"
+        className="relative w-full max-w-xl border-2 border-[#3A3530] bg-[#181513] text-[#F5F2EB] shadow-2xl overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Accent Header */}
@@ -202,7 +218,7 @@ export function ApiKeyVaultModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex size-7 items-center justify-center border border-[#3A3530] bg-[#2C2724] text-[#A39B8F] hover:border-primary hover:text-white transition-colors"
+            className="flex size-7 items-center justify-center border border-[#3A3530] bg-[#2C2724] text-[#A39B8F] hover:border-primary hover:text-white transition-colors cursor-pointer"
             aria-label="Close vault modal"
           >
             <X className="size-4" />
@@ -213,7 +229,8 @@ export function ApiKeyVaultModal({
           <ApiKeyVaultManager onSaved={() => {}} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

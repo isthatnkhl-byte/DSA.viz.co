@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import { validateSource } from "./compiler/validator";
 import {
@@ -20,12 +21,97 @@ import { statementForSlug } from "./statements.server";
 const GEMINI_JUDGE_MODELS = [
   "gemini-2.5-flash",
   "gemini-2.0-flash",
-  "gemini-3.8-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-3.1-flash-lite",
+  "gemini-2.0-flash-lite",
   "gemini-flash-latest",
 ];
+
+const EPHEMERAL_JUDGE_SECRET = crypto.randomBytes(32).toString("hex");
+const PREVERIFIED_RESULT_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function getJudgeHmacSecret(): string {
+  return (
+    process.env.JUDGE_HMAC_SECRET ||
+    process.env.VAULT_MASTER_SECRET ||
+    process.env.GITHUB_CLIENT_SECRET ||
+    EPHEMERAL_JUDGE_SECRET
+  );
+}
+
+function computeRunResultSignature(params: {
+  slug: string;
+  language: string;
+  code: string;
+  status: string;
+  passedCount: number;
+  totalCount: number;
+  verifiedAt: number;
+  cases: LeetCodeCaseResult[];
+}): string {
+  const canonicalPayload = JSON.stringify({
+    slug: params.slug,
+    language: params.language,
+    code: params.code,
+    status: params.status,
+    passedCount: params.passedCount,
+    totalCount: params.totalCount,
+    verifiedAt: params.verifiedAt,
+    cases: (params.cases || []).map((c) => ({
+      caseNumber: c.caseNumber,
+      input: c.input,
+      expectedOutput: c.expectedOutput,
+      actualOutput: c.actualOutput,
+      passed: Boolean(c.passed),
+    })),
+  });
+  return crypto
+    .createHmac("sha256", getJudgeHmacSecret())
+    .update(canonicalPayload)
+    .digest("hex");
+}
+
+function verifyPreverifiedRunResult(
+  runResult: LeetCodeRunResponse | undefined,
+  expected: { slug: string; language: string; code: string }
+): boolean {
+  if (
+    !runResult ||
+    typeof runResult !== "object" ||
+    !Array.isArray(runResult.cases) ||
+    runResult.cases.length === 0 ||
+    typeof runResult.verificationToken !== "string" ||
+    typeof runResult.verifiedAt !== "number"
+  ) {
+    return false;
+  }
+
+  const now = Date.now();
+  if (
+    runResult.verifiedAt > now + 30_000 ||
+    now - runResult.verifiedAt > PREVERIFIED_RESULT_TTL_MS
+  ) {
+    return false;
+  }
+
+  const expectedSig = computeRunResultSignature({
+    slug: expected.slug,
+    language: expected.language,
+    code: expected.code,
+    status: runResult.status,
+    passedCount: runResult.passedCount,
+    totalCount: runResult.totalCount,
+    verifiedAt: runResult.verifiedAt,
+    cases: runResult.cases,
+  });
+
+  try {
+    const actualBuf = Buffer.from(runResult.verificationToken, "utf8");
+    const expectedBuf = Buffer.from(expectedSig, "utf8");
+    if (actualBuf.length !== expectedBuf.length) return false;
+    return crypto.timingSafeEqual(actualBuf, expectedBuf);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Multi-provider AI Judge helper using the user's personal API key from the encrypted vault
@@ -44,6 +130,7 @@ async function queryAiJudgeJson(
         headers: {
           "User-Agent": "aistudio-build",
         },
+        timeout: 25000,
       },
     });
     for (const modelName of GEMINI_JUDGE_MODELS) {
@@ -61,8 +148,18 @@ async function queryAiJudgeJson(
         if (parsed && validator(parsed)) {
           return { json: parsed, modelUsed: modelName };
         }
-      } catch {
-        // try next model in fallback chain
+      } catch (err: any) {
+        const msg = String(err?.message || err || "");
+        if (
+          msg.includes("API_KEY_INVALID") ||
+          msg.toLowerCase().includes("api key not valid") ||
+          msg.includes("401") ||
+          msg.includes("403") ||
+          msg.includes("429") ||
+          msg.includes("RESOURCE_EXHAUSTED")
+        ) {
+          break;
+        }
       }
     }
   }
@@ -127,8 +224,11 @@ export function analyzeSolutionCode(
 
   const hasStarterCommentMarkers =
     /Write your|Step 1:\s*Initialize|Implement your solution/i.test(code || "");
+  const isOnlyPass = allBodyLines.length > 0 && allBodyLines.every((l) => l === "pass");
   const isStarterTemplate =
-    allBodyLines.length === 0 || (nonPlaceholderLines.length === 0 && hasStarterCommentMarkers);
+    allBodyLines.length === 0 ||
+    isOnlyPass ||
+    (nonPlaceholderLines.length === 0 && hasStarterCommentMarkers);
 
   return {
     isStarterTemplate,
@@ -458,9 +558,21 @@ YOUR TASK — FOLLOW THESE RULES STRICTLY:
   const totalRuntimeMs =
     Math.round(mappedCases.reduce((acc, c) => acc + (c.runtimeMs || 1), 0) * 10) / 10;
   const allPassed = totalCount > 0 && passedCount === totalCount;
+  const status: LeetCodeRunResponse["status"] = allPassed ? "Accepted" : "Wrong Answer";
+  const verifiedAt = Date.now();
+  const verificationToken = computeRunResultSignature({
+    slug,
+    language,
+    code,
+    status,
+    passedCount,
+    totalCount,
+    verifiedAt,
+    cases: mappedCases,
+  });
 
   return {
-    status: allPassed ? "Accepted" : "Wrong Answer",
+    status,
     summaryMessage: allPassed
       ? `Accepted — All ${totalCount}/${totalCount} AI-tested testcases passed (${totalRuntimeMs} ms)`
       : `Wrong Answer — ${passedCount}/${totalCount} testcases passed`,
@@ -474,6 +586,8 @@ YOUR TASK — FOLLOW THESE RULES STRICTLY:
     executionEngine: `AI Test Judge (${modelUsed})`,
     learningDiagnostics: parsed.learningDiagnostics,
     cases: mappedCases,
+    verifiedAt,
+    verificationToken,
   };
 }
 
@@ -533,9 +647,15 @@ export async function submitProblemSolution(payload: {
   const statement =
     payload.statement || statementForSlug(slug, { slug, title, difficulty, topics });
 
-  // 1. Reuse preverifiedRunResult if it was just executed by Run, otherwise run the AI testcase suite now
+  // 1. Reuse preverifiedRunResult ONLY if its cryptographic HMAC signature is valid for this exact (slug, language, code)
+  const isVerifiedPreRun = verifyPreverifiedRunResult(preverifiedRunResult, {
+    slug,
+    language,
+    code,
+  });
+
   const testRun =
-    preverifiedRunResult && preverifiedRunResult.cases && preverifiedRunResult.cases.length > 0
+    isVerifiedPreRun && preverifiedRunResult
       ? preverifiedRunResult
       : await runProblemSampleTests({
           slug,

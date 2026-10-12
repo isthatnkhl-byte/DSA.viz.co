@@ -164,6 +164,54 @@ export function buildSanitizedSandboxEnv(sandboxDir: string): NodeJS.ProcessEnv 
   return safeEnv;
 }
 
+function terminateProcessTree(child: ReturnType<typeof spawn>) {
+  const pid = child.pid;
+  try {
+    child.stdin?.destroy();
+    child.stdout?.destroy();
+    child.stderr?.destroy();
+  } catch {
+    // Ignore stream destroy errors
+  }
+
+  if (!pid) {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      // Ignore
+    }
+    return;
+  }
+
+  if (process.platform === "win32") {
+    try {
+      const killer = spawn("taskkill", ["/PID", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      killer.on("error", () => {});
+      killer.unref();
+    } catch {
+      // Ignore
+    }
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      // Ignore
+    }
+  } else {
+    try {
+      process.kill(-pid, "SIGKILL");
+    } catch {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // Ignore
+      }
+    }
+  }
+}
+
 function runSpawnedProcess(
   cmd: string,
   args: string[],
@@ -176,43 +224,72 @@ function runSpawnedProcess(
     let stderrBuffer = "";
     let timedOut = false;
     let isSettled = false;
+    let forceSettleTimer: ReturnType<typeof setTimeout> | null = null;
 
     const child = spawn(cmd, args, {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
       env: buildSanitizedSandboxEnv(cwd),
+      detached: process.platform !== "win32",
+      windowsHide: true,
     });
+
+    const settle = (exitCode: number, isNotFound = false) => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timer);
+      if (forceSettleTimer) clearTimeout(forceSettleTimer);
+      resolve({
+        stdout: stdoutBuffer,
+        stderr: stderrBuffer,
+        exitCode,
+        timedOut,
+        isNotFound,
+      });
+    };
 
     const timer = setTimeout(() => {
       timedOut = true;
       try {
         child.kill("SIGTERM");
-        setTimeout(() => {
-          try {
-            child.kill("SIGKILL");
-          } catch {
-            // Ignore
-          }
-        }, 500);
       } catch {
         // Ignore
+      }
+      terminateProcessTree(child);
+      forceSettleTimer = setTimeout(() => {
+        settle(124, false);
+      }, 300);
+      if (typeof forceSettleTimer.unref === "function") {
+        forceSettleTimer.unref();
       }
     }, timeoutMs);
 
     child.stdout.on("data", (chunk: Buffer) => {
       if (stdoutBuffer.length < MAX_OUTPUT_LENGTH) {
-        stdoutBuffer += chunk.toString("utf-8");
-        if (stdoutBuffer.length > MAX_OUTPUT_LENGTH) {
-          stdoutBuffer = stdoutBuffer.slice(0, MAX_OUTPUT_LENGTH) + "\n... [Output truncated (size exceeded 150KB)]";
+        const remaining = MAX_OUTPUT_LENGTH - stdoutBuffer.length;
+        if (chunk.length > remaining) {
+          stdoutBuffer +=
+            chunk.subarray(0, remaining).toString("utf-8") +
+            "\n... [Output truncated (size exceeded 150KB)]";
+          terminateProcessTree(child);
+          settle(0, false);
+        } else {
+          stdoutBuffer += chunk.toString("utf-8");
         }
       }
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
       if (stderrBuffer.length < MAX_OUTPUT_LENGTH) {
-        stderrBuffer += chunk.toString("utf-8");
-        if (stderrBuffer.length > MAX_OUTPUT_LENGTH) {
-          stderrBuffer = stderrBuffer.slice(0, MAX_OUTPUT_LENGTH) + "\n... [Error truncated (size exceeded 150KB)]";
+        const remaining = MAX_OUTPUT_LENGTH - stderrBuffer.length;
+        if (chunk.length > remaining) {
+          stderrBuffer +=
+            chunk.subarray(0, remaining).toString("utf-8") +
+            "\n... [Error truncated (size exceeded 150KB)]";
+          terminateProcessTree(child);
+          settle(1, false);
+        } else {
+          stderrBuffer += chunk.toString("utf-8");
         }
       }
     });
@@ -231,19 +308,6 @@ function runSpawnedProcess(
         // Ignore
       }
     }
-
-    const settle = (exitCode: number, isNotFound = false) => {
-      if (isSettled) return;
-      isSettled = true;
-      clearTimeout(timer);
-      resolve({
-        stdout: stdoutBuffer,
-        stderr: stderrBuffer,
-        exitCode,
-        timedOut,
-        isNotFound,
-      });
-    };
 
     child.on("error", (err: any) => {
       const isEnoent =

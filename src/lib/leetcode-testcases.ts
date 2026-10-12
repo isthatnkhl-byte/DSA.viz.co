@@ -46,6 +46,8 @@ export interface LeetCodeRunResponse {
   executionEngine?: string;
   learningDiagnostics?: LeetCodeLearningDiagnostics;
   cases: LeetCodeCaseResult[];
+  verificationToken?: string;
+  verifiedAt?: number;
 }
 
 export interface LeetCodeSubmitCategory {

@@ -8,11 +8,31 @@ interface CacheEntry<T = any> {
 }
 
 const MEMORY_CACHE = new Map<string, CacheEntry>();
+const MAX_MEMORY_CACHE_ENTRIES = 1000;
 const DATA_DIR = process.env.VERCEL
   ? path.join('/tmp', '.data')
   : path.join(process.cwd(), '.data');
 const CACHE_FILE = path.join(DATA_DIR, 'backend-cache.json');
 const DEFAULT_RETENTION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days (retained until explicit resync/mutation)
+
+function setMemoryCacheBounded(key: string, entry: CacheEntry): void {
+  if (MEMORY_CACHE.has(key)) {
+    MEMORY_CACHE.delete(key);
+  } else if (MEMORY_CACHE.size >= MAX_MEMORY_CACHE_ENTRIES) {
+    const now = Date.now();
+    for (const [k, v] of MEMORY_CACHE.entries()) {
+      if (v.expiresAt <= now) {
+        MEMORY_CACHE.delete(k);
+      }
+    }
+    while (MEMORY_CACHE.size >= MAX_MEMORY_CACHE_ENTRIES) {
+      const oldestKey = MEMORY_CACHE.keys().next().value;
+      if (!oldestKey) break;
+      MEMORY_CACHE.delete(oldestKey);
+    }
+  }
+  MEMORY_CACHE.set(key, entry);
+}
 
 // Initialize local file cache if present
 try {
@@ -23,7 +43,7 @@ try {
     for (const [k, v] of Object.entries(parsed)) {
       const entry = v as CacheEntry;
       if (entry && entry.expiresAt > now) {
-        MEMORY_CACHE.set(k, entry);
+        setMemoryCacheBounded(k, entry);
       }
     }
   }
@@ -112,6 +132,9 @@ export async function getCache<T = any>(key: string): Promise<T | null> {
   const memEntry = MEMORY_CACHE.get(key);
   if (memEntry) {
     if (memEntry.expiresAt > Date.now()) {
+      // Refresh LRU ordering
+      MEMORY_CACHE.delete(key);
+      MEMORY_CACHE.set(key, memEntry);
       return memEntry.value as T;
     }
     MEMORY_CACHE.delete(key);
@@ -127,7 +150,7 @@ export async function getCache<T = any>(key: string): Promise<T | null> {
         } catch {
           parsedVal = data as unknown as T;
         }
-        MEMORY_CACHE.set(key, {
+        setMemoryCacheBounded(key, {
           value: parsedVal,
           expiresAt: Date.now() + DEFAULT_RETENTION_TTL_SECONDS * 1000,
         });
@@ -150,7 +173,7 @@ export async function setCache(
   ttlSeconds: number = DEFAULT_RETENTION_TTL_SECONDS
 ): Promise<void> {
   const expiresAt = Date.now() + ttlSeconds * 1000;
-  MEMORY_CACHE.set(key, { value, expiresAt });
+  setMemoryCacheBounded(key, { value, expiresAt });
   persistMemoryCache();
 
   if (redisClient && isConnectedToRedis) {

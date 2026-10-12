@@ -4,7 +4,8 @@ import path from "path";
 import { AsyncLocalStorage } from "async_hooks";
 import type { Request, Response, NextFunction } from "express";
 import { GoogleGenAI } from "@google/genai";
-import { adminAuth, adminDb } from "./firebase-admin";
+import { adminDb, isAdminDbAvailable, markAdminDbUnavailable } from "./firebase-admin";
+import { verifyFirebaseIdTokenCryptographically } from "../middleware/auth";
 import fallbackConfig from "../../firebase-applet-config.json";
 
 export type SupportedKeyProvider = "gemini" | "openrouter" | "openai";
@@ -51,8 +52,17 @@ const DATA_DIR = process.env.VERCEL
   ? path.join("/tmp", ".data")
   : path.join(process.cwd(), ".data");
 const VAULT_FILE = path.join(DATA_DIR, "user_keys_vault.json");
+const MAX_VAULT_RECORDS = 5000;
 const memoryVaultStore = new Map<string, UserVaultRecord>();
 const requestKeyStorage = new AsyncLocalStorage<RequestUserKeys>();
+
+function setMemoryVaultRecord(key: string, record: UserVaultRecord): void {
+  if (!memoryVaultStore.has(key) && memoryVaultStore.size >= MAX_VAULT_RECORDS) {
+    const oldestKey = memoryVaultStore.keys().next().value;
+    if (oldestKey) memoryVaultStore.delete(oldestKey);
+  }
+  memoryVaultStore.set(key, record);
+}
 
 // Load encrypted vault from disk on startup
 try {
@@ -62,7 +72,7 @@ try {
     if (parsed && typeof parsed === "object") {
       for (const [k, v] of Object.entries(parsed)) {
         if (v && typeof v === "object") {
-          memoryVaultStore.set(k, v as UserVaultRecord);
+          setMemoryVaultRecord(k, v as UserVaultRecord);
         }
       }
     }
@@ -71,22 +81,36 @@ try {
   // Ignore missing or unreadable initial file
 }
 
+let persistVaultTimer: ReturnType<typeof setTimeout> | null = null;
+let isPersistingVault = false;
+
 function persistVaultToDisk() {
-  try {
-    const dir = path.dirname(VAULT_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+  if (persistVaultTimer) return;
+  persistVaultTimer = setTimeout(async () => {
+    persistVaultTimer = null;
+    if (isPersistingVault) return;
+    isPersistingVault = true;
+    try {
+      const dir = path.dirname(VAULT_FILE);
+      if (!fs.existsSync(dir)) {
+        await fs.promises.mkdir(dir, { recursive: true });
+      }
+      const serialized: Record<string, UserVaultRecord> = {};
+      for (const [k, v] of memoryVaultStore.entries()) {
+        serialized[k] = v;
+      }
+      await fs.promises.writeFile(VAULT_FILE, JSON.stringify(serialized, null, 2), {
+        encoding: "utf-8",
+        mode: 0o600,
+      });
+    } catch {
+      // Non-blocking persistence fallback
+    } finally {
+      isPersistingVault = false;
     }
-    const serialized: Record<string, UserVaultRecord> = {};
-    for (const [k, v] of memoryVaultStore.entries()) {
-      serialized[k] = v;
-    }
-    fs.writeFileSync(VAULT_FILE, JSON.stringify(serialized, null, 2), {
-      encoding: "utf-8",
-      mode: 0o600,
-    });
-  } catch {
-    // Non-blocking persistence fallback
+  }, 500);
+  if (typeof persistVaultTimer.unref === "function") {
+    persistVaultTimer.unref();
   }
 }
 
@@ -111,6 +135,9 @@ function getFirebaseDatabaseId(): string {
   return dbId;
 }
 
+let cachedVaultMasterKey: Buffer | null = null;
+let cachedVaultSecretSource = "";
+
 /**
  * Derives a dedicated 256-bit master key for the User API Key Vault using scrypt
  * with domain separation so even database/file dumps cannot be decoded without server secrets.
@@ -122,7 +149,16 @@ function getVaultMasterKey(): Buffer {
     cleanEnv(process.env.GITHUB_CLIENT_SECRET) ||
     cleanEnv(process.env.LIVEKIT_API_SECRET) ||
     "dsaviz_vault_server_only_master_secret_v1";
-  return crypto.scryptSync(masterSecret, "dsaviz_user_api_key_vault_salt_v1", 32);
+  if (cachedVaultMasterKey && cachedVaultSecretSource === masterSecret) {
+    return cachedVaultMasterKey;
+  }
+  cachedVaultSecretSource = masterSecret;
+  cachedVaultMasterKey = crypto.scryptSync(
+    masterSecret,
+    "dsaviz_user_api_key_vault_salt_v1",
+    32
+  );
+  return cachedVaultMasterKey;
 }
 
 /**
@@ -315,45 +351,14 @@ function extractBearerToken(req: Request): string | null {
 }
 
 /**
- * Extracts verified Firebase UID from the Authorization Bearer header if present.
+ * Extracts cryptographically verified Firebase UID from the Authorization Bearer header if present.
  */
-async function extractVerifiedUidFromRequest(req: Request): Promise<string | null> {
+export async function extractVerifiedUidFromRequest(req: Request): Promise<string | null> {
   const token = extractBearerToken(req);
   if (!token) return null;
 
-  try {
-    const decoded = await adminAuth.verifyIdToken(token, true);
-    if (decoded?.uid) return decoded.uid;
-  } catch {
-    try {
-      const parts = token.split(".");
-      if (parts.length === 3 && parts[2] && parts[2].length >= 64) {
-        const header = JSON.parse(Buffer.from(parts[0]!, "base64url").toString("utf8"));
-        const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8"));
-        if (header.alg !== "RS256" || !header.kid) return null;
-        const projectId = getFirebaseProjectId();
-        const expectedIssuer = `https://securetoken.google.com/${projectId}`;
-        const now = Math.floor(Date.now() / 1000);
-        const isNotExpired = typeof payload.exp === "number" && payload.exp > now - 120;
-        const isMatchingAudience = payload.aud === projectId;
-        const isMatchingIssuer = payload.iss === expectedIssuer;
-        const uid = payload.sub || payload.user_id;
-        if (
-          isNotExpired &&
-          isMatchingAudience &&
-          isMatchingIssuer &&
-          typeof uid === "string" &&
-          uid.length >= 6 &&
-          uid !== "local-dev-user"
-        ) {
-          return uid;
-        }
-      }
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  const decoded = await verifyFirebaseIdTokenCryptographically(token);
+  return decoded?.uid || null;
 }
 
 /**
@@ -381,6 +386,7 @@ async function fetchVaultFromFirestoreRest(
       headers: {
         Authorization: `Bearer ${bearerToken}`,
       },
+      signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as any;
@@ -388,7 +394,7 @@ async function fetchVaultFromFirestoreRest(
     if (typeof sealed === "string" && sealed.length > 16) {
       const unsealed = unsealVaultRecord(sealed, ownerId);
       if (unsealed) {
-        memoryVaultStore.set(ownerId, unsealed);
+        setMemoryVaultRecord(ownerId, unsealed);
         persistVaultToDisk();
         return unsealed;
       }
@@ -433,6 +439,7 @@ async function saveVaultToFirestoreRest(
           updatedAt: { stringValue: record.updatedAt },
         },
       }),
+      signal: AbortSignal.timeout(3000),
     });
   } catch {
     // Non-blocking Firestore REST write
@@ -519,13 +526,13 @@ function hydrateVaultFromRequestEnvelope(
     if (!memoryVaultStore.has(uidOwner)) {
       const fromHeader = unsealVaultRecord(headerBlob, uidOwner);
       if (fromHeader) {
-        memoryVaultStore.set(uidOwner, fromHeader);
+        setMemoryVaultRecord(uidOwner, fromHeader);
         persistVaultToDisk();
         return;
       }
       const fromCookie = unsealVaultRecord(cookieBlob, uidOwner);
       if (fromCookie) {
-        memoryVaultStore.set(uidOwner, fromCookie);
+        setMemoryVaultRecord(uidOwner, fromCookie);
         persistVaultToDisk();
         return;
       }
@@ -537,7 +544,7 @@ function hydrateVaultFromRequestEnvelope(
     if (!memoryVaultStore.has(sidOwner)) {
       const fromCookie = unsealVaultRecord(cookieBlob, sidOwner);
       if (fromCookie) {
-        memoryVaultStore.set(sidOwner, fromCookie);
+        setMemoryVaultRecord(sidOwner, fromCookie);
         persistVaultToDisk();
       }
     }
@@ -561,19 +568,19 @@ async function getVaultRecord(
     if (restRecord) return restRecord;
   }
 
-  // 2. Try Firebase Admin SDK if service account credentials are configured
-  try {
-    if (adminDb) {
+  // 2. Try Firebase Admin SDK ONLY if service account credentials are configured
+  if (isAdminDbAvailable()) {
+    try {
       const doc = await adminDb.collection("user_key_vault").doc(ownerId).get();
       if (doc && doc.exists) {
         const data = doc.data() as UserVaultRecord;
-        memoryVaultStore.set(ownerId, data);
+        setMemoryVaultRecord(ownerId, data);
         persistVaultToDisk();
         return data;
       }
+    } catch {
+      markAdminDbUnavailable();
     }
-  } catch {
-    // Offline or service account credentials not configured
   }
 
   return local || null;
@@ -584,7 +591,7 @@ async function saveVaultRecord(
   uid?: string | null,
   bearerToken?: string | null
 ): Promise<void> {
-  memoryVaultStore.set(record.ownerId, record);
+  setMemoryVaultRecord(record.ownerId, record);
   persistVaultToDisk();
 
   // 1. Persist to Firebase Firestore REST API under user's account
@@ -592,13 +599,13 @@ async function saveVaultRecord(
     await saveVaultToFirestoreRest(uid, bearerToken, record);
   }
 
-  // 2. Also persist via Firebase Admin SDK if configured
-  try {
-    if (adminDb) {
+  // 2. Also persist via Firebase Admin SDK ONLY if service account credentials are configured
+  if (isAdminDbAvailable()) {
+    try {
       await adminDb.collection("user_key_vault").doc(record.ownerId).set(record, { merge: true });
+    } catch {
+      markAdminDbUnavailable();
     }
-  } catch {
-    // Non-blocking Firestore Admin persistence
   }
 }
 

@@ -6,9 +6,14 @@ import { getOrCreateUser, updateUser } from './src/db/users';
 import { getProfile, updateProfile } from './src/db/profiles';
 import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submissions';
 import { getCache, setCache, deleteCache } from './src/lib/redis-cache';
-import { adminAuth, adminDb } from './src/lib/firebase-admin';
+import { adminAuth, adminDb, isAdminDbAvailable, markAdminDbUnavailable } from './src/lib/firebase-admin';
 import { saveAiReport, getUserAiReports, saveChatSession, getUserChatSessions, logUserActivity } from './src/db/ai-diagnostics';
-import { processReviewPseudocode, processGenerateDatasetsAndPlan, processDatasetVisualization } from './src/lib/review.functions';
+import {
+  processReviewPseudocode,
+  processGenerateDatasetsAndPlan,
+  processDatasetVisualization,
+  processVerifyDatasetTrace,
+} from './src/lib/review.functions';
 import { processPlaygroundReview } from './src/lib/playground.functions';
 import { runSecureCpp, runSecureCode } from './src/lib/compiler/index';
 import { fetchLeetCodeStats } from './src/lib/leetcode-service';
@@ -506,7 +511,8 @@ const compilerLimiter = rateLimit({
 let inFlightCompilations = 0;
 const MAX_CONCURRENT_COMPILATIONS = 5;
 
-// Single-use OAuth nonce tracker with TTL
+// Single-use OAuth nonce tracker with TTL and bounded capacity
+const MAX_OAUTH_NONCES = 5000;
 const usedOAuthNonces = new Map<string, number>();
 const cleanupExpiredNonces = () => {
   const now = Date.now();
@@ -515,6 +521,18 @@ const cleanupExpiredNonces = () => {
   }
 };
 setInterval(cleanupExpiredNonces, 5 * 60 * 1000).unref();
+
+function recordUsedOAuthNonce(nonce: string, expiresAt: number): boolean {
+  cleanupExpiredNonces();
+  if (usedOAuthNonces.has(nonce)) return false;
+  if (usedOAuthNonces.size >= MAX_OAUTH_NONCES) {
+    const oldest = usedOAuthNonces.keys().next().value;
+    if (oldest) usedOAuthNonces.delete(oldest);
+  }
+  const boundedExpiry = Math.min(expiresAt, Date.now() + 15 * 60 * 1000);
+  usedOAuthNonces.set(nonce, boundedExpiry);
+  return true;
+}
 
 app.use("/api/", apiLimiter);
 // Per-request User API Key Vault Context (AES-256-GCM decrypted strictly in backend memory)
@@ -1271,8 +1289,17 @@ app.post("/api/profile/snapshot", requireAuth, async (req: any, res) => {
       return res.status(400).json({ error: "Valid synced snapshot payload required" });
     }
 
+    const boundedSubmissions = Array.isArray(snapshot.submissions)
+      ? snapshot.submissions.slice(0, 200)
+      : undefined;
+    const boundedReports = Array.isArray(snapshot.aiReports)
+      ? snapshot.aiReports.slice(0, 50)
+      : undefined;
+
     const enrichedSnapshot = {
       ...snapshot,
+      ...(boundedSubmissions ? { submissions: boundedSubmissions } : {}),
+      ...(boundedReports ? { aiReports: boundedReports } : {}),
       profile: {
         ...snapshot.profile,
         isVerifiedSync: true,
@@ -1286,20 +1313,20 @@ app.post("/api/profile/snapshot", requireAuth, async (req: any, res) => {
       setCache(PROFILE_CACHE_KEY(uid), enrichedSnapshot.profile, REDIS_RETENTION_TTL).catch(
         () => {}
       ),
-      ...(Array.isArray(enrichedSnapshot.submissions)
+      ...(Array.isArray(boundedSubmissions)
         ? [
             setCache(
               SUBMISSIONS_CACHE_KEY(uid),
-              enrichedSnapshot.submissions,
+              boundedSubmissions,
               REDIS_RETENTION_TTL
             ).catch(() => {}),
           ]
         : []),
-      ...(Array.isArray(enrichedSnapshot.aiReports)
+      ...(Array.isArray(boundedReports)
         ? [
             setCache(
               REPORTS_CACHE_KEY(uid),
-              enrichedSnapshot.aiReports,
+              boundedReports,
               REDIS_RETENTION_TTL
             ).catch(() => {}),
           ]
@@ -1383,7 +1410,7 @@ app.delete("/api/profile", requireAuth, async (req: any, res: Response) => {
 
     // 2. Delete Firestore subcollections if adminDb is connected
     try {
-      if (adminDb) {
+      if (isAdminDbAvailable()) {
         const userRef = adminDb.collection("users").doc(uid);
         const subCollections = ["chat_sessions", "ai_reports", "activity", "bookmarks", "tasks"];
         for (const colName of subCollections) {
@@ -1397,6 +1424,7 @@ app.delete("/api/profile", requireAuth, async (req: any, res: Response) => {
         await userRef.delete().catch(() => {});
       }
     } catch (dbErr) {
+      markAdminDbUnavailable(dbErr);
       console.warn("Firestore subcollections purge notice:", dbErr);
     }
 
@@ -1434,6 +1462,9 @@ app.post("/api/sync-leetcode", requireAuth, async (req: any, res) => {
       return res.status(400).json({ error: "Valid LeetCode username is required." });
     }
     const cleanUsername = username.trim().replace(/^@+/, "");
+    if (!/^[a-zA-Z0-9_-]{1,40}$/.test(cleanUsername)) {
+      return res.status(400).json({ error: "Invalid LeetCode username format." });
+    }
     const forceRefresh = req.body?.force === true || req.query.refresh === "1";
 
     // 1. Check Redis cache for recent LeetCode stats (1 hour TTL)
@@ -1571,18 +1602,26 @@ app.get("/api/submissions", requireAuth, async (req: any, res) => {
 app.post("/api/submissions", requireAuth, async (req: any, res) => {
   try {
     const uid = req.user.uid;
-    const sub = await addSubmission(uid, req.body).catch(() => ({
+    const rawBody = req.body && typeof req.body === "object" ? req.body : {};
+    if (typeof rawBody.slug !== "string" || !rawBody.slug.trim()) {
+      return res.status(400).json({ error: "Submission slug is required." });
+    }
+    const sub = await addSubmission(uid, rawBody).catch(() => ({
       id: "sub-" + Date.now(),
-      ...req.body,
+      ...rawBody,
       createdAt: new Date().toISOString(),
     }));
     const existingSubs = await getCache<any[]>(SUBMISSIONS_CACHE_KEY(uid));
     if (Array.isArray(existingSubs)) {
-      await setCache(SUBMISSIONS_CACHE_KEY(uid), [sub, ...existingSubs], REDIS_RETENTION_TTL).catch(() => {});
+      await setCache(
+        SUBMISSIONS_CACHE_KEY(uid),
+        [sub, ...existingSubs].slice(0, 200),
+        REDIS_RETENTION_TTL
+      ).catch(() => {});
     }
     const existingSnapshot = await getCache<any>(SNAPSHOT_CACHE_KEY(uid));
     if (existingSnapshot && Array.isArray(existingSnapshot.submissions)) {
-      const nextSubs = [sub, ...existingSnapshot.submissions];
+      const nextSubs = [sub, ...existingSnapshot.submissions].slice(0, 200);
       const completeRows = nextSubs.filter(
         (r: any) => r.classification && r.classification !== "Incomplete"
       );
@@ -1662,7 +1701,7 @@ app.delete("/api/submissions/:id", requireAuth, async (req: any, res) => {
 app.post("/api/chat", requireAuth, aiLimiter, async (req: any, res: Response) => {
   try {
     const {
-      messages = [],
+      messages: rawMessages = [],
       systemInstruction: customInstruction,
       role = "interviewer",
       model = "gemini-3.8-flash",
@@ -1671,9 +1710,15 @@ app.post("/api/chat", requireAuth, aiLimiter, async (req: any, res: Response) =>
       sessionId,
     } = req.body;
 
-    if (!Array.isArray(messages) || messages.length === 0) {
+    if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
       return res.status(400).json({ error: "Messages array is required." });
     }
+
+    const messages = rawMessages.slice(-60).map((m: any) => ({
+      role: typeof m?.role === "string" ? m.role : "user",
+      content: typeof m?.content === "string" ? m.content.slice(0, 20000) : "",
+      timestamp: m?.timestamp,
+    }));
 
     const authenticatedUid: string | null = req.user?.uid || null;
     let userSubmissionsContext = "";
@@ -1760,7 +1805,7 @@ CAPABILITIES:
 3. Structure solutions with clear step-by-step logic, comments explaining non-trivial lines, and edge-case handling.
 4. If comparing multiple approaches (e.g. Brute Force vs Sorting vs Hash Table vs Two Pointers), clearly explain trade-offs.`;
     } else {
-      baseSystemInstruction = customInstruction || `You are Vizco Buddy, the brilliant, friendly interactive AI companion for DSA.viz.co! ✨
+      baseSystemInstruction = (typeof customInstruction === "string" ? customInstruction.slice(0, 4000) : "") || `You are Vizco Buddy, the brilliant, friendly interactive AI companion for DSA.viz.co! ✨
 You answer anything the user asks regarding Data Structures & Algorithms, code implementations, problem-solving techniques, time/space complexity, debugging, and interview preparation.`;
     }
 
@@ -1818,10 +1863,10 @@ You have complete, authoritative knowledge of every frontend feature, page, rout
       if (context.category) siteContextStr += ` | Category: ${context.category}`;
     }
     if (context.userCode) {
-      siteContextStr += `\n[USER CURRENT EDITOR CODE/PSEUDOCODE]:\n\`\`\`\n${context.userCode}\n\`\`\``;
+      siteContextStr += `\n[USER CURRENT EDITOR CODE/PSEUDOCODE]:\n\`\`\`\n${String(context.userCode).slice(0, 25000)}\n\`\`\``;
     }
     if (context.compilerOutput) {
-      siteContextStr += `\n[COMPILER / EXECUTION OUTPUT OR ERRORS]:\n\`\`\`\n${context.compilerOutput}\n\`\`\``;
+      siteContextStr += `\n[COMPILER / EXECUTION OUTPUT OR ERRORS]:\n\`\`\`\n${String(context.compilerOutput).slice(0, 10000)}\n\`\`\``;
     }
     if (context.currentStep !== undefined) {
       siteContextStr += `\n[ACTIVE SIMULATION STEP CONTEXT]: Step ${context.currentStep + 1} of ${context.totalSteps || 'N/A'} | Description: "${context.stepDesc || ''}"`;
@@ -2052,7 +2097,7 @@ Return a strictly valid JSON object matching this schema:
     const ratingData = JSON.parse(text || "{}");
 
     // If user is authenticated and submissionId provided, update rating in Firestore
-    if (req.user?.uid && submissionId) {
+    if (req.user?.uid && submissionId && isAdminDbAvailable()) {
       try {
         const subDoc = adminDb.collection("users").doc(req.user.uid).collection("submissions").doc(submissionId);
         await subDoc.set({
@@ -2061,6 +2106,7 @@ Return a strictly valid JSON object matching this schema:
           ratingData,
         }, { merge: true });
       } catch (dbErr) {
+        markAdminDbUnavailable(dbErr);
         console.warn("Could not update submission rating in Firestore:", dbErr);
       }
     }
@@ -2353,17 +2399,20 @@ app.post("/api/interview-scorecard", requireAuth, aiLimiter, async (req: any, re
 
     const userId: string | null = req.user?.uid || null;
 
-    if (userId && adminDb) {
+    if (userId) {
       try {
-        await adminDb.collection("interview_scorecards").add({
-          userId,
-          questionId: question.id,
-          questionTitle: question.title,
-          scorecard,
-          createdAt: new Date().toISOString(),
-        });
+        if (isAdminDbAvailable()) {
+          await adminDb.collection("interview_scorecards").add({
+            userId,
+            questionId: question.id,
+            questionTitle: question.title,
+            scorecard,
+            createdAt: new Date().toISOString(),
+          });
+        }
         await logUserActivity(userId, "completed_interview", `Completed Live Interview for ${question.title} (${scorecard.overallScore}/10)`);
       } catch (dbErr) {
+        markAdminDbUnavailable(dbErr);
         console.warn("Could not save interview scorecard to Firestore:", dbErr);
       }
     }
@@ -2498,7 +2547,7 @@ Return a strictly valid JSON object matching this schema:
         if (Array.isArray(existingReports)) {
           await setCache(
             REPORTS_CACHE_KEY(userId),
-            [normalizedSaved, ...existingReports],
+            [normalizedSaved, ...existingReports].slice(0, 50),
             REDIS_RETENTION_TTL
           ).catch(() => {});
         }
@@ -2508,7 +2557,7 @@ Return a strictly valid JSON object matching this schema:
             SNAPSHOT_CACHE_KEY(userId),
             {
               ...existingSnapshot,
-              aiReports: [normalizedSaved, ...existingSnapshot.aiReports],
+              aiReports: [normalizedSaved, ...existingSnapshot.aiReports].slice(0, 50),
               isVerifiedSync: true,
               cachedAt: new Date().toISOString(),
             },
@@ -2803,7 +2852,9 @@ app.post("/api/visualize-dataset", requireAuth, aiLimiter, async (req: Request, 
 // AI Trace Verification Endpoint
 app.post("/api/verify-trace", requireAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
-    const { processVerifyDatasetTrace } = await import("./src/lib/review.functions.js");
+    if (!req.body || typeof req.body !== "object" || !req.body.slug || !req.body.pseudocode) {
+      return res.status(400).json({ error: "Invalid trace verification payload" });
+    }
     const result = await processVerifyDatasetTrace(req.body);
     res.json(result);
   } catch (err: any) {
@@ -2872,6 +2923,15 @@ app.post("/api/compiler/execute", requireAuth, compilerLimiter, async (req: Requ
   }
 });
 
+function sanitizeInternalReturnToPath(rawPath: unknown): string {
+  if (typeof rawPath !== "string") return "/profile";
+  const trimmed = rawPath.trim();
+  if (!/^\/[a-zA-Z0-9/_-]*$/.test(trimmed) || trimmed.startsWith("//")) {
+    return "/profile";
+  }
+  return trimmed;
+}
+
 // GitHub OAuth Lifecycle
 app.get("/api/github/url", requireAuth, (req: any, res) => {
   const uid = req.user.uid;
@@ -2892,21 +2952,31 @@ app.get("/api/github/url", requireAuth, (req: any, res) => {
     setGithubOAuthBearerCookie(req, res, bearerToken);
   }
 
-  // Construct canonical redirect URI
+  // Construct canonical redirect URI restricted to the server's own host
   const proto =
     (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim() || "https";
   const host =
     (req.headers["x-forwarded-host"] as string)?.split(",")[0]?.trim() || req.headers.host;
-  const clientOrigin =
+  let validatedOrigin = `${proto}://${host}`;
+  const candidateOrigin =
     typeof req.query.origin === "string" && req.query.origin.startsWith("http")
       ? req.query.origin.replace(/\/+$/, "")
+      : typeof req.headers.origin === "string"
+      ? req.headers.origin.replace(/\/+$/, "")
       : null;
-  const origin = clientOrigin || req.headers.origin || `${proto}://${host}`;
-  const redirectUri = `${origin}/api/github/callback`;
+  if (candidateOrigin && host) {
+    try {
+      const parsedOrigin = new URL(candidateOrigin);
+      if (parsedOrigin.host === host && (parsedOrigin.protocol === "https:" || parsedOrigin.protocol === "http:")) {
+        validatedOrigin = parsedOrigin.origin;
+      }
+    } catch {
+      // Ignore invalid origin URL
+    }
+  }
+  const redirectUri = `${validatedOrigin}/api/github/callback`;
 
-  const rawReturnTo = typeof req.query.returnTo === "string" ? req.query.returnTo.trim() : "";
-  const returnTo =
-    rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") ? rawReturnTo : "/profile";
+  const returnTo = sanitizeInternalReturnToPath(req.query.returnTo);
 
   // Nonce + Expiry (10 minutes) for tamper-proof, single-use state
   const nonce = crypto.randomBytes(16).toString("hex");
@@ -2958,13 +3028,18 @@ app.get("/api/github/callback", async (req, res) => {
   try {
     const decodedWrapper = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
     const { payload, signature } = decodedWrapper;
+    if (typeof payload !== "string" || typeof signature !== "string") {
+      return res.status(400).send("Invalid state structure");
+    }
 
-    // 1. Verify HMAC cryptographic signature
+    // 1. Verify HMAC cryptographic signature in constant time
     const hmac = crypto.createHmac("sha256", secret);
     hmac.update(payload);
     const expectedSignature = hmac.digest("hex");
 
-    if (signature !== expectedSignature) {
+    const sigBuf = Buffer.from(signature, "utf8");
+    const expectedBuf = Buffer.from(expectedSignature, "utf8");
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
       return res.status(403).send("State signature mismatch - possible CSRF attack");
     }
 
@@ -2973,13 +3048,7 @@ app.get("/api/github/callback", async (req, res) => {
     nonce = decoded.nonce;
     expiresAt = decoded.expiresAt;
     redirectUri = decoded.redirectUri;
-    if (
-      typeof decoded.returnTo === "string" &&
-      decoded.returnTo.startsWith("/") &&
-      !decoded.returnTo.startsWith("//")
-    ) {
-      returnTo = decoded.returnTo;
-    }
+    returnTo = sanitizeInternalReturnToPath(decoded.returnTo);
 
     // 2. Verify state expiration
     if (Date.now() > expiresAt) {
@@ -2990,7 +3059,7 @@ app.get("/api/github/callback", async (req, res) => {
     if (usedOAuthNonces.has(nonce)) {
       return res.status(400).send("OAuth state has already been used.");
     }
-    usedOAuthNonces.set(nonce, expiresAt);
+    recordUsedOAuthNonce(nonce, expiresAt);
   } catch (e) {
     return res.status(400).send("Invalid or malformed state payload");
   }
@@ -3171,8 +3240,9 @@ app.get("/api/github/callback", async (req, res) => {
                   githubAvatar: ghAvatar,
                   githubUrl: ghUrl
                 };
-                window.opener.postMessage(Object.assign({ type: 'GITHUB_AUTH_SUCCESS' }, msgPayload), '*');
-                window.opener.postMessage(Object.assign({ type: 'GITHUB_CONNECTED' }, msgPayload), '*');
+                var targetOrigin = window.location.origin || '*';
+                window.opener.postMessage(Object.assign({ type: 'GITHUB_AUTH_SUCCESS' }, msgPayload), targetOrigin);
+                window.opener.postMessage(Object.assign({ type: 'GITHUB_CONNECTED' }, msgPayload), targetOrigin);
                 setTimeout(function() { window.close(); }, 300);
               } else {
                 window.location.replace(targetUrl);

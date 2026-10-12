@@ -77,12 +77,13 @@ export function parseCalendarStringOrObject(rawCal: any): Record<string, number>
 }
 
 export async function fetchLeetCodeStats(username: string): Promise<LeetCodeStats | null> {
-  const cleanUsername = username.trim().replace(/^@+/, '');
-  if (!cleanUsername) return null;
+  const cleanUsername = String(username || '').trim().replace(/^@+/, '');
+  if (!cleanUsername || !/^[a-zA-Z0-9_-]{1,40}$/.test(cleanUsername)) return null;
+  const encodedUsername = encodeURIComponent(cleanUsername);
 
   // Strategy 1: Faisal Shohag LeetCode Vercel API (Super fast & reliable, full details)
   try {
-    const res = await fetch(`https://leetcode-api-faisalshohag.vercel.app/${cleanUsername}`, {
+    const res = await fetch(`https://leetcode-api-faisalshohag.vercel.app/${encodedUsername}`, {
       signal: AbortSignal.timeout(6000),
     });
     if (res.ok) {
@@ -103,7 +104,7 @@ export async function fetchLeetCodeStats(username: string): Promise<LeetCodeStat
         return {
           username: cleanUsername,
           name: cleanUsername,
-          avatar: `https://assets.leetcode.com/users/${cleanUsername}/avatar_1775999706.png`,
+          avatar: `https://assets.leetcode.com/users/${encodedUsername}/avatar_1775999706.png`,
           ranking: Number(data.ranking) || 0,
           reputation: Number(data.reputation) || 0,
           totalSolved: Number(data.totalSolved) || 0,
@@ -201,7 +202,7 @@ export async function fetchLeetCodeStats(username: string): Promise<LeetCodeStat
         return {
           username: matched.username || cleanUsername,
           name: matched.profile?.realName || matched.username || cleanUsername,
-          avatar: matched.profile?.userAvatar || `https://assets.leetcode.com/users/${cleanUsername}/avatar.png`,
+          avatar: matched.profile?.userAvatar || `https://assets.leetcode.com/users/${encodedUsername}/avatar.png`,
           ranking: matched.profile?.ranking || 0,
           reputation: matched.profile?.reputation || 0,
           totalSolved,
@@ -228,8 +229,8 @@ export async function fetchLeetCodeStats(username: string): Promise<LeetCodeStat
   // Strategy 3: Alfa LeetCode API
   try {
     const [userRes, calRes] = await Promise.allSettled([
-      fetch(`https://alfa-leetcode-api.onrender.com/${cleanUsername}`, { signal: AbortSignal.timeout(5000) }),
-      fetch(`https://alfa-leetcode-api.onrender.com/${cleanUsername}/calendar`, { signal: AbortSignal.timeout(5000) }),
+      fetch(`https://alfa-leetcode-api.onrender.com/${encodedUsername}`, { signal: AbortSignal.timeout(5000) }),
+      fetch(`https://alfa-leetcode-api.onrender.com/${encodedUsername}/calendar`, { signal: AbortSignal.timeout(5000) }),
     ]);
 
     let userJson: any = null;

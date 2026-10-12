@@ -1,11 +1,20 @@
 import fs from 'fs';
 import path from 'path';
-import { adminDb } from '../lib/firebase-admin';
+import { adminDb, isAdminDbAvailable, markAdminDbUnavailable } from '../lib/firebase-admin';
 import { getCache, setCache } from '../lib/redis-cache';
 
 const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.join(process.cwd(), '.data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const MAX_USERS_IN_MEMORY = 5000;
 const memoryUserStore = new Map<string, any>();
+
+function setMemoryUser(uid: string, data: any) {
+  if (!memoryUserStore.has(uid) && memoryUserStore.size >= MAX_USERS_IN_MEMORY) {
+    const oldest = memoryUserStore.keys().next().value;
+    if (oldest) memoryUserStore.delete(oldest);
+  }
+  memoryUserStore.set(uid, data);
+}
 
 // Load persistent users if present
 try {
@@ -13,24 +22,40 @@ try {
     const raw = fs.readFileSync(USERS_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     for (const [k, v] of Object.entries(parsed)) {
-      memoryUserStore.set(k, v);
+      setMemoryUser(k, v);
     }
   }
 } catch {
   // Silent fallback
 }
 
+let persistUsersTimer: ReturnType<typeof setTimeout> | null = null;
+let isPersistingUsers = false;
+
 function persistUsers() {
-  try {
-    const dir = path.dirname(USERS_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const obj: Record<string, any> = {};
-    for (const [k, v] of memoryUserStore.entries()) {
-      obj[k] = v;
+  if (persistUsersTimer) return;
+  persistUsersTimer = setTimeout(async () => {
+    persistUsersTimer = null;
+    if (isPersistingUsers) return;
+    isPersistingUsers = true;
+    try {
+      const dir = path.dirname(USERS_FILE);
+      if (!fs.existsSync(dir)) {
+        await fs.promises.mkdir(dir, { recursive: true });
+      }
+      const obj: Record<string, any> = {};
+      for (const [k, v] of memoryUserStore.entries()) {
+        obj[k] = v;
+      }
+      await fs.promises.writeFile(USERS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    } catch {
+      // Non-blocking fallback
+    } finally {
+      isPersistingUsers = false;
     }
-    fs.writeFileSync(USERS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
-  } catch {
-    // Non-blocking fallback
+  }, 500);
+  if (typeof persistUsersTimer.unref === 'function') {
+    persistUsersTimer.unref();
   }
 }
 
@@ -47,28 +72,30 @@ export async function getOrCreateUser(uid: string, email: string) {
     // Fall through
   }
   
-  // 2. Try Firestore if credentials exist
-  try {
-    const userRef = adminDb.collection('users').doc(uid);
-    const doc = await userRef.get();
-    
-    if (doc && doc.exists) {
-      const data = doc.data();
-      if (!data?.displayName) {
-        await userRef.set({ displayName: defaultUsername, display_name: defaultUsername }, { merge: true }).catch(() => {});
-        const updated = { ...data, displayName: defaultUsername, display_name: defaultUsername };
-        memoryUserStore.set(uid, updated);
+  // 2. Try Firestore ONLY if service account credentials exist
+  if (isAdminDbAvailable()) {
+    try {
+      const userRef = adminDb.collection('users').doc(uid);
+      const doc = await userRef.get();
+      
+      if (doc && doc.exists) {
+        const data = doc.data();
+        if (!data?.displayName) {
+          await userRef.set({ displayName: defaultUsername, display_name: defaultUsername }, { merge: true }).catch(() => {});
+          const updated = { ...data, displayName: defaultUsername, display_name: defaultUsername };
+          setMemoryUser(uid, updated);
+          persistUsers();
+          await setCache(`user:${uid}`, updated, 1800).catch(() => {});
+          return updated;
+        }
+        setMemoryUser(uid, data);
         persistUsers();
-        await setCache(`user:${uid}`, updated, 1800).catch(() => {});
-        return updated;
+        await setCache(`user:${uid}`, data, 1800).catch(() => {});
+        return data;
       }
-      memoryUserStore.set(uid, data);
-      persistUsers();
-      await setCache(`user:${uid}`, data, 1800).catch(() => {});
-      return data;
+    } catch {
+      markAdminDbUnavailable();
     }
-  } catch {
-    // Admin DB credentials not present or network unavailable
   }
 
   // 3. Check local memory/disk store
@@ -85,14 +112,16 @@ export async function getOrCreateUser(uid: string, email: string) {
     createdAt: new Date().toISOString(),
   };
   
-  try {
-    const userRef = adminDb.collection('users').doc(uid);
-    await userRef.set(newUser);
-  } catch {
-    // Graceful fallback to memory store
+  if (isAdminDbAvailable()) {
+    try {
+      const userRef = adminDb.collection('users').doc(uid);
+      await userRef.set(newUser);
+    } catch {
+      markAdminDbUnavailable();
+    }
   }
 
-  memoryUserStore.set(uid, newUser);
+  setMemoryUser(uid, newUser);
   persistUsers();
   await setCache(`user:${uid}`, newUser, 1800).catch(() => {});
   return newUser;
@@ -102,15 +131,17 @@ export async function updateUser(uid: string, data: any) {
   if (!uid) return null;
   const existing = memoryUserStore.get(uid) || {};
   const merged = { ...existing, ...data, updatedAt: new Date().toISOString() };
-  memoryUserStore.set(uid, merged);
+  setMemoryUser(uid, merged);
   persistUsers();
   await setCache(`user:${uid}`, merged, 1800).catch(() => {});
 
-  try {
-    const userRef = adminDb.collection('users').doc(uid);
-    await userRef.set(data, { merge: true });
-  } catch {
-    // Non-blocking Firestore write fallback
+  if (isAdminDbAvailable()) {
+    try {
+      const userRef = adminDb.collection('users').doc(uid);
+      await userRef.set(data, { merge: true });
+    } catch {
+      markAdminDbUnavailable();
+    }
   }
 
   return merged;

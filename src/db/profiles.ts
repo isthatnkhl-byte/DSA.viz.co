@@ -1,11 +1,20 @@
 import fs from 'fs';
 import path from 'path';
-import { adminDb } from '../lib/firebase-admin';
+import { adminDb, isAdminDbAvailable, markAdminDbUnavailable } from '../lib/firebase-admin';
 import { getCache, setCache, deleteCache } from '../lib/redis-cache';
 
 const DATA_DIR = process.env.VERCEL ? path.join('/tmp', '.data') : path.join(process.cwd(), '.data');
 const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
+const MAX_PROFILES_IN_MEMORY = 5000;
 const memoryProfileStore = new Map<string, any>();
+
+function setMemoryProfile(userId: string, data: any) {
+  if (!memoryProfileStore.has(userId) && memoryProfileStore.size >= MAX_PROFILES_IN_MEMORY) {
+    const oldest = memoryProfileStore.keys().next().value;
+    if (oldest) memoryProfileStore.delete(oldest);
+  }
+  memoryProfileStore.set(userId, data);
+}
 
 // Load persistent profiles if present
 try {
@@ -13,7 +22,7 @@ try {
     const raw = fs.readFileSync(PROFILES_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     for (const [k, v] of Object.entries(parsed)) {
-      memoryProfileStore.set(k, v);
+      setMemoryProfile(k, v);
     }
   }
 } catch {
@@ -61,20 +70,22 @@ export async function getProfile(userId: string) {
     // Fall through
   }
 
-  // 2. Check Firestore if configured with credentials
-  try {
-    const doc = await adminDb.collection('users').doc(userId).get();
-    if (doc && doc.exists) {
-      const data = doc.data();
-      const existing = memoryProfileStore.get(userId) || {};
-      const merged = { ...existing, ...data };
-      memoryProfileStore.set(userId, merged);
-      persistProfiles();
-      await setCache(`profile:v2:${userId}`, merged).catch(() => {});
-      return merged;
+  // 2. Check Firestore ONLY if configured with service account credentials
+  if (isAdminDbAvailable()) {
+    try {
+      const doc = await adminDb.collection('users').doc(userId).get();
+      if (doc && doc.exists) {
+        const data = doc.data();
+        const existing = memoryProfileStore.get(userId) || {};
+        const merged = { ...existing, ...data };
+        setMemoryProfile(userId, merged);
+        persistProfiles();
+        await setCache(`profile:v2:${userId}`, merged).catch(() => {});
+        return merged;
+      }
+    } catch {
+      markAdminDbUnavailable();
     }
-  } catch {
-    // Admin DB credentials not present or network unavailable
   }
 
   // 3. Fall back to local store
@@ -90,24 +101,26 @@ export async function updateProfile(userId: string, data: any) {
 
   const existing = memoryProfileStore.get(userId) || {};
   const merged = { ...existing, ...data, updatedAt: new Date().toISOString() };
-  memoryProfileStore.set(userId, merged);
+  setMemoryProfile(userId, merged);
   persistProfiles();
 
   // Write through to unified Redis cache
   await setCache(`profile:v2:${userId}`, merged).catch(() => {});
 
-  try {
-    await adminDb.collection('users').doc(userId).set(data, { merge: true });
-    const doc = await adminDb.collection('users').doc(userId).get();
-    if (doc && doc.exists) {
-      const cloudData = { ...doc.data(), ...merged, ...data };
-      memoryProfileStore.set(userId, cloudData);
-      persistProfiles();
-      await setCache(`profile:v2:${userId}`, cloudData).catch(() => {});
-      return cloudData;
+  if (isAdminDbAvailable()) {
+    try {
+      await adminDb.collection('users').doc(userId).set(data, { merge: true });
+      const doc = await adminDb.collection('users').doc(userId).get();
+      if (doc && doc.exists) {
+        const cloudData = { ...doc.data(), ...merged, ...data };
+        setMemoryProfile(userId, cloudData);
+        persistProfiles();
+        await setCache(`profile:v2:${userId}`, cloudData).catch(() => {});
+        return cloudData;
+      }
+    } catch {
+      markAdminDbUnavailable();
     }
-  } catch {
-    // Fall back gracefully to memory/disk store
   }
 
   return merged;

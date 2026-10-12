@@ -1,4 +1,4 @@
-import vm from "vm";
+import { Worker } from "node:worker_threads";
 import { GoogleGenAI } from "@google/genai";
 import { validateSource } from "./compiler/validator";
 import type {
@@ -1024,44 +1024,118 @@ export async function runInterviewSampleTests(payload: {
     }
   }
 
-  // 3. For JavaScript: Execute directly in a sandboxed Node VM context!
+  // 3. For JavaScript: Execute inside an isolated Worker thread with zero host prototype exposure and env: {}
   if (language === "javascript") {
     const fnMatch = code.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
     const fnName = fnMatch?.[1];
-    if (fnName) {
+    if (fnName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(fnName)) {
       try {
+        const serializedInputs = rawCases.map((tc) => JSON.stringify(parseExampleInputArgs(tc.input)));
+        const workerScript = `
+          const { parentPort, workerData } = require("node:worker_threads");
+          const vm = require("node:vm");
+          const { code, fnName, serializedInputs } = workerData;
+          try {
+            const results = [];
+            for (let i = 0; i < serializedInputs.length; i++) {
+              const startNs = process.hrtime.bigint();
+              const ctx = vm.createContext(Object.create(null), {
+                codeGeneration: { strings: false, wasm: false },
+              });
+              const wrappedScript =
+                code +
+                "\\n;(function() { const __args = JSON.parse(" +
+                JSON.stringify(serializedInputs[i]) +
+                "); const __out = " +
+                fnName +
+                "(...__args); return __out === undefined ? 'undefined' : JSON.stringify(__out); })()";
+              const actualStr = vm.runInContext(wrappedScript, ctx, { timeout: 600 });
+              const elapsedMs = Math.max(1, Number(process.hrtime.bigint() - startNs) / 1000000);
+              results.push({ actualStr: String(actualStr), elapsedMs });
+            }
+            parentPort.postMessage({ ok: true, results });
+          } catch (err) {
+            parentPort.postMessage({ ok: false, error: err && err.message ? err.message : String(err) });
+          }
+        `;
+
+        const workerOutcome = await new Promise<{
+          ok: boolean;
+          results?: Array<{ actualStr: string; elapsedMs: number }>;
+          error?: string;
+        }>((resolve) => {
+          let settled = false;
+          const worker = new Worker(workerScript, {
+            eval: true,
+            env: {},
+            workerData: { code, fnName, serializedInputs },
+            resourceLimits: {
+              maxOldGenerationSizeMb: 64,
+              maxYoungGenerationSizeMb: 16,
+              codeRangeSizeMb: 16,
+            },
+          });
+
+          const killTimer = setTimeout(() => {
+            if (!settled) {
+              settled = true;
+              worker.terminate().catch(() => {});
+              resolve({ ok: false, error: "Execution timed out (Time Limit Exceeded)" });
+            }
+          }, 2000);
+
+          worker.on("message", (msg) => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(killTimer);
+              worker.terminate().catch(() => {});
+              resolve(msg);
+            }
+          });
+
+          worker.on("error", (err) => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(killTimer);
+              worker.terminate().catch(() => {});
+              resolve({ ok: false, error: err?.message || String(err) });
+            }
+          });
+
+          worker.on("exit", (exitCode) => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(killTimer);
+              resolve({
+                ok: false,
+                error: exitCode !== 0 ? `Worker terminated with exit code ${exitCode}` : "Worker exited without result",
+              });
+            }
+          });
+        });
+
+        if (!workerOutcome.ok || !workerOutcome.results) {
+          return {
+            status: "compile_error",
+            summaryMessage: "JavaScript Runtime / Syntax Error",
+            compilerOutput: workerOutcome.error || "Execution error",
+            estimatedTimeComplexity: heuristics.estimatedTime,
+            estimatedSpaceComplexity: heuristics.estimatedSpace,
+            passedCount: 0,
+            totalCount: rawCases.length,
+            cases: [],
+          };
+        }
+
         const cases: InterviewSampleTestCaseResult[] = [];
         let passedCount = 0;
 
         for (let i = 0; i < rawCases.length; i++) {
           const tc = rawCases[i]!;
-          const args = parseExampleInputArgs(tc.input);
-          const startNs = process.hrtime.bigint();
-          const sandbox: Record<string, any> = {
-            __args: args,
-            __result: undefined,
-            Math,
-            Map,
-            Set,
-            Array,
-            Object,
-            Number,
-            String,
-            Boolean,
-            JSON,
-            Infinity,
-            NaN,
-            parseInt,
-            parseFloat,
-            isNaN,
-          };
-          vm.createContext(sandbox);
-          vm.runInContext(`${code}\n__result = ${fnName}(...__args);`, sandbox, { timeout: 800 });
-          const elapsedMs = Math.max(1, Number(process.hrtime.bigint() - startNs) / 1_000_000);
-          const actualStr =
-            sandbox.__result === undefined ? "undefined" : JSON.stringify(sandbox.__result);
+          const runRes = workerOutcome.results[i] || { actualStr: "undefined", elapsedMs: 1 };
+          const actualStr = runRes.actualStr;
           const isPass = tc.isCustom
-            ? sandbox.__result !== undefined
+            ? actualStr !== "undefined"
             : normalizeOutputString(actualStr) === normalizeOutputString(tc.expectedOutput);
           if (isPass) passedCount++;
 
@@ -1071,7 +1145,7 @@ export async function runInterviewSampleTests(payload: {
             expectedOutput: tc.expectedOutput,
             actualOutput: actualStr,
             passed: isPass,
-            runtimeMs: Math.round(elapsedMs * 10) / 10,
+            runtimeMs: Math.round(runRes.elapsedMs * 10) / 10,
             explanation: tc.explanation,
             isCustom: tc.isCustom,
           });

@@ -7,13 +7,13 @@ import {
   Play,
   Pause,
   RotateCcw,
-  Layers,
   Crosshair,
-  Wand2,
   Film,
-  Download,
   CheckCircle2,
   Camera,
+  Activity,
+  Cpu,
+  Workflow,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
@@ -85,33 +85,33 @@ const MOTION_CHAPTERS = [
     id: 0,
     timeRange: [0, 3.2] as const,
     code: "01 // LIVE PROMPT",
-    title: "Camera Tracks Prompt & Model Badge",
+    title: "Live Prompt & Model Badge",
     subtitle:
-      "Smooth zoom-in on live prompt typing, Ask AI click shockwave, and LIVE AI: gemini-3.5-flash-lite badge.",
+      "Instant query submission with verified LIVE AI: gemini-3.5-flash-lite badge.",
   },
   {
     id: 1,
     timeRange: [3.2, 9.2] as const,
     code: "02 // AI WHITEBOARD DRAW",
-    title: "Motion-Blurred Cursor Sweeps Array & Pointers",
+    title: "Array, Window & Pointer Markers",
     subtitle:
-      "Camera dynamically centers on the AI laser cursor as it traces [0..5], L/R arrows, and maxSum = 9 🎯.",
+      "Stroke-by-stroke raw array cells, dashed sliding window, and L/R pointer markers.",
   },
   {
     id: 2,
     timeRange: [9.2, 11.2] as const,
     code: "03 // LINK ZONE CONTEXT",
-    title: "Whip-Pan to Tag Zone #1 (🎯 #1)",
+    title: "Pin Zone #1 (🎯 #1) Context",
     subtitle:
-      "Fast directional motion-blur pan to Board Zones bar to pin Zone #1's topic, step invariant & dataset.",
+      "Tagging Zone #1 automatically injects its dataset [2,1,5,1,3,2] and step invariant.",
   },
   {
     id: 3,
     timeRange: [11.2, 15.0] as const,
     code: "04 // BRANCH & TAKE OVER",
-    title: "Camera Tracks Dashed Branch Into Zone #2",
+    title: "Branch Zone #2 With Zero Overlap",
     subtitle:
-      "Follows the rose branch connector into Zone #2 for O(1) window delta comparison, then zooms out to full board.",
+      "Spawns connected comparison Zone #2 with dashed branch connector and delta cards.",
   },
 ];
 
@@ -251,15 +251,11 @@ function drawArrow(
 export function FeaturesBento() {
   const [activeStepIdx, setActiveStepIdx] = useState(2);
   const [linkMode, setLinkMode] = useState<"branch" | "takeover">("branch");
-  const [activePrimitive, setActivePrimitive] = useState<
-    "array" | "hashmap" | "tree" | "grid2d"
-  >("array");
 
-  // Motion-Graphics Overview Video Player state (defaults to clean 1.0x wide view without camera shift/blur)
+  // Motion-Graphics Overview Player state (starts clean at 1.0x wide canvas view)
   const [cameraTrackEnabled, setCameraTrackEnabled] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [liveZoomText, setLiveZoomText] = useState("1.00x");
 
   const TOTAL_DURATION = 15.0;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -275,7 +271,7 @@ export function FeaturesBento() {
     history: [] as Array<{ x: number; y: number }>,
   });
 
-  // High-Motion Graphics 60fps Canvas Render Loop with Offscreen Cache & Critically-Damped Spring Physics
+  // 60fps Canvas Render Loop with Offscreen Cache & Spring Physics
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -285,7 +281,7 @@ export function FeaturesBento() {
     const W = 1280;
     const H = 720;
 
-    // Pre-render static background + dot grid ONCE onto an offscreen canvas (cuts frame cost to < 0.8ms!)
+    // Pre-render static background + dot grid ONCE into an offscreen canvas
     const bgCanvas = document.createElement("canvas");
     bgCanvas.width = W + 640;
     bgCanvas.height = H + 640;
@@ -976,7 +972,7 @@ export function FeaturesBento() {
       const target = sampleCursorAndZoom(t, TOTAL_DURATION);
       const st = camStateRef.current;
 
-      // 2nd-order critically damped spring for cursor (100% smooth velocity and acceleration)
+      // 2nd-order critically damped spring for cursor (smooth velocity & acceleration)
       const omega = 15.0;
       const ax = omega * omega * (target.x - st.curX) - 2 * omega * st.curVx;
       const ay = omega * omega * (target.y - st.curY) - 2 * omega * st.curVy;
@@ -1029,7 +1025,6 @@ export function FeaturesBento() {
       frameCount++;
       if (frameCount % 6 === 0) {
         setElapsedSec(t);
-        setLiveZoomText(`${st.camZoom.toFixed(2)}x`);
       }
 
       rafId = requestAnimationFrame(renderLoop);
@@ -1064,7 +1059,7 @@ export function FeaturesBento() {
   return (
     <section className="py-16 sm:py-24 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto w-full">
       {/* Section Header */}
-      <div className="text-center max-w-3xl mx-auto mb-14">
+      <div className="text-center max-w-3xl mx-auto mb-12">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-4 shadow-xs">
           <Sparkles className="size-3.5 text-primary" />
           <span>AI-Assisted Excalidraw Co-Teacher</span>
@@ -1080,8 +1075,8 @@ export function FeaturesBento() {
         </p>
       </div>
 
-      {/* 4-Card AI Whiteboard Feature Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+      {/* Top 2 Key Interactive Feature Cards (Card 1: Dry Run & Card 2: Zone Link) */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-12">
         {/* Card 1: Live Prompt-to-Whiteboard Dry Run Simulation (Span 7) */}
         <div className="md:col-span-7 group rounded-3xl border border-border/80 bg-card/85 p-6 sm:p-8 backdrop-blur-xl flex flex-col justify-between hover:border-primary/50 hover:shadow-2xl transition-all duration-300">
           <div>
@@ -1111,7 +1106,6 @@ export function FeaturesBento() {
 
             {/* Interactive Mini Whiteboard Canvas Preview */}
             <div className="my-5 rounded-2xl border border-slate-300/80 bg-[#f8fafc] text-slate-900 p-4 font-mono text-xs shadow-inner relative overflow-hidden">
-              {/* Top Zone Header */}
               <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-200">
                 <span className="inline-flex items-center gap-1.5 font-bold text-[11px] text-sky-700 bg-sky-100 border border-sky-300 rounded-md px-2.5 py-0.5">
                   ZONE #1 • SLIDING WINDOW MAX SUBARRAY SUM (K=3)
@@ -1121,7 +1115,6 @@ export function FeaturesBento() {
                 </span>
               </div>
 
-              {/* Raw Input Dataset Banner */}
               <div className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 mb-3 flex items-center justify-between">
                 <span>Input: arr = [2, 1, 5, 1, 3, 2], k = 3</span>
                 <span className="text-sky-700">
@@ -1129,7 +1122,6 @@ export function FeaturesBento() {
                 </span>
               </div>
 
-              {/* Array Cells */}
               <div className="relative py-4 px-2 flex items-center justify-center gap-2 sm:gap-3">
                 {demoArray.map((val, idx) => {
                   const inWin =
@@ -1179,7 +1171,6 @@ export function FeaturesBento() {
                 })}
               </div>
 
-              {/* Live State Tracker Cards */}
               <div className="grid grid-cols-3 gap-2 mt-1 pt-2.5 border-t border-slate-200">
                 <div className="rounded-lg border border-sky-400 bg-sky-50 px-2.5 py-1.5">
                   <div className="text-[9px] font-bold text-sky-700 uppercase">
@@ -1207,7 +1198,6 @@ export function FeaturesBento() {
                 </div>
               </div>
 
-              {/* Step Scrubber Bar */}
               <div className="mt-3 flex items-center justify-between gap-2 bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200">
                 <span className="text-[10px] font-bold text-slate-700 truncate">
                   {activeStep.invariant}
@@ -1362,281 +1352,54 @@ export function FeaturesBento() {
             </Link>
           </div>
         </div>
-
-        {/* Card 3: Multi-Zone Spatial Canvas & Model Attribution (Span 5) */}
-        <div className="md:col-span-5 group rounded-3xl border border-border/80 bg-card/85 p-6 sm:p-8 backdrop-blur-xl flex flex-col justify-between hover:border-accent/50 hover:shadow-2xl transition-all duration-300">
-          <div>
-            <div className="flex items-center justify-between mb-5">
-              <div className="size-12 rounded-2xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-xs">
-                <Layers className="size-6" />
-              </div>
-              <span className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1 font-mono text-[11px] font-bold text-accent">
-                Spatial Board Zones
-              </span>
-            </div>
-
-            <h3 className="font-display text-2xl font-black text-foreground group-hover:text-accent transition-colors">
-              Verified Live Model Badges &amp; Multi-Zone History
-            </h3>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed font-sans">
-              Every simulation renders inside a non-overlapping architectural
-              frame with a live badge showing the exact model that
-              answered—never overwriting your previous drawings.
-            </p>
-
-            <div className="my-5 rounded-2xl border border-border/70 bg-background/80 p-3.5 font-mono text-xs space-y-2.5 shadow-inner">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
-                Active Board Zones Navigation Bar
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500 bg-rose-500/20 px-2.5 py-1 text-[11px] font-bold text-rose-300">
-                  🎯 #1 Sliding Window
-                  <span className="rounded bg-emerald-500/30 px-1 text-[9px] text-emerald-200">
-                    gemini-3.5-flash-lite
-                  </span>
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-300">
-                  🌿 #2 Prefix Sum Branch
-                  <span className="rounded bg-emerald-500/30 px-1 text-[9px] text-emerald-200">
-                    gemini-3.5-flash
-                  </span>
-                </span>
-              </div>
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300 flex items-center justify-between">
-                <span>Model Which Answered Badge</span>
-                <span className="font-bold">100% Live Verified</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-border/40 flex items-center justify-between font-mono text-xs text-accent">
-            <span className="font-bold">Collision-Free Infinite Canvas</span>
-            <Link
-              to="/interview"
-              className="flex items-center gap-1 hover:underline"
-            >
-              <span>Explore Zones</span>
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Card 4: Rich Visual Primitives & Composite Widgets (Span 7) */}
-        <div className="md:col-span-7 group rounded-3xl border border-border/80 bg-card/85 p-6 sm:p-8 backdrop-blur-xl flex flex-col justify-between hover:border-primary/50 hover:shadow-2xl transition-all duration-300">
-          <div>
-            <div className="flex items-center justify-between mb-5">
-              <div className="size-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shadow-xs">
-                <Wand2 className="size-6" />
-              </div>
-              <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-[11px] font-bold text-primary">
-                Composite Excalidraw Primitives
-              </span>
-            </div>
-
-            <h3 className="font-display text-2xl font-black text-foreground group-hover:text-primary transition-colors">
-              Arrays, 2D DP Grids, Hash Maps, Trees &amp; Graphs
-            </h3>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed font-sans">
-              Instead of static images, the AI composes real editable Excalidraw
-              primitives—so you can drag nodes, draw annotations, or select any
-              subset of shapes for AI inspection.
-            </p>
-
-            <div className="my-5 space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { id: "array", label: "Sliding Window & Two Pointers" },
-                  { id: "hashmap", label: "Hash Map & Complement Table" },
-                  { id: "tree", label: "Trees, Heaps & Recursion" },
-                  { id: "grid2d", label: "2D DP & Matrix BFS/DFS" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActivePrimitive(item.id as any)}
-                    className={`rounded-xl border px-3 py-1.5 font-mono text-xs font-bold transition-all ${
-                      activePrimitive === item.id
-                        ? "border-primary bg-primary/20 text-primary shadow-xs"
-                        : "border-border/70 bg-secondary/50 text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="rounded-2xl border border-border/70 bg-background/80 p-4 font-mono text-xs">
-                {activePrimitive === "array" && (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="text-primary font-bold">
-                        1D Array + Dashed Window + Vertical Pointers
-                      </div>
-                      <div className="text-muted-foreground text-[11px] font-sans mt-0.5">
-                        Automatic <code className="font-mono">[0]..[n-1]</code>{" "}
-                        index headers, dashed window frames around contiguous
-                        highlighted cells, and{" "}
-                        <code className="font-mono">L/R/mid</code> pointer
-                        arrows.
-                      </div>
-                    </div>
-                    <span className="shrink-0 rounded-lg bg-amber-500/15 border border-amber-500/40 px-3 py-1.5 text-amber-300 font-bold">
-                      Window [L..R] + Pointers
-                    </span>
-                  </div>
-                )}
-                {activePrimitive === "hashmap" && (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="text-primary font-bold">
-                        Live Key-Value Hash Table Widget
-                      </div>
-                      <div className="text-muted-foreground text-[11px] font-sans mt-0.5">
-                        Renders structured{" "}
-                        <code className="font-mono">key → value/index</code>{" "}
-                        lookup tables alongside the input array with curved
-                        lookup arrows on O(1) hits.
-                      </div>
-                    </div>
-                    <span className="shrink-0 rounded-lg bg-sky-500/15 border border-sky-500/40 px-3 py-1.5 text-sky-300 font-bold">
-                      seen[complement] → idx
-                    </span>
-                  </div>
-                )}
-                {activePrimitive === "tree" && (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="text-primary font-bold">
-                        Hierarchical Tree, Trie &amp; Graph Layouts
-                      </div>
-                      <div className="text-muted-foreground text-[11px] font-sans mt-0.5">
-                        Collision-free node placement with
-                        directed/bidirectional edges, split-compartment linked
-                        list nodes, and recursion stack buckets.
-                      </div>
-                    </div>
-                    <span className="shrink-0 rounded-lg bg-emerald-500/15 border border-emerald-500/40 px-3 py-1.5 text-emerald-300 font-bold">
-                      Nodes + Labeled Edges
-                    </span>
-                  </div>
-                )}
-                {activePrimitive === "grid2d" && (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="text-primary font-bold">
-                        2D Matrix &amp; Dynamic Programming Table
-                      </div>
-                      <div className="text-muted-foreground text-[11px] font-sans mt-0.5">
-                        Row/column headers, per-cell transition highlights, and
-                        live recurrence invariant cards (
-                        <code className="font-mono">dp[r][c] = max(...)</code>).
-                      </div>
-                    </div>
-                    <span className="shrink-0 rounded-lg bg-purple-500/15 border border-purple-500/40 px-3 py-1.5 text-purple-300 font-bold">
-                      grid2d[r][c] + State Cards
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-border/40 font-mono text-xs text-primary font-bold flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="size-4" />
-              <span>100% Editable Excalidraw Vector Shapes</span>
-            </span>
-            <Link
-              to="/interview"
-              className="flex items-center gap-1 hover:underline"
-            >
-              <span>Launch Full Whiteboard</span>
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </div>
-        </div>
       </div>
 
       {/* =====================================================================
-          HIGH-MOTION GRAPHICS OVERVIEW VIDEO SHOWCASE (PLACED UNDER SECTION)
+          ENHANCED FLAGSHIP LIVE MOTION GRAPHICS SHOWCASE
          ===================================================================== */}
-      <div className="mt-12 rounded-3xl border border-primary/40 bg-gradient-to-b from-card/95 via-background/95 to-card/90 p-5 sm:p-8 shadow-[0_0_60px_-15px_rgba(225,29,72,0.3)] backdrop-blur-2xl">
-        {/* Video Showcase Header Bar */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-border/60">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-500/15 px-3 py-1 text-[11px] font-mono font-bold text-rose-300 mb-2">
-              <Film className="size-3.5 text-rose-400" />
-              <span>
-                60FPS AI WHITEBOARD MOTION GRAPHICS SHOWCASE
-              </span>
-            </div>
-            <h3 className="text-2xl sm:text-3xl font-display font-black text-foreground">
-              Watch the AI Co-Teacher Draw, Link Zones &amp; Branch Live
-            </h3>
-            <p className="text-xs sm:text-sm text-muted-foreground font-sans mt-1">
-              Interactive 60fps vector motion graphics showcasing live prompt typing, Excalidraw array and pointer generation, linking <code className="text-rose-400 font-mono">🎯 Zone #1</code>, and branching <code className="text-amber-400 font-mono">🌿 Zone #2</code> with full context.
-            </p>
-          </div>
-
-          {/* Camera Tracking & Focus/Blur Toggle Button (Defaults to OFF) */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setCameraTrackEnabled((v) => !v)}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 font-mono text-xs font-bold transition-all ${
-                cameraTrackEnabled
-                  ? "border-rose-500/60 bg-rose-500/20 text-rose-200 shadow-xs"
-                  : "border-border/80 bg-secondary/50 text-muted-foreground hover:text-foreground"
-              }`}
-              title="Toggle Dynamic Camera Center Tracking & Motion Blur Zoom"
-            >
-              <Camera className="size-3.5 text-rose-400" />
-              <span>Camera Zoom &amp; Focus: {cameraTrackEnabled ? "ON" : "OFF"}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Widescreen 16:9 Motion-Graphics Viewport */}
-        <div className="mt-6 relative rounded-2xl border border-rose-500/35 bg-[#070305] overflow-hidden shadow-2xl">
-          <div className="relative w-full aspect-video bg-[#070305]">
-            <canvas
-              ref={canvasRef}
-              width={1280}
-              height={720}
-              className="w-full h-full block object-contain"
-            />
-          </div>
-
-          {/* Interactive Timeline Scrubber Bar Below Canvas */}
-          <div className="border-t border-rose-500/30 bg-[#12070d]/95 px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="shrink-0 rounded bg-primary/20 border border-primary/40 px-2 py-0.5 text-[10px] font-bold text-primary">
-                {currentChapter.code}
-              </span>
-              <span className="font-bold text-foreground text-xs truncate">
-                {currentChapter.title}
-              </span>
-              <span className="hidden md:inline text-rose-300/80 text-[11px] truncate">
-                • Lens Zoom: {liveZoomText}
-              </span>
+      <div className="relative group rounded-3xl p-1 bg-gradient-to-r from-rose-500/35 via-orange-500/25 to-rose-500/35 shadow-[0_0_80px_-20px_rgba(244,63,94,0.4)]">
+        <div className="rounded-[23px] bg-[#0c050a]/95 backdrop-blur-2xl p-5 sm:p-8">
+          {/* Showcase Header Bar */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-rose-500/20">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-500/15 px-3 py-1 text-[11px] font-mono font-bold text-rose-300 mb-2 shadow-xs">
+                <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                <Film className="size-3.5 text-rose-400" />
+                <span>60FPS AI WHITEBOARD MOTION GRAPHICS SHOWCASE</span>
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-display font-black text-foreground">
+                Watch the AI Co-Teacher Draw, Link Zones &amp; Branch Live
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground font-sans mt-1">
+                Interactive 60fps simulation illustrating live natural-language prompt parsing, stroke-by-stroke array drawing, zone tagging (<code className="text-rose-400 font-mono">🎯 Zone #1</code>), and branching into <code className="text-amber-400 font-mono">🌿 Zone #2</code> with full context.
+              </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-[11px] text-muted-foreground">
-                {elapsedSec.toFixed(1)}s / {TOTAL_DURATION.toFixed(1)}s
-              </span>
+            {/* Camera Zoom Toggle & Play Controls */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setCameraTrackEnabled((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 font-mono text-xs font-bold transition-all ${
+                  cameraTrackEnabled
+                    ? "border-rose-500/70 bg-rose-500/25 text-rose-200 shadow-md ring-1 ring-rose-400/40"
+                    : "border-border/80 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border"
+                }`}
+                title="Toggle Dynamic Camera Center Tracking & Zoom Focus"
+              >
+                <Camera className="size-3.5 text-rose-400" />
+                <span>Camera Zoom: {cameraTrackEnabled ? "ON" : "OFF"}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsPlaying((p) => !p)}
-                className="inline-flex items-center gap-1 rounded-lg bg-primary text-primary-foreground px-2.5 py-1 text-[11px] font-bold hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground px-3.5 py-2 font-mono text-xs font-bold hover:opacity-90 transition-opacity shadow-sm"
               >
-                {isPlaying ? (
-                  <Pause className="size-3" />
-                ) : (
-                  <Play className="size-3" />
-                )}
+                {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
                 <span>{isPlaying ? "Pause" : "Play"}</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -1644,51 +1407,139 @@ export function FeaturesBento() {
                   setElapsedSec(0);
                   setIsPlaying(true);
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-secondary/60 px-2 py-1 text-[11px] font-bold text-foreground hover:bg-secondary"
-                title="Restart Overview Video"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-border/80 bg-secondary/60 hover:bg-secondary px-3 py-2 font-mono text-xs font-bold text-foreground transition-colors"
+                title="Restart Animation"
               >
-                <RotateCcw className="size-3" />
+                <RotateCcw className="size-3.5 text-primary" />
+                <span>Restart</span>
               </button>
             </div>
           </div>
-        </div>
 
-        {/* 4 Interactive Video Chapter Scrubber Pills */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {MOTION_CHAPTERS.map((ch, idx) => {
-            const isActive = idx === currentChapterIdx;
-            return (
-              <button
-                key={ch.id}
-                type="button"
-                onClick={() => handleJumpToChapter(idx)}
-                className={`rounded-2xl border p-3 text-left transition-all duration-200 ${
-                  isActive
-                    ? "border-primary bg-primary/15 shadow-md"
-                    : "border-border/60 bg-background/60 hover:border-primary/40 hover:bg-card/80"
-                }`}
-              >
-                <div className="flex items-center justify-between font-mono text-[10px] mb-1">
-                  <span
-                    className={
-                      isActive ? "text-primary font-bold" : "text-muted-foreground"
-                    }
-                  >
-                    {ch.code}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {ch.timeRange[0]}s–{ch.timeRange[1]}s
-                  </span>
+          {/* Widescreen 16:9 Cinema Bezel */}
+          <div className="mt-6 relative rounded-2xl border-2 border-rose-500/35 bg-[#070305] overflow-hidden shadow-2xl">
+            {/* Window Studio Chrome Header */}
+            <div className="border-b border-rose-500/20 bg-[#12070e] px-4 py-2.5 flex items-center justify-between gap-3 text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span className="size-2.5 rounded-full bg-rose-500" />
+                <span className="size-2.5 rounded-full bg-amber-400" />
+                <span className="size-2.5 rounded-full bg-emerald-400" />
+                <span className="ml-2 hidden sm:inline text-slate-400 text-[11px]">
+                  dsa.viz.co / ai-whiteboard / sliding-window-dry-run
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-500/40 px-2 py-0.5 rounded">
+                  gemini-3.5-flash-lite
+                </span>
+                <span className="text-slate-400 font-bold">
+                  {elapsedSec.toFixed(1)}s / {TOTAL_DURATION.toFixed(1)}s
+                </span>
+              </div>
+            </div>
+
+            {/* 60fps Native Retina Canvas */}
+            <div className="relative w-full aspect-video bg-[#070305]">
+              <canvas
+                ref={canvasRef}
+                width={1280}
+                height={720}
+                className="w-full h-full block object-contain"
+              />
+            </div>
+
+            {/* Bottom Timeline Caption Strip */}
+            <div className="border-t border-rose-500/20 bg-[#12070e] px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-primary/20 border border-primary/40 px-2 py-0.5 text-[10px] font-bold text-primary">
+                  {currentChapter.code}
+                </span>
+                <span className="font-bold text-foreground text-xs">
+                  {currentChapter.title}
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground font-sans truncate">
+                {currentChapter.subtitle}
+              </span>
+            </div>
+          </div>
+
+          {/* Interactive 4-Chapter Deck (Click to Jump) */}
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {MOTION_CHAPTERS.map((ch, idx) => {
+              const isActive = idx === currentChapterIdx;
+              return (
+                <button
+                  key={ch.id}
+                  type="button"
+                  onClick={() => handleJumpToChapter(idx)}
+                  className={`relative rounded-2xl border p-3.5 text-left transition-all duration-300 overflow-hidden ${
+                    isActive
+                      ? "border-rose-500/80 bg-gradient-to-b from-rose-500/15 to-card/90 shadow-lg ring-1 ring-rose-500/40"
+                      : "border-border/60 bg-background/60 hover:border-rose-500/40 hover:bg-card/70"
+                  }`}
+                >
+                  {/* Subtle active top progress hairline */}
+                  {isActive && (
+                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 to-amber-400 animate-pulse" />
+                  )}
+                  <div className="flex items-center justify-between font-mono text-[10px] mb-1.5">
+                    <span className={isActive ? "text-rose-400 font-bold" : "text-muted-foreground"}>
+                      {ch.code}
+                    </span>
+                    <span className="text-muted-foreground font-mono">
+                      {ch.timeRange[0]}s–{ch.timeRange[1]}s
+                    </span>
+                  </div>
+                  <div className="font-display text-sm font-black text-foreground">
+                    {ch.title}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground font-sans mt-1 line-clamp-2 leading-relaxed">
+                    {ch.subtitle}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 3 Sleek Highlight Feature Strips Underneath the Player */}
+          <div className="mt-8 pt-6 border-t border-rose-500/20 grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
+            <div className="rounded-2xl border border-border/70 bg-card/60 p-4 flex items-start gap-3 hover:border-emerald-500/50 transition-colors">
+              <div className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shrink-0 mt-0.5">
+                <Cpu className="size-4" />
+              </div>
+              <div>
+                <div className="font-bold text-foreground text-sm font-display">100% Live Model Attribution</div>
+                <div className="text-muted-foreground text-xs font-sans mt-0.5 leading-relaxed">
+                  Every simulation stamps a verified <code className="text-emerald-400 font-mono">LIVE AI: gemini-3.5-flash-lite</code> badge on the zone header.
                 </div>
-                <div className="font-display text-sm font-black text-foreground">
-                  {ch.title}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-card/60 p-4 flex items-start gap-3 hover:border-rose-500/50 transition-colors">
+              <div className="p-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 shrink-0 mt-0.5">
+                <Activity className="size-4" />
+              </div>
+              <div>
+                <div className="font-bold text-foreground text-sm font-display">Context-Aware Branching</div>
+                <div className="text-muted-foreground text-xs font-sans mt-0.5 leading-relaxed">
+                  Tag any zone (<code className="text-rose-400 font-mono">🎯 #1</code>) to inject its exact array values and active invariant into follow-up queries.
                 </div>
-                <div className="text-[11px] text-muted-foreground font-sans mt-0.5 line-clamp-2">
-                  {ch.subtitle}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/70 bg-card/60 p-4 flex items-start gap-3 hover:border-amber-500/50 transition-colors">
+              <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0 mt-0.5">
+                <Workflow className="size-4" />
+              </div>
+              <div>
+                <div className="font-bold text-foreground text-sm font-display">Zero-Overlap Spatial Zones</div>
+                <div className="text-muted-foreground text-xs font-sans mt-0.5 leading-relaxed">
+                  Non-overlapping architectural frames ensure newly branched diagrams never collide with previous whiteboard sketches.
                 </div>
-              </button>
-            );
-          })}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -73,6 +73,7 @@ import {
   type AiWhiteboardLesson,
   type AiWhiteboardStepFrame,
   type WbElement,
+  type WhiteboardSelectionContext,
 } from './src/shared/whiteboard';
 
 
@@ -3888,6 +3889,28 @@ app.post("/api/whiteboard/ai-teach", aiLimiter, async (req: Request, res: Respon
   const roomId = String(req.body?.roomId || "default");
   const problemTitle = String(req.body?.problemTitle || "").trim();
   const code = String(req.body?.code || "").trim();
+  const selectionContext: WhiteboardSelectionContext | null =
+    req.body?.selectionContext && typeof req.body.selectionContext === "object"
+      ? req.body.selectionContext
+      : null;
+
+  const hasSelection =
+    selectionContext &&
+    Array.isArray(selectionContext.selectedElements) &&
+    selectionContext.selectedElements.length > 0;
+
+  const selectionPromptBlock = hasSelection
+    ? `
+USER'S CURRENT DRAG-SELECTED WHITEBOARD AREA (CRITICAL CONTEXT):
+- Selection Mode: ${selectionContext?.mode === "takeover" ? "TAKE OVER / CONTINUE FROM SELECTED DIAGRAM" : "ANSWER / BRANCH FROM SELECTED DIAGRAM"}
+- Bounding Box on Canvas: x=${selectionContext?.bounds?.minX}..${selectionContext?.bounds?.maxX}, y=${selectionContext?.bounds?.minY}..${selectionContext?.bounds?.maxY} (${selectionContext?.bounds?.width}x${selectionContext?.bounds?.height}px)
+- Extracted Numbers in Selection (left-to-right): [${(selectionContext?.extractedNumbers || []).join(", ")}]
+- Extracted Text Labels in Selection: ${JSON.stringify(selectionContext?.extractedTexts || [])}
+- Selected Shapes Summary: ${JSON.stringify((selectionContext?.selectedElements || []).slice(0, 12))}
+
+INSTRUCTION FOR SELECTED AREA:
+You MUST directly reference the exact numbers, values, pointers, or partial dry-run state inside the user's selected whiteboard area above! If the user asks for a dry run, brute force comparison, optimization, or "continue from here", use the exact numbers/elements they selected on the whiteboard.`
+    : "";
 
   const fullPromptContext = [
     query,
@@ -3909,32 +3932,38 @@ app.post("/api/whiteboard/ai-teach", aiLimiter, async (req: Request, res: Respon
     const geminiKey = getGeminiKey();
     if (geminiKey && query.length > 3) {
       const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Teacher with direct control over an Excalidraw Whiteboard (canvas coordinates x: 60..760, y: 40..440).
+      const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Co-Teacher with direct control over an Excalidraw Whiteboard (local simulation coordinates x: 60..760, y: 40..440).
 The user asked: "${fullPromptContext}"
 ${code ? `Candidate's current code snippet:\n${code.slice(0, 600)}` : ""}
+${selectionPromptBlock}
 
-Design a 3 to 5 step animated visual simulation on the Excalidraw whiteboard that teaches, demonstrates, and simulates this exact concept or dry-run clearly.
+Design a 3 to 5 step animated visual dry-run simulation on the Excalidraw whiteboard that teaches, demonstrates, and simulates this exact query clearly.
 Return ONLY valid JSON matching this exact structure:
 {
-  "topic": "Concise Title of the Simulation",
+  "topic": "Concise Title (max 44 chars)",
   "badge": "Time & Space Complexity (e.g. O(N) Time • O(1) Space)",
   "steps": [
     {
-      "title": "Step Title",
-      "narration": "1-2 sentence spoken explanation for the student",
-      "mathInvariant": "Key mathematical / pointer invariant at this step",
+      "title": "Concise Step Title (max 48 chars)",
+      "narration": "1-2 sentence clear spoken explanation for the student",
+      "mathInvariant": "Key mathematical / pointer invariant at this step (max 64 chars)",
       "laserX": 260,
       "laserY": 210,
+      "waypoints": [
+        { "x": 140, "y": 210 },
+        { "x": 260, "y": 210 },
+        { "x": 420, "y": 210 }
+      ],
       "nodes": [
         {
           "id": "node-1",
           "shape": "rect",
-          "x": 100,
-          "y": 180,
-          "width": 90,
-          "height": 56,
-          "label": "Main text inside shape",
-          "sublabel": "Optional index/pointer label below",
+          "x": 90,
+          "y": 175,
+          "width": 100,
+          "height": 60,
+          "label": "Short text (<=16 chars)",
+          "sublabel": "idx / ptr label",
           "color": "blue",
           "highlight": true
         }
@@ -3942,20 +3971,23 @@ Return ONLY valid JSON matching this exact structure:
       "arrows": [
         {
           "id": "arr-1",
-          "fromX": 190,
-          "fromY": 208,
-          "toX": 240,
-          "toY": 208,
+          "fromX": 192,
+          "fromY": 205,
+          "toX": 238,
+          "toY": 205,
           "color": "slate"
         }
       ]
     }
   ]
 }
-Rules:
-- "shape" must be "rect", "ellipse", or "diamond".
-- "color" must be "blue", "green", "amber", "rose", "purple", or "slate".
-- Keep x between 60 and 740, y between 150 and 410 so shapes never overlap the top header banner (y: 35..125).`;
+Strict Layout Rules (to prevent any overlapping or messy UI):
+1. "shape" must be "rect", "ellipse", or "diamond".
+2. "color" must be "blue", "green", "amber", "rose", "purple", or "slate".
+3. Keep all node x between 70 and 720, and node y between 160 and 390 so shapes NEVER overlap the top step banner (y: 32..130).
+4. Space adjacent nodes horizontally by at least (width + 24) pixels so boxes NEVER overlap each other.
+5. Keep node "label" concise (<= 18 characters) so text fits cleanly inside its shape.
+6. Provide 2 to 4 "waypoints" per step tracing the AI teacher's laser pointer across the active nodes being compared.`;
 
       const llmRes = await Promise.race([
         ai.models.generateContent({
@@ -3975,7 +4007,7 @@ Rules:
           (st: any, sIdx: number) => {
             const ver = sIdx + 1;
             const els: WbElement[] = [
-              excalidrawRect("ai-hdr-box", 60, 32, 680, 88, {
+              excalidrawRect("ai-hdr-box", 60, 32, 680, 94, {
                 strokeColor: "#0284c7",
                 backgroundColor: "#f0f9ff",
                 version: ver,
@@ -3985,26 +4017,35 @@ Rules:
                 78,
                 44,
                 `Step ${ver}/${parsed.steps.length}: ${String(st.title || "Simulation Step")}`,
-                { fontSize: 18, strokeColor: "#0369a1", version: ver }
+                { fontSize: 16, strokeColor: "#0369a1", maxCharsPerLine: 58, maxLines: 1, version: ver }
               ),
               excalidrawText(
                 "ai-hdr-inv",
                 78,
-                78,
-                `Invariant: ${String(st.mathInvariant || st.narration || "").slice(0, 78)}`,
-                { fontSize: 14, strokeColor: "#0f172a", version: ver }
+                76,
+                `Invariant: ${String(st.mathInvariant || st.narration || "")}`,
+                { fontSize: 13, strokeColor: "#0f172a", maxCharsPerLine: 68, maxLines: 2, version: ver }
               ),
             ];
+
+            const stepWaypoints: Array<{ x: number; y: number }> = [];
 
             if (Array.isArray(st.nodes)) {
               st.nodes.forEach((n: any, nIdx: number) => {
                 const nid = String(n.id || `node-${nIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
-                const nx = Math.max(40, Math.min(760, Number(n.x) || 90 + nIdx * 110));
-                const ny = Math.max(140, Math.min(430, Number(n.y) || 195));
-                const nw = Math.max(48, Math.min(240, Number(n.width) || 84));
-                const nh = Math.max(44, Math.min(140, Number(n.height) || 58));
+                const nx = Math.max(60, Math.min(730, Number(n.x) || 80 + nIdx * 124));
+                const ny = Math.max(155, Math.min(395, Number(n.y) || 195));
+                const nw = Math.max(64, Math.min(220, Number(n.width) || 96));
+                const nh = Math.max(48, Math.min(130, Number(n.height) || 60));
                 const theme = colorMap[String(n.color || "slate")] || colorMap.slate!;
                 const strokeW = n.highlight ? 3 : 2;
+
+                if (n.highlight) {
+                  stepWaypoints.push({
+                    x: Math.round(nx + nw / 2),
+                    y: Math.round(ny + nh / 2),
+                  });
+                }
 
                 if (n.shape === "ellipse") {
                   els.push(
@@ -4036,15 +4077,18 @@ Rules:
                 }
 
                 if (n.label !== undefined) {
+                  const maxChars = Math.max(8, Math.floor((nw - 16) / 9));
                   els.push(
                     excalidrawText(
                       `ai-lbl-${nid}`,
-                      nx + 12,
-                      ny + Math.max(10, Math.floor(nh / 2) - 10),
+                      nx + 10,
+                      ny + Math.max(10, Math.floor(nh / 2) - 12),
                       String(n.label),
                       {
-                        fontSize: 16,
+                        fontSize: 15,
                         strokeColor: "#0f172a",
+                        maxCharsPerLine: maxChars,
+                        maxLines: 2,
                         version: ver,
                       }
                     )
@@ -4054,12 +4098,14 @@ Rules:
                   els.push(
                     excalidrawText(
                       `ai-sub-${nid}`,
-                      nx + 10,
+                      nx + 8,
                       ny + nh + 6,
                       String(n.sublabel),
                       {
                         fontSize: 12,
                         strokeColor: theme.stroke,
+                        maxCharsPerLine: 20,
+                        maxLines: 1,
                         version: ver,
                       }
                     )
@@ -4089,30 +4135,40 @@ Rules:
               });
             }
 
+            const parsedWaypoints = Array.isArray(st.waypoints)
+              ? st.waypoints
+                  .map((wp: any) => ({
+                    x: Number(wp?.x) || 260,
+                    y: Number(wp?.y) || 210,
+                  }))
+                  .slice(0, 6)
+              : stepWaypoints;
+
+            const primaryLaser = {
+              x: Number(st.laserX) || parsedWaypoints[parsedWaypoints.length - 1]?.x || 260,
+              y: Number(st.laserY) || parsedWaypoints[parsedWaypoints.length - 1]?.y || 210,
+            };
+
             return {
               stepIndex: sIdx,
               title: String(st.title || `Step ${ver}`),
               narration: String(st.narration || ""),
               mathInvariant: String(st.mathInvariant || ""),
               elements: els,
-              aiLaserTarget: {
-                x: Number(st.laserX) || 260,
-                y: Number(st.laserY) || 210,
-              },
+              aiLaserTarget: primaryLaser,
+              aiLaserWaypoints:
+                parsedWaypoints.length > 0 ? parsedWaypoints : [primaryLaser],
             };
           }
         );
 
         const lesson: AiWhiteboardLesson = {
           id: `ai_lesson_${Date.now()}`,
-          topic: String(parsed.topic || query),
+          topic: String(parsed.topic || query).slice(0, 56),
           badge: String(parsed.badge || "AI Live Simulation"),
           frames,
         };
 
-        if (frames[0]?.elements) {
-          getRoomWhiteboard(roomId).apply(frames[0].elements);
-        }
         return res.json({ ok: true, lesson });
       }
     }
@@ -4120,10 +4176,7 @@ Rules:
     console.warn("[AI Whiteboard] Using deterministic Excalidraw generator fallback:", (err as Error)?.message);
   }
 
-  const fallbackLesson = generateAiExcalidrawLessonForQuery(query);
-  if (fallbackLesson.frames[0]?.elements) {
-    getRoomWhiteboard(roomId).apply(fallbackLesson.frames[0].elements);
-  }
+  const fallbackLesson = generateAiExcalidrawLessonForQuery(query, selectionContext);
   return res.json({ ok: true, lesson: fallbackLesson });
 });
 

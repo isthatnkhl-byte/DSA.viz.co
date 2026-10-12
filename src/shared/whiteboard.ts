@@ -210,6 +210,8 @@ export interface AiWhiteboardStepFrame {
   mathInvariant: string;
   elements: WbElement[];
   aiLaserTarget: { x: number; y: number };
+  /** Ordered path of coordinates for smooth 60fps AI cursor movement across the frame */
+  aiLaserWaypoints?: Array<{ x: number; y: number }>;
 }
 
 export interface AiWhiteboardLesson {
@@ -217,6 +219,89 @@ export interface AiWhiteboardLesson {
   topic: string;
   badge: string;
   frames: AiWhiteboardStepFrame[];
+  /** Unique bounded zone ID so this simulation has its own isolated area on the canvas */
+  zoneId?: string;
+  /** Bounding box of this simulation's dedicated frame on the Excalidraw canvas */
+  zoneBounds?: { x: number; y: number; width: number; height: number };
+}
+
+export interface WhiteboardSelectedElementSummary {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  text?: string;
+  strokeColor?: string;
+  backgroundColor?: string;
+}
+
+export interface WhiteboardSelectionContext {
+  selectedElements: WhiteboardSelectedElementSummary[];
+  bounds?: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+    width: number;
+    height: number;
+  } | null;
+  extractedNumbers?: number[];
+  extractedTexts?: string[];
+  mode?: "branch" | "takeover";
+}
+
+export function wrapWhiteboardText(
+  text: string,
+  maxCharsPerLine = 54,
+  maxLines = 4
+): string {
+  if (!text) return "";
+  const rawParagraphs = String(text).split("\n");
+  const outLines: string[] = [];
+
+  for (const para of rawParagraphs) {
+    const trimmed = para.trim();
+    if (!trimmed) {
+      outLines.push("");
+      continue;
+    }
+    if (trimmed.length <= maxCharsPerLine) {
+      outLines.push(trimmed);
+      continue;
+    }
+    const words = trimmed.split(/\s+/);
+    let currentLine = "";
+    for (const word of words) {
+      if (!currentLine) {
+        currentLine =
+          word.length > maxCharsPerLine
+            ? word.slice(0, maxCharsPerLine - 1) + "…"
+            : word;
+      } else if (currentLine.length + 1 + word.length <= maxCharsPerLine) {
+        currentLine += " " + word;
+      } else {
+        outLines.push(currentLine);
+        currentLine =
+          word.length > maxCharsPerLine
+            ? word.slice(0, maxCharsPerLine - 1) + "…"
+            : word;
+      }
+    }
+    if (currentLine) outLines.push(currentLine);
+  }
+
+  if (outLines.length > maxLines) {
+    const clipped = outLines.slice(0, maxLines);
+    const lastIdx = clipped.length - 1;
+    if (lastIdx >= 0 && !clipped[lastIdx]!.endsWith("…")) {
+      clipped[lastIdx] =
+        clipped[lastIdx]!.slice(0, Math.max(1, maxCharsPerLine - 2)) + "…";
+    }
+    return clipped.join("\n");
+  }
+  return outLines.join("\n");
 }
 
 function makeBaseProps(
@@ -330,18 +415,22 @@ export function excalidrawText(
     fontSize?: number;
     strokeColor?: string;
     textAlign?: "left" | "center" | "right";
+    maxCharsPerLine?: number;
+    maxLines?: number;
     version?: number;
   } = {}
 ): WbElement {
-  const fontSize = opts.fontSize ?? 18;
-  const lines = text.split("\n");
+  const fontSize = opts.fontSize ?? 16;
+  const maxChars = opts.maxCharsPerLine ?? (fontSize >= 17 ? 56 : 68);
+  const wrapped = wrapWhiteboardText(text, maxChars, opts.maxLines ?? 4);
+  const lines = wrapped.split("\n");
   const maxLen = Math.max(...lines.map((l) => l.length), 1);
-  const width = Math.max(24, Math.round(maxLen * fontSize * 0.6));
-  const height = Math.max(24, Math.round(lines.length * fontSize * 1.35));
+  const width = Math.max(24, Math.round(maxLen * fontSize * 0.58));
+  const height = Math.max(22, Math.round(lines.length * fontSize * 1.32));
 
   return makeBaseProps(id, "text", x, y, width, height, opts.version ?? 1, {
-    text,
-    originalText: text,
+    text: wrapped,
+    originalText: wrapped,
     fontSize,
     fontFamily: 3, // monospace / Cascadia in Excalidraw
     textAlign: opts.textAlign ?? "left",
@@ -1050,8 +1139,13 @@ export function buildExcalidrawSlidingWindowLesson(
 /**
  * Generates a Monotonic Stack (Next Greater Element) interactive Excalidraw lesson.
  */
-export function buildExcalidrawMonotonicStackLesson(): AiWhiteboardLesson {
-  const arr = [2, 1, 5, 3, 6];
+export function buildExcalidrawMonotonicStackLesson(
+  customArr?: number[]
+): AiWhiteboardLesson {
+  const arr =
+    customArr && customArr.length >= 5
+      ? customArr.slice(0, 5)
+      : [2, 1, 5, 3, 6];
   const stepsData = [
     {
       activeIdx: 1,
@@ -1175,7 +1269,7 @@ export function buildExcalidrawMonotonicStackLesson(): AiWhiteboardLesson {
 /**
  * Generates a Dynamic Programming 1D Memoization Table Excalidraw lesson.
  */
-export function buildExcalidrawDpTableLesson(): AiWhiteboardLesson {
+export function buildExcalidrawDpTableLesson(_n = 6): AiWhiteboardLesson {
   const dp = [1, 1, 2, 3, 5, 8, 13];
   const frames: AiWhiteboardStepFrame[] = [];
 
@@ -1276,64 +1370,653 @@ export function buildExcalidrawDpTableLesson(): AiWhiteboardLesson {
 }
 
 /**
- * Generates a Sliding Window / Dynamic Programming / DAG / Custom Query diagram on Excalidraw
- * for ANY user prompt!
+ * Generates an O(N^2) Brute Force Nested-Loop Dry-Run interactive Excalidraw lesson.
+ * Shows outer loop i, inner loop j, pair comparisons, and a live Dry-Run Trace Table!
  */
-export function generateAiExcalidrawLessonForQuery(query: string): AiWhiteboardLesson {
+export function buildExcalidrawBruteForceDryRunLesson(
+  arr: number[] = [1, 3, 5, 8, 12],
+  target = 17
+): AiWhiteboardLesson {
+  const nums = arr.slice(0, 6);
+  const frames: AiWhiteboardStepFrame[] = [];
+  const pairsChecked: Array<{
+    i: number;
+    j: number;
+    vi: number;
+    vj: number;
+    sum: number;
+    match: boolean;
+  }> = [];
+
+  let stepIdx = 0;
+  let found = false;
+
+  for (let i = 0; i < nums.length - 1 && !found && stepIdx < 7; i++) {
+    for (let j = i + 1; j < nums.length && !found && stepIdx < 7; j++) {
+      const vi = nums[i]!;
+      const vj = nums[j]!;
+      const sum = vi + vj;
+      const match = sum === target;
+      pairsChecked.push({ i, j, vi, vj, sum, match });
+      const ver = stepIdx + 1;
+
+      const baseX = 70;
+      const baseY = 185;
+      const cellW = 78;
+      const cellH = 60;
+      const headerW = Math.max(620, nums.length * cellW + 40);
+
+      const els: WbElement[] = [
+        excalidrawRect("bf-hdr", baseX, 38, headerW, 96, {
+          strokeColor: match ? "#16a34a" : "#d97706",
+          backgroundColor: match ? "#dcfce7" : "#fef3c7",
+          strokeWidth: 2.5,
+          version: ver,
+        }),
+        excalidrawText(
+          "bf-title",
+          baseX + 18,
+          50,
+          match
+            ? `Dry-Run Step ${ver}: MATCH! arr[i=${i}] (${vi}) + arr[j=${j}] (${vj}) == ${target}`
+            : `Dry-Run Step ${ver}: Test Pair (i=${i}, j=${j}) → ${vi} + ${vj} = ${sum} != ${target}`,
+          { fontSize: 16, strokeColor: match ? "#15803d" : "#b45309", maxCharsPerLine: 58, version: ver }
+        ),
+        excalidrawText(
+          "bf-sub",
+          baseX + 18,
+          92,
+          `Brute Force O(N²) Nested Loops: Checked ${ver} pair(s) so far  |  Target = ${target}`,
+          { fontSize: 14, strokeColor: "#1e293b", maxCharsPerLine: 64, version: ver }
+        ),
+      ];
+
+      nums.forEach((v, idx) => {
+        const cx = baseX + idx * cellW;
+        const isI = idx === i;
+        const isJ = idx === j;
+        els.push(
+          excalidrawRect(`bf-cell-${idx}`, cx, baseY, cellW - 8, cellH, {
+            strokeColor: match && (isI || isJ) ? "#16a34a" : isI ? "#d97706" : isJ ? "#7c3aed" : "#334155",
+            backgroundColor:
+              match && (isI || isJ)
+                ? "#bbf7d0"
+                : isI
+                ? "#fde68a"
+                : isJ
+                ? "#ede9fe"
+                : "#ffffff",
+            strokeWidth: isI || isJ ? 3 : 2,
+            version: ver,
+          }),
+          excalidrawText(`bf-val-${idx}`, cx + 22, baseY + 18, String(v), {
+            fontSize: 18,
+            strokeColor: "#0f172a",
+            version: ver,
+          }),
+          excalidrawText(`bf-idx-${idx}`, cx + 20, baseY + cellH + 8, `[${idx}]`, {
+            fontSize: 12,
+            strokeColor: "#64748b",
+            version: ver,
+          })
+        );
+      });
+
+      const ix = baseX + i * cellW + (cellW - 8) / 2;
+      const jx = baseX + j * cellW + (cellW - 8) / 2;
+
+      els.push(
+        excalidrawArrow("bf-ptr-i", ix, baseY - 38, ix, baseY - 4, {
+          strokeColor: "#d97706",
+          strokeWidth: 3,
+          version: ver,
+        }),
+        excalidrawText("bf-lbl-i", ix - 16, baseY - 62, `i=${i}`, {
+          fontSize: 14,
+          strokeColor: "#b45309",
+          version: ver,
+        }),
+        excalidrawArrow("bf-ptr-j", jx, baseY + cellH + 56, jx, baseY + cellH + 24, {
+          strokeColor: "#7c3aed",
+          strokeWidth: 3,
+          version: ver,
+        }),
+        excalidrawText("bf-lbl-j", jx - 16, baseY + cellH + 62, `j=${j}`, {
+          fontSize: 14,
+          strokeColor: "#6d28d9",
+          version: ver,
+        })
+      );
+
+      // Dry-Run Trace Log Card below the array
+      const traceLines = pairsChecked
+        .slice(-4)
+        .map(
+          (p, idx) =>
+            `#${pairsChecked.length - Math.min(4, pairsChecked.length) + idx + 1}: (i=${p.i}, j=${p.j}) → ${p.vi} + ${p.vj} = ${p.sum} ${
+              p.match ? "== " + target + " [FOUND]" : "!= " + target
+            }`
+        )
+        .join("\n");
+
+      els.push(
+        excalidrawRect("bf-trace-box", baseX, 340, headerW, 118, {
+          strokeColor: "#475569",
+          backgroundColor: "#f8fafc",
+          version: ver,
+        }),
+        excalidrawText("bf-trace-hdr", baseX + 16, 350, "DRY-RUN EXECUTION LOG (Nested Loop i, j):", {
+          fontSize: 14,
+          strokeColor: "#0f172a",
+          version: ver,
+        }),
+        excalidrawText("bf-trace-rows", baseX + 16, 374, traceLines, {
+          fontSize: 13,
+          strokeColor: match ? "#15803d" : "#334155",
+          maxCharsPerLine: 68,
+          maxLines: 4,
+          version: ver,
+        })
+      );
+
+      frames.push({
+        stepIndex: stepIdx,
+        title: match
+          ? `Match Found at (i=${i}, j=${j}): ${vi} + ${vj} = ${target}`
+          : `Brute Force Check #${ver}: arr[${i}]+arr[${j}] = ${sum}`,
+        narration: match
+          ? `Pair (i=${i}, j=${j}) sums to ${vi} + ${vj} = ${target}! Brute force tested ${ver} pairs in O(N²) time vs O(N) with Two Pointers.`
+          : `Outer loop i=${i} (val ${vi}), inner loop j=${j} (val ${vj}). Sum is ${sum} != ${target}, so j advances to ${j + 1}.`,
+        mathInvariant: `Outer i=${i}, Inner j=${j} • Pair Sum = ${sum} • Comparisons = ${ver}`,
+        elements: els,
+        aiLaserTarget: { x: jx, y: baseY + cellH / 2 },
+        aiLaserWaypoints: [
+          { x: ix, y: baseY + cellH / 2 },
+          { x: jx, y: baseY + cellH / 2 },
+          { x: baseX + 180, y: 395 },
+        ],
+      });
+
+      if (match) found = true;
+      stepIdx++;
+    }
+  }
+
+  return {
+    id: "brute_force_dry_run",
+    topic: "Brute Force O(N²) Nested-Loop Dry Run",
+    badge: "O(N²) Time • O(1) Space",
+    frames,
+  };
+}
+
+/**
+ * Extracts structured insight (bounding box, numbers, text labels, shapes)
+ * from the elements the user drag-selected on the Excalidraw whiteboard.
+ */
+export function extractWhiteboardSelectionContext(
+  allSceneElements: readonly any[],
+  selectedElementIds: Record<string, boolean> | undefined | null
+): WhiteboardSelectionContext {
+  if (!selectedElementIds) {
+    return { selectedElements: [], bounds: null, extractedNumbers: [], extractedTexts: [] };
+  }
+  const activeIds = new Set(
+    Object.entries(selectedElementIds)
+      .filter(([, isSelected]) => Boolean(isSelected))
+      .map(([id]) => id)
+  );
+  if (activeIds.size === 0) {
+    return { selectedElements: [], bounds: null, extractedNumbers: [], extractedTexts: [] };
+  }
+
+  const directSelected = allSceneElements.filter(
+    (el) => el && !el.isDeleted && activeIds.has(el.id)
+  );
+  if (directSelected.length === 0) {
+    return { selectedElements: [], bounds: null, extractedNumbers: [], extractedTexts: [] };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const el of directSelected) {
+    const x = Number(el.x) || 0;
+    const y = Number(el.y) || 0;
+    const w = Math.max(10, Number(el.width) || 40);
+    const h = Math.max(10, Number(el.height) || 40);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w);
+    maxY = Math.max(maxY, y + h);
+  }
+
+  // Also include any text/shapes spatially inside the user's drag-selected bounding box
+  const spatiallyIncluded = allSceneElements.filter((el) => {
+    if (!el || el.isDeleted) return false;
+    if (activeIds.has(el.id)) return true;
+    const cx = (Number(el.x) || 0) + (Number(el.width) || 0) / 2;
+    const cy = (Number(el.y) || 0) + (Number(el.height) || 0) / 2;
+    return cx >= minX - 8 && cx <= maxX + 8 && cy >= minY - 8 && cy <= maxY + 8;
+  });
+
+  const sortedByX = [...spatiallyIncluded].sort(
+    (a, b) => (Number(a.x) || 0) - (Number(b.x) || 0)
+  );
+
+  const extractedNumbers: number[] = [];
+  const extractedTexts: string[] = [];
+
+  for (const el of sortedByX) {
+    if (typeof el.text === "string" && el.text.trim()) {
+      const txt = el.text.trim();
+      extractedTexts.push(txt);
+      // Extract standalone numbers (excluding bracketed indices like [0], [1])
+      if (!/^\[\d+\]$/.test(txt)) {
+        const matches = txt.match(/-?\d+/g);
+        if (matches) {
+          for (const m of matches) {
+            const n = Number(m);
+            if (!Number.isNaN(n) && extractedNumbers.length < 16) {
+              extractedNumbers.push(n);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const summaries: WhiteboardSelectedElementSummary[] = sortedByX
+    .slice(0, 25)
+    .map((el) => ({
+      id: String(el.id),
+      type: String(el.type),
+      x: Math.round(Number(el.x) || 0),
+      y: Math.round(Number(el.y) || 0),
+      width: Math.round(Number(el.width) || 40),
+      height: Math.round(Number(el.height) || 40),
+      text: typeof el.text === "string" ? el.text.slice(0, 120) : undefined,
+      strokeColor: el.strokeColor,
+      backgroundColor: el.backgroundColor,
+    }));
+
+  return {
+    selectedElements: summaries,
+    bounds: {
+      minX: Math.round(minX),
+      minY: Math.round(minY),
+      maxX: Math.round(maxX),
+      maxY: Math.round(maxY),
+      width: Math.round(maxX - minX),
+      height: Math.round(maxY - minY),
+    },
+    extractedNumbers,
+    extractedTexts: extractedTexts.slice(0, 12),
+  };
+}
+
+/**
+ * Surrounds an entire AiWhiteboardLesson inside its own dedicated, non-overlapping
+ * architectural Zone Frame on the Excalidraw canvas so that triggering a new
+ * simulation NEVER overwrites or collides with previous simulations or user drawings.
+ */
+export function wrapLessonInBoundedZone(
+  lesson: AiWhiteboardLesson,
+  opts: {
+    zoneId: string;
+    zoneIndex: number;
+    originX: number;
+    originY: number;
+    connectedFromBounds?: {
+      minX: number;
+      minY: number;
+      maxX: number;
+      maxY: number;
+      width: number;
+      height: number;
+    } | null;
+    selectionBannerText?: string;
+  }
+): AiWhiteboardLesson {
+  const { zoneId, zoneIndex, originX, originY, connectedFromBounds, selectionBannerText } = opts;
+
+  // 1. Measure natural bounds of all elements across all frames
+  let rawMinX = Infinity;
+  let rawMinY = Infinity;
+  let rawMaxX = -Infinity;
+  let rawMaxY = -Infinity;
+
+  for (const frame of lesson.frames) {
+    for (const el of frame.elements) {
+      const x = Number(el.x) || 0;
+      const y = Number(el.y) || 0;
+      const w = Math.max(20, Number(el.width) || 60);
+      const h = Math.max(20, Number(el.height) || 40);
+      rawMinX = Math.min(rawMinX, x);
+      rawMinY = Math.min(rawMinY, y);
+      rawMaxX = Math.max(rawMaxX, x + w);
+      rawMaxY = Math.max(rawMaxY, y + h);
+    }
+  }
+
+  if (!Number.isFinite(rawMinX)) {
+    rawMinX = 60;
+    rawMinY = 40;
+    rawMaxX = 720;
+    rawMaxY = 440;
+  }
+
+  const PAD_X = 36;
+  const TOP_BAR_H = selectionBannerText ? 76 : 54;
+  const PAD_TOP = TOP_BAR_H + 24;
+  const PAD_BOTTOM = 36;
+
+  const contentW = Math.max(660, rawMaxX - rawMinX);
+  const contentH = Math.max(360, rawMaxY - rawMinY);
+  const zoneWidth = contentW + PAD_X * 2;
+  const zoneHeight = contentH + PAD_TOP + PAD_BOTTOM;
+
+  const dx = originX + PAD_X - rawMinX;
+  const dy = originY + PAD_TOP - rawMinY;
+
+  const wrappedFrames: AiWhiteboardStepFrame[] = lesson.frames.map((frame, fIdx) => {
+    const ver = fIdx + 1;
+    const zonedElements: WbElement[] = [
+      // Outer Fixed Simulation Area Card (surrounds the entire simulation)
+      excalidrawRect(`${zoneId}__zone-card`, originX, originY, zoneWidth, zoneHeight, {
+        strokeColor: "#2b2d42",
+        backgroundColor: "#fffdf8",
+        strokeWidth: 3,
+        version: ver,
+      }),
+      // Top Zone Title Header Strip
+      excalidrawRect(`${zoneId}__zone-hdr`, originX, originY, zoneWidth, TOP_BAR_H, {
+        strokeColor: "#2b2d42",
+        backgroundColor: "#f4ede2",
+        strokeWidth: 2,
+        version: ver,
+      }),
+      excalidrawText(
+        `${zoneId}__zone-title`,
+        originX + 20,
+        originY + 14,
+        `ZONE #${zoneIndex + 1} • ${lesson.topic}   [${lesson.badge}]`,
+        {
+          fontSize: 16,
+          strokeColor: "#2b2d42",
+          maxCharsPerLine: 72,
+          maxLines: 1,
+          version: ver,
+        }
+      ),
+    ];
+
+    if (selectionBannerText) {
+      zonedElements.push(
+        excalidrawText(
+          `${zoneId}__zone-sel-ctx`,
+          originX + 20,
+          originY + 42,
+          `🎯 Context from Selected Area: ${selectionBannerText}`,
+          {
+            fontSize: 13,
+            strokeColor: "#be123c",
+            maxCharsPerLine: 82,
+            maxLines: 1,
+            version: ver,
+          }
+        )
+      );
+    }
+
+    // If branched from a user's drag-selected area on the board, draw a connector arrow
+    if (connectedFromBounds) {
+      const fromX = connectedFromBounds.maxX + 6;
+      const fromY = connectedFromBounds.minY + connectedFromBounds.height / 2;
+      const toX = originX - 6;
+      const toY = originY + Math.min(180, zoneHeight / 2);
+      zonedElements.push(
+        excalidrawArrow(`${zoneId}__zone-conn`, fromX, fromY, toX, toY, {
+          strokeColor: "#e11d48",
+          strokeWidth: 3,
+          strokeStyle: "dashed",
+          version: ver,
+        })
+      );
+    }
+
+    // Translate and ID-namespace every element inside the frame
+    const interactivePoints: Array<{ x: number; y: number }> = [];
+    for (const el of frame.elements) {
+      const nx = Math.round((Number(el.x) || 0) + dx);
+      const ny = Math.round((Number(el.y) || 0) + dy);
+      const nw = Number(el.width) || 40;
+      const nh = Number(el.height) || 40;
+
+      const scopedId = el.id.startsWith(`${zoneId}__`)
+        ? el.id
+        : `${zoneId}__${el.id}`;
+
+      zonedElements.push({
+        ...el,
+        id: scopedId,
+        x: nx,
+        y: ny,
+        version: ver,
+        versionNonce: Math.abs(hashToInteger(`${scopedId}-v${ver}`)) % 1_000_000_000,
+      });
+
+      if (el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond") {
+        interactivePoints.push({
+          x: Math.round(nx + nw / 2),
+          y: Math.round(ny + nh / 2),
+        });
+      }
+    }
+
+    const primaryTarget = {
+      x: Math.round((frame.aiLaserTarget?.x ?? rawMinX + 200) + dx),
+      y: Math.round((frame.aiLaserTarget?.y ?? rawMinY + 180) + dy),
+    };
+
+    const rawWaypoints =
+      frame.aiLaserWaypoints && frame.aiLaserWaypoints.length > 0
+        ? frame.aiLaserWaypoints.map((pt) => ({
+            x: Math.round(pt.x + dx),
+            y: Math.round(pt.y + dy),
+          }))
+        : [
+            // Start near step header, sweep across interactive shapes, land on primary target
+            ...(interactivePoints.slice(0, 3)),
+            primaryTarget,
+          ];
+
+    return {
+      ...frame,
+      elements: zonedElements,
+      aiLaserTarget: primaryTarget,
+      aiLaserWaypoints: rawWaypoints.length > 0 ? rawWaypoints : [primaryTarget],
+    };
+  });
+
+  return {
+    ...lesson,
+    zoneId,
+    zoneBounds: {
+      x: originX,
+      y: originY,
+      width: zoneWidth,
+      height: zoneHeight,
+    },
+    frames: wrappedFrames,
+  };
+}
+
+/**
+ * Generates an interactive Excalidraw lesson for ANY user prompt, taking into account
+ * any area or elements the user drag-selected on the whiteboard!
+ */
+export function generateAiExcalidrawLessonForQuery(
+  query: string,
+  selectionContext?: WhiteboardSelectionContext | null
+): AiWhiteboardLesson {
   const q = query.toLowerCase();
 
-  const numberMatches = query.match(/-?\d+/g)?.map(Number).filter((n) => !Number.isNaN(n)) || [];
+  // Merge numbers from user's text query AND numbers extracted from user's drag-selected whiteboard elements!
+  const queryNums =
+    query
+      .match(/-?\d+/g)
+      ?.map(Number)
+      .filter((n) => !Number.isNaN(n)) || [];
+  const selectedNums = selectionContext?.extractedNumbers || [];
+  const combinedNums = queryNums.length >= 2 ? queryNums : selectedNums;
 
+  // 1. Brute Force / Dry Run / Nested Loop O(N^2)
+  if (
+    q.includes("brute") ||
+    q.includes("dry run") ||
+    q.includes("dry-run") ||
+    q.includes("nested") ||
+    q.includes("o(n^2)") ||
+    q.includes("all pairs")
+  ) {
+    const arr =
+      combinedNums.length >= 4
+        ? combinedNums.slice(0, -1)
+        : combinedNums.length >= 3
+        ? combinedNums
+        : [1, 3, 5, 8, 12];
+    const target =
+      combinedNums.length >= 4
+        ? combinedNums[combinedNums.length - 1]!
+        : 17;
+    return buildExcalidrawBruteForceDryRunLesson(arr, target);
+  }
+
+  // 2. Sliding Window
   if (q.includes("sliding window") || q.includes("subarray") || q.includes("window")) {
-    return buildExcalidrawSlidingWindowLesson();
+    const arr =
+      combinedNums.length >= 4 ? combinedNums : [2, 1, 5, 1, 3, 2];
+    return buildExcalidrawSlidingWindowLesson(arr, 3);
   }
 
+  // 3. Monotonic Stack
   if (q.includes("monotonic") || q.includes("stack") || q.includes("next greater")) {
-    return buildExcalidrawMonotonicStackLesson();
+    const arr =
+      combinedNums.length >= 3 ? combinedNums.slice(0, 7) : [2, 1, 5, 6, 2, 3];
+    return buildExcalidrawMonotonicStackLesson(arr);
   }
 
-  if (q.includes("dp") || q.includes("dynamic programming") || q.includes("memo") || q.includes("fibonacci") || q.includes("knapsack") || q.includes("climbing")) {
-    return buildExcalidrawDpTableLesson();
+  // 4. Dynamic Programming
+  if (
+    q.includes("dp") ||
+    q.includes("dynamic programming") ||
+    q.includes("memo") ||
+    q.includes("fibonacci") ||
+    q.includes("knapsack") ||
+    q.includes("climbing")
+  ) {
+    const nVal =
+      combinedNums.length === 1 && combinedNums[0]! >= 3 && combinedNums[0]! <= 9
+        ? combinedNums[0]!
+        : 6;
+    return buildExcalidrawDpTableLesson(nVal);
   }
 
-  if (q.includes("binary search") || q.includes("mid") || q.includes("sorted range") || q.includes("halv")) {
-    const arr = numberMatches.length >= 4 ? numberMatches.slice(0, -1) : [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
-    const target = numberMatches.length >= 4 ? numberMatches[numberMatches.length - 1]! : 23;
+  // 5. Binary Search
+  if (
+    q.includes("binary search") ||
+    q.includes("mid") ||
+    q.includes("sorted range") ||
+    q.includes("halv")
+  ) {
+    const arr =
+      combinedNums.length >= 4
+        ? combinedNums.slice(0, -1)
+        : [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
+    const target =
+      combinedNums.length >= 4
+        ? combinedNums[combinedNums.length - 1]!
+        : 23;
     return buildExcalidrawBinarySearchLesson(arr, target);
   }
 
-  if (q.includes("linked list") || q.includes("reverse") || q.includes("next") || q.includes("prev")) {
+  // 6. Linked List
+  if (
+    q.includes("linked list") ||
+    q.includes("reverse") ||
+    q.includes("next") ||
+    q.includes("prev")
+  ) {
     return buildExcalidrawLinkedListLesson();
   }
 
-  if (q.includes("tree") || q.includes("bst") || q.includes("dfs") || q.includes("bfs") || q.includes("recursion")) {
+  // 7. Trees / BST / DFS
+  if (
+    q.includes("tree") ||
+    q.includes("bst") ||
+    q.includes("dfs") ||
+    q.includes("bfs") ||
+    q.includes("recursion")
+  ) {
     return buildExcalidrawTreeLesson();
   }
 
-  if (q.includes("two pointer") || q.includes("pointer") || q.includes("pair") || q.includes("two sum")) {
-    const arr = numberMatches.length >= 4 ? numberMatches.slice(0, -1) : [1, 3, 5, 8, 12, 17, 21];
-    const target = numberMatches.length >= 4 ? numberMatches[numberMatches.length - 1]! : 17;
+  // 8. Two Pointers / Optimal Pair / Takeover from Selection
+  if (
+    q.includes("two pointer") ||
+    q.includes("pointer") ||
+    q.includes("pair") ||
+    q.includes("two sum") ||
+    q.includes("optimal") ||
+    (combinedNums.length >= 3 && (q.includes("continue") || q.includes("take over") || q.includes("solve")))
+  ) {
+    const arr =
+      combinedNums.length >= 4
+        ? combinedNums.slice(0, -1)
+        : combinedNums.length >= 3
+        ? combinedNums
+        : [1, 3, 5, 8, 12, 17, 21];
+    const target =
+      combinedNums.length >= 4
+        ? combinedNums[combinedNums.length - 1]!
+        : 17;
     return buildExcalidrawTwoPointersLesson(arr, target);
   }
 
-  // Dynamic Custom Concept / Architecture / Algorithm Diagram Generator for any custom query!
-  const cleanTitle = query.trim().slice(0, 68) || "Algorithmic Breakdown & Dry-Run";
+  // 9. Clean, Well-Spaced Architectural / Dry-Run Flowchart for any Custom Query
+  const cleanTitle = wrapWhiteboardText(
+    query.trim() || "Algorithmic Breakdown & Dry-Run",
+    46,
+    1
+  );
+  const selectedCtxNote =
+    selectionContext?.extractedTexts && selectionContext.extractedTexts.length > 0
+      ? `Selected Context: ${selectionContext.extractedTexts.slice(0, 3).join(" | ")}`
+      : combinedNums.length > 0
+      ? `Selected Values: [${combinedNums.join(", ")}]`
+      : "Step-by-Step State Invariant & Complexity Analysis";
+
   const stages = [
     {
-      label: "1. Input & Invariant Setup",
-      detail: `Parse input constraints & initialize state for: "${cleanTitle}"`,
+      label: "1. Input & State Setup",
+      detail: `Initialize data structures & bounds. ${selectedCtxNote}`,
       color: "#e0f2fe",
       stroke: "#0284c7",
     },
     {
-      label: "2. State Transition / Core Loop",
-      detail: "Maintain monotonic / hash / pointer invariant at each iteration in O(1) amortized work",
+      label: "2. Core Transition Loop",
+      detail:
+        "Update pointers / state table at each step while preserving the loop invariant.",
       color: "#fef3c7",
       stroke: "#d97706",
     },
     {
-      label: "3. Optimal Output & Complexity",
-      detail: "Verify boundary conditions (empty, single-element, duplicates) & return optimal result",
+      label: "3. Optimal Output & Proof",
+      detail:
+        "Verify boundary cases (empty, duplicates, extremes) & return optimal result.",
       color: "#dcfce7",
       stroke: "#16a34a",
     },
@@ -1342,93 +2025,129 @@ export function generateAiExcalidrawLessonForQuery(query: string): AiWhiteboardL
   const frames: AiWhiteboardStepFrame[] = stages.map((st, sIdx) => {
     const ver = sIdx + 1;
     const els: WbElement[] = [
-      excalidrawRect("custom-hdr", 80, 35, 660, 75, {
+      excalidrawRect("custom-hdr", 70, 36, 700, 86, {
         strokeColor: "#0284c7",
         backgroundColor: "#f0f9ff",
         version: ver,
       }),
-      excalidrawText("custom-hdr-txt", 98, 48, `AI Whiteboard Walkthrough: ${cleanTitle}`, {
-        fontSize: 18,
-        strokeColor: "#0369a1",
-        version: ver,
-      }),
-      excalidrawText("custom-hdr-sub", 98, 78, `Active Stage ${ver}/3: ${st.label}`, {
-        fontSize: 14,
-        strokeColor: "#334155",
-        version: ver,
-      }),
+      excalidrawText(
+        "custom-hdr-txt",
+        88,
+        48,
+        `Walkthrough: ${cleanTitle}`,
+        {
+          fontSize: 17,
+          strokeColor: "#0369a1",
+          maxCharsPerLine: 56,
+          maxLines: 1,
+          version: ver,
+        }
+      ),
+      excalidrawText(
+        "custom-hdr-sub",
+        88,
+        82,
+        `Active Stage ${ver}/3: ${st.label}`,
+        {
+          fontSize: 14,
+          strokeColor: "#334155",
+          maxCharsPerLine: 64,
+          maxLines: 1,
+          version: ver,
+        }
+      ),
     ];
 
     stages.forEach((box, bIdx) => {
-      const bx = 80 + bIdx * 230;
-      const by = 165;
+      const bx = 70 + bIdx * 240;
+      const by = 160;
       const isCurrent = bIdx === sIdx;
       const isDone = bIdx < sIdx;
 
       els.push(
-        excalidrawRect(`custom-stage-${bIdx}`, bx, by, 200, 120, {
+        excalidrawRect(`custom-stage-${bIdx}`, bx, by, 216, 132, {
           strokeColor: isCurrent ? box.stroke : isDone ? "#16a34a" : "#94a3b8",
           backgroundColor: isCurrent ? box.color : isDone ? "#f0fdf4" : "#ffffff",
           strokeWidth: isCurrent ? 3 : 2,
           version: ver,
         }),
-        excalidrawText(`custom-st-title-${bIdx}`, bx + 14, by + 18, box.label, {
-          fontSize: 15,
+        excalidrawText(`custom-st-title-${bIdx}`, bx + 14, by + 16, box.label, {
+          fontSize: 14,
           strokeColor: "#0f172a",
+          maxCharsPerLine: 22,
+          maxLines: 1,
           version: ver,
         }),
-        excalidrawText(
-          `custom-st-desc-${bIdx}`,
-          bx + 14,
-          by + 52,
-          box.detail.slice(0, 26) + "\n" + box.detail.slice(26, 54),
-          {
-            fontSize: 12,
-            strokeColor: "#475569",
-            version: ver,
-          }
-        )
+        excalidrawText(`custom-st-desc-${bIdx}`, bx + 14, by + 48, box.detail, {
+          fontSize: 12,
+          strokeColor: "#475569",
+          maxCharsPerLine: 24,
+          maxLines: 3,
+          version: ver,
+        })
       );
 
       if (bIdx < stages.length - 1) {
         els.push(
-          excalidrawArrow(`custom-arr-${bIdx}`, bx + 202, by + 60, bx + 228, by + 60, {
-            strokeColor: bIdx < sIdx ? "#16a34a" : "#64748b",
-            strokeWidth: 2,
-            version: ver,
-          })
+          excalidrawArrow(
+            `custom-arr-${bIdx}`,
+            bx + 218,
+            by + 66,
+            bx + 238,
+            by + 66,
+            {
+              strokeColor: bIdx < sIdx ? "#16a34a" : "#64748b",
+              strokeWidth: 2.5,
+              version: ver,
+            }
+          )
         );
       }
     });
 
     // Bottom Trace Box
     els.push(
-      excalidrawRect("custom-trace-box", 80, 320, 660, 90, {
+      excalidrawRect("custom-trace-box", 70, 326, 700, 96, {
         strokeColor: st.stroke,
         backgroundColor: "#ffffff",
         version: ver,
       }),
-      excalidrawText("custom-trace-txt", 98, 338, `${st.label}\n${st.detail}`, {
-        fontSize: 15,
-        strokeColor: "#0f172a",
-        version: ver,
-      })
+      excalidrawText(
+        "custom-trace-txt",
+        88,
+        344,
+        `${st.label}\n${st.detail}`,
+        {
+          fontSize: 14,
+          strokeColor: "#0f172a",
+          maxCharsPerLine: 64,
+          maxLines: 3,
+          version: ver,
+        }
+      )
     );
 
+    const activeBoxCenterX = 70 + sIdx * 240 + 108;
     return {
       stepIndex: sIdx,
       title: st.label,
       narration: st.detail,
       mathInvariant: `Stage ${ver}/3 • ${st.label}`,
       elements: els,
-      aiLaserTarget: { x: 80 + sIdx * 230 + 100, y: 225 },
+      aiLaserTarget: { x: activeBoxCenterX, y: 226 },
+      aiLaserWaypoints: [
+        { x: 220, y: 78 },
+        { x: activeBoxCenterX, y: 226 },
+        { x: 380, y: 374 },
+      ],
     };
   });
 
   return {
     id: `custom_${Date.now()}`,
     topic: cleanTitle,
-    badge: "AI Custom Diagram",
+    badge: "AI Custom Simulation",
     frames,
   };
 }
+

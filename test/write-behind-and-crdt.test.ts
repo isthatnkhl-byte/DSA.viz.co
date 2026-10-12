@@ -14,6 +14,8 @@ import {
   newer,
   checkElement,
   generateAiExcalidrawLessonForQuery,
+  wrapLessonInBoundedZone,
+  extractWhiteboardSelectionContext,
 } from '../src/shared/whiteboard';
 
 test('Write-Behind Buffer - enqueues high-frequency operations with sub-millisecond latency', async () => {
@@ -131,8 +133,46 @@ test('Excalidraw Whiteboard - merges elements by version/versionNonce and genera
     'Simulate Two Pointers on [1, 3, 5, 8, 12, 17, 21] target 17'
   );
   assert.ok(lesson.frames.length >= 3);
-  assert.ok(lesson.frames[0].elements.length > 0);
-  const checked = checkElement(lesson.frames[0].elements[0]);
+  assert.ok(lesson.frames[0]!.elements.length > 0);
+  const checked = checkElement(lesson.frames[0]!.elements[0]);
   assert.ok(checked !== undefined);
+
+  // Verify bounded non-overlapping zones isolate element IDs and coordinates
+  const z1 = wrapLessonInBoundedZone(lesson, {
+    zoneId: 'zone_1',
+    zoneIndex: 0,
+    originX: 40,
+    originY: 40,
+  });
+  const z2 = wrapLessonInBoundedZone(lesson, {
+    zoneId: 'zone_2',
+    zoneIndex: 1,
+    originX: 920,
+    originY: 40,
+  });
+  assert.ok(z1.frames[0]!.elements.every((el) => el.id.startsWith('zone_1__')));
+  assert.ok(z2.frames[0]!.elements.every((el) => el.id.startsWith('zone_2__')));
+  assert.ok(z2.zoneBounds!.x >= z1.zoneBounds!.x + z1.zoneBounds!.width);
+
+  // Verify user drag-selection context extraction & Brute Force dry-run generation
+  const selCtx = extractWhiteboardSelectionContext(
+    [
+      { id: 'c1', type: 'rectangle', x: 100, y: 180, width: 60, height: 60 },
+      { id: 't1', type: 'text', x: 115, y: 195, width: 30, height: 24, text: '4' },
+      { id: 't2', type: 'text', x: 185, y: 195, width: 30, height: 24, text: '7' },
+      { id: 't3', type: 'text', x: 255, y: 195, width: 30, height: 24, text: '11' },
+      { id: 't4', type: 'text', x: 325, y: 195, width: 30, height: 24, text: '18' },
+    ],
+    { c1: true, t1: true, t2: true, t3: true, t4: true }
+  );
+  assert.deepStrictEqual(selCtx.extractedNumbers, [4, 7, 11, 18]);
+
+  const bfLesson = generateAiExcalidrawLessonForQuery(
+    'how would the dry run of the brute force approach of this question look',
+    selCtx
+  );
+  assert.strictEqual(bfLesson.id, 'brute_force_dry_run');
+  assert.ok(bfLesson.frames.length >= 2);
+  assert.ok((bfLesson.frames[0]!.aiLaserWaypoints?.length ?? 0) >= 2);
 });
 

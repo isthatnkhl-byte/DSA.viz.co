@@ -5,7 +5,7 @@ import { httpsEnforcer, securityHeadersMiddleware } from './src/middleware/secur
 import { getOrCreateUser, updateUser } from './src/db/users';
 import { getProfile, updateProfile } from './src/db/profiles';
 import { getSubmissions, addSubmission, deleteSubmission } from './src/db/submissions';
-import { getCache, setCache, deleteCache } from './src/lib/redis-cache';
+import { getCache, setCache, deleteCache, createHybridRateLimitStore } from './src/lib/redis-cache';
 import { adminAuth, adminDb, isAdminDbAvailable, markAdminDbUnavailable } from './src/lib/firebase-admin';
 import { saveAiReport, getUserAiReports, saveChatSession, getUserChatSessions, logUserActivity } from './src/db/ai-diagnostics';
 import {
@@ -484,9 +484,9 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Security: Constrain global JSON & urlencoded payload sizes to 2MB
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+// Security: Constrain global JSON & urlencoded payload sizes to 512KB
+app.use(express.json({ limit: "512kb" }));
+app.use(express.urlencoded({ extended: true, limit: "512kb" }));
 
 // Composite Rate-Limiter Key Generator (isolates authenticated users behind shared Campus/Corporate NATs)
 function rateLimitKeyGenerator(req: Request): string {
@@ -505,10 +505,11 @@ function rateLimitKeyGenerator(req: Request): string {
   return `ip:${req.ip || "unknown"}`;
 }
 
-// Rate Limiters
+// Rate Limiters backed by distributed Redis (with bounded LRU in-memory fallback)
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 100,
+  store: createHybridRateLimitStore("api", 60 * 1000),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Too many requests, please try again later." },
   validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
@@ -517,6 +518,7 @@ const apiLimiter = rateLimit({
 const aiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 40,
+  store: createHybridRateLimitStore("ai", 60 * 1000),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "AI rate limit exceeded. Please wait a moment and try again." },
   validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
@@ -525,6 +527,7 @@ const aiLimiter = rateLimit({
 const compilerLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 20,
+  store: createHybridRateLimitStore("compiler", 60 * 1000),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Compiler rate limit exceeded. Please wait a moment before running again." },
   validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }

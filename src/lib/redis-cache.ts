@@ -242,3 +242,90 @@ export function getCacheStatus() {
     cachedItemsCount: MEMORY_CACHE.size,
   };
 }
+
+interface RateLimitBucket {
+  hits: number;
+  resetTime: number;
+}
+
+const MAX_RATE_LIMIT_BUCKETS = 5000;
+
+/**
+ * Hybrid distributed Rate Limit Store compatible with express-rate-limit.
+ * Uses Redis atomic INCR + PEXPIRE when REDIS_URL is connected across serverless instances,
+ * and falls back to a bounded LRU in-memory map when Redis is offline.
+ */
+export function createHybridRateLimitStore(prefix: string, windowMs: number) {
+  const localBuckets = new Map<string, RateLimitBucket>();
+
+  const getLocalIncrement = (fullKey: string) => {
+    const now = Date.now();
+    const existing = localBuckets.get(fullKey);
+    if (existing && existing.resetTime > now) {
+      existing.hits += 1;
+      return { totalHits: existing.hits, resetTime: new Date(existing.resetTime) };
+    }
+    if (localBuckets.size >= MAX_RATE_LIMIT_BUCKETS) {
+      for (const [k, v] of localBuckets.entries()) {
+        if (v.resetTime <= now) localBuckets.delete(k);
+      }
+      if (localBuckets.size >= MAX_RATE_LIMIT_BUCKETS) {
+        const oldest = localBuckets.keys().next().value;
+        if (oldest) localBuckets.delete(oldest);
+      }
+    }
+    const resetTime = now + windowMs;
+    localBuckets.set(fullKey, { hits: 1, resetTime });
+    return { totalHits: 1, resetTime: new Date(resetTime) };
+  };
+
+  return {
+    localKeys: false,
+    async increment(key: string): Promise<{ totalHits: number; resetTime: Date }> {
+      const fullKey = `rl:${prefix}:${key}`;
+      if (redisClient && isConnectedToRedis) {
+        try {
+          const hits = await redisClient.incr(fullKey);
+          let pttl = await redisClient.pttl(fullKey);
+          if (hits === 1 || pttl < 0) {
+            await redisClient.pexpire(fullKey, windowMs);
+            pttl = windowMs;
+          }
+          return {
+            totalHits: hits,
+            resetTime: new Date(Date.now() + Math.max(1000, pttl)),
+          };
+        } catch {
+          // Fall through to bounded in-memory bucket
+        }
+      }
+      return getLocalIncrement(fullKey);
+    },
+    async decrement(key: string): Promise<void> {
+      const fullKey = `rl:${prefix}:${key}`;
+      if (redisClient && isConnectedToRedis) {
+        try {
+          await redisClient.decr(fullKey);
+          return;
+        } catch {
+          // Fall through
+        }
+      }
+      const existing = localBuckets.get(fullKey);
+      if (existing && existing.hits > 0) {
+        existing.hits -= 1;
+      }
+    },
+    async resetKey(key: string): Promise<void> {
+      const fullKey = `rl:${prefix}:${key}`;
+      localBuckets.delete(fullKey);
+      if (redisClient && isConnectedToRedis) {
+        try {
+          await redisClient.del(fullKey);
+        } catch {
+          // Ignored
+        }
+      }
+    },
+  };
+}

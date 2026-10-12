@@ -145,7 +145,7 @@ export function securityHeadersMiddleware(req: Request, res: Response, next: Nex
       "media-src 'self' blob: data:",
       "object-src 'none'",
       "base-uri 'self'",
-      "form-action 'self' https://accounts.google.com",
+      "form-action 'self' https://accounts.google.com https://github.com",
       "frame-ancestors 'self'",
       enforceStrictTls ? "upgrade-insecure-requests" : "",
     ]

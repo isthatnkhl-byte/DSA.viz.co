@@ -21672,15 +21672,19 @@ var require_utils2 = __commonJS({
       if (!obj || typeof obj !== "object") {
         return false;
       }
-      return !!(obj.constructor && obj.constructor.isBuffer && obj.constructor.isBuffer(obj));
+      return !!(obj.constructor && typeof obj.constructor.isBuffer === "function" && obj.constructor.isBuffer(obj));
     };
     var combine = function combine2(a, b, arrayLimit, plainObjects, throwOnLimitExceeded) {
       if (isOverflow(a)) {
         if (throwOnLimitExceeded) {
           throw new RangeError("Array limit exceeded. Only " + arrayLimit + " element" + (arrayLimit === 1 ? "" : "s") + " allowed in an array.");
         }
-        var newIndex = getMaxIndex(a) + 1;
-        a[newIndex] = b;
+        var bValues = isArray(b) ? b : [b];
+        var newIndex = getMaxIndex(a);
+        for (var i2 = 0; i2 < bValues.length; ++i2) {
+          newIndex += 1;
+          a[newIndex] = bValues[i2];
+        }
         setMaxIndex(a, newIndex);
         return a;
       }
@@ -21756,6 +21760,7 @@ var require_stringify = __commonJS({
       charsetSentinel: false,
       commaRoundTrip: false,
       delimiter: "&",
+      depth: Infinity,
       encode: true,
       encodeDotInKeys: false,
       encoder: utils.encode,
@@ -21775,8 +21780,11 @@ var require_stringify = __commonJS({
       return typeof v === "string" || typeof v === "number" || typeof v === "boolean" || typeof v === "symbol" || typeof v === "bigint";
     };
     var sentinel = {};
-    var stringify = function stringify2(object2, prefix, generateArrayPrefix, commaRoundTrip, allowEmptyArrays, strictNullHandling, skipNulls, encodeDotInKeys, encoder2, filter, sort, allowDots, serializeDate, format, formatter, encodeValuesOnly, charset, sideChannel) {
+    var stringify = function stringify2(object2, prefix, generateArrayPrefix, commaRoundTrip, allowEmptyArrays, strictNullHandling, skipNulls, encodeDotInKeys, encoder2, filter, sort, allowDots, serializeDate, format, formatter, encodeValuesOnly, charset, sideChannel, depth, currentDepth) {
       var obj = object2;
+      if (currentDepth > depth) {
+        throw new RangeError("Input depth exceeded depth option of " + depth);
+      }
       var tmpSc = sideChannel;
       var step = 0;
       var findFlag = false;
@@ -21794,9 +21802,8 @@ var require_stringify = __commonJS({
           step = 0;
         }
       }
-      if (typeof filter === "function") {
-        obj = filter(prefix, obj);
-      } else if (obj instanceof Date) {
+      obj = typeof filter === "function" ? filter(prefix, obj) : obj;
+      if (obj instanceof Date) {
         obj = serializeDate(obj);
       } else if (generateArrayPrefix === "comma" && isArray(obj)) {
         obj = utils.maybeMap(obj, function(value2) {
@@ -21839,7 +21846,7 @@ var require_stringify = __commonJS({
       }
       var encodedPrefix = encodeDotInKeys ? String(prefix).replace(/\./g, "%2E") : String(prefix);
       var adjustedPrefix = commaRoundTrip && isArray(obj) && obj.length === 1 ? encodedPrefix + "[]" : encodedPrefix;
-      if (allowEmptyArrays && isArray(obj) && obj.length === 0) {
+      if (allowEmptyArrays && isArray(obj) && obj.length === 0 && Object.keys(obj).length === 0) {
         return adjustedPrefix + "[]";
       }
       for (var j = 0; j < objKeys.length; ++j) {
@@ -21871,7 +21878,9 @@ var require_stringify = __commonJS({
           formatter,
           encodeValuesOnly,
           charset,
-          valueSideChannel
+          valueSideChannel,
+          depth,
+          currentDepth + 1
         ));
       }
       return values;
@@ -21926,6 +21935,7 @@ var require_stringify = __commonJS({
         charsetSentinel: typeof opts.charsetSentinel === "boolean" ? opts.charsetSentinel : defaults.charsetSentinel,
         commaRoundTrip: !!opts.commaRoundTrip,
         delimiter: typeof opts.delimiter === "undefined" ? defaults.delimiter : opts.delimiter,
+        depth: typeof opts.depth === "number" ? opts.depth : defaults.depth,
         encode: typeof opts.encode === "boolean" ? opts.encode : defaults.encode,
         encodeDotInKeys: typeof opts.encodeDotInKeys === "boolean" ? opts.encodeDotInKeys : defaults.encodeDotInKeys,
         encoder: typeof opts.encoder === "function" ? opts.encoder : defaults.encoder,
@@ -21973,9 +21983,10 @@ var require_stringify = __commonJS({
         if (options.skipNulls && value === null) {
           continue;
         }
+        var encodedKey = options.encodeDotInKeys ? String(key).replace(/\./g, "%2E") : String(key);
         pushToArray(keys, stringify(
           value,
-          key,
+          encodedKey,
           generateArrayPrefix,
           commaRoundTrip,
           options.allowEmptyArrays,
@@ -21991,7 +22002,9 @@ var require_stringify = __commonJS({
           options.formatter,
           options.encodeValuesOnly,
           options.charset,
-          sideChannel
+          sideChannel,
+          options.depth,
+          0
         ));
       }
       var joined = keys.join(options.delimiter);
@@ -22044,9 +22057,9 @@ var require_parse = __commonJS({
         return String.fromCharCode(parseInt(numberStr, 10));
       });
     };
-    var parseArrayValue = function(val, options, currentArrayLength, isFlatArrayValue) {
+    var parseArrayValue = function(val, options, currentArrayLength) {
       if (val && typeof val === "string" && options.comma && val.indexOf(",") > -1) {
-        if (isFlatArrayValue && options.throwOnLimitExceeded) {
+        if (options.throwOnLimitExceeded) {
           var commaCount = 0;
           var commaIndex = val.indexOf(",");
           while (commaIndex > -1) {
@@ -22113,8 +22126,7 @@ var require_parse = __commonJS({
               parseArrayValue(
                 part.slice(pos + 1),
                 options,
-                isArray(obj[key]) ? obj[key].length : 0,
-                part.indexOf("[]=") === -1
+                isArray(obj[key]) ? obj[key].length : 0
               ),
               function(encodedVal) {
                 return options.decoder(encodedVal, defaults.decoder, charset, "value");
@@ -23772,6 +23784,9 @@ var require_proxy_addr = __commonJS({
       return function trust(addr) {
         if (!isip(addr)) return false;
         var ip = parseip(addr);
+        if (ip.kind() === "ipv6" && ip.isIPv4MappedAddress()) {
+          ip = ip.toIPv4Address();
+        }
         var ipconv;
         var kind = ip.kind();
         for (var i2 = 0; i2 < subnets.length; i2++) {
@@ -23784,10 +23799,15 @@ var require_proxy_addr = __commonJS({
             if (subnetkind === "ipv4" && !ip.isIPv4MappedAddress()) {
               continue;
             }
+            if (subnetkind !== "ipv4" && !(subnetrange >= 96 && subnetip.isIPv4MappedAddress())) {
+              continue;
+            }
             if (!ipconv) {
               ipconv = subnetkind === "ipv4" ? ip.toIPv4Address() : ip.toIPv4MappedAddress();
             }
             trusted = ipconv;
+          } else if (kind === "ipv6" && subnetip.isIPv4MappedAddress()) {
+            continue;
           }
           if (trusted.match(subnetip, subnetrange)) {
             return true;
@@ -23804,12 +23824,20 @@ var require_proxy_addr = __commonJS({
       return function trust(addr) {
         if (!isip(addr)) return false;
         var ip = parseip(addr);
+        if (ip.kind() === "ipv6" && ip.isIPv4MappedAddress()) {
+          ip = ip.toIPv4Address();
+        }
         var kind = ip.kind();
         if (kind !== subnetkind) {
           if (subnetisipv4 && !ip.isIPv4MappedAddress()) {
             return false;
           }
+          if (!subnetisipv4 && !(subnetrange >= 96 && subnetip.isIPv4MappedAddress())) {
+            return false;
+          }
           ip = subnetisipv4 ? ip.toIPv4Address() : ip.toIPv4MappedAddress();
+        } else if (kind === "ipv6" && subnetip.isIPv4MappedAddress()) {
+          return false;
         }
         return ip.match(subnetip, subnetrange);
       };
@@ -97747,9 +97775,9 @@ var require_fallback = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/constants.js
+// node_modules/@grpc/grpc-js/build/src/constants.js
 var require_constants2 = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/constants.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/constants.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.DEFAULT_MAX_RECEIVE_MESSAGE_LENGTH = exports2.DEFAULT_MAX_SEND_MESSAGE_LENGTH = exports2.Propagate = exports2.LogVerbosity = exports2.Status = void 0;
@@ -97793,12 +97821,12 @@ var require_constants2 = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/package.json
+// node_modules/@grpc/grpc-js/package.json
 var require_package6 = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/package.json"(exports2, module2) {
+  "node_modules/@grpc/grpc-js/package.json"(exports2, module2) {
     module2.exports = {
       name: "@grpc/grpc-js",
-      version: "1.14.4",
+      version: "1.14.6",
       description: "gRPC Library for Node - pure JS implementation",
       homepage: "https://grpc.io/",
       repository: "https://github.com/grpc/grpc-node/tree/master/packages/grpc-js",
@@ -97888,9 +97916,9 @@ var require_package6 = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/logging.js
+// node_modules/@grpc/grpc-js/build/src/logging.js
 var require_logging = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/logging.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/logging.js"(exports2) {
     "use strict";
     var _a4;
     var _b;
@@ -97971,6 +97999,9 @@ var require_logging = __commonJS({
     var enabledTracers = /* @__PURE__ */ new Set();
     var disabledTracers = /* @__PURE__ */ new Set();
     for (const tracerName of tracersString.split(",")) {
+      if (tracerName.length === 0) {
+        continue;
+      }
       if (tracerName.startsWith("-")) {
         disabledTracers.add(tracerName.substring(1));
       } else {
@@ -97978,20 +98009,24 @@ var require_logging = __commonJS({
       }
     }
     var allEnabled = enabledTracers.has("all");
+    var anyTracerEnabled = allEnabled || enabledTracers.size > 0;
     function trace2(severity, tracer, text) {
       if (isTracerEnabled(tracer)) {
         (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text);
       }
     }
     function isTracerEnabled(tracer) {
+      if (!anyTracerEnabled) {
+        return false;
+      }
       return !disabledTracers.has(tracer) && (allEnabled || enabledTracers.has(tracer));
     }
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/error.js
+// node_modules/@grpc/grpc-js/build/src/error.js
 var require_error5 = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/error.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/error.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getErrorMessage = getErrorMessage;
@@ -98013,9 +98048,9 @@ var require_error5 = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/metadata.js
+// node_modules/@grpc/grpc-js/build/src/metadata.js
 var require_metadata = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/metadata.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/metadata.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Metadata = void 0;
@@ -98061,7 +98096,6 @@ var require_metadata = __commonJS({
     var Metadata = class _Metadata {
       constructor(options = {}) {
         this.internalRepr = /* @__PURE__ */ new Map();
-        this.opaqueData = /* @__PURE__ */ new Map();
         this.options = options;
       }
       /**
@@ -98172,7 +98206,11 @@ var require_metadata = __commonJS({
           if (key.startsWith(":")) {
             continue;
           }
-          result[key] = values.map(bufToString);
+          if (values.length === 1) {
+            result[key] = bufToString(values[0]);
+          } else {
+            result[key] = values.map(bufToString);
+          }
         }
         return result;
       }
@@ -98196,6 +98234,9 @@ var require_metadata = __commonJS({
        * @param value
        */
       setOpaque(key, value) {
+        if (!this.opaqueData) {
+          this.opaqueData = /* @__PURE__ */ new Map();
+        }
         this.opaqueData.set(key, value);
       }
       /**
@@ -98204,7 +98245,8 @@ var require_metadata = __commonJS({
        * @returns
        */
       getOpaque(key) {
-        return this.opaqueData.get(key);
+        var _a4;
+        return (_a4 = this.opaqueData) === null || _a4 === void 0 ? void 0 : _a4.get(key);
       }
       /**
        * Returns a new Metadata object based fields in a given IncomingHttpHeaders
@@ -98257,12 +98299,13 @@ var require_metadata = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/call-credentials.js
+// node_modules/@grpc/grpc-js/build/src/call-credentials.js
 var require_call_credentials = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/call-credentials.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/call-credentials.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CallCredentials = void 0;
+    exports2.isEmptyCallCredentials = isEmptyCallCredentials;
     var metadata_1 = require_metadata();
     function isCurrentOauth2Client(client) {
       return "getRequestHeaders" in client && typeof client.getRequestHeaders === "function";
@@ -98333,6 +98376,9 @@ var require_call_credentials = __commonJS({
         return base;
       }
       compose(other) {
+        if (other instanceof EmptyCallCredentials) {
+          return this;
+        }
         return new _ComposedCallCredentials(this.creds.concat([other]));
       }
       _equals(other) {
@@ -98363,6 +98409,9 @@ var require_call_credentials = __commonJS({
         });
       }
       compose(other) {
+        if (other instanceof EmptyCallCredentials) {
+          return this;
+        }
         return new ComposedCallCredentials([this, other]);
       }
       _equals(other) {
@@ -98387,12 +98436,15 @@ var require_call_credentials = __commonJS({
         return other instanceof _EmptyCallCredentials;
       }
     };
+    function isEmptyCallCredentials(callCredentials) {
+      return callCredentials instanceof EmptyCallCredentials;
+    }
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/tls-helpers.js
+// node_modules/@grpc/grpc-js/build/src/tls-helpers.js
 var require_tls_helpers = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/tls-helpers.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/tls-helpers.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CIPHER_SUITES = void 0;
@@ -98413,15 +98465,17 @@ var require_tls_helpers = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/uri-parser.js
+// node_modules/@grpc/grpc-js/build/src/uri-parser.js
 var require_uri_parser = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/uri-parser.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/uri-parser.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.parseUri = parseUri;
     exports2.splitHostPort = splitHostPort;
     exports2.combineHostPort = combineHostPort;
     exports2.uriToString = uriToString;
+    exports2.extractServiceName = extractServiceName;
+    exports2.computeServiceUrl = computeServiceUrl;
     var URI_REGEX = /^(?:([A-Za-z0-9+.-]+):)?(?:\/\/([^/]*)\/)?(.+)$/;
     function parseUri(uriString) {
       const parsedUri = URI_REGEX.exec(uriString);
@@ -98504,12 +98558,29 @@ var require_uri_parser = __commonJS({
       result += uri.path;
       return result;
     }
+    function extractServiceName(methodName) {
+      const firstSlashIndex = methodName.indexOf("/");
+      if (firstSlashIndex === -1) {
+        return "";
+      }
+      const secondSlashIndex = methodName.indexOf("/", firstSlashIndex + 1);
+      if (secondSlashIndex === -1) {
+        return methodName.substring(firstSlashIndex + 1);
+      }
+      return methodName.substring(firstSlashIndex + 1, secondSlashIndex);
+    }
+    function computeServiceUrl(host, methodName) {
+      var _a4, _b;
+      const serviceName = extractServiceName(methodName);
+      const hostname3 = (_b = (_a4 = splitHostPort(host)) === null || _a4 === void 0 ? void 0 : _a4.host) !== null && _b !== void 0 ? _b : "localhost";
+      return `https://${hostname3}/${serviceName}`;
+    }
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolver.js
+// node_modules/@grpc/grpc-js/build/src/resolver.js
 var require_resolver = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolver.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/resolver.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CHANNEL_ARGS_CONFIG_SELECTOR_KEY = void 0;
@@ -98559,9 +98630,9 @@ var require_resolver = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/channel-credentials.js
+// node_modules/@grpc/grpc-js/build/src/channel-credentials.js
 var require_channel_credentials = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/channel-credentials.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/channel-credentials.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ChannelCredentials = void 0;
@@ -98651,6 +98722,7 @@ var require_channel_credentials = __commonJS({
         return other instanceof _InsecureChannelCredentialsImpl;
       }
       _createSecureConnector(channelTarget, options, callCredentials) {
+        const credentials = callCredentials !== null && callCredentials !== void 0 ? callCredentials : call_credentials_1.CallCredentials.createEmpty();
         return {
           connect(socket) {
             return Promise.resolve({
@@ -98662,7 +98734,7 @@ var require_channel_credentials = __commonJS({
             return Promise.resolve();
           },
           getCallCredentials: () => {
-            return callCredentials !== null && callCredentials !== void 0 ? callCredentials : call_credentials_1.CallCredentials.createEmpty();
+            return credentials;
           },
           destroy() {
           }
@@ -98955,9 +99027,9 @@ var require_channel_credentials = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer.js
+// node_modules/@grpc/grpc-js/build/src/load-balancer.js
 var require_load_balancer = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/load-balancer.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.createChildChannelControlHelper = createChildChannelControlHelper;
@@ -99046,9 +99118,9 @@ var require_load_balancer = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/service-config.js
+// node_modules/@grpc/grpc-js/build/src/service-config.js
 var require_service_config = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/service-config.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/service-config.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateRetryThrottling = validateRetryThrottling;
@@ -99389,9 +99461,9 @@ var require_service_config = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/connectivity-state.js
+// node_modules/@grpc/grpc-js/build/src/connectivity-state.js
 var require_connectivity_state = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/connectivity-state.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/connectivity-state.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ConnectivityState = void 0;
@@ -99406,9 +99478,9 @@ var require_connectivity_state = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/picker.js
+// node_modules/@grpc/grpc-js/build/src/picker.js
 var require_picker = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/picker.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/picker.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.QueuePicker = exports2.UnavailablePicker = exports2.PickResultType = void 0;
@@ -99467,9 +99539,9 @@ var require_picker = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/backoff-timeout.js
+// node_modules/@grpc/grpc-js/build/src/backoff-timeout.js
 var require_backoff_timeout = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/backoff-timeout.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/backoff-timeout.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.BackoffTimeout = void 0;
@@ -99509,7 +99581,9 @@ var require_backoff_timeout = __commonJS({
             this.maxDelay = options.maxDelay;
           }
         }
-        this.trace("constructed initialDelay=" + this.initialDelay + " multiplier=" + this.multiplier + " jitter=" + this.jitter + " maxDelay=" + this.maxDelay);
+        if (this.traceEnabled) {
+          this.trace("constructed initialDelay=" + this.initialDelay + " multiplier=" + this.multiplier + " jitter=" + this.jitter + " maxDelay=" + this.maxDelay);
+        }
         this.nextDelay = this.initialDelay;
         this.timerId = setTimeout(() => {
         }, 0);
@@ -99518,12 +99592,19 @@ var require_backoff_timeout = __commonJS({
       static getNextId() {
         return this.nextId++;
       }
+      get traceEnabled() {
+        return logging.isTracerEnabled(TRACER_NAME);
+      }
       trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text);
+        if (this.traceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text);
+        }
       }
       runTimer(delay2) {
         var _a4, _b;
-        this.trace("runTimer(delay=" + delay2 + ")");
+        if (this.traceEnabled) {
+          this.trace("runTimer(delay=" + delay2 + ")");
+        }
         this.endTime = this.startTime;
         this.endTime.setMilliseconds(this.endTime.getMilliseconds() + delay2);
         clearTimeout(this.timerId);
@@ -99562,7 +99643,9 @@ var require_backoff_timeout = __commonJS({
        * retroactively apply that reset to the current timer.
        */
       reset() {
-        this.trace("reset() running=" + this.running);
+        if (this.traceEnabled) {
+          this.trace("reset() running=" + this.running);
+        }
         this.nextDelay = this.initialDelay;
         if (this.running) {
           const now = /* @__PURE__ */ new Date();
@@ -99613,9 +99696,9 @@ var require_backoff_timeout = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-child-handler.js
+// node_modules/@grpc/grpc-js/build/src/load-balancer-child-handler.js
 var require_load_balancer_child_handler = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-child-handler.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/load-balancer-child-handler.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ChildLoadBalancerHandler = void 0;
@@ -99743,12 +99826,13 @@ var require_load_balancer_child_handler = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolving-load-balancer.js
+// node_modules/@grpc/grpc-js/build/src/resolving-load-balancer.js
 var require_resolving_load_balancer = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolving-load-balancer.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/resolving-load-balancer.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ResolvingLoadBalancer = void 0;
+    exports2.getDefaultConfigSelector = getDefaultConfigSelector;
     var load_balancer_1 = require_load_balancer();
     var service_config_1 = require_service_config();
     var connectivity_state_1 = require_connectivity_state();
@@ -99799,34 +99883,40 @@ var require_resolving_load_balancer = __commonJS({
       }
       return null;
     }
+    var MAX_CACHED_METHOD_CONFIGS = 100;
     function getDefaultConfigSelector(serviceConfig) {
+      const methodConfigCache = /* @__PURE__ */ new Map();
       return {
-        invoke(methodName, metadata) {
+        invoke(methodName, metadata, channelId) {
           var _a4, _b;
-          const splitName = methodName.split("/").filter((x2) => x2.length > 0);
-          const service = (_a4 = splitName[0]) !== null && _a4 !== void 0 ? _a4 : "";
-          const method = (_b = splitName[1]) !== null && _b !== void 0 ? _b : "";
-          if (serviceConfig && serviceConfig.methodConfig) {
-            for (const matchLevel of NAME_MATCH_LEVEL_ORDER) {
-              const matchingConfig = findMatchingConfig(service, method, serviceConfig.methodConfig, matchLevel);
-              if (matchingConfig) {
-                return {
-                  methodConfig: matchingConfig,
-                  pickInformation: {},
-                  status: constants_1.Status.OK,
-                  dynamicFilterFactories: []
-                };
+          let matchingConfig = methodConfigCache.get(methodName);
+          if (matchingConfig === void 0) {
+            const splitName = methodName.split("/").filter((x2) => x2.length > 0);
+            const service = (_a4 = splitName[0]) !== null && _a4 !== void 0 ? _a4 : "";
+            const method = (_b = splitName[1]) !== null && _b !== void 0 ? _b : "";
+            matchingConfig = { name: [] };
+            if (serviceConfig && serviceConfig.methodConfig) {
+              for (const matchLevel of NAME_MATCH_LEVEL_ORDER) {
+                const foundConfig = findMatchingConfig(service, method, serviceConfig.methodConfig, matchLevel);
+                if (foundConfig) {
+                  matchingConfig = foundConfig;
+                  break;
+                }
               }
+            }
+            if (methodConfigCache.size < MAX_CACHED_METHOD_CONFIGS) {
+              methodConfigCache.set(methodName, matchingConfig);
             }
           }
           return {
-            methodConfig: { name: [] },
+            methodConfig: matchingConfig,
             pickInformation: {},
             status: constants_1.Status.OK,
             dynamicFilterFactories: []
           };
         },
         unref() {
+          methodConfigCache.clear();
         }
       };
     }
@@ -99992,9 +100082,9 @@ var require_resolving_load_balancer = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/channel-options.js
+// node_modules/@grpc/grpc-js/build/src/channel-options.js
 var require_channel_options = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/channel-options.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/channel-options.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.recognizedOptions = void 0;
@@ -100050,9 +100140,9 @@ var require_channel_options = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel-address.js
+// node_modules/@grpc/grpc-js/build/src/subchannel-address.js
 var require_subchannel_address = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel-address.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/subchannel-address.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.EndpointMap = void 0;
@@ -101029,9 +101119,9 @@ var require_cjs = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/admin.js
+// node_modules/@grpc/grpc-js/build/src/admin.js
 var require_admin = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/admin.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/admin.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.registerAdminService = registerAdminService;
@@ -101048,9 +101138,9 @@ var require_admin = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/call.js
+// node_modules/@grpc/grpc-js/build/src/call.js
 var require_call2 = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/call.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/call.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ClientDuplexStreamImpl = exports2.ClientWritableStreamImpl = exports2.ClientReadableStreamImpl = exports2.ClientUnaryCallImpl = void 0;
@@ -101185,9 +101275,9 @@ ${callerStack}`;
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/call-interface.js
+// node_modules/@grpc/grpc-js/build/src/call-interface.js
 var require_call_interface = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/call-interface.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/call-interface.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.InterceptingListenerImpl = void 0;
@@ -101269,9 +101359,9 @@ var require_call_interface = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/client-interceptors.js
+// node_modules/@grpc/grpc-js/build/src/client-interceptors.js
 var require_client_interceptors = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/client-interceptors.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/client-interceptors.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.InterceptingCall = exports2.RequesterBuilder = exports2.ListenerBuilder = exports2.InterceptorConfigurationError = void 0;
@@ -101622,9 +101712,9 @@ var require_client_interceptors = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/client.js
+// node_modules/@grpc/grpc-js/build/src/client.js
 var require_client = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/client.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/client.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Client = void 0;
@@ -101996,9 +102086,9 @@ var require_client = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/make-client.js
+// node_modules/@grpc/grpc-js/build/src/make-client.js
 var require_make_client = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/make-client.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/make-client.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.makeClientConstructor = makeClientConstructor;
@@ -104803,9 +104893,9 @@ var require_type3 = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/proto-loader/build/src/util.js
+// node_modules/@grpc/grpc-js/node_modules/@grpc/proto-loader/build/src/util.js
 var require_util7 = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/proto-loader/build/src/util.js"(exports2) {
+  "node_modules/@grpc/grpc-js/node_modules/@grpc/proto-loader/build/src/util.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.addCommonProtos = exports2.loadProtosWithOptionsSync = exports2.loadProtosWithOptions = void 0;
@@ -104873,9 +104963,9 @@ var require_util7 = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/proto-loader/build/src/index.js
+// node_modules/@grpc/grpc-js/node_modules/@grpc/proto-loader/build/src/index.js
 var require_src11 = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/proto-loader/build/src/index.js"(exports2) {
+  "node_modules/@grpc/grpc-js/node_modules/@grpc/proto-loader/build/src/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.loadFileDescriptorSetFromObject = exports2.loadFileDescriptorSetFromBuffer = exports2.fromJSON = exports2.loadSync = exports2.load = exports2.IdempotencyLevel = exports2.isAnyExtension = exports2.Long = void 0;
@@ -105063,13 +105153,14 @@ var require_src11 = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/channelz.js
+// node_modules/@grpc/grpc-js/build/src/channelz.js
 var require_channelz = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/channelz.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/channelz.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.registerChannelzSocket = exports2.registerChannelzServer = exports2.registerChannelzSubchannel = exports2.registerChannelzChannel = exports2.ChannelzCallTrackerStub = exports2.ChannelzCallTracker = exports2.ChannelzChildrenTrackerStub = exports2.ChannelzChildrenTracker = exports2.ChannelzTrace = exports2.ChannelzTraceStub = void 0;
     exports2.unregisterChannelzRef = unregisterChannelzRef;
+    exports2.dateToProtoTimestamp = dateToProtoTimestamp;
     exports2.getChannelzHandlers = getChannelzHandlers;
     exports2.getChannelzServiceDefinition = getChannelzServiceDefinition;
     exports2.setup = setup;
@@ -105226,7 +105317,7 @@ var require_channelz = __commonJS({
       }
       addCallStarted() {
         this.callsStarted += 1;
-        this.lastCallStartedTimestamp = /* @__PURE__ */ new Date();
+        this.lastCallStartedTimestamp = Date.now();
       }
       addCallSucceeded() {
         this.callsSucceeded += 1;
@@ -105368,12 +105459,12 @@ var require_channelz = __commonJS({
       }
     }
     function dateToProtoTimestamp(date5) {
-      if (!date5) {
+      if (date5 === null || date5 === void 0) {
         return null;
       }
-      const millisSinceEpoch = date5.getTime();
+      const millisSinceEpoch = typeof date5 === "number" ? date5 : date5.getTime();
       return {
-        seconds: millisSinceEpoch / 1e3 | 0,
+        seconds: Math.floor(millisSinceEpoch / 1e3),
         nanos: millisSinceEpoch % 1e3 * 1e6
       };
     }
@@ -105647,9 +105738,9 @@ var require_channelz = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/call-number.js
+// node_modules/@grpc/grpc-js/build/src/call-number.js
 var require_call_number = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/call-number.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/call-number.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getNextCallNumber = getNextCallNumber;
@@ -105660,9 +105751,9 @@ var require_call_number = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/compression-algorithms.js
+// node_modules/@grpc/grpc-js/build/src/compression-algorithms.js
 var require_compression_algorithms = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/compression-algorithms.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/compression-algorithms.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CompressionAlgorithms = void 0;
@@ -105675,9 +105766,9 @@ var require_compression_algorithms = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/filter.js
+// node_modules/@grpc/grpc-js/build/src/filter.js
 var require_filter = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/filter.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/filter.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.BaseFilter = void 0;
@@ -105702,9 +105793,9 @@ var require_filter = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/compression-filter.js
+// node_modules/@grpc/grpc-js/build/src/compression-filter.js
 var require_compression_filter = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/compression-filter.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/compression-filter.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CompressionFilterFactory = exports2.CompressionFilter = void 0;
@@ -105971,9 +106062,9 @@ var require_compression_filter = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/control-plane-status.js
+// node_modules/@grpc/grpc-js/build/src/control-plane-status.js
 var require_control_plane_status = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/control-plane-status.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/control-plane-status.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.restrictControlPlaneStatusCode = restrictControlPlaneStatusCode;
@@ -106001,9 +106092,9 @@ var require_control_plane_status = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/deadline.js
+// node_modules/@grpc/grpc-js/build/src/deadline.js
 var require_deadline = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/deadline.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/deadline.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.minDeadline = minDeadline;
@@ -106028,7 +106119,7 @@ var require_deadline = __commonJS({
       ["H", 60 * 60 * 1e3]
     ];
     function getDeadlineTimeoutString(deadline) {
-      const now = (/* @__PURE__ */ new Date()).getTime();
+      const now = Date.now();
       if (deadline instanceof Date) {
         deadline = deadline.getTime();
       }
@@ -106044,7 +106135,7 @@ var require_deadline = __commonJS({
     var MAX_TIMEOUT_TIME = 2147483647;
     function getRelativeTimeout(deadline) {
       const deadlineMs = deadline instanceof Date ? deadline.getTime() : deadline;
-      const now = (/* @__PURE__ */ new Date()).getTime();
+      const now = Date.now();
       const timeout = deadlineMs - now;
       if (timeout < 0) {
         return 0;
@@ -106067,14 +106158,16 @@ var require_deadline = __commonJS({
       }
     }
     function formatDateDifference(startDate, endDate) {
-      return ((endDate.getTime() - startDate.getTime()) / 1e3).toFixed(3) + "s";
+      const startMs = typeof startDate === "number" ? startDate : startDate.getTime();
+      const endMs = typeof endDate === "number" ? endDate : endDate.getTime();
+      return ((endMs - startMs) / 1e3).toFixed(3) + "s";
     }
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/filter-stack.js
+// node_modules/@grpc/grpc-js/build/src/filter-stack.js
 var require_filter_stack = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/filter-stack.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/filter-stack.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FilterStackFactory = exports2.FilterStack = void 0;
@@ -106143,9 +106236,9 @@ var require_filter_stack = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/single-subchannel-channel.js
+// node_modules/@grpc/grpc-js/build/src/single-subchannel-channel.js
 var require_single_subchannel_channel = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/single-subchannel-channel.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/single-subchannel-channel.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.SingleSubchannelChannel = void 0;
@@ -106162,7 +106255,6 @@ var require_single_subchannel_channel = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var SubchannelCallWrapper = class {
       constructor(subchannel, method, filterStackFactory, options, callNumber) {
-        var _a4, _b;
         this.subchannel = subchannel;
         this.method = method;
         this.options = options;
@@ -106174,13 +106266,7 @@ var require_single_subchannel_channel = __commonJS({
         this.pendingStatus = null;
         this.readFilterPending = false;
         this.writeFilterPending = false;
-        const splitPath = this.method.split("/");
-        let serviceName = "";
-        if (splitPath.length >= 2) {
-          serviceName = splitPath[1];
-        }
-        const hostname3 = (_b = (_a4 = (0, uri_parser_1.splitHostPort)(this.options.host)) === null || _a4 === void 0 ? void 0 : _a4.host) !== null && _b !== void 0 ? _b : "localhost";
-        this.serviceUrl = `https://${hostname3}/${serviceName}`;
+        this.serviceUrl = (0, uri_parser_1.computeServiceUrl)(this.options.host, this.method);
         const timeout = (0, deadline_1.getRelativeTimeout)(options.deadline);
         if (timeout !== Infinity) {
           if (timeout <= 0) {
@@ -106258,7 +106344,7 @@ var require_single_subchannel_channel = __commonJS({
             }
           }
         };
-        this.childCall = this.subchannel.createCall(credsMetadata, this.options.host, this.method, childListener);
+        this.childCall = this.subchannel.createCall(credsMetadata, this.options.host, this.method, childListener, this.callNumber);
         if (this.readPending) {
           this.childCall.startRead();
         }
@@ -106363,9 +106449,9 @@ var require_single_subchannel_channel = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel.js
+// node_modules/@grpc/grpc-js/build/src/subchannel.js
 var require_subchannel = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/subchannel.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Subchannel = void 0;
@@ -106428,7 +106514,9 @@ var require_subchannel = __commonJS({
         }
         this.channelzRef = (0, channelz_1.registerChannelzSubchannel)(this.subchannelAddressString, () => this.getChannelzInfo(), this.channelzEnabled);
         this.channelzTrace.addTrace("CT_INFO", "Subchannel created");
-        this.trace("Subchannel constructed with options " + JSON.stringify(options, void 0, 2));
+        if (this.traceEnabled) {
+          this.trace("Subchannel constructed with options " + JSON.stringify(options, void 0, 2));
+        }
         this.secureConnector = credentials._createSecureConnector(channelTarget, options);
       }
       getChannelzInfo() {
@@ -106440,11 +106528,21 @@ var require_subchannel = __commonJS({
           target: this.subchannelAddressString
         };
       }
+      get traceEnabled() {
+        return logging.isTracerEnabled(TRACER_NAME);
+      }
+      get refTraceEnabled() {
+        return logging.isTracerEnabled("subchannel_refcount");
+      }
       trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        if (this.traceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        }
       }
       refTrace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        if (this.refTraceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        }
       }
       handleBackoffTimer() {
         if (this.continueConnecting) {
@@ -106501,10 +106599,12 @@ var require_subchannel = __commonJS({
         if (oldStates.indexOf(this.connectivityState) === -1) {
           return false;
         }
-        if (errorMessage) {
-          this.trace(connectivity_state_1.ConnectivityState[this.connectivityState] + " -> " + connectivity_state_1.ConnectivityState[newState] + ' with error "' + errorMessage + '"');
-        } else {
-          this.trace(connectivity_state_1.ConnectivityState[this.connectivityState] + " -> " + connectivity_state_1.ConnectivityState[newState]);
+        if (this.traceEnabled) {
+          if (errorMessage) {
+            this.trace(connectivity_state_1.ConnectivityState[this.connectivityState] + " -> " + connectivity_state_1.ConnectivityState[newState] + ' with error "' + errorMessage + '"');
+          } else {
+            this.trace(connectivity_state_1.ConnectivityState[this.connectivityState] + " -> " + connectivity_state_1.ConnectivityState[newState]);
+          }
         }
         if (this.channelzEnabled) {
           this.channelzTrace.addTrace("CT_INFO", "Connectivity state change to " + connectivity_state_1.ConnectivityState[newState]);
@@ -106548,11 +106648,15 @@ var require_subchannel = __commonJS({
         return true;
       }
       ref() {
-        this.refTrace("refcount " + this.refcount + " -> " + (this.refcount + 1));
+        if (this.refTraceEnabled) {
+          this.refTrace("refcount " + this.refcount + " -> " + (this.refcount + 1));
+        }
         this.refcount += 1;
       }
       unref() {
-        this.refTrace("refcount " + this.refcount + " -> " + (this.refcount - 1));
+        if (this.refTraceEnabled) {
+          this.refTrace("refcount " + this.refcount + " -> " + (this.refcount - 1));
+        }
         this.refcount -= 1;
         if (this.refcount === 0) {
           this.channelzTrace.addTrace("CT_INFO", "Shutting down");
@@ -106570,7 +106674,7 @@ var require_subchannel = __commonJS({
         }
         return false;
       }
-      createCall(metadata, host, method, listener) {
+      createCall(metadata, host, method, listener, callId) {
         if (!this.transport) {
           throw new Error("Cannot create call, subchannel not READY");
         }
@@ -106590,7 +106694,7 @@ var require_subchannel = __commonJS({
         } else {
           statsTracker = {};
         }
-        return this.transport.createCall(metadata, host, method, listener, statsTracker);
+        return this.transport.createCall(metadata, host, method, listener, statsTracker, callId);
       }
       /**
        * If the subchannel is currently IDLE, start connecting and switch to the
@@ -106691,20 +106795,22 @@ var require_subchannel = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/environment.js
+// node_modules/@grpc/grpc-js/build/src/environment.js
 var require_environment = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/environment.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/environment.js"(exports2) {
     "use strict";
     var _a4;
+    var _b;
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.GRPC_NODE_USE_ALTERNATIVE_RESOLVER = void 0;
+    exports2.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS = exports2.GRPC_NODE_USE_ALTERNATIVE_RESOLVER = void 0;
     exports2.GRPC_NODE_USE_ALTERNATIVE_RESOLVER = ((_a4 = process.env.GRPC_NODE_USE_ALTERNATIVE_RESOLVER) !== null && _a4 !== void 0 ? _a4 : "false") === "true";
+    exports2.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS = ((_b = process.env.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS) !== null && _b !== void 0 ? _b : "false") === "true";
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolver-dns.js
+// node_modules/@grpc/grpc-js/build/src/resolver-dns.js
 var require_resolver_dns = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolver-dns.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/resolver-dns.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.DEFAULT_PORT = void 0;
@@ -106990,9 +107096,9 @@ var require_resolver_dns = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/http_proxy.js
+// node_modules/@grpc/grpc-js/build/src/http_proxy.js
 var require_http_proxy = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/http_proxy.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/http_proxy.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.parseCIDR = parseCIDR;
@@ -107209,9 +107315,9 @@ var require_http_proxy = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/stream-decoder.js
+// node_modules/@grpc/grpc-js/build/src/stream-decoder.js
 var require_stream_decoder = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/stream-decoder.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/stream-decoder.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.StreamDecoder = void 0;
@@ -107294,9 +107400,9 @@ var require_stream_decoder = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel-call.js
+// node_modules/@grpc/grpc-js/build/src/subchannel-call.js
 var require_subchannel_call = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel-call.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/subchannel-call.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Http2SubchannelCall = void 0;
@@ -107369,11 +107475,13 @@ var require_subchannel_call = __commonJS({
         const maxReceiveMessageLength = (_a4 = transport.getOptions()["grpc.max_receive_message_length"]) !== null && _a4 !== void 0 ? _a4 : constants_1.DEFAULT_MAX_RECEIVE_MESSAGE_LENGTH;
         this.decoder = new stream_decoder_1.StreamDecoder(maxReceiveMessageLength);
         http2Stream.on("response", (headers, flags) => {
-          let headersString = "";
-          for (const header of Object.keys(headers)) {
-            headersString += "		" + header + ": " + headers[header] + "\n";
+          if (this.traceEnabled) {
+            let headersString = "";
+            for (const header of Object.keys(headers)) {
+              headersString += "		" + header + ": " + headers[header] + "\n";
+            }
+            this.trace("Received server headers:\n" + headersString);
           }
-          this.trace("Received server headers:\n" + headersString);
           this.httpStatusCode = headers[":status"];
           if (flags & http22.constants.NGHTTP2_FLAG_END_STREAM) {
             this.handleTrailers(headers);
@@ -107399,7 +107507,9 @@ var require_subchannel_call = __commonJS({
           if (this.statusOutput) {
             return;
           }
-          this.trace("receive HTTP/2 data frame of length " + data.length);
+          if (this.traceEnabled) {
+            this.trace("receive HTTP/2 data frame of length " + data.length);
+          }
           let messages;
           try {
             messages = this.decoder.write(data);
@@ -107413,7 +107523,9 @@ var require_subchannel_call = __commonJS({
             return;
           }
           for (const message2 of messages) {
-            this.trace("parsed message of length " + message2.length);
+            if (this.traceEnabled) {
+              this.trace("parsed message of length " + message2.length);
+            }
             this.callEventTracker.addMessageReceived();
             this.tryPush(message2);
           }
@@ -107426,7 +107538,9 @@ var require_subchannel_call = __commonJS({
           this.serverEndedCall = true;
           process.nextTick(() => {
             var _a5;
-            this.trace("HTTP/2 stream closed with code " + http2Stream.rstCode);
+            if (this.traceEnabled) {
+              this.trace("HTTP/2 stream closed with code " + http2Stream.rstCode);
+            }
             if (((_a5 = this.finalStatus) === null || _a5 === void 0 ? void 0 : _a5.code) === constants_1.Status.OK) {
               return;
             }
@@ -107494,7 +107608,9 @@ var require_subchannel_call = __commonJS({
         });
         http2Stream.on("error", (err) => {
           if (err.code !== "ERR_HTTP2_STREAM_ERROR") {
-            this.trace("Node error event: message=" + err.message + " code=" + err.code + " errno=" + getSystemErrorName(err.errno) + " syscall=" + err.syscall);
+            if (this.traceEnabled) {
+              this.trace("Node error event: message=" + err.message + " code=" + err.code + " errno=" + getSystemErrorName(err.errno) + " syscall=" + err.syscall);
+            }
             this.internalError = err;
           }
           this.callEventTracker.onStreamEnd(false);
@@ -107516,7 +107632,9 @@ var require_subchannel_call = __commonJS({
       outputStatus() {
         if (!this.statusOutput) {
           this.statusOutput = true;
-          this.trace("ended with status: code=" + this.finalStatus.code + ' details="' + this.finalStatus.details + '"');
+          if (this.traceEnabled) {
+            this.trace("ended with status: code=" + this.finalStatus.code + ' details="' + this.finalStatus.details + '"');
+          }
           this.callEventTracker.onCallEnd(this.finalStatus);
           process.nextTick(() => {
             this.listener.onReceiveStatus(this.finalStatus);
@@ -107524,8 +107642,13 @@ var require_subchannel_call = __commonJS({
           this.http2Stream.resume();
         }
       }
+      get traceEnabled() {
+        return logging.isTracerEnabled(TRACER_NAME);
+      }
       trace(text) {
-        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text);
+        if (this.traceEnabled) {
+          logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text);
+        }
       }
       /**
        * On first call, emits a 'status' event with the given StatusObject.
@@ -107547,7 +107670,9 @@ var require_subchannel_call = __commonJS({
         }
       }
       push(message2) {
-        this.trace("pushing to reader message of length " + (message2 instanceof Buffer ? message2.length : null));
+        if (this.traceEnabled) {
+          this.trace("pushing to reader message of length " + (message2 instanceof Buffer ? message2.length : null));
+        }
         this.canPush = false;
         this.isPushPending = true;
         process.nextTick(() => {
@@ -107564,39 +107689,49 @@ var require_subchannel_call = __commonJS({
           this.http2Stream.pause();
           this.push(messageBytes);
         } else {
-          this.trace("unpushedReadMessages.push message of length " + messageBytes.length);
+          if (this.traceEnabled) {
+            this.trace("unpushedReadMessages.push message of length " + messageBytes.length);
+          }
           this.unpushedReadMessages.push(messageBytes);
         }
       }
       handleTrailers(headers) {
         this.serverEndedCall = true;
         this.callEventTracker.onStreamEnd(true);
-        let headersString = "";
-        for (const header of Object.keys(headers)) {
-          headersString += "		" + header + ": " + headers[header] + "\n";
+        if (this.traceEnabled) {
+          let headersString = "";
+          for (const header of Object.keys(headers)) {
+            headersString += "		" + header + ": " + headers[header] + "\n";
+          }
+          this.trace("Received server trailers:\n" + headersString);
         }
-        this.trace("Received server trailers:\n" + headersString);
         let metadata;
         try {
           metadata = metadata_1.Metadata.fromHttp2Headers(headers);
         } catch (e2) {
           metadata = new metadata_1.Metadata();
         }
-        const metadataMap = metadata.getMap();
+        const statusValues = metadata.get("grpc-status");
         let status;
-        if (typeof metadataMap["grpc-status"] === "string") {
-          const receivedStatus = Number(metadataMap["grpc-status"]);
-          this.trace("received status code " + receivedStatus + " from server");
+        if (statusValues.length > 0 && typeof statusValues[0] === "string") {
+          const receivedStatus = Number(statusValues[0]);
+          if (this.traceEnabled) {
+            this.trace("received status code " + receivedStatus + " from server");
+          }
           metadata.remove("grpc-status");
           let details = "";
-          if (typeof metadataMap["grpc-message"] === "string") {
+          const messageValues = metadata.get("grpc-message");
+          if (messageValues.length > 0 && typeof messageValues[0] === "string") {
+            const messageString = messageValues[0];
             try {
-              details = decodeURI(metadataMap["grpc-message"]);
-            } catch (e2) {
-              details = metadataMap["grpc-message"];
+              details = decodeURI(messageString);
+            } catch (error61) {
+              details = messageString;
             }
             metadata.remove("grpc-message");
-            this.trace('received status details string "' + details + '" from server');
+            if (this.traceEnabled) {
+              this.trace('received status details string "' + details + '" from server');
+            }
           }
           status = {
             code: receivedStatus,
@@ -107621,7 +107756,9 @@ var require_subchannel_call = __commonJS({
           return;
         }
         if (this.serverEndedCall) {
-          this.http2Stream.end();
+          if (!this.http2Stream.writableEnded) {
+            this.http2Stream.end();
+          }
         } else {
           let code;
           if (((_a4 = this.finalStatus) === null || _a4 === void 0 ? void 0 : _a4.code) === constants_1.Status.OK) {
@@ -107629,12 +107766,16 @@ var require_subchannel_call = __commonJS({
           } else {
             code = http22.constants.NGHTTP2_CANCEL;
           }
-          this.trace("close http2 stream with code " + code);
+          if (this.traceEnabled) {
+            this.trace("close http2 stream with code " + code);
+          }
           this.http2Stream.close(code);
         }
       }
       cancelWithStatus(status, details) {
-        this.trace("cancelWithStatus code: " + status + ' details: "' + details + '"');
+        if (this.traceEnabled) {
+          this.trace("cancelWithStatus code: " + status + ' details: "' + details + '"');
+        }
         this.endCall({ code: status, details, metadata: new metadata_1.Metadata() });
       }
       getStatus() {
@@ -107664,7 +107805,9 @@ var require_subchannel_call = __commonJS({
         this.http2Stream.resume();
       }
       sendMessageWithContext(context2, message2) {
-        this.trace("write() called with message of length " + message2.length);
+        if (this.traceEnabled) {
+          this.trace("write() called with message of length " + message2.length);
+        }
         const cb = (error61) => {
           process.nextTick(() => {
             var _a4;
@@ -107678,7 +107821,9 @@ var require_subchannel_call = __commonJS({
             (_a4 = context2.callback) === null || _a4 === void 0 ? void 0 : _a4.call(context2);
           });
         };
-        this.trace("sending data chunk of length " + message2.length);
+        if (this.traceEnabled) {
+          this.trace("sending data chunk of length " + message2.length);
+        }
         this.callEventTracker.addMessageSent();
         try {
           this.http2Stream.write(message2, cb);
@@ -107692,6 +107837,9 @@ var require_subchannel_call = __commonJS({
       }
       halfClose() {
         this.trace("end() called");
+        if (this.http2Stream.destroyed || this.http2Stream.writableEnded) {
+          return;
+        }
         this.trace("calling end() on HTTP/2 stream");
         this.http2Stream.end();
       }
@@ -107700,9 +107848,9 @@ var require_subchannel_call = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/transport.js
+// node_modules/@grpc/grpc-js/build/src/transport.js
 var require_transport = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/transport.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/transport.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Http2SubchannelConnector = void 0;
@@ -107777,18 +107925,24 @@ var require_transport = __commonJS({
           if (errorCode === http22.constants.NGHTTP2_ENHANCE_YOUR_CALM && opaqueData && opaqueData.equals(tooManyPingsData)) {
             tooManyPings = true;
           }
-          this.trace("connection closed by GOAWAY with code " + errorCode + " and data " + (opaqueData === null || opaqueData === void 0 ? void 0 : opaqueData.toString()));
+          if (this.traceEnabled) {
+            this.trace("connection closed by GOAWAY with code " + errorCode + " and data " + (opaqueData === null || opaqueData === void 0 ? void 0 : opaqueData.toString()));
+          }
           this.reportDisconnectToOwner(tooManyPings);
         });
         session.once("error", (error61) => {
-          this.trace("connection closed with error " + error61.message);
+          if (this.traceEnabled) {
+            this.trace("connection closed with error " + error61.message);
+          }
           this.handleDisconnect();
         });
         session.socket.once("close", (hadError) => {
-          this.trace("connection closed. hadError=" + hadError);
+          if (this.traceEnabled) {
+            this.trace("connection closed. hadError=" + hadError);
+          }
           this.handleDisconnect();
         });
-        if (logging.isTracerEnabled(TRACER_NAME)) {
+        if (this.traceEnabled) {
           session.on("remoteSettings", (settings) => {
             this.trace("new settings received" + (this.session !== session ? " on the old connection" : "") + ": " + JSON.stringify(settings));
           });
@@ -107799,7 +107953,7 @@ var require_transport = __commonJS({
         if (this.keepaliveWithoutCalls) {
           this.maybeStartKeepalivePingTimer();
         }
-        if (session.socket instanceof tls_1.TLSSocket) {
+        if (session.socket instanceof tls_1.TLSSocket && session.socket.authorized) {
           this.authContext = {
             transportSecurityType: "ssl",
             sslPeerCertificate: session.socket.getPeerCertificate()
@@ -107848,17 +108002,37 @@ var require_transport = __commonJS({
         };
         return socketInfo;
       }
+      get traceEnabled() {
+        return logging.isTracerEnabled(TRACER_NAME);
+      }
+      get keepaliveTraceEnabled() {
+        return logging.isTracerEnabled("keepalive");
+      }
+      get flowControlTraceEnabled() {
+        return logging.isTracerEnabled(FLOW_CONTROL_TRACER_NAME);
+      }
+      get internalsTraceEnabled() {
+        return logging.isTracerEnabled("transport_internals");
+      }
       trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        if (this.traceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        }
       }
       keepaliveTrace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        if (this.keepaliveTraceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        }
       }
       flowControlTrace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        if (this.flowControlTraceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        }
       }
       internalsTrace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        if (this.internalsTraceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+        }
       }
       /**
        * Indicate to the owner of this object that this transport should no longer
@@ -107908,7 +108082,9 @@ var require_transport = __commonJS({
         if (this.channelzEnabled) {
           this.keepalivesSent += 1;
         }
-        this.keepaliveTrace("Sending ping with timeout " + this.keepaliveTimeoutMs + "ms");
+        if (this.keepaliveTraceEnabled) {
+          this.keepaliveTrace("Sending ping with timeout " + this.keepaliveTimeoutMs + "ms");
+        }
         this.keepaliveTimer = setTimeout(() => {
           this.keepaliveTimer = null;
           this.keepaliveTrace("Ping timeout passed without response");
@@ -107920,7 +108096,9 @@ var require_transport = __commonJS({
           const pingSentSuccessfully = this.session.ping((err, duration3, payload) => {
             this.clearKeepaliveTimeout();
             if (err) {
-              this.keepaliveTrace("Ping failed with error " + err.message);
+              if (this.keepaliveTraceEnabled) {
+                this.keepaliveTrace("Ping failed with error " + err.message);
+              }
               this.handleDisconnect();
             } else {
               this.keepaliveTrace("Received ping response");
@@ -107934,7 +108112,9 @@ var require_transport = __commonJS({
           pingSendError = (e2 instanceof Error ? e2.message : "") || "Unknown error";
         }
         if (pingSendError) {
-          this.keepaliveTrace("Ping send failed: " + pingSendError);
+          if (this.keepaliveTraceEnabled) {
+            this.keepaliveTrace("Ping send failed: " + pingSendError);
+          }
           this.handleDisconnect();
         }
       }
@@ -107985,7 +108165,7 @@ var require_transport = __commonJS({
           }
         }
       }
-      createCall(metadata, host, method, listener, subchannelCallStatsTracker) {
+      createCall(metadata, host, method, listener, subchannelCallStatsTracker, callId) {
         const headers = metadata.toHttp2Headers();
         headers[HTTP2_HEADER_AUTHORITY] = host;
         headers[HTTP2_HEADER_USER_AGENT] = this.userAgent;
@@ -108000,8 +108180,12 @@ var require_transport = __commonJS({
           this.handleDisconnect();
           throw e2;
         }
-        this.flowControlTrace("local window size: " + this.session.state.localWindowSize + " remote window size: " + this.session.state.remoteWindowSize);
-        this.internalsTrace("session.closed=" + this.session.closed + " session.destroyed=" + this.session.destroyed + " session.socket.destroyed=" + this.session.socket.destroyed);
+        if (this.flowControlTraceEnabled) {
+          this.flowControlTrace("local window size: " + this.session.state.localWindowSize + " remote window size: " + this.session.state.remoteWindowSize);
+        }
+        if (this.internalsTraceEnabled) {
+          this.internalsTrace("session.closed=" + this.session.closed + " session.destroyed=" + this.session.destroyed + " session.socket.destroyed=" + this.session.socket.destroyed);
+        }
         let eventTracker;
         let call;
         if (this.channelzEnabled) {
@@ -108010,13 +108194,13 @@ var require_transport = __commonJS({
             addMessageSent: () => {
               var _a4;
               this.messagesSent += 1;
-              this.lastMessageSentTimestamp = /* @__PURE__ */ new Date();
+              this.lastMessageSentTimestamp = Date.now();
               (_a4 = subchannelCallStatsTracker.addMessageSent) === null || _a4 === void 0 ? void 0 : _a4.call(subchannelCallStatsTracker);
             },
             addMessageReceived: () => {
               var _a4;
               this.messagesReceived += 1;
-              this.lastMessageReceivedTimestamp = /* @__PURE__ */ new Date();
+              this.lastMessageReceivedTimestamp = Date.now();
               (_a4 = subchannelCallStatsTracker.addMessageReceived) === null || _a4 === void 0 ? void 0 : _a4.call(subchannelCallStatsTracker);
             },
             onCallEnd: (status) => {
@@ -108055,7 +108239,7 @@ var require_transport = __commonJS({
             }
           };
         }
-        call = new subchannel_call_1.Http2SubchannelCall(http2Stream, eventTracker, listener, this, (0, call_number_1.getNextCallNumber)());
+        call = new subchannel_call_1.Http2SubchannelCall(http2Stream, eventTracker, listener, this, callId !== null && callId !== void 0 ? callId : (0, call_number_1.getNextCallNumber)());
         this.addActiveCall(call);
         return call;
       }
@@ -108082,8 +108266,13 @@ var require_transport = __commonJS({
         this.session = null;
         this.isShutdown = false;
       }
+      get traceEnabled() {
+        return logging.isTracerEnabled(TRACER_NAME);
+      }
       trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text);
+        if (this.traceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text);
+        }
       }
       createSession(secureConnectResult, address, options) {
         if (this.isShutdown) {
@@ -108120,7 +108309,9 @@ var require_transport = __commonJS({
             var _a5;
             (_a5 = this.session) === null || _a5 === void 0 ? void 0 : _a5.destroy();
             errorMessage = error61.message;
-            this.trace("connection failed with error " + errorMessage);
+            if (this.traceEnabled) {
+              this.trace("connection failed with error " + errorMessage);
+            }
             if (!reportedError) {
               reportedError = true;
               reject(`${errorMessage} (${(/* @__PURE__ */ new Date()).toISOString()})`);
@@ -108201,14 +108392,22 @@ var require_transport = __commonJS({
         let secureConnectResult = null;
         const addressString = (0, subchannel_address_1.subchannelAddressToString)(address);
         try {
-          this.trace(addressString + " Waiting for secureConnector to be ready");
+          if (this.traceEnabled) {
+            this.trace(addressString + " Waiting for secureConnector to be ready");
+          }
           await secureConnector.waitForReady();
-          this.trace(addressString + " secureConnector is ready");
+          if (this.traceEnabled) {
+            this.trace(addressString + " secureConnector is ready");
+          }
           tcpConnection = await this.tcpConnect(address, options);
           tcpConnection.setNoDelay();
-          this.trace(addressString + " Established TCP connection");
+          if (this.traceEnabled) {
+            this.trace(addressString + " Established TCP connection");
+          }
           secureConnectResult = await secureConnector.connect(tcpConnection);
-          this.trace(addressString + " Established secure connection");
+          if (this.traceEnabled) {
+            this.trace(addressString + " Established secure connection");
+          }
           return this.createSession(secureConnectResult, address, options);
         } catch (e2) {
           tcpConnection === null || tcpConnection === void 0 ? void 0 : tcpConnection.destroy();
@@ -108227,9 +108426,9 @@ var require_transport = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel-pool.js
+// node_modules/@grpc/grpc-js/build/src/subchannel-pool.js
 var require_subchannel_pool = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel-pool.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/subchannel-pool.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.SubchannelPool = void 0;
@@ -108325,25 +108524,25 @@ var require_subchannel_pool = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancing-call.js
+// node_modules/@grpc/grpc-js/build/src/load-balancing-call.js
 var require_load_balancing_call = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancing-call.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/load-balancing-call.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.LoadBalancingCall = void 0;
+    var call_credentials_1 = require_call_credentials();
     var connectivity_state_1 = require_connectivity_state();
     var constants_1 = require_constants2();
     var deadline_1 = require_deadline();
     var metadata_1 = require_metadata();
     var picker_1 = require_picker();
-    var uri_parser_1 = require_uri_parser();
     var logging = require_logging();
     var control_plane_status_1 = require_control_plane_status();
     var http22 = require("http2");
     var TRACER_NAME = "load_balancing_call";
+    var RESOLVED_EMPTY_METADATA = Promise.resolve(void 0);
     var LoadBalancingCall = class {
       constructor(channel, callConfig, methodName, host, credentials, deadline, callNumber) {
-        var _a4, _b;
         this.channel = channel;
         this.callConfig = callConfig;
         this.methodName = methodName;
@@ -108360,19 +108559,13 @@ var require_load_balancing_call = __commonJS({
         this.listener = null;
         this.onCallEnded = null;
         this.childStartTime = null;
-        const splitPath = this.methodName.split("/");
-        let serviceName = "";
-        if (splitPath.length >= 2) {
-          serviceName = splitPath[1];
-        }
-        const hostname3 = (_b = (_a4 = (0, uri_parser_1.splitHostPort)(this.host)) === null || _a4 === void 0 ? void 0 : _a4.host) !== null && _b !== void 0 ? _b : "localhost";
-        this.serviceUrl = `https://${hostname3}/${serviceName}`;
-        this.startTime = /* @__PURE__ */ new Date();
+        this.serviceUrl = this.channel.getServiceUrl(this.host, this.methodName);
+        this.startTime = Date.now();
       }
       getDeadlineInfo() {
         var _a4, _b;
         const deadlineInfo = [];
-        if (this.childStartTime) {
+        if (this.childStartTime !== null) {
           if (this.childStartTime > this.startTime) {
             if ((_a4 = this.metadata) === null || _a4 === void 0 ? void 0 : _a4.getOptions().waitForReady) {
               deadlineInfo.push("wait_for_ready");
@@ -108389,18 +108582,35 @@ var require_load_balancing_call = __commonJS({
         }
         return deadlineInfo;
       }
+      get traceEnabled() {
+        return logging.isTracerEnabled(TRACER_NAME);
+      }
       trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text);
+        if (this.traceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text);
+        }
+      }
+      getSubchannelString(subchannel) {
+        return subchannel ? "(" + subchannel.getChannelzRef().id + ") " + subchannel.getAddress() : "" + subchannel;
       }
       outputStatus(status, progress) {
         var _a4, _b;
         if (!this.ended) {
           this.ended = true;
-          this.trace("ended with status: code=" + status.code + ' details="' + status.details + '" start time=' + this.startTime.toISOString());
+          if (this.traceEnabled) {
+            this.trace("ended with status: code=" + status.code + ' details="' + status.details + '" start time=' + new Date(this.startTime).toISOString());
+          }
           const finalStatus = Object.assign(Object.assign({}, status), { progress });
           (_a4 = this.listener) === null || _a4 === void 0 ? void 0 : _a4.onReceiveStatus(finalStatus);
           (_b = this.onCallEnded) === null || _b === void 0 ? void 0 : _b.call(this, finalStatus.code, finalStatus.details, finalStatus.metadata);
+          this.channel.removeCallFromPickQueue(this);
         }
+      }
+      generateCallCredentialsMetadata(callCredentials) {
+        return (0, call_credentials_1.isEmptyCallCredentials)(callCredentials) ? RESOLVED_EMPTY_METADATA : callCredentials.generateMetadata({
+          method_name: this.methodName,
+          service_url: this.serviceUrl
+        });
       }
       doPick() {
         var _a4, _b;
@@ -108413,18 +108623,20 @@ var require_load_balancing_call = __commonJS({
         this.trace("Pick called");
         const finalMetadata = this.metadata.clone();
         const pickResult = this.channel.doPick(finalMetadata, this.callConfig.pickInformation);
-        const subchannelString = pickResult.subchannel ? "(" + pickResult.subchannel.getChannelzRef().id + ") " + pickResult.subchannel.getAddress() : "" + pickResult.subchannel;
-        this.trace("Pick result: " + picker_1.PickResultType[pickResult.pickResultType] + " subchannel: " + subchannelString + " status: " + ((_a4 = pickResult.status) === null || _a4 === void 0 ? void 0 : _a4.code) + " " + ((_b = pickResult.status) === null || _b === void 0 ? void 0 : _b.details));
+        if (this.traceEnabled) {
+          this.trace("Pick result: " + picker_1.PickResultType[pickResult.pickResultType] + " subchannel: " + this.getSubchannelString(pickResult.subchannel) + " status: " + ((_a4 = pickResult.status) === null || _a4 === void 0 ? void 0 : _a4.code) + " " + ((_b = pickResult.status) === null || _b === void 0 ? void 0 : _b.details));
+        }
         switch (pickResult.pickResultType) {
           case picker_1.PickResultType.COMPLETE:
-            const combinedCallCredentials = this.credentials.compose(pickResult.subchannel.getCallCredentials());
-            combinedCallCredentials.generateMetadata({ method_name: this.methodName, service_url: this.serviceUrl }).then((credsMetadata) => {
+            this.generateCallCredentialsMetadata(this.credentials.compose(pickResult.subchannel.getCallCredentials())).then((credsMetadata) => {
               var _a5;
               if (this.ended) {
                 this.trace("Credentials metadata generation finished after call ended");
                 return;
               }
-              finalMetadata.merge(credsMetadata);
+              if (credsMetadata) {
+                finalMetadata.merge(credsMetadata);
+              }
               if (finalMetadata.get("authorization").length > 1) {
                 this.outputStatus({
                   code: constants_1.Status.INTERNAL,
@@ -108433,7 +108645,9 @@ var require_load_balancing_call = __commonJS({
                 }, "PROCESSED");
               }
               if (pickResult.subchannel.getConnectivityState() !== connectivity_state_1.ConnectivityState.READY) {
-                this.trace("Picked subchannel " + subchannelString + " has state " + connectivity_state_1.ConnectivityState[pickResult.subchannel.getConnectivityState()] + " after getting credentials metadata. Retrying pick");
+                if (this.traceEnabled) {
+                  this.trace("Picked subchannel " + this.getSubchannelString(pickResult.subchannel) + " has state " + connectivity_state_1.ConnectivityState[pickResult.subchannel.getConnectivityState()] + " after getting credentials metadata. Retrying pick");
+                }
                 this.doPick();
                 return;
               }
@@ -108458,10 +108672,12 @@ var require_load_balancing_call = __commonJS({
                       this.outputStatus(status, "PROCESSED");
                     }
                   }
-                });
-                this.childStartTime = /* @__PURE__ */ new Date();
+                }, this.callNumber);
+                this.childStartTime = Date.now();
               } catch (error61) {
-                this.trace("Failed to start call on picked subchannel " + subchannelString + " with error " + error61.message);
+                if (this.traceEnabled) {
+                  this.trace("Failed to start call on picked subchannel " + this.getSubchannelString(pickResult.subchannel) + " with error " + error61.message);
+                }
                 this.outputStatus({
                   code: constants_1.Status.INTERNAL,
                   details: "Failed to start HTTP/2 stream with error " + error61.message,
@@ -108471,7 +108687,9 @@ var require_load_balancing_call = __commonJS({
               }
               (_a5 = pickResult.onCallStarted) === null || _a5 === void 0 ? void 0 : _a5.call(pickResult);
               this.onCallEnded = pickResult.onCallEnded;
-              this.trace("Created child call [" + this.child.getCallNumber() + "]");
+              if (this.traceEnabled) {
+                this.trace("Created child call [" + this.child.getCallNumber() + "]");
+              }
               if (this.readPending) {
                 this.child.startRead();
               }
@@ -108512,7 +108730,9 @@ var require_load_balancing_call = __commonJS({
       }
       cancelWithStatus(status, details) {
         var _a4;
-        this.trace("cancelWithStatus code: " + status + ' details: "' + details + '"');
+        if (this.traceEnabled) {
+          this.trace("cancelWithStatus code: " + status + ' details: "' + details + '"');
+        }
         (_a4 = this.child) === null || _a4 === void 0 ? void 0 : _a4.cancelWithStatus(status, details);
         this.outputStatus({ code: status, details, metadata: new metadata_1.Metadata() }, "PROCESSED");
       }
@@ -108527,7 +108747,9 @@ var require_load_balancing_call = __commonJS({
         this.doPick();
       }
       sendMessageWithContext(context2, message2) {
-        this.trace("write() called with message of length " + message2.length);
+        if (this.traceEnabled) {
+          this.trace("write() called with message of length " + message2.length);
+        }
         if (this.child) {
           this.child.sendMessageWithContext(context2, message2);
         } else {
@@ -108568,9 +108790,9 @@ var require_load_balancing_call = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolving-call.js
+// node_modules/@grpc/grpc-js/build/src/resolving-call.js
 var require_resolving_call = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolving-call.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/resolving-call.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ResolvingCall = void 0;
@@ -108598,8 +108820,7 @@ var require_resolving_call = __commonJS({
         this.metadata = null;
         this.listener = null;
         this.statusWatchers = [];
-        this.deadlineTimer = setTimeout(() => {
-        }, 0);
+        this.deadlineTimer = null;
         this.filterStack = null;
         this.deadlineStartTime = null;
         this.configReceivedTime = null;
@@ -108614,36 +108835,51 @@ var require_resolving_call = __commonJS({
             });
           }
           if (options.flags & constants_1.Propagate.DEADLINE) {
-            this.trace("Propagating deadline from parent: " + options.parentCall.getDeadline());
+            if (this.traceEnabled) {
+              this.trace("Propagating deadline from parent: " + options.parentCall.getDeadline());
+            }
             this.deadline = (0, deadline_1.minDeadline)(this.deadline, options.parentCall.getDeadline());
           }
         }
         this.trace("Created");
         this.runDeadlineTimer();
       }
+      get traceEnabled() {
+        return logging.isTracerEnabled(TRACER_NAME);
+      }
       trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text);
+        if (this.traceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text);
+        }
       }
       runDeadlineTimer() {
-        clearTimeout(this.deadlineTimer);
-        this.deadlineStartTime = /* @__PURE__ */ new Date();
-        this.trace("Deadline: " + (0, deadline_1.deadlineToString)(this.deadline));
+        if (this.deadlineTimer) {
+          clearTimeout(this.deadlineTimer);
+          this.deadlineTimer = null;
+        }
+        this.deadlineStartTime = Date.now();
+        if (this.traceEnabled) {
+          this.trace("Deadline: " + (0, deadline_1.deadlineToString)(this.deadline));
+        }
         const timeout = (0, deadline_1.getRelativeTimeout)(this.deadline);
         if (timeout !== Infinity) {
-          this.trace("Deadline will be reached in " + timeout + "ms");
+          if (this.traceEnabled) {
+            this.trace("Deadline will be reached in " + timeout + "ms");
+          }
           const handleDeadline = () => {
-            if (!this.deadlineStartTime) {
+            this.deadlineTimer = null;
+            if (this.deadlineStartTime === null) {
               this.cancelWithStatus(constants_1.Status.DEADLINE_EXCEEDED, "Deadline exceeded");
               return;
             }
             const deadlineInfo = [];
-            const deadlineEndTime = /* @__PURE__ */ new Date();
+            const deadlineEndTime = Date.now();
             deadlineInfo.push(`Deadline exceeded after ${(0, deadline_1.formatDateDifference)(this.deadlineStartTime, deadlineEndTime)}`);
-            if (this.configReceivedTime) {
+            if (this.configReceivedTime !== null) {
               if (this.configReceivedTime > this.deadlineStartTime) {
                 deadlineInfo.push(`name resolution: ${(0, deadline_1.formatDateDifference)(this.deadlineStartTime, this.configReceivedTime)}`);
               }
-              if (this.childStartTime) {
+              if (this.childStartTime !== null) {
                 if (this.childStartTime > this.configReceivedTime) {
                   deadlineInfo.push(`metadata filters: ${(0, deadline_1.formatDateDifference)(this.configReceivedTime, this.childStartTime)}`);
                 }
@@ -108671,9 +108907,14 @@ var require_resolving_call = __commonJS({
           if (!this.filterStack) {
             this.filterStack = this.filterStackFactory.createFilter();
           }
-          clearTimeout(this.deadlineTimer);
+          if (this.deadlineTimer) {
+            clearTimeout(this.deadlineTimer);
+            this.deadlineTimer = null;
+          }
           const filteredStatus = this.filterStack.receiveTrailers(status);
-          this.trace("ended with status: code=" + filteredStatus.code + ' details="' + filteredStatus.details + '"');
+          if (this.traceEnabled) {
+            this.trace("ended with status: code=" + filteredStatus.code + ' details="' + filteredStatus.details + '"');
+          }
           this.statusWatchers.forEach((watcher) => watcher(filteredStatus));
           process.nextTick(() => {
             var _a4;
@@ -108694,7 +108935,8 @@ var require_resolving_call = __commonJS({
             child.halfClose();
           }
         }, (status) => {
-          this.cancelWithStatus(status.code, status.details);
+          var _a4, _b;
+          this.cancelWithStatus((_a4 = status.code) !== null && _a4 !== void 0 ? _a4 : constants_1.Status.INTERNAL, (_b = status.details) !== null && _b !== void 0 ? _b : "Failed to write message");
         });
       }
       getConfig() {
@@ -108716,7 +108958,7 @@ var require_resolving_call = __commonJS({
           }
           return;
         }
-        this.configReceivedTime = /* @__PURE__ */ new Date();
+        this.configReceivedTime = Date.now();
         const config2 = configResult.config;
         if (config2.status !== constants_1.Status.OK) {
           const { code, details } = (0, control_plane_status_1.restrictControlPlaneStatusCode)(config2.status, "Failed to route call to method " + this.method);
@@ -108728,18 +108970,19 @@ var require_resolving_call = __commonJS({
           return;
         }
         if (config2.methodConfig.timeout) {
-          const configDeadline = /* @__PURE__ */ new Date();
-          configDeadline.setSeconds(configDeadline.getSeconds() + config2.methodConfig.timeout.seconds);
-          configDeadline.setMilliseconds(configDeadline.getMilliseconds() + config2.methodConfig.timeout.nanos / 1e6);
+          const timeoutMs = Math.floor(config2.methodConfig.timeout.seconds * 1e3 + config2.methodConfig.timeout.nanos / 1e6);
+          const configDeadline = Date.now() + timeoutMs;
           this.deadline = (0, deadline_1.minDeadline)(this.deadline, configDeadline);
           this.runDeadlineTimer();
         }
         this.filterStackFactory.push(config2.dynamicFilterFactories);
         this.filterStack = this.filterStackFactory.createFilter();
         this.filterStack.sendMetadata(Promise.resolve(this.metadata)).then((filteredMetadata) => {
-          this.child = this.channel.createRetryingCall(config2, this.method, this.host, this.credentials, this.deadline);
-          this.trace("Created child [" + this.child.getCallNumber() + "]");
-          this.childStartTime = /* @__PURE__ */ new Date();
+          this.child = this.channel.createRetryingCall(config2, this.method, this.host, this.credentials, this.deadline, this.callNumber);
+          if (this.traceEnabled) {
+            this.trace("Created child [" + this.child.getCallNumber() + "]");
+          }
+          this.childStartTime = Date.now();
           this.child.start(filteredMetadata, {
             onReceiveMetadata: (metadata) => {
               this.trace("Received metadata");
@@ -108790,7 +109033,9 @@ var require_resolving_call = __commonJS({
       }
       cancelWithStatus(status, details) {
         var _a4;
-        this.trace("cancelWithStatus code: " + status + ' details: "' + details + '"');
+        if (this.traceEnabled) {
+          this.trace("cancelWithStatus code: " + status + ' details: "' + details + '"');
+        }
         (_a4 = this.child) === null || _a4 === void 0 ? void 0 : _a4.cancelWithStatus(status, details);
         this.outputStatus({
           code: status,
@@ -108809,7 +109054,9 @@ var require_resolving_call = __commonJS({
         this.getConfig();
       }
       sendMessageWithContext(context2, message2) {
-        this.trace("write() called with message of length " + message2.length);
+        if (this.traceEnabled) {
+          this.trace("write() called with message of length " + message2.length);
+        }
         if (this.child) {
           this.sendMessageOnChild(context2, message2);
         } else {
@@ -108853,9 +109100,9 @@ var require_resolving_call = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/retrying-call.js
+// node_modules/@grpc/grpc-js/build/src/retrying-call.js
 var require_retrying_call = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/retrying-call.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/retrying-call.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.RetryingCall = exports2.MessageBufferTracker = exports2.RetryThrottler = void 0;
@@ -108863,6 +109110,7 @@ var require_retrying_call = __commonJS({
     var deadline_1 = require_deadline();
     var metadata_1 = require_metadata();
     var logging = require_logging();
+    var call_number_1 = require_call_number();
     var TRACER_NAME = "retrying_call";
     var RetryThrottler = class {
       constructor(maxTokens, tokenRatio, previousRetryThrottler) {
@@ -108967,7 +109215,7 @@ var require_retrying_call = __commonJS({
           this.state = "TRANSPARENT_ONLY";
           this.maxAttempts = 1;
         }
-        this.startTime = /* @__PURE__ */ new Date();
+        this.startTime = Date.now();
       }
       getDeadlineInfo() {
         if (this.underlyingCalls.length === 0) {
@@ -108987,11 +109235,18 @@ var require_retrying_call = __commonJS({
       getCallNumber() {
         return this.callNumber;
       }
+      get traceEnabled() {
+        return logging.isTracerEnabled(TRACER_NAME);
+      }
       trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text);
+        if (this.traceEnabled) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text);
+        }
       }
       reportStatus(statusObject) {
-        this.trace("ended with status: code=" + statusObject.code + ' details="' + statusObject.details + '" start time=' + this.startTime.toISOString());
+        if (this.traceEnabled) {
+          this.trace("ended with status: code=" + statusObject.code + ' details="' + statusObject.details + '" start time=' + new Date(this.startTime).toISOString());
+        }
         this.bufferTracker.freeAll(this.callNumber);
         this.writeBufferOffset = this.writeBufferOffset + this.writeBuffer.length;
         this.writeBuffer = [];
@@ -109005,7 +109260,9 @@ var require_retrying_call = __commonJS({
         });
       }
       cancelWithStatus(status, details) {
-        this.trace("cancelWithStatus code: " + status + ' details: "' + details + '"');
+        if (this.traceEnabled) {
+          this.trace("cancelWithStatus code: " + status + ' details: "' + details + '"');
+        }
         this.reportStatus({ code: status, details, metadata: new metadata_1.Metadata() });
         for (const { call } of this.underlyingCalls) {
           call.cancelWithStatus(status, details);
@@ -109052,7 +109309,9 @@ var require_retrying_call = __commonJS({
         if (this.state === "COMMITTED") {
           return;
         }
-        this.trace("Committing call [" + this.underlyingCalls[index].call.getCallNumber() + "] at index " + index);
+        if (this.traceEnabled) {
+          this.trace("Committing call [" + this.underlyingCalls[index].call.getCallNumber() + "] at index " + index);
+        }
         this.state = "COMMITTED";
         (_b = (_a4 = this.callConfig).onCommitted) === null || _b === void 0 ? void 0 : _b.call(_a4);
         this.committedCallIndex = index;
@@ -109219,7 +109478,9 @@ var require_retrying_call = __commonJS({
         if (this.underlyingCalls[callIndex].state === "COMPLETED") {
           return;
         }
-        this.trace("state=" + this.state + " handling status with progress " + status.progress + " from child [" + this.underlyingCalls[callIndex].call.getCallNumber() + "] in state " + this.underlyingCalls[callIndex].state);
+        if (this.traceEnabled) {
+          this.trace("state=" + this.state + " handling status with progress " + status.progress + " from child [" + this.underlyingCalls[callIndex].call.getCallNumber() + "] in state " + this.underlyingCalls[callIndex].state);
+        }
         this.underlyingCalls[callIndex].state = "COMPLETED";
         if (status.code === constants_1.Status.OK) {
           (_a4 = this.retryThrottler) === null || _a4 === void 0 ? void 0 : _a4.addCallSucceeded();
@@ -109295,24 +109556,30 @@ var require_retrying_call = __commonJS({
         (_c = (_b = this.hedgingTimer).unref) === null || _c === void 0 ? void 0 : _c.call(_b);
       }
       startNewAttempt() {
-        const child = this.channel.createLoadBalancingCall(this.callConfig, this.methodName, this.host, this.credentials, this.deadline);
-        this.trace("Created child call [" + child.getCallNumber() + "] for attempt " + this.attempts);
+        const childCallNumber = this.underlyingCalls.length > 0 ? (0, call_number_1.getNextCallNumber)() : this.callNumber;
+        const child = this.channel.createLoadBalancingCall(this.callConfig, this.methodName, this.host, this.credentials, this.deadline, childCallNumber);
+        if (this.traceEnabled) {
+          this.trace("Created child call [" + child.getCallNumber() + "] for attempt " + this.attempts);
+        }
         const index = this.underlyingCalls.length;
         this.underlyingCalls.push({
           state: "ACTIVE",
           call: child,
           nextMessageToSend: 0,
-          startTime: /* @__PURE__ */ new Date()
+          startTime: Date.now()
         });
         const previousAttempts = this.attempts - 1;
-        const initialMetadata = this.initialMetadata.clone();
+        let initialMetadata = this.initialMetadata;
         if (previousAttempts > 0) {
+          initialMetadata = initialMetadata.clone();
           initialMetadata.set(PREVIONS_RPC_ATTEMPTS_METADATA_KEY, `${previousAttempts}`);
         }
         let receivedMetadata = false;
         child.start(initialMetadata, {
           onReceiveMetadata: (metadata) => {
-            this.trace("Received metadata from child [" + child.getCallNumber() + "]");
+            if (this.traceEnabled) {
+              this.trace("Received metadata from child [" + child.getCallNumber() + "]");
+            }
             this.commitCall(index);
             receivedMetadata = true;
             if (previousAttempts > 0) {
@@ -109323,14 +109590,18 @@ var require_retrying_call = __commonJS({
             }
           },
           onReceiveMessage: (message2) => {
-            this.trace("Received message from child [" + child.getCallNumber() + "]");
+            if (this.traceEnabled) {
+              this.trace("Received message from child [" + child.getCallNumber() + "]");
+            }
             this.commitCall(index);
             if (this.underlyingCalls[index].state === "ACTIVE") {
               this.listener.onReceiveMessage(message2);
             }
           },
           onReceiveStatus: (status) => {
-            this.trace("Received status from child [" + child.getCallNumber() + "]");
+            if (this.traceEnabled) {
+              this.trace("Received status from child [" + child.getCallNumber() + "]");
+            }
             if (!receivedMetadata && previousAttempts > 0) {
               status.metadata.set(PREVIONS_RPC_ATTEMPTS_METADATA_KEY, `${previousAttempts}`);
             }
@@ -109375,7 +109646,9 @@ var require_retrying_call = __commonJS({
               }, bufferEntry.message.message);
               const nextEntry = this.getBufferEntry(messageIndex + 1);
               if (nextEntry.entryType === "HALF_CLOSE") {
-                this.trace("Sending halfClose immediately after message to child [" + childCall.call.getCallNumber() + "] - optimizing for unary/final message");
+                if (this.traceEnabled) {
+                  this.trace("Sending halfClose immediately after message to child [" + childCall.call.getCallNumber() + "] - optimizing for unary/final message");
+                }
                 childCall.nextMessageToSend += 1;
                 childCall.call.halfClose();
               }
@@ -109390,7 +109663,9 @@ var require_retrying_call = __commonJS({
         }
       }
       sendMessageWithContext(context2, message2) {
-        this.trace("write() called with message of length " + message2.length);
+        if (this.traceEnabled) {
+          this.trace("write() called with message of length " + message2.length);
+        }
         const writeObj = {
           message: message2,
           flags: context2.flags
@@ -109451,7 +109726,9 @@ var require_retrying_call = __commonJS({
         for (const call of this.underlyingCalls) {
           if ((call === null || call === void 0 ? void 0 : call.state) === "ACTIVE") {
             if (call.nextMessageToSend === halfCloseIndex || call.nextMessageToSend === halfCloseIndex - 1) {
-              this.trace("Sending halfClose immediately to child [" + call.call.getCallNumber() + "] - all messages already sent");
+              if (this.traceEnabled) {
+                this.trace("Sending halfClose immediately to child [" + call.call.getCallNumber() + "] - all messages already sent");
+              }
               call.nextMessageToSend += 1;
               call.call.halfClose();
             }
@@ -109479,9 +109756,9 @@ var require_retrying_call = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel-interface.js
+// node_modules/@grpc/grpc-js/build/src/subchannel-interface.js
 var require_subchannel_interface = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/subchannel-interface.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/subchannel-interface.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.BaseSubchannelWrapper = void 0;
@@ -109578,9 +109855,9 @@ var require_subchannel_interface = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/internal-channel.js
+// node_modules/@grpc/grpc-js/build/src/internal-channel.js
 var require_internal_channel = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/internal-channel.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/internal-channel.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.InternalChannel = exports2.SUBCHANNEL_ARGS_EXCLUDE_KEY_PREFIX = void 0;
@@ -109673,7 +109950,7 @@ var require_internal_channel = __commonJS({
         };
       }
     };
-    var InternalChannel = class {
+    var InternalChannel = class _InternalChannel {
       constructor(target, credentials, options) {
         var _a4, _b, _c, _d, _e, _f;
         this.credentials = credentials;
@@ -109681,7 +109958,7 @@ var require_internal_channel = __commonJS({
         this.connectivityState = connectivity_state_1.ConnectivityState.IDLE;
         this.currentPicker = new picker_1.UnavailablePicker();
         this.configSelectionQueue = [];
-        this.pickQueue = [];
+        this.pickQueue = /* @__PURE__ */ new Set();
         this.connectivityStateWatchers = [];
         this.callRefTimer = null;
         this.configSelector = null;
@@ -109691,6 +109968,7 @@ var require_internal_channel = __commonJS({
         this.idleTimer = null;
         this.channelzEnabled = true;
         this.randomChannelId = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+        this.serviceUrlCache = /* @__PURE__ */ new Map();
         if (typeof target !== "string") {
           throw new TypeError("Channel target must be a string");
         }
@@ -109748,9 +110026,9 @@ var require_internal_channel = __commonJS({
           },
           updateState: (connectivityState, picker) => {
             this.currentPicker = picker;
-            const queueCopy = this.pickQueue.slice();
-            this.pickQueue = [];
-            if (queueCopy.length > 0) {
+            const queueCopy = this.pickQueue;
+            this.pickQueue = /* @__PURE__ */ new Set();
+            if (queueCopy.size > 0) {
               this.callRefTimerUnref();
             }
             for (const call of queueCopy) {
@@ -109817,15 +110095,22 @@ var require_internal_channel = __commonJS({
         this.filterStackFactory = new filter_stack_1.FilterStackFactory([
           new compression_filter_1.CompressionFilterFactory(this, this.options)
         ]);
-        this.trace("Channel constructed with options " + JSON.stringify(options, void 0, 2));
-        const error61 = new Error();
+        if (this.traceEnabled) {
+          this.trace("Channel constructed with options " + JSON.stringify(options, void 0, 2));
+        }
         if ((0, logging_1.isTracerEnabled)("channel_stacktrace")) {
+          const error61 = new Error();
           (0, logging_1.trace)(constants_1.LogVerbosity.DEBUG, "channel_stacktrace", "(" + this.channelzRef.id + ") Channel constructed \n" + ((_f = error61.stack) === null || _f === void 0 ? void 0 : _f.substring(error61.stack.indexOf("\n") + 1)));
         }
-        this.lastActivityTimestamp = /* @__PURE__ */ new Date();
+        this.lastActivityTimestamp = Date.now();
+      }
+      get traceEnabled() {
+        return (0, logging_1.isTracerEnabled)("channel");
       }
       trace(text, verbosityOverride) {
-        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text);
+        if (this.traceEnabled) {
+          (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text);
+        }
       }
       callRefTimerRef() {
         var _a4, _b, _c, _d;
@@ -109834,14 +110119,18 @@ var require_internal_channel = __commonJS({
           }, MAX_TIMEOUT_TIME);
         }
         if (!((_b = (_a4 = this.callRefTimer).hasRef) === null || _b === void 0 ? void 0 : _b.call(_a4))) {
-          this.trace("callRefTimer.ref | configSelectionQueue.length=" + this.configSelectionQueue.length + " pickQueue.length=" + this.pickQueue.length);
+          if (this.traceEnabled) {
+            this.trace("callRefTimer.ref | configSelectionQueue.length=" + this.configSelectionQueue.length + " pickQueue.length=" + this.pickQueue.size);
+          }
           (_d = (_c = this.callRefTimer).ref) === null || _d === void 0 ? void 0 : _d.call(_c);
         }
       }
       callRefTimerUnref() {
         var _a4, _b, _c;
         if (!((_a4 = this.callRefTimer) === null || _a4 === void 0 ? void 0 : _a4.hasRef) || this.callRefTimer.hasRef()) {
-          this.trace("callRefTimer.unref | configSelectionQueue.length=" + this.configSelectionQueue.length + " pickQueue.length=" + this.pickQueue.length);
+          if (this.traceEnabled) {
+            this.trace("callRefTimer.unref | configSelectionQueue.length=" + this.configSelectionQueue.length + " pickQueue.length=" + this.pickQueue.size);
+          }
           (_c = (_b = this.callRefTimer) === null || _b === void 0 ? void 0 : _b.unref) === null || _c === void 0 ? void 0 : _c.call(_b);
         }
       }
@@ -109893,8 +110182,14 @@ var require_internal_channel = __commonJS({
         });
       }
       queueCallForPick(call) {
-        this.pickQueue.push(call);
+        this.pickQueue.add(call);
         this.callRefTimerRef();
+      }
+      removeCallFromPickQueue(call) {
+        this.pickQueue.delete(call);
+        if (this.pickQueue.size === 0) {
+          this.callRefTimerUnref();
+        }
       }
       getConfig(method, metadata) {
         if (this.connectivityState !== connectivity_state_1.ConnectivityState.SHUTDOWN) {
@@ -109942,8 +110237,8 @@ var require_internal_channel = __commonJS({
             this.startIdleTimeout(this.idleTimeoutMs);
             return;
           }
-          const now = /* @__PURE__ */ new Date();
-          const timeSinceLastActivity = now.valueOf() - this.lastActivityTimestamp.valueOf();
+          const now = Date.now();
+          const timeSinceLastActivity = now - this.lastActivityTimestamp;
           if (timeSinceLastActivity >= this.idleTimeoutMs) {
             this.trace("Idle timer triggered after " + this.idleTimeoutMs + "ms of inactivity");
             this.enterIdle();
@@ -109973,22 +110268,54 @@ var require_internal_channel = __commonJS({
           }
         }
         this.callCount -= 1;
-        this.lastActivityTimestamp = /* @__PURE__ */ new Date();
+        this.lastActivityTimestamp = Date.now();
         this.maybeStartIdleTimer();
       }
-      createLoadBalancingCall(callConfig, method, host, credentials, deadline) {
-        const callNumber = (0, call_number_1.getNextCallNumber)();
-        this.trace("createLoadBalancingCall [" + callNumber + '] method="' + method + '"');
-        return new load_balancing_call_1.LoadBalancingCall(this, callConfig, method, host, credentials, deadline, callNumber);
+      /**
+       * Returns the precomputed service URL (`https://${hostname}/${serviceName}`)
+       * for the given host and method, using a bounded cache to avoid parsing on
+       * every RPC.
+       */
+      getServiceUrl(host, methodName) {
+        let methodMap = this.serviceUrlCache.get(host);
+        if (methodMap === void 0) {
+          if (this.serviceUrlCache.size < _InternalChannel.MAX_CACHED_HOSTS) {
+            methodMap = /* @__PURE__ */ new Map();
+            this.serviceUrlCache.set(host, methodMap);
+          }
+        }
+        if (methodMap !== void 0) {
+          const serviceUrl = methodMap.get(methodName);
+          if (serviceUrl !== void 0) {
+            return serviceUrl;
+          }
+          const computedServiceUrl = (0, uri_parser_1.computeServiceUrl)(host, methodName);
+          if (methodMap.size < _InternalChannel.MAX_METHODS_PER_HOST) {
+            methodMap.set(methodName, computedServiceUrl);
+          }
+          return computedServiceUrl;
+        }
+        return (0, uri_parser_1.computeServiceUrl)(host, methodName);
       }
-      createRetryingCall(callConfig, method, host, credentials, deadline) {
-        const callNumber = (0, call_number_1.getNextCallNumber)();
-        this.trace("createRetryingCall [" + callNumber + '] method="' + method + '"');
-        return new retrying_call_1.RetryingCall(this, callConfig, method, host, credentials, deadline, callNumber, this.retryBufferTracker, RETRY_THROTTLER_MAP.get(this.getTarget()));
+      createLoadBalancingCall(callConfig, method, host, credentials, deadline, callNumber) {
+        const finalCallNumber = callNumber !== null && callNumber !== void 0 ? callNumber : (0, call_number_1.getNextCallNumber)();
+        if (this.traceEnabled) {
+          this.trace("createLoadBalancingCall [" + finalCallNumber + '] method="' + method + '"');
+        }
+        return new load_balancing_call_1.LoadBalancingCall(this, callConfig, method, host, credentials, deadline, finalCallNumber);
+      }
+      createRetryingCall(callConfig, method, host, credentials, deadline, callNumber) {
+        const finalCallNumber = callNumber !== null && callNumber !== void 0 ? callNumber : (0, call_number_1.getNextCallNumber)();
+        if (this.traceEnabled) {
+          this.trace("createRetryingCall [" + finalCallNumber + '] method="' + method + '"');
+        }
+        return new retrying_call_1.RetryingCall(this, callConfig, method, host, credentials, deadline, finalCallNumber, this.retryBufferTracker, RETRY_THROTTLER_MAP.get(this.getTarget()));
       }
       createResolvingCall(method, deadline, host, parentCall, propagateFlags) {
         const callNumber = (0, call_number_1.getNextCallNumber)();
-        this.trace("createResolvingCall [" + callNumber + '] method="' + method + '", deadline=' + (0, deadline_1.deadlineToString)(deadline));
+        if (this.traceEnabled) {
+          this.trace("createResolvingCall [" + callNumber + '] method="' + method + '", deadline=' + (0, deadline_1.deadlineToString)(deadline));
+        }
         const finalOptions = {
           deadline,
           flags: propagateFlags !== null && propagateFlags !== void 0 ? propagateFlags : constants_1.Propagate.DEFAULTS,
@@ -110014,7 +110341,7 @@ var require_internal_channel = __commonJS({
         for (const call of this.pickQueue) {
           call.cancelWithStatus(constants_1.Status.UNAVAILABLE, "Channel closed before call started");
         }
-        this.pickQueue = [];
+        this.pickQueue.clear();
         if (this.callRefTimer) {
           clearInterval(this.callRefTimer);
         }
@@ -110027,6 +110354,7 @@ var require_internal_channel = __commonJS({
         this.subchannelPool.unrefUnusedSubchannels();
         (_a4 = this.configSelector) === null || _a4 === void 0 ? void 0 : _a4.unref();
         this.configSelector = null;
+        this.serviceUrlCache.clear();
       }
       getTarget() {
         return (0, uri_parser_1.uriToString)(this.target);
@@ -110035,7 +110363,7 @@ var require_internal_channel = __commonJS({
         const connectivityState = this.connectivityState;
         if (tryToConnect) {
           this.resolvingLoadBalancer.exitIdle();
-          this.lastActivityTimestamp = /* @__PURE__ */ new Date();
+          this.lastActivityTimestamp = Date.now();
           this.maybeStartIdleTimer();
         }
         return connectivityState;
@@ -110089,12 +110417,14 @@ var require_internal_channel = __commonJS({
       }
     };
     exports2.InternalChannel = InternalChannel;
+    InternalChannel.MAX_CACHED_HOSTS = 5;
+    InternalChannel.MAX_METHODS_PER_HOST = 100;
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/channel.js
+// node_modules/@grpc/grpc-js/build/src/channel.js
 var require_channel = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/channel.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/channel.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ChannelImplementation = void 0;
@@ -110149,9 +110479,9 @@ var require_channel = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/server-call.js
+// node_modules/@grpc/grpc-js/build/src/server-call.js
 var require_server_call = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/server-call.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/server-call.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ServerDuplexStreamImpl = exports2.ServerWritableStreamImpl = exports2.ServerReadableStreamImpl = exports2.ServerUnaryCallImpl = void 0;
@@ -110358,9 +110688,9 @@ var require_server_call = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/server-credentials.js
+// node_modules/@grpc/grpc-js/build/src/server-credentials.js
 var require_server_credentials = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/server-credentials.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/server-credentials.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ServerCredentials = void 0;
@@ -110648,9 +110978,9 @@ var require_server_credentials = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/duration.js
+// node_modules/@grpc/grpc-js/build/src/duration.js
 var require_duration2 = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/duration.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/duration.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.durationMessageToDuration = durationMessageToDuration;
@@ -110709,9 +111039,9 @@ var require_duration2 = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/orca.js
+// node_modules/@grpc/grpc-js/build/src/orca.js
 var require_orca = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/orca.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/orca.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.OrcaOobMetricsSubchannelWrapper = exports2.GRPC_METRICS_HEADER = exports2.ServerMetricRecorder = exports2.PerRequestMetricRecorder = void 0;
@@ -111004,9 +111334,9 @@ var require_orca = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/server-interceptors.js
+// node_modules/@grpc/grpc-js/build/src/server-interceptors.js
 var require_server_interceptors = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/server-interceptors.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/server-interceptors.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.BaseServerInterceptingCall = exports2.ServerInterceptingCall = exports2.ResponderBuilder = exports2.ServerListenerBuilder = void 0;
@@ -111021,6 +111351,7 @@ var require_server_interceptors = __commonJS({
     var logging = require_logging();
     var tls_1 = require("tls");
     var orca_1 = require_orca();
+    var environment_1 = require_environment();
     var TRACER_NAME = "server_call";
     function trace2(text) {
       logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
@@ -111419,8 +111750,7 @@ var require_server_interceptors = __commonJS({
           return;
         }
         const timeout = +match2[1] * deadlineUnitsToMs[match2[2]] | 0;
-        const now = /* @__PURE__ */ new Date();
-        this.deadline = now.setMilliseconds(now.getMilliseconds() + timeout);
+        this.deadline = Date.now() + timeout;
         this.deadlineTimer = setTimeout(() => {
           const status = {
             code: constants_1.Status.DEADLINE_EXCEEDED,
@@ -111536,9 +111866,15 @@ var require_server_interceptors = __commonJS({
         try {
           queueEntry.parsedMessage = this.handler.deserialize(decompressedMessage);
         } catch (err) {
+          let details;
+          if (environment_1.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS) {
+            details = `Error deserializing request: ${err.message}`;
+          } else {
+            details = "Error deserializing request";
+          }
           this.sendStatus({
             code: constants_1.Status.INTERNAL,
-            details: `Error deserializing request: ${err.message}`
+            details
           });
           return;
         }
@@ -111618,9 +111954,15 @@ var require_server_interceptors = __commonJS({
         try {
           response = this.serializeMessage(message2);
         } catch (e2) {
+          let details;
+          if (environment_1.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS) {
+            details = `Error serializing response: ${(0, error_1.getErrorMessage)(e2)}`;
+          } else {
+            details = "Error serializing response";
+          }
           this.sendStatus({
             code: constants_1.Status.INTERNAL,
-            details: `Error serializing response: ${(0, error_1.getErrorMessage)(e2)}`,
+            details,
             metadata: null
           });
           return;
@@ -111638,9 +111980,15 @@ var require_server_interceptors = __commonJS({
         this.stream.write(response, (error61) => {
           var _a4;
           if (error61) {
+            let details;
+            if (environment_1.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS) {
+              details = `Error writing message: ${(0, error_1.getErrorMessage)(error61)}`;
+            } else {
+              details = "Internal server error";
+            }
             this.sendStatus({
               code: constants_1.Status.INTERNAL,
-              details: `Error writing message: ${(0, error_1.getErrorMessage)(error61)}`,
+              details,
               metadata: null
             });
             return;
@@ -111722,15 +112070,17 @@ var require_server_interceptors = __commonJS({
       }
       getAuthContext() {
         var _a4;
-        if (((_a4 = this.stream.session) === null || _a4 === void 0 ? void 0 : _a4.socket) instanceof tls_1.TLSSocket) {
-          const peerCertificate = this.stream.session.socket.getPeerCertificate();
-          return {
-            transportSecurityType: "ssl",
-            sslPeerCertificate: peerCertificate.raw ? peerCertificate : void 0
-          };
-        } else {
+        if (!(((_a4 = this.stream.session) === null || _a4 === void 0 ? void 0 : _a4.socket) instanceof tls_1.TLSSocket)) {
           return {};
         }
+        if (!this.stream.session.socket.authorized) {
+          return {};
+        }
+        const peerCertificate = this.stream.session.socket.getPeerCertificate();
+        return {
+          transportSecurityType: "ssl",
+          sslPeerCertificate: peerCertificate.raw ? peerCertificate : void 0
+        };
       }
       getConnectionInfo() {
         return this.connectionInfo;
@@ -111756,9 +112106,9 @@ var require_server_interceptors = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/server.js
+// node_modules/@grpc/grpc-js/build/src/server.js
 var require_server = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/server.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/server.js"(exports2) {
     "use strict";
     var __runInitializers = exports2 && exports2.__runInitializers || function(thisArg, initializers, value) {
       var useValue = arguments.length > 2;
@@ -111812,6 +112162,7 @@ var require_server = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var channelz_1 = require_channelz();
     var server_interceptors_1 = require_server_interceptors();
+    var environment_1 = require_environment();
     var UNLIMITED_CONNECTION_AGE_MS = ~(1 << 31);
     var KEEPALIVE_MAX_TIME_MS = ~(1 << 31);
     var KEEPALIVE_TIMEOUT_MS = 2e4;
@@ -112618,13 +112969,13 @@ var require_server = __commonJS({
             addMessageSent: () => {
               if (channelzSessionInfo) {
                 channelzSessionInfo.messagesSent += 1;
-                channelzSessionInfo.lastMessageSentTimestamp = /* @__PURE__ */ new Date();
+                channelzSessionInfo.lastMessageSentTimestamp = Date.now();
               }
             },
             addMessageReceived: () => {
               if (channelzSessionInfo) {
                 channelzSessionInfo.messagesReceived += 1;
-                channelzSessionInfo.lastMessageReceivedTimestamp = /* @__PURE__ */ new Date();
+                channelzSessionInfo.lastMessageReceivedTimestamp = Date.now();
               }
             },
             onCallEnd: (status) => {
@@ -113065,9 +113416,15 @@ var require_server = __commonJS({
           try {
             handler.func(stream, respond);
           } catch (err) {
+            let details;
+            if (environment_1.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS) {
+              details = `Server method handler threw error ${err.message}`;
+            } else {
+              details = "Unknown error";
+            }
             call.sendStatus({
               code: constants_1.Status.UNKNOWN,
-              details: `Server method handler threw error ${err.message}`,
+              details,
               metadata: null
             });
           }
@@ -113101,9 +113458,15 @@ var require_server = __commonJS({
           try {
             handler.func(stream, respond);
           } catch (err) {
+            let details;
+            if (environment_1.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS) {
+              details = `Server method handler threw error ${err.message}`;
+            } else {
+              details = "Unknown error";
+            }
             call.sendStatus({
               code: constants_1.Status.UNKNOWN,
-              details: `Server method handler threw error ${err.message}`,
+              details,
               metadata: null
             });
           }
@@ -113157,9 +113520,15 @@ var require_server = __commonJS({
           try {
             handler.func(stream);
           } catch (err) {
+            let details;
+            if (environment_1.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS) {
+              details = `Server method handler threw error ${err.message}`;
+            } else {
+              details = "Unknown error";
+            }
             call.sendStatus({
               code: constants_1.Status.UNKNOWN,
-              details: `Server method handler threw error ${err.message}`,
+              details,
               metadata: null
             });
           }
@@ -113181,9 +113550,15 @@ var require_server = __commonJS({
           try {
             handler.func(stream);
           } catch (err) {
+            let details;
+            if (environment_1.GRPC_NODE_DEBUG_SEND_ERROR_DETAILS) {
+              details = `Server method handler threw error ${err.message}`;
+            } else {
+              details = "Unknown error";
+            }
             call.sendStatus({
               code: constants_1.Status.UNKNOWN,
-              details: `Server method handler threw error ${err.message}`,
+              details,
               metadata: null
             });
           }
@@ -113206,9 +113581,9 @@ var require_server = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/status-builder.js
+// node_modules/@grpc/grpc-js/build/src/status-builder.js
 var require_status_builder = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/status-builder.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/status-builder.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.StatusBuilder = void 0;
@@ -113260,9 +113635,9 @@ var require_status_builder = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-pick-first.js
+// node_modules/@grpc/grpc-js/build/src/load-balancer-pick-first.js
 var require_load_balancer_pick_first = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-pick-first.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/load-balancer-pick-first.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.LeafLoadBalancer = exports2.PickFirstLoadBalancer = exports2.PickFirstLoadBalancingConfig = void 0;
@@ -113679,9 +114054,9 @@ var require_load_balancer_pick_first = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/certificate-provider.js
+// node_modules/@grpc/grpc-js/build/src/certificate-provider.js
 var require_certificate_provider = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/certificate-provider.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/certificate-provider.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileWatcherCertificateProvider = void 0;
@@ -113802,9 +114177,9 @@ var require_certificate_provider = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/experimental.js
+// node_modules/@grpc/grpc-js/build/src/experimental.js
 var require_experimental = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/experimental.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/experimental.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.SUBCHANNEL_ARGS_EXCLUDE_KEY_PREFIX = exports2.createCertificateProviderChannelCredentials = exports2.FileWatcherCertificateProvider = exports2.createCertificateProviderServerCredentials = exports2.createServerCredentialsWithInterceptors = exports2.BaseSubchannelWrapper = exports2.registerAdminService = exports2.FilterStackFactory = exports2.BaseFilter = exports2.statusOrFromError = exports2.statusOrFromValue = exports2.PickResultType = exports2.QueuePicker = exports2.UnavailablePicker = exports2.ChildLoadBalancerHandler = exports2.EndpointMap = exports2.endpointHasAddress = exports2.endpointToString = exports2.subchannelAddressToString = exports2.LeafLoadBalancer = exports2.isLoadBalancerNameRegistered = exports2.parseLoadBalancingConfig = exports2.selectLbConfigFromList = exports2.registerLoadBalancerType = exports2.createChildChannelControlHelper = exports2.BackoffTimeout = exports2.parseDuration = exports2.durationToMs = exports2.splitHostPort = exports2.uriToString = exports2.CHANNEL_ARGS_CONFIG_SELECTOR_KEY = exports2.createResolver = exports2.registerResolver = exports2.log = exports2.trace = void 0;
@@ -113935,9 +114310,9 @@ var require_experimental = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolver-uds.js
+// node_modules/@grpc/grpc-js/build/src/resolver-uds.js
 var require_resolver_uds = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolver-uds.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/resolver-uds.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.setup = setup;
@@ -113975,9 +114350,9 @@ var require_resolver_uds = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolver-ip.js
+// node_modules/@grpc/grpc-js/build/src/resolver-ip.js
 var require_resolver_ip = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/resolver-ip.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/resolver-ip.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.setup = setup;
@@ -114066,9 +114441,9 @@ var require_resolver_ip = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-round-robin.js
+// node_modules/@grpc/grpc-js/build/src/load-balancer-round-robin.js
 var require_load_balancer_round_robin = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-round-robin.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/load-balancer-round-robin.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.RoundRobinLoadBalancer = void 0;
@@ -114241,9 +114616,9 @@ var require_load_balancer_round_robin = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-outlier-detection.js
+// node_modules/@grpc/grpc-js/build/src/load-balancer-outlier-detection.js
 var require_load_balancer_outlier_detection = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-outlier-detection.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/load-balancer-outlier-detection.js"(exports2) {
     "use strict";
     var _a4;
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -114738,9 +115113,9 @@ var require_load_balancer_outlier_detection = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/priority-queue.js
+// node_modules/@grpc/grpc-js/build/src/priority-queue.js
 var require_priority_queue = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/priority-queue.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/priority-queue.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.PriorityQueue = void 0;
@@ -114842,9 +115217,9 @@ var require_priority_queue = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-weighted-round-robin.js
+// node_modules/@grpc/grpc-js/build/src/load-balancer-weighted-round-robin.js
 var require_load_balancer_weighted_round_robin = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/load-balancer-weighted-round-robin.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/load-balancer-weighted-round-robin.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.WeightedRoundRobinLoadBalancingConfig = void 0;
@@ -115194,9 +115569,9 @@ var require_load_balancer_weighted_round_robin = __commonJS({
   }
 });
 
-// node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/index.js
+// node_modules/@grpc/grpc-js/build/src/index.js
 var require_src12 = __commonJS({
-  "node_modules/google-gax/node_modules/@grpc/grpc-js/build/src/index.js"(exports2) {
+  "node_modules/@grpc/grpc-js/build/src/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.experimental = exports2.ServerMetricRecorder = exports2.ServerInterceptingCall = exports2.ResponderBuilder = exports2.ServerListenerBuilder = exports2.addAdminServicesToServer = exports2.getChannelzHandlers = exports2.getChannelzServiceDefinition = exports2.InterceptorConfigurationError = exports2.InterceptingCall = exports2.RequesterBuilder = exports2.ListenerBuilder = exports2.StatusBuilder = exports2.getClientChannel = exports2.ServerCredentials = exports2.Server = exports2.setLogVerbosity = exports2.setLogger = exports2.load = exports2.loadObject = exports2.CallCredentials = exports2.ChannelCredentials = exports2.waitForClientReady = exports2.closeClient = exports2.Channel = exports2.makeGenericClientConstructor = exports2.makeClientConstructor = exports2.loadPackageDefinition = exports2.Client = exports2.compressionAlgorithms = exports2.propagate = exports2.connectivityState = exports2.status = exports2.logVerbosity = exports2.Metadata = exports2.credentials = void 0;
@@ -115373,6 +115748,266 @@ var require_src12 = __commonJS({
       load_balancer_weighted_round_robin.setup();
       channelz.setup();
     })();
+  }
+});
+
+// node_modules/google-gax/node_modules/@grpc/proto-loader/build/src/util.js
+var require_util8 = __commonJS({
+  "node_modules/google-gax/node_modules/@grpc/proto-loader/build/src/util.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.addCommonProtos = exports2.loadProtosWithOptionsSync = exports2.loadProtosWithOptions = void 0;
+    var fs11 = require("fs");
+    var path9 = require("path");
+    var Protobuf = require_protobufjs();
+    function addIncludePathResolver(root, includePaths) {
+      const originalResolvePath = root.resolvePath;
+      root.resolvePath = (origin, target) => {
+        if (path9.isAbsolute(target)) {
+          return target;
+        }
+        for (const directory of includePaths) {
+          const fullPath = path9.join(directory, target);
+          try {
+            fs11.accessSync(fullPath, fs11.constants.R_OK);
+            return fullPath;
+          } catch (err) {
+            continue;
+          }
+        }
+        process.emitWarning(`${target} not found in any of the include paths ${includePaths}`);
+        return originalResolvePath(origin, target);
+      };
+    }
+    async function loadProtosWithOptions(filename, options) {
+      const root = new Protobuf.Root();
+      options = options || {};
+      if (!!options.includeDirs) {
+        if (!Array.isArray(options.includeDirs)) {
+          return Promise.reject(new Error("The includeDirs option must be an array"));
+        }
+        addIncludePathResolver(root, options.includeDirs);
+      }
+      const loadedRoot = await root.load(filename, options);
+      loadedRoot.resolveAll();
+      return loadedRoot;
+    }
+    exports2.loadProtosWithOptions = loadProtosWithOptions;
+    function loadProtosWithOptionsSync(filename, options) {
+      const root = new Protobuf.Root();
+      options = options || {};
+      if (!!options.includeDirs) {
+        if (!Array.isArray(options.includeDirs)) {
+          throw new Error("The includeDirs option must be an array");
+        }
+        addIncludePathResolver(root, options.includeDirs);
+      }
+      const loadedRoot = root.loadSync(filename, options);
+      loadedRoot.resolveAll();
+      return loadedRoot;
+    }
+    exports2.loadProtosWithOptionsSync = loadProtosWithOptionsSync;
+    function addCommonProtos() {
+      const apiDescriptor = require_api();
+      const descriptorDescriptor = require_descriptor2();
+      const sourceContextDescriptor = require_source_context();
+      const typeDescriptor = require_type3();
+      Protobuf.common("api", apiDescriptor.nested.google.nested.protobuf.nested);
+      Protobuf.common("descriptor", descriptorDescriptor.nested.google.nested.protobuf.nested);
+      Protobuf.common("source_context", sourceContextDescriptor.nested.google.nested.protobuf.nested);
+      Protobuf.common("type", typeDescriptor.nested.google.nested.protobuf.nested);
+    }
+    exports2.addCommonProtos = addCommonProtos;
+  }
+});
+
+// node_modules/google-gax/node_modules/@grpc/proto-loader/build/src/index.js
+var require_src13 = __commonJS({
+  "node_modules/google-gax/node_modules/@grpc/proto-loader/build/src/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.loadFileDescriptorSetFromObject = exports2.loadFileDescriptorSetFromBuffer = exports2.fromJSON = exports2.loadSync = exports2.load = exports2.IdempotencyLevel = exports2.isAnyExtension = exports2.Long = void 0;
+    var camelCase = require_lodash9();
+    var Protobuf = require_protobufjs();
+    var descriptor = require_descriptor3();
+    var util_1 = require_util8();
+    var Long = require_umd();
+    exports2.Long = Long;
+    function isAnyExtension(obj) {
+      return "@type" in obj && typeof obj["@type"] === "string";
+    }
+    exports2.isAnyExtension = isAnyExtension;
+    var IdempotencyLevel;
+    (function(IdempotencyLevel2) {
+      IdempotencyLevel2["IDEMPOTENCY_UNKNOWN"] = "IDEMPOTENCY_UNKNOWN";
+      IdempotencyLevel2["NO_SIDE_EFFECTS"] = "NO_SIDE_EFFECTS";
+      IdempotencyLevel2["IDEMPOTENT"] = "IDEMPOTENT";
+    })(IdempotencyLevel = exports2.IdempotencyLevel || (exports2.IdempotencyLevel = {}));
+    var descriptorOptions = {
+      longs: String,
+      enums: String,
+      bytes: String,
+      defaults: true,
+      oneofs: true,
+      json: true
+    };
+    function joinName(baseName, name) {
+      if (baseName === "") {
+        return name;
+      } else {
+        return baseName + "." + name;
+      }
+    }
+    function isHandledReflectionObject(obj) {
+      return obj instanceof Protobuf.Service || obj instanceof Protobuf.Type || obj instanceof Protobuf.Enum;
+    }
+    function isNamespaceBase(obj) {
+      return obj instanceof Protobuf.Namespace || obj instanceof Protobuf.Root;
+    }
+    function getAllHandledReflectionObjects(obj, parentName) {
+      const objName = joinName(parentName, obj.name);
+      if (isHandledReflectionObject(obj)) {
+        return [[objName, obj]];
+      } else {
+        if (isNamespaceBase(obj) && typeof obj.nested !== "undefined") {
+          return Object.keys(obj.nested).map((name) => {
+            return getAllHandledReflectionObjects(obj.nested[name], objName);
+          }).reduce((accumulator, currentValue) => accumulator.concat(currentValue), []);
+        }
+      }
+      return [];
+    }
+    function createDeserializer(cls, options) {
+      return function deserialize(argBuf) {
+        return cls.toObject(cls.decode(argBuf), options);
+      };
+    }
+    function createSerializer(cls) {
+      return function serialize(arg) {
+        if (Array.isArray(arg)) {
+          throw new Error(`Failed to serialize message: expected object with ${cls.name} structure, got array instead`);
+        }
+        const message2 = cls.fromObject(arg);
+        return cls.encode(message2).finish();
+      };
+    }
+    function mapMethodOptions(options) {
+      return (options || []).reduce((obj, item) => {
+        for (const [key, value] of Object.entries(item)) {
+          switch (key) {
+            case "uninterpreted_option":
+              obj.uninterpreted_option.push(item.uninterpreted_option);
+              break;
+            default:
+              obj[key] = value;
+          }
+        }
+        return obj;
+      }, {
+        deprecated: false,
+        idempotency_level: IdempotencyLevel.IDEMPOTENCY_UNKNOWN,
+        uninterpreted_option: []
+      });
+    }
+    function createMethodDefinition(method, serviceName, options, fileDescriptors) {
+      const requestType = method.resolvedRequestType;
+      const responseType = method.resolvedResponseType;
+      return {
+        path: "/" + serviceName + "/" + method.name,
+        requestStream: !!method.requestStream,
+        responseStream: !!method.responseStream,
+        requestSerialize: createSerializer(requestType),
+        requestDeserialize: createDeserializer(requestType, options),
+        responseSerialize: createSerializer(responseType),
+        responseDeserialize: createDeserializer(responseType, options),
+        // TODO(murgatroid99): Find a better way to handle this
+        originalName: camelCase(method.name),
+        requestType: createMessageDefinition(requestType, options, fileDescriptors),
+        responseType: createMessageDefinition(responseType, options, fileDescriptors),
+        options: mapMethodOptions(method.parsedOptions)
+      };
+    }
+    function createServiceDefinition(service, name, options, fileDescriptors) {
+      const def = {};
+      for (const method of service.methodsArray) {
+        def[method.name] = createMethodDefinition(method, name, options, fileDescriptors);
+      }
+      return def;
+    }
+    function createMessageDefinition(message2, options, fileDescriptors) {
+      const messageDescriptor = message2.toDescriptor("proto3");
+      return {
+        format: "Protocol Buffer 3 DescriptorProto",
+        type: messageDescriptor.$type.toObject(messageDescriptor, descriptorOptions),
+        fileDescriptorProtos: fileDescriptors,
+        serialize: createSerializer(message2),
+        deserialize: createDeserializer(message2, options)
+      };
+    }
+    function createEnumDefinition(enumType, fileDescriptors) {
+      const enumDescriptor = enumType.toDescriptor("proto3");
+      return {
+        format: "Protocol Buffer 3 EnumDescriptorProto",
+        type: enumDescriptor.$type.toObject(enumDescriptor, descriptorOptions),
+        fileDescriptorProtos: fileDescriptors
+      };
+    }
+    function createDefinition(obj, name, options, fileDescriptors) {
+      if (obj instanceof Protobuf.Service) {
+        return createServiceDefinition(obj, name, options, fileDescriptors);
+      } else if (obj instanceof Protobuf.Type) {
+        return createMessageDefinition(obj, options, fileDescriptors);
+      } else if (obj instanceof Protobuf.Enum) {
+        return createEnumDefinition(obj, fileDescriptors);
+      } else {
+        throw new Error("Type mismatch in reflection object handling");
+      }
+    }
+    function createPackageDefinition(root, options) {
+      const def = {};
+      root.resolveAll();
+      const descriptorList = root.toDescriptor("proto3").file;
+      const bufferList = descriptorList.map((value) => Buffer.from(descriptor.FileDescriptorProto.encode(value).finish()));
+      for (const [name, obj] of getAllHandledReflectionObjects(root, "")) {
+        def[name] = createDefinition(obj, name, options, bufferList);
+      }
+      return def;
+    }
+    function createPackageDefinitionFromDescriptorSet(decodedDescriptorSet, options) {
+      options = options || {};
+      const root = Protobuf.Root.fromDescriptor(decodedDescriptorSet);
+      root.resolveAll();
+      return createPackageDefinition(root, options);
+    }
+    function load(filename, options) {
+      return (0, util_1.loadProtosWithOptions)(filename, options).then((loadedRoot) => {
+        return createPackageDefinition(loadedRoot, options);
+      });
+    }
+    exports2.load = load;
+    function loadSync(filename, options) {
+      const loadedRoot = (0, util_1.loadProtosWithOptionsSync)(filename, options);
+      return createPackageDefinition(loadedRoot, options);
+    }
+    exports2.loadSync = loadSync;
+    function fromJSON(json3, options) {
+      options = options || {};
+      const loadedRoot = Protobuf.Root.fromJSON(json3);
+      loadedRoot.resolveAll();
+      return createPackageDefinition(loadedRoot, options);
+    }
+    exports2.fromJSON = fromJSON;
+    function loadFileDescriptorSetFromBuffer(descriptorSet, options) {
+      const decodedDescriptorSet = descriptor.FileDescriptorSet.decode(descriptorSet);
+      return createPackageDefinitionFromDescriptorSet(decodedDescriptorSet, options);
+    }
+    exports2.loadFileDescriptorSetFromBuffer = loadFileDescriptorSetFromBuffer;
+    function loadFileDescriptorSetFromObject(descriptorSet, options) {
+      const decodedDescriptorSet = descriptor.FileDescriptorSet.fromObject(descriptorSet);
+      return createPackageDefinitionFromDescriptorSet(decodedDescriptorSet, options);
+    }
+    exports2.loadFileDescriptorSetFromObject = loadFileDescriptorSetFromObject;
+    (0, util_1.addCommonProtos)();
   }
 });
 
@@ -115565,7 +116200,7 @@ var require_grpc = __commonJS({
     };
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GoogleProtoFilesRoot = exports2.GrpcClient = exports2.ClientStub = void 0;
-    var grpcProtoLoader = __importStar(require_src11());
+    var grpcProtoLoader = __importStar(require_src13());
     var child_process_1 = require("child_process");
     var fs11 = __importStar(require("fs"));
     var google_auth_library_1 = require_src9();
@@ -115983,7 +116618,7 @@ var require_grpc = __commonJS({
 });
 
 // node_modules/google-gax/build/src/index.js
-var require_src13 = __commonJS({
+var require_src14 = __commonJS({
   "node_modules/google-gax/build/src/index.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m2, k, k2) {
@@ -116174,7 +116809,7 @@ var require_src13 = __commonJS({
 });
 
 // node_modules/@google-cloud/firestore/build/src/util.js
-var require_util8 = __commonJS({
+var require_util9 = __commonJS({
   "node_modules/@google-cloud/firestore/build/src/util.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -116254,7 +116889,7 @@ var require_util8 = __commonJS({
     var serviceConfig;
     function getServiceConfig(methodName) {
       if (!serviceConfig) {
-        serviceConfig = require_fallback().constructSettings("google.firestore.v1.Firestore", gapicConfig, {}, require_src13().Status);
+        serviceConfig = require_fallback().constructSettings("google.firestore.v1.Firestore", gapicConfig, {}, require_src14().Status);
       }
       return serviceConfig[methodName];
     }
@@ -116603,7 +117238,7 @@ var require_validate = __commonJS({
     exports2.validateMaxNumberOfArguments = validateMaxNumberOfArguments;
     exports2.validateEnumValue = validateEnumValue;
     var url_1 = require("url");
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var timestamp_1 = require_timestamp2();
     function customObjectMessage(arg, value, path9) {
       const fieldPathMessage = path9 ? ` (found in field "${path9}")` : "";
@@ -117563,7 +118198,7 @@ var require_path2 = __commonJS({
     exports2.validateResourcePath = validateResourcePath;
     exports2.validateFieldPath = validateFieldPath;
     var order_1 = require_order();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var validate_1 = require_validate();
     exports2.DEFAULT_DATABASE_ID = "(default)";
     var RESOURCE_PATH_RE = /^projects\/([^/]+)\/databases\/([^/]+)(?:\/documents(?:\/([^/]+(?:\/[^/]+)*))?)?$/;
@@ -118207,7 +118842,7 @@ var require_options_util = __commonJS({
     exports2.OptionsUtil = void 0;
     var serializer_1 = require_serializer();
     var path_1 = require_path2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var OptionsUtil = class _OptionsUtil {
       optionDefinitions;
       constructor(optionDefinitions) {
@@ -118423,7 +119058,7 @@ var require_expression = __commonJS({
     var path_1 = require_path2();
     var pipeline_util_1 = require_pipeline_util();
     var serializer_1 = require_serializer();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var options_util_1 = require_options_util();
     var Expression = class {
       /**
@@ -121489,14 +122124,14 @@ var require_pipeline_util = __commonJS({
     exports2.validateUserDataHelper = validateUserDataHelper;
     var stream_1 = require("stream");
     require_expression();
-    var index_1 = require_src14();
+    var index_1 = require_src15();
     var logger_1 = require_logger();
     var path_1 = require_path2();
     var composite_filter_internal_1 = require_composite_filter_internal();
     var constants_1 = require_constants3();
     var field_filter_internal_1 = require_field_filter_internal();
     var serializer_1 = require_serializer();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var expression_1 = require_expression();
     var pipelines_1 = require_pipelines();
     var ExecutionUtil = class {
@@ -122459,7 +123094,7 @@ var require_aggregate_query = __commonJS({
     var aggregate_1 = require_aggregate();
     var pipelines_1 = require_pipelines2();
     var timestamp_1 = require_timestamp2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var query_profile_1 = require_query_profile();
     var logger_1 = require_logger();
     var aggregate_query_snapshot_1 = require_aggregate_query_snapshot();
@@ -122829,7 +123464,7 @@ var require_query_snapshot = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.QuerySnapshot = void 0;
     var validate_1 = require_validate();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var QuerySnapshot2 = class _QuerySnapshot {
       _query;
       _readTime;
@@ -123217,7 +123852,7 @@ var require_vector_query_snapshot = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.VectorQuerySnapshot = void 0;
     var validate_1 = require_validate();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var VectorQuerySnapshot = class _VectorQuerySnapshot {
       _query;
       _readTime;
@@ -123445,7 +124080,7 @@ var require_vector_query = __commonJS({
     var pipelines_1 = require_pipelines2();
     var field_value_1 = require_field_value();
     var path_1 = require_path2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var query_util_1 = require_query_util();
     var vector_query_snapshot_1 = require_vector_query_snapshot();
     var query_profile_1 = require_query_profile();
@@ -123663,7 +124298,7 @@ var require_query_util = __commonJS({
     var stream_1 = require("stream");
     var timestamp_1 = require_timestamp2();
     var document_1 = require_document();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var document_change_1 = require_document_change();
     var query_profile_1 = require_query_profile();
     var logger_1 = require_logger();
@@ -124783,7 +125418,7 @@ var require_watch = __commonJS({
     exports2.QueryWatch = exports2.DocumentWatch = exports2.WATCH_IDLE_TIMEOUT_MS = void 0;
     var assert2 = require("assert");
     var rbtree = require_rbtree();
-    var google_gax_1 = require_src13();
+    var google_gax_1 = require_src14();
     var backoff_1 = require_backoff();
     var document_1 = require_document();
     var document_change_1 = require_document_change();
@@ -124791,7 +125426,7 @@ var require_watch = __commonJS({
     var path_1 = require_path2();
     var timestamp_1 = require_timestamp2();
     var types_1 = require_types2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var WATCH_TARGET_ID = 1;
     exports2.WATCH_IDLE_TIMEOUT_MS = 120 * 1e3;
     var REMOVED = {};
@@ -125381,7 +126016,7 @@ var require_query = __commonJS({
     var stream_1 = require("stream");
     var pipelines_1 = require_pipelines2();
     var filter_1 = require_filter2();
-    var index_1 = require_src14();
+    var index_1 = require_src15();
     var order_1 = require_order();
     var path_1 = require_path2();
     var pipeline_util_1 = require_pipeline_util();
@@ -126678,7 +127313,7 @@ var require_collection_reference = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CollectionReference = void 0;
     var path_1 = require_path2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var write_batch_1 = require_write_batch();
     var types_1 = require_types2();
     var query_1 = require_query();
@@ -126945,11 +127580,11 @@ var require_document_reference = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.DocumentReference = void 0;
-    var index_1 = require_src14();
+    var index_1 = require_src15();
     var path_1 = require_path2();
     var types_1 = require_types2();
     var collection_reference_1 = require_collection_reference();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var validate_1 = require_validate();
     var document_1 = require_document();
     var trace_util_1 = require_trace_util();
@@ -128041,11 +128676,11 @@ var require_pipelines = __commonJS({
     exports2.PipelineResult = exports2.PipelineSnapshot = exports2.ExplainStats = exports2.Pipeline = exports2.PipelineSource = void 0;
     exports2.subcollection = subcollection;
     var deepEqual = require_fast_deep_equal();
-    var index_1 = require_src14();
+    var index_1 = require_src15();
     var path_1 = require_path2();
     var pipeline_util_1 = require_pipeline_util();
     var document_reference_1 = require_document_reference();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var expression_1 = require_expression();
     var stage_1 = require_stage();
     var structured_pipeline_1 = require_structured_pipeline();
@@ -134557,10 +135192,10 @@ var require_serializer = __commonJS({
     var field_value_1 = require_field_value();
     var convert_1 = require_convert();
     var geo_point_1 = require_geo_point();
-    var index_1 = require_src14();
+    var index_1 = require_src15();
     var path_1 = require_path2();
     var timestamp_1 = require_timestamp2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var validate_1 = require_validate();
     var pipelines_1 = require_pipelines2();
     var map_type_1 = require_map_type();
@@ -135050,7 +135685,7 @@ var require_field_value = __commonJS({
     exports2.DeleteTransform = exports2.FieldTransform = exports2.FieldValue = exports2.VectorValue = void 0;
     var deepEqual = require_fast_deep_equal();
     var serializer_1 = require_serializer();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var validate_1 = require_validate();
     var VectorValue = class _VectorValue {
       _values;
@@ -135610,7 +136245,7 @@ var require_document = __commonJS({
     var path_1 = require_path2();
     var document_reference_1 = require_document_reference();
     var types_1 = require_types2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var DocumentSnapshotBuilder = class {
       ref;
       /** The fields of the Firestore `Document` Protobuf backing this document. */
@@ -136446,7 +137081,7 @@ var require_write_batch = __commonJS({
     var helpers_1 = require_helpers2();
     var serializer_1 = require_serializer();
     var timestamp_1 = require_timestamp2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var validate_1 = require_validate();
     var trace_util_1 = require_trace_util();
     var WriteResult2 = class _WriteResult {
@@ -136983,7 +137618,7 @@ var require_bulk_writer = __commonJS({
     var backoff_1 = require_backoff();
     var rate_limiter_1 = require_rate_limiter();
     var timestamp_1 = require_timestamp2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var write_batch_1 = require_write_batch();
     var validate_1 = require_validate();
     var logger_1 = require_logger();
@@ -137952,7 +138587,7 @@ var require_document_reader = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.DocumentReader = void 0;
     var document_1 = require_document();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var logger_1 = require_logger();
     var timestamp_1 = require_timestamp2();
     var DocumentReader = class {
@@ -138097,7 +138732,7 @@ var require_pool2 = __commonJS({
     exports2.ClientPool = exports2.CLIENT_TERMINATED_ERROR_MSG = void 0;
     var assert2 = require("assert");
     var logger_1 = require_logger();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     exports2.CLIENT_TERMINATED_ERROR_MSG = "The client has already been terminated";
     var ClientPool = class {
       concurrentOperationLimit;
@@ -138474,7 +139109,7 @@ var require_transaction = __commonJS({
     exports2.Transaction = void 0;
     exports2.parseGetAllArguments = parseGetAllArguments;
     var backoff_1 = require_backoff();
-    var index_1 = require_src14();
+    var index_1 = require_src15();
     var pipelines_1 = require_pipelines2();
     var timestamp_1 = require_timestamp2();
     var logger_1 = require_logger();
@@ -138483,7 +139118,7 @@ var require_transaction = __commonJS({
     var document_reference_1 = require_document_reference();
     var query_1 = require_query();
     var helpers_1 = require_helpers2();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var validate_1 = require_validate();
     var document_reader_1 = require_document_reader();
     var trace_util_1 = require_trace_util();
@@ -139181,7 +139816,7 @@ var require_collection_group = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CollectionGroup = void 0;
     var query_partition_1 = require_query_partition();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var logger_1 = require_logger();
     var query_1 = require_query();
     var query_options_1 = require_query_options();
@@ -139263,8 +139898,8 @@ var require_recursive_delete = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.RecursiveDelete = exports2.RECURSIVE_DELETE_MIN_PENDING_OPS = exports2.RECURSIVE_DELETE_MAX_PENDING_OPS = exports2.REFERENCE_NAME_MIN_ID = void 0;
     var assert2 = require("assert");
-    var _1 = require_src14();
-    var util_1 = require_util8();
+    var _1 = require_src15();
+    var util_1 = require_util9();
     var query_options_1 = require_query_options();
     exports2.REFERENCE_NAME_MIN_ID = "__id-9223372036854775808__";
     exports2.RECURSIVE_DELETE_MAX_PENDING_OPS = 5e3;
@@ -141420,7 +142055,7 @@ var require_firestore_admin_client = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FirestoreAdminClient = void 0;
     var jsonProtos = require_admin_v1();
-    var google_gax_1 = require_src13();
+    var google_gax_1 = require_src14();
     var gapicConfig = require_firestore_admin_client_config();
     var version2 = require_package7().version;
     var FirestoreAdminClient = class {
@@ -141505,7 +142140,7 @@ var require_firestore_admin_client = __commonJS({
           opts["scopes"] = staticMembers.scopes;
         }
         if (!gaxInstance) {
-          gaxInstance = require_src13();
+          gaxInstance = require_src14();
         }
         this._gaxModule = opts.fallback ? gaxInstance.fallback : gaxInstance;
         this._gaxGrpc = new this._gaxModule.GrpcClient(opts);
@@ -143794,7 +144429,7 @@ var require_firestore_client = __commonJS({
     exports2.FirestoreClient = void 0;
     var stream_1 = require("stream");
     var jsonProtos = require_v1();
-    var google_gax_1 = require_src13();
+    var google_gax_1 = require_src14();
     var gapicConfig = require_firestore_client_config();
     var version2 = require_package7().version;
     var FirestoreClient = class {
@@ -143882,7 +144517,7 @@ var require_firestore_client = __commonJS({
           opts["scopes"] = staticMembers.scopes;
         }
         if (!gaxInstance) {
-          gaxInstance = require_src13();
+          gaxInstance = require_src14();
         }
         this._gaxModule = opts.fallback ? gaxInstance.fallback : gaxInstance;
         this._gaxGrpc = new this._gaxModule.GrpcClient(opts);
@@ -145247,7 +145882,7 @@ var require_enabled_trace_util = __commonJS({
     var firestore_client_config_json_1 = require_firestore_client_config();
     var v1_1 = require_v12();
     var path_1 = require_path2();
-    var index_1 = require_src14();
+    var index_1 = require_src15();
     var serviceConfig = firestore_client_config_json_1.interfaces["google.firestore.v1.Firestore"];
     var EnabledTraceUtil = class {
       tracer;
@@ -145471,7 +146106,7 @@ var require_firestore_client2 = __commonJS({
     exports2.FirestoreClient = void 0;
     var stream_1 = require("stream");
     var jsonProtos = require_v1beta1();
-    var google_gax_1 = require_src13();
+    var google_gax_1 = require_src14();
     var gapicConfig = require_firestore_client_config2();
     var version2 = require_package7().version;
     var FirestoreClient = class {
@@ -145553,7 +146188,7 @@ var require_firestore_client2 = __commonJS({
           opts["scopes"] = staticMembers.scopes;
         }
         if (!gaxInstance) {
-          gaxInstance = require_src13();
+          gaxInstance = require_src14();
         }
         this._gaxModule = opts.fallback ? gaxInstance.fallback : gaxInstance;
         this._gaxGrpc = new this._gaxModule.GrpcClient(opts);
@@ -146620,7 +147255,7 @@ var require_v1beta12 = __commonJS({
 });
 
 // node_modules/@google-cloud/firestore/build/src/index.js
-var require_src14 = __commonJS({
+var require_src15 = __commonJS({
   "node_modules/@google-cloud/firestore/build/src/index.js"(exports2, module2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -146641,7 +147276,7 @@ var require_src14 = __commonJS({
     var serializer_1 = require_serializer();
     var timestamp_1 = require_timestamp2();
     var transaction_1 = require_transaction();
-    var util_1 = require_util8();
+    var util_1 = require_util9();
     var validate_1 = require_validate();
     var write_batch_1 = require_write_batch();
     var firestore_client_config_json_1 = require_firestore_client_config();
@@ -146927,13 +147562,13 @@ var require_src14 = __commonJS({
               }
             } else {
               if (!this._gax) {
-                gax = this._gax = require_src13();
+                gax = this._gax = require_src14();
               } else {
                 gax = this._gax;
               }
             }
             if (this._settings.ssl === false) {
-              const grpcModule = this._settings.grpc ?? require_src13().grpc;
+              const grpcModule = this._settings.grpc ?? require_src14().grpc;
               const sslCreds = grpcModule.credentials.createInsecure();
               const settings2 = {
                 sslCreds,
@@ -147861,7 +148496,7 @@ var require_src14 = __commonJS({
     Object.defineProperty(module2.exports, "GrpcStatus", {
       // The gax module is very large. To avoid pulling it in from static
       // scope, we lazy-load the module.
-      get: () => require_src13().Status
+      get: () => require_src14().Status
     });
   }
 });
@@ -147971,7 +148606,7 @@ var require_firestore_internal = __commonJS({
       options.databaseId = databaseId2;
       let firestoreDatabase;
       try {
-        firestoreDatabase = require_src14().Firestore;
+        firestoreDatabase = require_src15().Firestore;
       } catch (err) {
         throw new error_1.FirebaseFirestoreError({
           code: "missing-dependencies",
@@ -147994,7 +148629,7 @@ var require_firestore = __commonJS({
     exports2.initializeFirestore = initializeFirestore2;
     var app_1 = require_app();
     var firestore_internal_1 = require_firestore_internal();
-    var firestore_1 = require_src14();
+    var firestore_1 = require_src15();
     Object.defineProperty(exports2, "AggregateField", { enumerable: true, get: function() {
       return firestore_1.AggregateField;
     } });
@@ -153766,7 +154401,7 @@ var require_ClusterOptions = __commonJS({
 });
 
 // node_modules/ioredis/built/cluster/util.js
-var require_util9 = __commonJS({
+var require_util10 = __commonJS({
   "node_modules/ioredis/built/cluster/util.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -153870,7 +154505,7 @@ var require_ClusterSubscriber = __commonJS({
   "node_modules/ioredis/built/cluster/ClusterSubscriber.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    var util_1 = require_util9();
+    var util_1 = require_util10();
     var utils_1 = require_utils7();
     var Redis_1 = require_Redis();
     var debug = (0, utils_1.Debug)("cluster:subscriber");
@@ -154058,7 +154693,7 @@ var require_ConnectionPool = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     var events_1 = require("events");
     var utils_1 = require_utils7();
-    var util_1 = require_util9();
+    var util_1 = require_util10();
     var Redis_1 = require_Redis();
     var debug = (0, utils_1.Debug)("cluster:connectionPool");
     var ConnectionPool = class extends events_1.EventEmitter {
@@ -154583,7 +155218,7 @@ var require_ShardedSubscriber = __commonJS({
   "node_modules/ioredis/built/cluster/ShardedSubscriber.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    var util_1 = require_util9();
+    var util_1 = require_util10();
     var utils_1 = require_utils7();
     var Redis_1 = require_Redis();
     var debug = (0, utils_1.Debug)("cluster:subscriberGroup:shardedSubscriber");
@@ -154729,7 +155364,7 @@ var require_ClusterSubscriberGroup = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var utils_1 = require_utils7();
-    var util_1 = require_util9();
+    var util_1 = require_util10();
     var calculateSlot = require_lib5();
     var ShardedSubscriber_1 = require_ShardedSubscriber();
     var debug = (0, utils_1.Debug)("cluster:subscriberGroup");
@@ -155060,7 +155695,7 @@ var require_cluster = __commonJS({
     var ClusterSubscriber_1 = require_ClusterSubscriber();
     var ConnectionPool_1 = require_ConnectionPool();
     var DelayQueue_1 = require_DelayQueue();
-    var util_1 = require_util9();
+    var util_1 = require_util10();
     var Deque = require_denque();
     var ClusterSubscriberGroup_1 = require_ClusterSubscriberGroup();
     var debug = (0, utils_1.Debug)("cluster");
@@ -165476,6 +166111,9 @@ var require_common4 = __commonJS({
       return isHostInSubnet.call(this, address);
     }
     function isHostInSubnet(address) {
+      if (this.binaryZeroPad().length !== address.binaryZeroPad().length) {
+        return false;
+      }
       return this.mask(address.subnetMask) === address.mask();
     }
     function isGloballyReachable(entries) {
@@ -165654,6 +166292,10 @@ var require_ipv4 = __commonJS({
           }
           address = address.replace(constants.RE_SUBNET_STRING, "");
         }
+        const longest = constants.GROUPS * 4 - 1;
+        if (address.length > longest) {
+          throw new address_error_1.AddressError(`IPv4 addresses are at most ${longest} characters.`);
+        }
         this.addressMinusSuffix = address;
         this.parsedAddress = this.parse(address);
       }
@@ -165790,15 +166432,22 @@ var require_ipv4 = __commonJS({
         return _Address4.fromHex(integer2.toString(16).padStart(8, "0"));
       }
       /**
-       * Return an address from in-addr.arpa form
+       * Return an address from in-addr.arpa form: the four octets reversed, with
+       * or without the `.in-addr.arpa` suffix and root dot, in any case. Throws
+       * `AddressError` unless the reversed labels form a valid IPv4 address, so
+       * `fromArpa(x.reverseForm())` round-trips {@link reverseForm}.
        * @param {string} arpaFormAddress - an 'in-addr.arpa' form ipv4 address
        * @returns {Adress4}
        * @example
-       * var address = Address4.fromArpa(42.2.0.192.in-addr.arpa.)
+       * var address = Address4.fromArpa('42.2.0.192.in-addr.arpa.')
        * address.correctForm(); // '192.0.2.42'
        */
       static fromArpa(arpaFormAddress) {
-        const leader = arpaFormAddress.replace(/(\.in-addr\.arpa)?\.$/, "");
+        const longest = constants.GROUPS * 4 - 1 + "/32".length + ".in-addr.arpa.".length;
+        if (arpaFormAddress.length > longest) {
+          throw new address_error_1.AddressError(`in-addr.arpa names are at most ${longest} characters.`);
+        }
+        const leader = arpaFormAddress.replace(/(\.in-addr\.arpa)?\.?$/i, "");
         const address = leader.split(".").reverse().join(".");
         return new _Address4(address);
       }
@@ -166481,10 +167130,14 @@ var require_ipv6 = __commonJS({
         if (/\//.test(address)) {
           throw new address_error_1.AddressError("Invalid subnet mask.");
         }
-        const zone = constants6.RE_ZONE_STRING.exec(address);
-        if (zone) {
-          this.zone = zone[0];
-          address = address.replace(constants6.RE_ZONE_STRING, "");
+        const zoneStart = address.indexOf("%");
+        if (zoneStart !== -1 && /^.*$/.test(address.slice(zoneStart))) {
+          this.zone = address.slice(zoneStart);
+          address = address.slice(0, zoneStart);
+        }
+        const longest = this.groups * 5 + 5;
+        if (address.length > longest) {
+          throw new address_error_1.AddressError(`IPv6 addresses are at most ${longest} characters.`);
         }
         this.addressMinusSuffix = address;
         this.parsedAddress = this.parse(this.addressMinusSuffix);
@@ -166682,7 +167335,7 @@ var require_ipv6 = __commonJS({
        * Address6.fromArpa('8.b.d.0.1.0.0.2.ip6.arpa.').networkForm(); // '2001:db8::/32'
        */
       static fromArpa(arpaFormAddress) {
-        const nibbles = arpaFormAddress.replace(/(\.ip6\.arpa)?\.?$/, "");
+        const nibbles = arpaFormAddress.replace(/(\.ip6\.arpa)?\.?$/i, "");
         if (!/^[0-9a-f](\.[0-9a-f]){0,31}$/i.test(nibbles)) {
           throw new address_error_1.AddressError("Invalid 'ip6.arpa' form.");
         }
@@ -168471,7 +169124,7 @@ function securityHeadersMiddleware(req, res, next) {
       "media-src 'self' blob: data:",
       "object-src 'none'",
       "base-uri 'self'",
-      "form-action 'self' https://accounts.google.com",
+      "form-action 'self' https://accounts.google.com https://github.com",
       "frame-ancestors 'self'",
       enforceStrictTls ? "upgrade-insecure-requests" : ""
     ].filter(Boolean).join("; ");
@@ -168643,6 +169296,76 @@ async function deleteCache(key) {
     } catch {
     }
   }
+}
+var MAX_RATE_LIMIT_BUCKETS = 5e3;
+function createHybridRateLimitStore(prefix, windowMs) {
+  const localBuckets = /* @__PURE__ */ new Map();
+  const getLocalIncrement = (fullKey) => {
+    const now = Date.now();
+    const existing = localBuckets.get(fullKey);
+    if (existing && existing.resetTime > now) {
+      existing.hits += 1;
+      return { totalHits: existing.hits, resetTime: new Date(existing.resetTime) };
+    }
+    if (localBuckets.size >= MAX_RATE_LIMIT_BUCKETS) {
+      for (const [k, v] of localBuckets.entries()) {
+        if (v.resetTime <= now) localBuckets.delete(k);
+      }
+      if (localBuckets.size >= MAX_RATE_LIMIT_BUCKETS) {
+        const oldest = localBuckets.keys().next().value;
+        if (oldest) localBuckets.delete(oldest);
+      }
+    }
+    const resetTime = now + windowMs;
+    localBuckets.set(fullKey, { hits: 1, resetTime });
+    return { totalHits: 1, resetTime: new Date(resetTime) };
+  };
+  return {
+    localKeys: false,
+    async increment(key) {
+      const fullKey = `rl:${prefix}:${key}`;
+      if (redisClient && isConnectedToRedis) {
+        try {
+          const hits = await redisClient.incr(fullKey);
+          let pttl = await redisClient.pttl(fullKey);
+          if (hits === 1 || pttl < 0) {
+            await redisClient.pexpire(fullKey, windowMs);
+            pttl = windowMs;
+          }
+          return {
+            totalHits: hits,
+            resetTime: new Date(Date.now() + Math.max(1e3, pttl))
+          };
+        } catch {
+        }
+      }
+      return getLocalIncrement(fullKey);
+    },
+    async decrement(key) {
+      const fullKey = `rl:${prefix}:${key}`;
+      if (redisClient && isConnectedToRedis) {
+        try {
+          await redisClient.decr(fullKey);
+          return;
+        } catch {
+        }
+      }
+      const existing = localBuckets.get(fullKey);
+      if (existing && existing.hits > 0) {
+        existing.hits -= 1;
+      }
+    },
+    async resetKey(key) {
+      const fullKey = `rl:${prefix}:${key}`;
+      localBuckets.delete(fullKey);
+      if (redisClient && isConnectedToRedis) {
+        try {
+          await redisClient.del(fullKey);
+        } catch {
+        }
+      }
+    }
+  };
 }
 
 // src/db/users.ts
@@ -241093,18 +241816,57 @@ function getFirebaseDatabaseId() {
 }
 var cachedVaultMasterKey = null;
 var cachedVaultSecretSource = "";
+var cachedEphemeralProdKey = null;
+var cachedPrevVaultMasterKey = null;
+var cachedPrevVaultSecretSource = "";
 function getVaultMasterKey() {
-  const masterSecret = cleanEnv(process.env.VAULT_MASTER_KEY) || cleanEnv(process.env.ENCRYPTION_KEY) || cleanEnv(process.env.GITHUB_CLIENT_SECRET) || cleanEnv(process.env.LIVEKIT_API_SECRET) || "dsaviz_vault_server_only_master_secret_v1";
-  if (cachedVaultMasterKey && cachedVaultSecretSource === masterSecret) {
+  const configuredSecret = cleanEnv(process.env.USER_KEYS_ENCRYPTION_KEY) || cleanEnv(process.env.VAULT_MASTER_KEY) || cleanEnv(process.env.ENCRYPTION_KEY) || cleanEnv(process.env.GITHUB_CLIENT_SECRET) || cleanEnv(process.env.LIVEKIT_API_SECRET);
+  if (!configuredSecret) {
+    if (process.env.NODE_ENV === "production") {
+      if (!cachedEphemeralProdKey) {
+        console.error(
+          "\u{1F6A8} [Vault Security Alert]: No VAULT_MASTER_KEY / ENCRYPTION_KEY configured in production. Generating per-process CSPRNG key."
+        );
+        cachedEphemeralProdKey = import_crypto.default.randomBytes(32);
+      }
+      return cachedEphemeralProdKey;
+    }
+    const devFallback = "dsaviz_vault_dev_only_master_secret_v1";
+    if (cachedVaultMasterKey && cachedVaultSecretSource === devFallback) {
+      return cachedVaultMasterKey;
+    }
+    cachedVaultSecretSource = devFallback;
+    cachedVaultMasterKey = import_crypto.default.scryptSync(
+      devFallback,
+      "dsaviz_user_api_key_vault_salt_v1",
+      32
+    );
     return cachedVaultMasterKey;
   }
-  cachedVaultSecretSource = masterSecret;
+  if (cachedVaultMasterKey && cachedVaultSecretSource === configuredSecret) {
+    return cachedVaultMasterKey;
+  }
+  cachedVaultSecretSource = configuredSecret;
   cachedVaultMasterKey = import_crypto.default.scryptSync(
-    masterSecret,
+    configuredSecret,
     "dsaviz_user_api_key_vault_salt_v1",
     32
   );
   return cachedVaultMasterKey;
+}
+function getPreviousVaultMasterKey() {
+  const prevSecret = cleanEnv(process.env.USER_KEYS_ENCRYPTION_KEY_PREVIOUS) || cleanEnv(process.env.VAULT_MASTER_KEY_PREVIOUS) || cleanEnv(process.env.ENCRYPTION_KEY_PREVIOUS);
+  if (!prevSecret) return null;
+  if (cachedPrevVaultMasterKey && cachedPrevVaultSecretSource === prevSecret) {
+    return cachedPrevVaultMasterKey;
+  }
+  cachedPrevVaultSecretSource = prevSecret;
+  cachedPrevVaultMasterKey = import_crypto.default.scryptSync(
+    prevSecret,
+    "dsaviz_user_api_key_vault_salt_v1",
+    32
+  );
+  return cachedPrevVaultMasterKey;
 }
 function encryptUserApiKey(plainKey, ownerId) {
   const iv = import_crypto.default.randomBytes(16);
@@ -241115,6 +241877,18 @@ function encryptUserApiKey(plainKey, ownerId) {
   const authTag = cipher.getAuthTag();
   return `${iv.toString("hex")}:${encrypted}:${authTag.toString("hex")}`;
 }
+function decryptWithKey(iv, encryptedText, authTag, aad, key) {
+  try {
+    const decipher = import_crypto.default.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAAD(aad);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encryptedText, void 0, "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+  } catch {
+    return null;
+  }
+}
 function decryptUserApiKey(ciphertext, ownerId) {
   try {
     const parts = ciphertext.split(":");
@@ -241122,12 +241896,14 @@ function decryptUserApiKey(ciphertext, ownerId) {
     const iv = Buffer.from(parts[0], "hex");
     const encryptedText = Buffer.from(parts[1], "hex");
     const authTag = Buffer.from(parts[2], "hex");
-    const decipher = import_crypto.default.createDecipheriv("aes-256-gcm", getVaultMasterKey(), iv);
-    decipher.setAAD(Buffer.from(ownerId, "utf8"));
-    decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(encryptedText, void 0, "utf8");
-    decrypted += decipher.final("utf8");
-    return decrypted;
+    const aad = Buffer.from(ownerId, "utf8");
+    const primary = decryptWithKey(iv, encryptedText, authTag, aad, getVaultMasterKey());
+    if (primary !== null) return primary;
+    const prevKey = getPreviousVaultMasterKey();
+    if (prevKey) {
+      return decryptWithKey(iv, encryptedText, authTag, aad, prevKey);
+    }
+    return null;
   } catch {
     return null;
   }
@@ -241150,11 +241926,15 @@ function unsealVaultRecord(sealed, expectedOwnerId) {
     const iv = Buffer.from(parts[0], "base64url");
     const encrypted = Buffer.from(parts[1], "base64url");
     const authTag = Buffer.from(parts[2], "base64url");
-    const decipher = import_crypto.default.createDecipheriv("aes-256-gcm", getVaultMasterKey(), iv);
-    decipher.setAAD(Buffer.from(`vault_envelope:${expectedOwnerId}`, "utf8"));
-    decipher.setAuthTag(authTag);
-    let json3 = decipher.update(encrypted, void 0, "utf8");
-    json3 += decipher.final("utf8");
+    const aad = Buffer.from(`vault_envelope:${expectedOwnerId}`, "utf8");
+    let json3 = decryptWithKey(iv, encrypted, authTag, aad, getVaultMasterKey());
+    if (json3 === null) {
+      const prevKey = getPreviousVaultMasterKey();
+      if (prevKey) {
+        json3 = decryptWithKey(iv, encrypted, authTag, aad, prevKey);
+      }
+    }
+    if (json3 === null) return null;
     const parsed = JSON.parse(json3);
     if (!parsed || parsed.ownerId !== expectedOwnerId || typeof parsed.providers !== "object") {
       return null;
@@ -290552,8 +291332,8 @@ app.use((req, _res, next) => {
   }
   next();
 });
-app.use(import_express.default.json({ limit: "2mb" }));
-app.use(import_express.default.urlencoded({ extended: true, limit: "2mb" }));
+app.use(import_express.default.json({ limit: "512kb" }));
+app.use(import_express.default.urlencoded({ extended: true, limit: "512kb" }));
 function rateLimitKeyGenerator(req) {
   const anyReq = req;
   if (anyReq.user?.uid) {
@@ -290573,6 +291353,7 @@ var apiLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
   // 1 minute
   max: 100,
+  store: createHybridRateLimitStore("api", 60 * 1e3),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Too many requests, please try again later." },
   validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
@@ -290581,6 +291362,7 @@ var aiLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
   // 1 minute
   max: 40,
+  store: createHybridRateLimitStore("ai", 60 * 1e3),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "AI rate limit exceeded. Please wait a moment and try again." },
   validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
@@ -290589,6 +291371,7 @@ var compilerLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
   // 1 minute
   max: 20,
+  store: createHybridRateLimitStore("compiler", 60 * 1e3),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Compiler rate limit exceeded. Please wait a moment before running again." },
   validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
@@ -293834,6 +294617,8 @@ long/umd/index.js:
 gtoken/build/cjs/src/index.cjs:
   (*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE *)
 
+@grpc/proto-loader/build/src/util.js:
+@grpc/proto-loader/build/src/index.js:
 @grpc/proto-loader/build/src/util.js:
 @grpc/proto-loader/build/src/index.js:
   (**

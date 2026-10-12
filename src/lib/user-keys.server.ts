@@ -163,28 +163,76 @@ function getFirebaseDatabaseId(): string {
 
 let cachedVaultMasterKey: Buffer | null = null;
 let cachedVaultSecretSource = "";
+let cachedEphemeralProdKey: Buffer | null = null;
+let cachedPrevVaultMasterKey: Buffer | null = null;
+let cachedPrevVaultSecretSource = "";
 
 /**
  * Derives a dedicated 256-bit master key for the User API Key Vault using scrypt
  * with domain separation so even database/file dumps cannot be decoded without server secrets.
  */
 function getVaultMasterKey(): Buffer {
-  const masterSecret =
+  const configuredSecret =
+    cleanEnv(process.env.USER_KEYS_ENCRYPTION_KEY) ||
     cleanEnv(process.env.VAULT_MASTER_KEY) ||
     cleanEnv(process.env.ENCRYPTION_KEY) ||
     cleanEnv(process.env.GITHUB_CLIENT_SECRET) ||
-    cleanEnv(process.env.LIVEKIT_API_SECRET) ||
-    "dsaviz_vault_server_only_master_secret_v1";
-  if (cachedVaultMasterKey && cachedVaultSecretSource === masterSecret) {
+    cleanEnv(process.env.LIVEKIT_API_SECRET);
+
+  if (!configuredSecret) {
+    if (process.env.NODE_ENV === "production") {
+      if (!cachedEphemeralProdKey) {
+        console.error(
+          "🚨 [Vault Security Alert]: No VAULT_MASTER_KEY / ENCRYPTION_KEY configured in production. Generating per-process CSPRNG key."
+        );
+        cachedEphemeralProdKey = crypto.randomBytes(32);
+      }
+      return cachedEphemeralProdKey;
+    }
+    const devFallback = "dsaviz_vault_dev_only_master_secret_v1";
+    if (cachedVaultMasterKey && cachedVaultSecretSource === devFallback) {
+      return cachedVaultMasterKey;
+    }
+    cachedVaultSecretSource = devFallback;
+    cachedVaultMasterKey = crypto.scryptSync(
+      devFallback,
+      "dsaviz_user_api_key_vault_salt_v1",
+      32
+    );
     return cachedVaultMasterKey;
   }
-  cachedVaultSecretSource = masterSecret;
+
+  if (cachedVaultMasterKey && cachedVaultSecretSource === configuredSecret) {
+    return cachedVaultMasterKey;
+  }
+  cachedVaultSecretSource = configuredSecret;
   cachedVaultMasterKey = crypto.scryptSync(
-    masterSecret,
+    configuredSecret,
     "dsaviz_user_api_key_vault_salt_v1",
     32
   );
   return cachedVaultMasterKey;
+}
+
+/**
+ * Optional previous master key for zero-downtime key rotation in production.
+ */
+function getPreviousVaultMasterKey(): Buffer | null {
+  const prevSecret =
+    cleanEnv(process.env.USER_KEYS_ENCRYPTION_KEY_PREVIOUS) ||
+    cleanEnv(process.env.VAULT_MASTER_KEY_PREVIOUS) ||
+    cleanEnv(process.env.ENCRYPTION_KEY_PREVIOUS);
+  if (!prevSecret) return null;
+  if (cachedPrevVaultMasterKey && cachedPrevVaultSecretSource === prevSecret) {
+    return cachedPrevVaultMasterKey;
+  }
+  cachedPrevVaultSecretSource = prevSecret;
+  cachedPrevVaultMasterKey = crypto.scryptSync(
+    prevSecret,
+    "dsaviz_user_api_key_vault_salt_v1",
+    32
+  );
+  return cachedPrevVaultMasterKey;
 }
 
 /**
@@ -202,9 +250,29 @@ export function encryptUserApiKey(plainKey: string, ownerId: string): string {
   return `${iv.toString("hex")}:${encrypted}:${authTag.toString("hex")}`;
 }
 
+function decryptWithKey(
+  iv: Buffer,
+  encryptedText: Buffer,
+  authTag: Buffer,
+  aad: Buffer,
+  key: Buffer
+): string | null {
+  try {
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAAD(aad);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encryptedText, undefined, "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Decrypts an AES-256-GCM encrypted API key strictly inside backend memory.
- * Verifies both the GCM AuthTag and the ownerId AAD binding.
+ * Verifies both the GCM AuthTag and the ownerId AAD binding, with fallback to
+ * getPreviousVaultMasterKey() during key rotation.
  */
 export function decryptUserApiKey(ciphertext: string, ownerId: string): string | null {
   try {
@@ -213,12 +281,16 @@ export function decryptUserApiKey(ciphertext: string, ownerId: string): string |
     const iv = Buffer.from(parts[0]!, "hex");
     const encryptedText = Buffer.from(parts[1]!, "hex");
     const authTag = Buffer.from(parts[2]!, "hex");
-    const decipher = crypto.createDecipheriv("aes-256-gcm", getVaultMasterKey(), iv);
-    decipher.setAAD(Buffer.from(ownerId, "utf8"));
-    decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(encryptedText, undefined, "utf8");
-    decrypted += decipher.final("utf8");
-    return decrypted;
+    const aad = Buffer.from(ownerId, "utf8");
+
+    const primary = decryptWithKey(iv, encryptedText, authTag, aad, getVaultMasterKey());
+    if (primary !== null) return primary;
+
+    const prevKey = getPreviousVaultMasterKey();
+    if (prevKey) {
+      return decryptWithKey(iv, encryptedText, authTag, aad, prevKey);
+    }
+    return null;
   } catch {
     return null;
   }
@@ -255,11 +327,17 @@ export function unsealVaultRecord(
     const iv = Buffer.from(parts[0]!, "base64url");
     const encrypted = Buffer.from(parts[1]!, "base64url");
     const authTag = Buffer.from(parts[2]!, "base64url");
-    const decipher = crypto.createDecipheriv("aes-256-gcm", getVaultMasterKey(), iv);
-    decipher.setAAD(Buffer.from(`vault_envelope:${expectedOwnerId}`, "utf8"));
-    decipher.setAuthTag(authTag);
-    let json = decipher.update(encrypted, undefined, "utf8");
-    json += decipher.final("utf8");
+    const aad = Buffer.from(`vault_envelope:${expectedOwnerId}`, "utf8");
+
+    let json = decryptWithKey(iv, encrypted, authTag, aad, getVaultMasterKey());
+    if (json === null) {
+      const prevKey = getPreviousVaultMasterKey();
+      if (prevKey) {
+        json = decryptWithKey(iv, encrypted, authTag, aad, prevKey);
+      }
+    }
+    if (json === null) return null;
+
     const parsed = JSON.parse(json) as UserVaultRecord;
     if (!parsed || parsed.ownerId !== expectedOwnerId || typeof parsed.providers !== "object") {
       return null;

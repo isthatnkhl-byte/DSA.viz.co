@@ -61,7 +61,7 @@ export const Route = createFileRoute("/problem/$slug")({
     if (!problem) throw notFound();
     return { problem };
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData }: { loaderData?: any }) => {
     if (!loaderData?.problem) {
       return {
         meta: [{ title: "Problem not found — DSA.viz" }, { name: "robots", content: "noindex" }],
@@ -95,7 +95,7 @@ export const Route = createFileRoute("/problem/$slug")({
       </div>
     </div>
   ),
-  errorComponent: ({ error, reset }: { error: Error; reset: () => void }) => (
+  errorComponent: ({ error, reset }: { error: any; reset: () => void }) => (
     <div className="min-h-screen">
       <SiteHeader />
       <div className="mx-auto max-w-md px-4 py-24 text-center">

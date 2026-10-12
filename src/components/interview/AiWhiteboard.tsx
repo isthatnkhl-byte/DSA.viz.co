@@ -831,12 +831,10 @@ export function AiWhiteboard({
       return;
     }
 
-    // Build concise one-way path from the cursor's current position to the step's target
+    // Build concise one-way path from the cursor's current position across the step's active element waypoints
     const rawWaypoints =
-      (isPlayingSteps || isAiTeaching) &&
-      currentFrame.aiLaserWaypoints &&
-      currentFrame.aiLaserWaypoints.length > 0
-        ? currentFrame.aiLaserWaypoints.slice(-2)
+      currentFrame.aiLaserWaypoints && currentFrame.aiLaserWaypoints.length > 0
+        ? currentFrame.aiLaserWaypoints.slice(0, 5)
         : [finalTarget];
 
     const fullCandidates = [

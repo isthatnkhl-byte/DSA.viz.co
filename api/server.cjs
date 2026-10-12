@@ -297868,7 +297868,28 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 }
               });
             }
-            if (Array.isArray(st.nodes)) {
+            const highlightedRowBounds = [];
+            const pointerMarkerWaypoints = [];
+            if (Array.isArray(st.nodes) && st.nodes.length > 0) {
+              const rawLabels = st.nodes.map((n) => String(n?.label ?? "").trim()).filter(Boolean);
+              const rawDataBannerText = typeof parsed.inputSummary === "string" && parsed.inputSummary.trim() ? `Raw Input Data: ${parsed.inputSummary.trim()}` : rawLabels.length >= 2 ? `Raw Input Data: [ ${rawLabels.join(", ")} ]` : "";
+              if (rawDataBannerText) {
+                shapeEls.push(
+                  excalidrawRect("ai-raw-data-bar", 60, 134, Math.max(460, rawDataBannerText.length * 9 + 36), 30, {
+                    strokeColor: "#475569",
+                    backgroundColor: "#f8fafc",
+                    strokeWidth: 1.5,
+                    version: ver
+                  }),
+                  excalidrawText("ai-raw-data-txt", 74, 141, rawDataBannerText, {
+                    fontSize: 13,
+                    strokeColor: "#1e293b",
+                    maxCharsPerLine: 72,
+                    maxLines: 1,
+                    version: ver
+                  })
+                );
+              }
               st.nodes.forEach((n, nIdx) => {
                 const rawId = String(n.id || `node-${nIdx}`);
                 const nid = rawId.replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -297876,13 +297897,13 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 const isSplit = shapeKind === "split_node" || Array.isArray(n.compartments) && n.compartments.length > 1;
                 const nw = Math.max(
                   isSplit ? 110 : 76,
-                  Math.min(240, Number(n.width) || (isSplit ? 132 : 90))
+                  Math.min(240, Number(n.width) || (isSplit ? 132 : 86))
                 );
                 const nh = Math.max(48, Math.min(130, Number(n.height) || 58));
-                let nx = Math.max(60, Number(n.x) || 70 + nIdx * (nw + 22));
-                let ny = Math.max(162, Number(n.y) || 185);
-                const gapX = 20;
-                const gapY = n.sublabel ? 34 : 22;
+                let nx = Math.max(60, Number(n.x) || 70 + nIdx * (nw + 18));
+                let ny = Math.max(182, Number(n.y) || 190);
+                const gapX = 16;
+                const gapY = n.sublabel ? 72 : 34;
                 let guard = 0;
                 while (guard < 40) {
                   const hit = placedNodeRects.find(
@@ -297892,7 +297913,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   nx = hit.x + hit.width + gapX;
                   if (nx + nw > 1120) {
                     nx = 70;
-                    ny = hit.y + hit.height + gapY + 18;
+                    ny = hit.y + hit.height + gapY + 24;
                   }
                   guard++;
                 }
@@ -297900,13 +297921,16 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 nodeBoundsById.set(rawId, { x: nx, y: ny, width: nw, height: nh });
                 nodeBoundsById.set(nid, { x: nx, y: ny, width: nw, height: nh });
                 maxNodeRight = Math.max(maxNodeRight, nx + nw);
+                const subTxt = String(n.pointer || n.marker || n.sublabel || "").trim();
+                const isPointerMarker = Boolean(subTxt) && !/^(idx\s*\d+|\[\d+\]|out|done|none|inactive|-)$/i.test(subTxt);
                 maxNodeBottom = Math.max(
                   maxNodeBottom,
-                  ny + nh + (n.sublabel ? 28 : 8)
+                  ny + nh + (isPointerMarker ? 86 : 32)
                 );
-                const theme = resolveTheme(n.color, "slate");
+                const theme = resolveTheme(n.color, n.highlight ? "amber" : "slate");
                 const strokeW = n.highlight ? 3 : 2;
                 if (n.highlight) {
+                  highlightedRowBounds.push({ x: nx, y: ny, width: nw, height: nh });
                   stepWaypoints.push({
                     x: Math.round(nx + nw / 2),
                     y: Math.round(ny + nh / 2)
@@ -297925,7 +297949,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                       strokeColor: theme.stroke,
                       backgroundColor: theme.bg,
                       strokeWidth: strokeW,
-                      sublabel: n.sublabel ? String(n.sublabel) : void 0,
+                      sublabel: subTxt || `[${nIdx}]`,
                       sublabelColor: theme.stroke,
                       version: ver
                     })
@@ -297964,11 +297988,11 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                     shapeEls.push(
                       excalidrawText(
                         `ai-lbl-${nid}`,
-                        nx + 10,
-                        ny + Math.max(10, Math.floor(nh / 2) - 12),
+                        nx + Math.max(12, Math.floor(nw / 2) - String(n.label).length * 5),
+                        ny + Math.max(12, Math.floor(nh / 2) - 11),
                         String(n.label),
                         {
-                          fontSize: 15,
+                          fontSize: 18,
                           strokeColor: "#0f172a",
                           maxCharsPerLine: maxChars,
                           maxLines: 2,
@@ -297977,29 +298001,90 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                       )
                     );
                   }
-                  if (n.sublabel) {
+                  shapeEls.push(
+                    excalidrawText(
+                      `ai-idx-${nid}`,
+                      nx + Math.max(10, Math.floor(nw / 2) - 12),
+                      ny + nh + 6,
+                      `[${nIdx}]`,
+                      {
+                        fontSize: 12,
+                        strokeColor: "#64748b",
+                        maxCharsPerLine: 10,
+                        maxLines: 1,
+                        version: ver
+                      }
+                    )
+                  );
+                  if (isPointerMarker) {
+                    const ptrCenterX = nx + Math.round(nw / 2);
+                    const ptrColor = /\b(l|left|low|start|i|prev|slow|min)\b/i.test(subTxt) ? "#059669" : /\b(r|right|high|end|j|curr|fast|max)\b/i.test(subTxt) ? "#e11d48" : theme.stroke;
                     shapeEls.push(
+                      excalidrawArrow(
+                        `ai-ptr-arr-${nid}`,
+                        ptrCenterX,
+                        ny + nh + 58,
+                        ptrCenterX,
+                        ny + nh + 24,
+                        {
+                          strokeColor: ptrColor,
+                          strokeWidth: 3,
+                          version: ver
+                        }
+                      ),
                       excalidrawText(
                         `ai-sub-${nid}`,
-                        nx + 6,
-                        ny + nh + 6,
-                        String(n.sublabel),
+                        Math.max(60, ptrCenterX - Math.min(36, subTxt.length * 4)),
+                        ny + nh + 62,
+                        subTxt,
                         {
-                          fontSize: 12,
-                          strokeColor: theme.stroke,
+                          fontSize: 14,
+                          strokeColor: ptrColor,
                           maxCharsPerLine: 18,
                           maxLines: 1,
                           version: ver
                         }
                       )
                     );
+                    pointerMarkerWaypoints.push({
+                      x: ptrCenterX,
+                      y: ny + Math.round(nh / 2)
+                    });
                   }
                 }
               });
+              if (highlightedRowBounds.length >= 2) {
+                const baseRowY = highlightedRowBounds[0].y;
+                const sameRowHi = highlightedRowBounds.filter(
+                  (b) => Math.abs(b.y - baseRowY) < 28
+                );
+                if (sameRowHi.length >= 2) {
+                  const minX = Math.min(...sameRowHi.map((b) => b.x));
+                  const maxX = Math.max(...sameRowHi.map((b) => b.x + b.width));
+                  const maxH = Math.max(...sameRowHi.map((b) => b.height));
+                  shapeEls.unshift(
+                    excalidrawRect(
+                      "ai-win-frame",
+                      minX - 8,
+                      baseRowY - 10,
+                      maxX - minX + 16,
+                      maxH + 20,
+                      {
+                        strokeColor: "#d97706",
+                        backgroundColor: "transparent",
+                        strokeWidth: 3,
+                        strokeStyle: "dashed",
+                        version: ver
+                      }
+                    )
+                  );
+                }
+              }
             }
             const rawVars = Array.isArray(st.stateVars) ? st.stateVars : Array.isArray(st.variables) ? st.variables : [];
+            let lastTrackerCardCenter = null;
             if (rawVars.length > 0) {
-              const trackerY = Math.max(296, maxNodeBottom + 30);
+              const trackerY = Math.max(310, maxNodeBottom + 24);
               const cappedVars = rawVars.slice(0, 4);
               const cardGap = 16;
               const cardW = Math.max(
@@ -298034,8 +298119,15 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   })
                 );
                 maxNodeRight = Math.max(maxNodeRight, vx + cardW);
+                if (vIdx === cappedVars.length - 1 || vIdx === 1) {
+                  lastTrackerCardCenter = {
+                    x: Math.round(vx + cardW / 2),
+                    y: Math.round(trackerY + 28)
+                  };
+                }
               });
             }
+            const cleanStepTitle = String(st.title || `Step ${ver}`).replace(/^step\s*\d+(?:\s*\/\s*\d+)?\s*[:.\-–—]\s*/i, "").trim() || `Step ${ver}`;
             const hdrWidth = Math.max(680, maxNodeRight - 60);
             const els = [
               excalidrawRect("ai-hdr-box", 60, 32, hdrWidth, 94, {
@@ -298047,7 +298139,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 "ai-hdr-title",
                 78,
                 44,
-                `Step ${ver}/${rawSteps.length}: ${String(st.title || "Simulation Step")}`,
+                `Step ${ver}/${rawSteps.length}: ${cleanStepTitle}`,
                 {
                   fontSize: 16,
                   strokeColor: "#0369a1",
@@ -298154,17 +298246,42 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 }
               });
             }
-            const parsedWaypoints = Array.isArray(st.waypoints) ? st.waypoints.map((wp) => ({
+            const uniqueNodeWaypoints = [];
+            for (const pt of [...stepWaypoints, ...pointerMarkerWaypoints]) {
+              const exists = uniqueNodeWaypoints.some(
+                (u) => Math.hypot(pt.x - u.x, pt.y - u.y) <= 12
+              );
+              if (!exists) {
+                uniqueNodeWaypoints.push(pt);
+              }
+            }
+            const firstActivePt = uniqueNodeWaypoints[0];
+            const lastActivePt = uniqueNodeWaypoints[uniqueNodeWaypoints.length - 1];
+            const realElementWaypoints = [];
+            if (firstActivePt) {
+              realElementWaypoints.push(firstActivePt);
+            }
+            if (lastActivePt && (!firstActivePt || Math.hypot(lastActivePt.x - firstActivePt.x, lastActivePt.y - firstActivePt.y) > 12)) {
+              realElementWaypoints.push(lastActivePt);
+            }
+            if (lastTrackerCardCenter) {
+              realElementWaypoints.push(lastTrackerCardCenter);
+            }
+            if (lastActivePt) {
+              realElementWaypoints.push(lastActivePt);
+            }
+            const fallbackWaypoints = Array.isArray(st.waypoints) ? st.waypoints.map((wp) => ({
               x: Number(wp?.x) || 260,
               y: Number(wp?.y) || 210
-            })).slice(0, 6) : stepWaypoints;
-            const primaryLaser = {
+            })).slice(0, 5) : [];
+            const parsedWaypoints = realElementWaypoints.length > 0 ? realElementWaypoints : fallbackWaypoints;
+            const primaryLaser = lastActivePt || realElementWaypoints[realElementWaypoints.length - 1] || {
               x: Number(st.laserX) || parsedWaypoints[parsedWaypoints.length - 1]?.x || 260,
               y: Number(st.laserY) || parsedWaypoints[parsedWaypoints.length - 1]?.y || 210
             };
             return {
               stepIndex: sIdx,
-              title: String(st.title || `Step ${ver}`),
+              title: cleanStepTitle,
               narration: String(st.narration || ""),
               mathInvariant: String(st.mathInvariant || ""),
               elements: els,

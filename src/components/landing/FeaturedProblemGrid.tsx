@@ -52,8 +52,11 @@ export function FeaturedProblemGrid() {
             <Flame className="size-3.5 text-primary" />
             <span>Interactive Algorithmic Catalog</span>
           </div>
-          <h3 className="text-2xl sm:text-4xl font-display font-black text-foreground">
-            High-Frequency Classics
+          <h3 className="text-3xl sm:text-4xl md:text-5xl font-display font-black tracking-tight text-foreground">
+            High-Frequency <br />
+            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent font-pixel text-4xl sm:text-5xl md:text-6xl py-2 block mt-6 mb-4 drop-shadow-[0_0_20px_color-mix(in_oklch,var(--primary)_60%,transparent)]">
+              Classics
+            </span>
           </h3>
           <p className="text-sm text-muted-foreground font-sans mt-1">
             Pick a problem to launch live visualizer simulations and AI feedback.

@@ -492,8 +492,8 @@ export function LiveVisualizerCard() {
         </div>
 
         <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground leading-[1.1]">
-          Watch Code, Pointers &amp; Memory{" "}
-          <span className="bg-gradient-to-r from-primary via-accent to-complement bg-clip-text text-transparent">
+          Watch Code, Pointers &amp; Memory <br />
+          <span className="bg-gradient-to-r from-primary via-accent to-complement bg-clip-text text-transparent font-pixel text-3xl sm:text-4xl md:text-5xl py-2 block mt-6 mb-4 drop-shadow-[0_0_20px_color-mix(in_oklch,var(--primary)_60%,transparent)]">
             Lock In Real Time
           </span>
         </h2>

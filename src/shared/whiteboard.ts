@@ -248,6 +248,33 @@ export interface WhiteboardSelectedElementSummary {
   backgroundColor?: string;
 }
 
+export interface LinkedZoneContext {
+  zoneId: string;
+  zoneNumber: number;
+  topic: string;
+  badge: string;
+  activeStepIndex: number;
+  activeStepTitle: string;
+  activeStepNarration: string;
+  activeStepMathInvariant: string;
+  allStepsSummary: Array<{
+    stepNumber: number;
+    title: string;
+    narration: string;
+    mathInvariant: string;
+  }>;
+  dataValues: number[];
+  dataLabels: string[];
+  bounds?: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+    width: number;
+    height: number;
+  } | null;
+}
+
 export interface WhiteboardSelectionContext {
   selectedElements: WhiteboardSelectedElementSummary[];
   bounds?: {
@@ -261,6 +288,7 @@ export interface WhiteboardSelectionContext {
   extractedNumbers?: number[];
   extractedTexts?: string[];
   mode?: "branch" | "takeover";
+  linkedZone?: LinkedZoneContext | null;
 }
 
 export function wrapWhiteboardText(
@@ -3415,16 +3443,226 @@ export function buildExcalidrawSortingPartitionLesson(
   };
 }
 
+function isZoneUiChromeElementId(rawId: string): boolean {
+  const id = String(rawId || "");
+  return (
+    id.endsWith("__zone-card") ||
+    id.endsWith("__zone-hdr") ||
+    id.endsWith("__zone-title") ||
+    id.endsWith("__zone-model-box") ||
+    id.endsWith("__zone-model-txt") ||
+    id.endsWith("__zone-sel-banner") ||
+    id.endsWith("__zone-sel-txt") ||
+    id.endsWith("__zone-branch-arrow") ||
+    id.endsWith("__zone-branch-lbl") ||
+    id.endsWith("__ai-title") ||
+    id.endsWith("__ai-badge") ||
+    id.endsWith("__ai-narration") ||
+    id.endsWith("__ai-math-pill") ||
+    id.includes("__ai-idx-lbl-") ||
+    id.includes("__ai-ptr-lbl-") ||
+    id.includes("__ai-ptr-arr-") ||
+    id.endsWith("hdr-title") ||
+    id.endsWith("hdr-sub") ||
+    id.endsWith("nar-txt") ||
+    id.endsWith("inv-txt")
+  );
+}
+
 /**
- * Extracts structured insight (bounding box, numbers, text labels, shapes)
- * from the elements the user drag-selected on the Excalidraw whiteboard.
+ * Builds rich semantic context (`LinkedZoneContext`) for a specific simulation zone
+ * so the AI Co-Teacher knows its exact topic, step history, active step, and data values.
+ */
+export function buildLinkedZoneContextFromLesson(
+  zone: AiWhiteboardLesson,
+  zoneIndex: number,
+  activeStepIndex = 0
+): LinkedZoneContext {
+  const safeStepIdx = Math.max(
+    0,
+    Math.min(activeStepIndex, Math.max(0, zone.frames.length - 1))
+  );
+  const currentFrame = zone.frames[safeStepIdx] ?? zone.frames[0];
+  const frameElements = currentFrame?.elements ?? [];
+
+  const dataValues: number[] = [];
+  const dataLabels: string[] = [];
+
+  // 1. Check if the frame has an explicit raw input banner (e.g. "Input Data: [2, 1, 5, 1, 3, 2]")
+  const rawBannerEl = frameElements.find((el) =>
+    String(el.id || "").endsWith("__ai-raw-data-txt")
+  );
+  if (rawBannerEl && typeof rawBannerEl.text === "string") {
+    const matches = rawBannerEl.text.match(/-?\d+/g);
+    if (matches) {
+      for (const m of matches) {
+        const n = Number(m);
+        if (!Number.isNaN(n) && dataValues.length < 16) {
+          dataValues.push(n);
+        }
+      }
+    }
+  }
+
+  // 2. Sort frame elements left-to-right and extract clean node values and state labels
+  const sortedEls = [...frameElements].sort(
+    (a, b) => (Number(a.x) || 0) - (Number(b.x) || 0)
+  );
+  const needNodeValues = dataValues.length === 0;
+
+  for (const el of sortedEls) {
+    if (!el || el.isDeleted || typeof el.text !== "string") continue;
+    const idStr = String(el.id || "");
+    const txt = el.text.trim();
+    if (!txt) continue;
+    if (isZoneUiChromeElementId(idStr)) continue;
+    if (idStr.endsWith("__ai-raw-data-txt")) {
+      dataLabels.push(txt);
+      continue;
+    }
+
+    if (idStr.includes("__ai-sv-txt-")) {
+      dataLabels.push(txt.replace(/\n+/g, ": "));
+      continue;
+    }
+
+    // Ignore bracketed index labels like [0], [1]
+    if (/^\[\d+\]$/.test(txt)) continue;
+
+    dataLabels.push(txt.replace(/\n+/g, " "));
+
+    // Extract pure node numeric values if raw input banner wasn't present
+    if (needNodeValues && /^-?\d+$/.test(txt)) {
+      const n = Number(txt);
+      if (!Number.isNaN(n) && dataValues.length < 16) {
+        dataValues.push(n);
+      }
+    }
+  }
+
+  // Fallback: if no standalone integer boxes were found, extract numbers from non-chrome data labels
+  if (dataValues.length === 0) {
+    for (const lbl of dataLabels) {
+      if (/^Step\s+\d+/i.test(lbl) || /O\([^)]+\)/.test(lbl)) continue;
+      const matches = lbl.match(/-?\d+/g);
+      if (matches) {
+        for (const m of matches) {
+          const n = Number(m);
+          if (!Number.isNaN(n) && dataValues.length < 16) {
+            dataValues.push(n);
+          }
+        }
+      }
+    }
+  }
+
+  const bounds = zone.zoneBounds
+    ? {
+        minX: Math.round(zone.zoneBounds.x),
+        minY: Math.round(zone.zoneBounds.y),
+        maxX: Math.round(zone.zoneBounds.x + zone.zoneBounds.width),
+        maxY: Math.round(zone.zoneBounds.y + zone.zoneBounds.height),
+        width: Math.round(zone.zoneBounds.width),
+        height: Math.round(zone.zoneBounds.height),
+      }
+    : null;
+
+  return {
+    zoneId: zone.zoneId || `zone_${zoneIndex + 1}`,
+    zoneNumber: zoneIndex + 1,
+    topic: zone.topic,
+    badge: zone.badge,
+    activeStepIndex: safeStepIdx,
+    activeStepTitle: currentFrame?.title || "",
+    activeStepNarration: currentFrame?.narration || "",
+    activeStepMathInvariant: currentFrame?.mathInvariant || "",
+    allStepsSummary: zone.frames.map((f, idx) => ({
+      stepNumber: idx + 1,
+      title: f.title,
+      narration: f.narration,
+      mathInvariant: f.mathInvariant,
+    })),
+    dataValues,
+    dataLabels: dataLabels.slice(0, 18),
+    bounds,
+  };
+}
+
+/**
+ * Creates a complete `WhiteboardSelectionContext` directly linked to a specific Zone
+ * (used when the user clicks "Tag / Link Zone" or selects a previous zone from the Board Zones bar).
+ */
+export function createSelectionContextForZone(
+  zone: AiWhiteboardLesson,
+  zoneIndex: number,
+  activeStepIndex = 0,
+  mode: "branch" | "takeover" = "branch"
+): WhiteboardSelectionContext {
+  const linkedZone = buildLinkedZoneContextFromLesson(
+    zone,
+    zoneIndex,
+    activeStepIndex
+  );
+  const currentFrame =
+    zone.frames[linkedZone.activeStepIndex] ?? zone.frames[0];
+  const frameElements = currentFrame?.elements ?? [];
+
+  const summaries: WhiteboardSelectedElementSummary[] = frameElements
+    .filter((el) => el && !el.isDeleted && !isZoneUiChromeElementId(String(el.id || "")))
+    .slice(0, 25)
+    .map((el) => ({
+      id: String(el.id),
+      type: String(el.type),
+      x: Math.round(Number(el.x) || 0),
+      y: Math.round(Number(el.y) || 0),
+      width: Math.round(Number(el.width) || 40),
+      height: Math.round(Number(el.height) || 40),
+      text: typeof el.text === "string" ? el.text.slice(0, 120) : undefined,
+      strokeColor: el.strokeColor,
+      backgroundColor: el.backgroundColor,
+    }));
+
+  return {
+    selectedElements:
+      summaries.length > 0
+        ? summaries
+        : [
+            {
+              id: `${linkedZone.zoneId}__zone-card`,
+              type: "rectangle",
+              x: linkedZone.bounds?.minX ?? 40,
+              y: linkedZone.bounds?.minY ?? 40,
+              width: linkedZone.bounds?.width ?? 760,
+              height: linkedZone.bounds?.height ?? 520,
+              text: linkedZone.topic,
+            },
+          ],
+    bounds: linkedZone.bounds,
+    extractedNumbers: linkedZone.dataValues,
+    extractedTexts: linkedZone.dataLabels,
+    mode,
+    linkedZone,
+  };
+}
+
+/**
+ * Extracts structured insight (bounding box, numbers, text labels, shapes, and parent LinkedZoneContext)
+ * from the elements the user clicked or drag-selected on the Excalidraw whiteboard.
  */
 export function extractWhiteboardSelectionContext(
   allSceneElements: readonly any[],
-  selectedElementIds: Record<string, boolean> | undefined | null
+  selectedElementIds: Record<string, boolean> | undefined | null,
+  zonesHistory?: readonly AiWhiteboardLesson[],
+  zoneStepMap?: ReadonlyMap<string, number>
 ): WhiteboardSelectionContext {
   if (!selectedElementIds) {
-    return { selectedElements: [], bounds: null, extractedNumbers: [], extractedTexts: [] };
+    return {
+      selectedElements: [],
+      bounds: null,
+      extractedNumbers: [],
+      extractedTexts: [],
+      linkedZone: null,
+    };
   }
   const activeIds = new Set(
     Object.entries(selectedElementIds)
@@ -3432,14 +3670,37 @@ export function extractWhiteboardSelectionContext(
       .map(([id]) => id)
   );
   if (activeIds.size === 0) {
-    return { selectedElements: [], bounds: null, extractedNumbers: [], extractedTexts: [] };
+    return {
+      selectedElements: [],
+      bounds: null,
+      extractedNumbers: [],
+      extractedTexts: [],
+      linkedZone: null,
+    };
   }
 
   const directSelected = allSceneElements.filter(
     (el) => el && !el.isDeleted && activeIds.has(el.id)
   );
   if (directSelected.length === 0) {
-    return { selectedElements: [], bounds: null, extractedNumbers: [], extractedTexts: [] };
+    return {
+      selectedElements: [],
+      bounds: null,
+      extractedNumbers: [],
+      extractedTexts: [],
+      linkedZone: null,
+    };
+  }
+
+  // Detect if any selected element belongs to a bounded simulation zone (e.g. "zone_1__...")
+  let detectedZoneId: string | null = null;
+  for (const el of directSelected) {
+    const idStr = String(el.id || "");
+    const m = idStr.match(/^(zone_\d+)__/);
+    if (m?.[1]) {
+      detectedZoneId = m[1];
+      break;
+    }
   }
 
   let minX = Infinity;
@@ -3456,6 +3717,39 @@ export function extractWhiteboardSelectionContext(
     minY = Math.min(minY, y);
     maxX = Math.max(maxX, x + w);
     maxY = Math.max(maxY, y + h);
+  }
+
+  // If no zone prefix was directly on the selected shape, check if selection bounds lie inside an existing zone
+  if (!detectedZoneId && zonesHistory && zonesHistory.length > 0) {
+    const selCx = (minX + maxX) / 2;
+    const selCy = (minY + maxY) / 2;
+    for (const z of zonesHistory) {
+      if (!z.zoneBounds || !z.zoneId) continue;
+      const zb = z.zoneBounds;
+      if (
+        selCx >= zb.x &&
+        selCx <= zb.x + zb.width &&
+        selCy >= zb.y &&
+        selCy <= zb.y + zb.height
+      ) {
+        detectedZoneId = z.zoneId;
+        break;
+      }
+    }
+  }
+
+  let linkedZone: LinkedZoneContext | null = null;
+  if (detectedZoneId && zonesHistory && zonesHistory.length > 0) {
+    const zIdx = zonesHistory.findIndex((z) => z.zoneId === detectedZoneId);
+    if (zIdx >= 0) {
+      const matchedZone = zonesHistory[zIdx]!;
+      const stepForZone = zoneStepMap?.get(detectedZoneId) ?? 0;
+      linkedZone = buildLinkedZoneContextFromLesson(
+        matchedZone,
+        zIdx,
+        stepForZone
+      );
+    }
   }
 
   // Also include any text/shapes spatially inside the user's drag-selected bounding box
@@ -3475,25 +3769,42 @@ export function extractWhiteboardSelectionContext(
   const extractedTexts: string[] = [];
 
   for (const el of sortedByX) {
+    const idStr = String(el.id || "");
+    if (isZoneUiChromeElementId(idStr)) continue;
     if (typeof el.text === "string" && el.text.trim()) {
       const txt = el.text.trim();
+      if (/^\[\d+\]$/.test(txt)) continue;
       extractedTexts.push(txt);
-      // Extract standalone numbers (excluding bracketed indices like [0], [1])
-      if (!/^\[\d+\]$/.test(txt)) {
-        const matches = txt.match(/-?\d+/g);
-        if (matches) {
-          for (const m of matches) {
-            const n = Number(m);
-            if (!Number.isNaN(n) && extractedNumbers.length < 16) {
-              extractedNumbers.push(n);
-            }
+      const matches = txt.match(/-?\d+/g);
+      if (matches) {
+        for (const m of matches) {
+          const n = Number(m);
+          if (!Number.isNaN(n) && extractedNumbers.length < 16) {
+            extractedNumbers.push(n);
           }
         }
       }
     }
   }
 
+  // If the user clicked a zone card/header or a single element inside a linked zone,
+  // enrich extractedNumbers and extractedTexts with the linked zone's full dataset
+  const finalNumbers =
+    extractedNumbers.length >= 2
+      ? extractedNumbers
+      : linkedZone && linkedZone.dataValues.length > 0
+      ? linkedZone.dataValues
+      : extractedNumbers;
+
+  const finalTexts =
+    extractedTexts.length >= 2
+      ? extractedTexts.slice(0, 16)
+      : linkedZone && linkedZone.dataLabels.length > 0
+      ? Array.from(new Set([...extractedTexts, ...linkedZone.dataLabels])).slice(0, 16)
+      : extractedTexts.slice(0, 16);
+
   const summaries: WhiteboardSelectedElementSummary[] = sortedByX
+    .filter((el) => !isZoneUiChromeElementId(String(el.id || "")))
     .slice(0, 25)
     .map((el) => ({
       id: String(el.id),
@@ -3507,18 +3818,32 @@ export function extractWhiteboardSelectionContext(
       backgroundColor: el.backgroundColor,
     }));
 
+  const effectiveBounds = linkedZone?.bounds ?? {
+    minX: Math.round(minX),
+    minY: Math.round(minY),
+    maxX: Math.round(maxX),
+    maxY: Math.round(maxY),
+    width: Math.round(maxX - minX),
+    height: Math.round(maxY - minY),
+  };
+
   return {
-    selectedElements: summaries,
-    bounds: {
-      minX: Math.round(minX),
-      minY: Math.round(minY),
-      maxX: Math.round(maxX),
-      maxY: Math.round(maxY),
-      width: Math.round(maxX - minX),
-      height: Math.round(maxY - minY),
-    },
-    extractedNumbers,
-    extractedTexts: extractedTexts.slice(0, 12),
+    selectedElements:
+      summaries.length > 0
+        ? summaries
+        : directSelected.slice(0, 10).map((el) => ({
+            id: String(el.id),
+            type: String(el.type),
+            x: Math.round(Number(el.x) || 0),
+            y: Math.round(Number(el.y) || 0),
+            width: Math.round(Number(el.width) || 40),
+            height: Math.round(Number(el.height) || 40),
+            text: typeof el.text === "string" ? el.text.slice(0, 120) : undefined,
+          })),
+    bounds: effectiveBounds,
+    extractedNumbers: finalNumbers,
+    extractedTexts: finalTexts,
+    linkedZone,
   };
 }
 
@@ -3993,15 +4318,19 @@ export function generateAiExcalidrawLessonForQuery(
   query: string,
   selectionContext?: WhiteboardSelectionContext | null
 ): AiWhiteboardLesson {
-  const q = query.toLowerCase();
+  const linkedTopic = selectionContext?.linkedZone?.topic || "";
+  const q = `${query} ${linkedTopic}`.toLowerCase();
 
-  // Merge numbers from user's text query AND numbers extracted from user's drag-selected whiteboard elements!
+  // Merge numbers from user's text query AND numbers extracted from user's drag-selected / linked whiteboard zone!
   const queryNums =
     query
       .match(/-?\d+/g)
       ?.map(Number)
       .filter((n) => !Number.isNaN(n)) || [];
-  const selectedNums = selectionContext?.extractedNumbers || [];
+  const selectedNums =
+    selectionContext?.extractedNumbers && selectionContext.extractedNumbers.length > 0
+      ? selectionContext.extractedNumbers
+      : selectionContext?.linkedZone?.dataValues || [];
   const combinedNums = queryNums.length >= 2 ? queryNums : selectedNums;
 
   // 1. Graphs / Shortest Path / Dijkstra / Bellman-Ford / Topological Sort / Union-Find

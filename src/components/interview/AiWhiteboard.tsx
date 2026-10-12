@@ -55,6 +55,8 @@ import {
   buildExcalidrawSortingPartitionLesson,
   generateAiExcalidrawLessonForQuery,
   extractWhiteboardSelectionContext,
+  buildLinkedZoneContextFromLesson,
+  createSelectionContextForZone,
   wrapLessonInBoundedZone,
   measureLessonZoneDimensions,
   findDynamicCleanBoardPosition,
@@ -565,10 +567,11 @@ export function AiWhiteboard({
       const selCtx = opts?.selCtx ?? null;
       const mode = opts?.mode ?? selectionMode;
 
-      // If taking over a user selection, remove the raw selected elements so the new bounded zone replaces them cleanly
+      // If taking over a user freehand selection, remove the raw selected elements so the new bounded zone replaces them cleanly
       if (
         mode === "takeover" &&
         selCtx &&
+        !selCtx.linkedZone &&
         selCtx.selectedElements.length > 0 &&
         excalidrawAPI
       ) {
@@ -580,19 +583,36 @@ export function AiWhiteboard({
       }
 
       const prevZones = zonesHistoryRef.current;
+      const takeoverZoneIdx =
+        mode === "takeover" && selCtx?.linkedZone?.zoneId
+          ? prevZones.findIndex((z) => z.zoneId === selCtx.linkedZone?.zoneId)
+          : -1;
+
       const replaceInitialBootPlaceholder =
+        takeoverZoneIdx < 0 &&
         prevZones.length === 1 &&
         prevZones[0]?.id === "initial_boot_preset" &&
         !selCtx;
 
-      const selectionBannerText =
-        selCtx && selCtx.selectedElements.length > 0
-          ? selCtx.extractedNumbers && selCtx.extractedNumbers.length > 0
-            ? `Values [${selCtx.extractedNumbers.join(", ")}] (${
-                mode === "takeover" ? "Taken Over" : "Branched"
-              })`
-            : `${selCtx.selectedElements.length} selected shapes`
-          : undefined;
+      const hasSelContext =
+        Boolean(selCtx?.linkedZone) ||
+        Boolean(selCtx && selCtx.selectedElements.length > 0);
+
+      const selectionBannerText = hasSelContext
+        ? selCtx?.linkedZone
+          ? `${mode === "takeover" ? "Taken Over" : "Branched from"} Zone #${
+              selCtx.linkedZone.zoneNumber
+            }: ${selCtx.linkedZone.topic.slice(0, 32)}${
+              selCtx.extractedNumbers && selCtx.extractedNumbers.length > 0
+                ? ` • [${selCtx.extractedNumbers.slice(0, 6).join(", ")}]`
+                : ""
+            }`
+          : selCtx?.extractedNumbers && selCtx.extractedNumbers.length > 0
+          ? `Values [${selCtx.extractedNumbers.join(", ")}] (${
+              mode === "takeover" ? "Taken Over" : "Branched"
+            })`
+          : `${selCtx?.selectedElements.length ?? 0} selected shapes`
+        : undefined;
 
       const { zoneWidth, zoneHeight } = measureLessonZoneDimensions(
         rawLesson,
@@ -605,7 +625,14 @@ export function AiWhiteboard({
       let originY: number;
       let connectedFromBounds: WhiteboardSelectionContext["bounds"] | undefined;
 
-      if (replaceInitialBootPlaceholder) {
+      if (takeoverZoneIdx >= 0) {
+        const targetZone = prevZones[takeoverZoneIdx]!;
+        zoneId = targetZone.zoneId || `zone_${takeoverZoneIdx + 1}`;
+        zoneIndex = takeoverZoneIdx;
+        originX = targetZone.zoneBounds?.x ?? 40;
+        originY = targetZone.zoneBounds?.y ?? 40;
+        connectedFromBounds = undefined;
+      } else if (replaceInitialBootPlaceholder) {
         zoneCounterRef.current = 1;
         zoneId = "zone_1";
         zoneIndex = 0;
@@ -617,11 +644,15 @@ export function AiWhiteboard({
         zoneCounterRef.current = nextZoneNum;
         zoneId = `zone_${nextZoneNum}`;
         zoneIndex = prevZones.length;
+        const effectiveSelCtx =
+          selCtx && selCtx.linkedZone?.bounds
+            ? { ...selCtx, bounds: selCtx.linkedZone.bounds }
+            : selCtx;
         const pos = computeNextFreeZoneOrigin(
           zoneWidth,
           zoneHeight,
           prevZones,
-          selCtx,
+          effectiveSelCtx,
           mode
         );
         originX = pos.originX;
@@ -639,14 +670,29 @@ export function AiWhiteboard({
       });
 
       zoneStepMapRef.current.set(zoneId, 0);
-      const updated = replaceInitialBootPlaceholder
-        ? [wrapped]
-        : [...prevZones, wrapped];
+      const updated =
+        takeoverZoneIdx >= 0
+          ? prevZones.map((z, idx) => (idx === takeoverZoneIdx ? wrapped : z))
+          : replaceInitialBootPlaceholder
+          ? [wrapped]
+          : [...prevZones, wrapped];
+      const newActiveIdx =
+        takeoverZoneIdx >= 0 ? takeoverZoneIdx : updated.length - 1;
       zonesHistoryRef.current = updated;
       setZonesHistory(updated);
-      setActiveZoneIdx(updated.length - 1);
+      setActiveZoneIdx(newActiveIdx);
       setStepIndex(0);
       setIsPlayingSteps(true);
+
+      // Clear selection after spawning so the newly created/updated zone is ready
+      lastSelectionHashRef.current = "";
+      setSelectionContext({
+        selectedElements: [],
+        bounds: null,
+        extractedNumbers: [],
+        extractedTexts: [],
+        linkedZone: null,
+      });
 
       // Immediately synchronize all zones onto the Excalidraw canvas and focus camera on the new zone
       if (wrapped.frames[0]) {
@@ -1070,7 +1116,7 @@ export function AiWhiteboard({
   // Track changes & user drag-selection from Excalidraw onChange
   const handleExcalidrawChange = useCallback(
     (els: readonly any[], appState?: any) => {
-      // 1. Inspect user's drag-selected area on the whiteboard!
+      // 1. Inspect user's drag-selected area on the whiteboard and auto-detect any linked simulation zone!
       const selectedMap = appState?.selectedElementIds as
         | Record<string, boolean>
         | undefined;
@@ -1081,8 +1127,28 @@ export function AiWhiteboard({
           .join(",");
         if (activeSelectedKeys !== lastSelectionHashRef.current) {
           lastSelectionHashRef.current = activeSelectedKeys;
-          const ctx = extractWhiteboardSelectionContext(els, selectedMap);
-          setSelectionContext(ctx);
+          if (activeSelectedKeys.length > 0) {
+            const ctx = extractWhiteboardSelectionContext(
+              els,
+              selectedMap,
+              zonesHistoryRef.current,
+              zoneStepMapRef.current
+            );
+            setSelectionContext(ctx);
+          } else {
+            // Keep a linkedZone pinned when the user clicks into the text box so typing a query never drops the zone link!
+            setSelectionContext((prev) =>
+              prev.linkedZone
+                ? prev
+                : {
+                    selectedElements: [],
+                    bounds: null,
+                    extractedNumbers: [],
+                    extractedTexts: [],
+                    linkedZone: null,
+                  }
+            );
+          }
         }
       }
 
@@ -1102,39 +1168,101 @@ export function AiWhiteboard({
     [flushChanges, readOnly]
   );
 
-  // Ask AI to Draw, Simulate, and Teach ANY User Query (aware of drag-selected whiteboard area!)
+  // Ask AI to Draw, Simulate, and Teach ANY User Query (aware of linked/tagged zone & drag-selected whiteboard area!)
   const handleRunAiWhiteboardQuery = useCallback(
     async (customQuery?: string, forcedMode?: "branch" | "takeover") => {
       stopAllVoiceNarration();
 
       const q = (customQuery ?? aiQueryInput).trim();
       const effectiveMode = forcedMode ?? selectionMode;
-      // Only attach selection context when the user explicitly clicked a selection action or has an active selection
-      const activeSel =
-        forcedMode && selectionContext.selectedElements.length > 0
-          ? { ...selectionContext, mode: effectiveMode }
-          : null;
+
+      const hasSel =
+        selectionContext.selectedElements.length > 0 ||
+        Boolean(selectionContext.linkedZone);
+
+      const refreshedLinkedZone = selectionContext.linkedZone
+        ? (() => {
+            const zIdx = zonesHistoryRef.current.findIndex(
+              (z) => z.zoneId === selectionContext.linkedZone?.zoneId
+            );
+            if (zIdx >= 0) {
+              const z = zonesHistoryRef.current[zIdx]!;
+              const sIdx =
+                (z.zoneId ? zoneStepMapRef.current.get(z.zoneId) : 0) ?? 0;
+              return buildLinkedZoneContextFromLesson(z, zIdx, sIdx);
+            }
+            return selectionContext.linkedZone;
+          })()
+        : null;
+
+      // Always attach selectionContext whenever the user has selected elements or linked a zone!
+      const activeSel: WhiteboardSelectionContext | null = hasSel
+        ? {
+            ...selectionContext,
+            mode: effectiveMode,
+            linkedZone: refreshedLinkedZone,
+            extractedNumbers:
+              selectionContext.extractedNumbers &&
+              selectionContext.extractedNumbers.length >= 2
+                ? selectionContext.extractedNumbers
+                : refreshedLinkedZone?.dataValues ??
+                  selectionContext.extractedNumbers,
+            extractedTexts:
+              selectionContext.extractedTexts &&
+              selectionContext.extractedTexts.length >= 2
+                ? selectionContext.extractedTexts
+                : refreshedLinkedZone?.dataLabels ??
+                  selectionContext.extractedTexts,
+            bounds:
+              selectionContext.bounds ?? refreshedLinkedZone?.bounds ?? null,
+          }
+        : null;
 
       if (!q && !activeSel) {
         toast.info(
-          "Type a question or drag-select an area on the whiteboard for the AI to simulate!"
+          "Type a question or select a zone on the whiteboard for the AI to simulate!"
         );
         return;
       }
 
       const finalQuery =
         q ||
-        (activeSel?.extractedNumbers && activeSel.extractedNumbers.length >= 2
+        (activeSel?.linkedZone
+          ? effectiveMode === "takeover"
+            ? `Take over Zone #${activeSel.linkedZone.zoneNumber} ("${
+                activeSel.linkedZone.topic
+              }") on values [${(activeSel.extractedNumbers || []).join(
+                ", "
+              )}] and simulate the optimal step-by-step dry run`
+            : `Branch from Zone #${activeSel.linkedZone.zoneNumber} ("${
+                activeSel.linkedZone.topic
+              }") on values [${(activeSel.extractedNumbers || []).join(
+                ", "
+              )}] and explain/simulate the next deeper insight or alternative approach`
+          : activeSel?.extractedNumbers &&
+            activeSel.extractedNumbers.length >= 2
           ? `Take over and simulate dry run on selected values [${activeSel.extractedNumbers.join(
               ", "
             )}]`
           : "Explain and simulate the selected diagram step by step");
 
+      const currentActiveZoneContext = buildLinkedZoneContextFromLesson(
+        activeLesson,
+        activeZoneIdx,
+        stepIndex
+      );
+
       setActivePresetId(null);
       setIsGeneratingAiLesson(true);
       setIsPlayingSteps(false);
       setAiStatusText(
-        activeSel
+        activeSel?.linkedZone
+          ? `🤖 AI Co-Teacher is ${
+              effectiveMode === "takeover" ? "taking over" : "branching from"
+            } Zone #${activeSel.linkedZone.zoneNumber} ("${
+              activeSel.linkedZone.topic
+            }") for "${finalQuery}"...`
+          : activeSel
           ? `🤖 AI Co-Teacher is analyzing your ${activeSel.selectedElements.length} selected whiteboard elements for "${finalQuery}"...`
           : `🤖 AI Co-Teacher is finding a clean area on the board to draw "${finalQuery}"...`
       );
@@ -1154,6 +1282,7 @@ export function AiWhiteboard({
             problemTitle,
             code: currentCode,
             selectionContext: activeSel,
+            activeZoneContext: currentActiveZoneContext,
           }),
         });
 
@@ -1173,15 +1302,21 @@ export function AiWhiteboard({
               modelUsed:
                 data.modelUsed ||
                 data.lesson.modelUsed ||
-                (isLive ? "gemini-flash-lite-latest" : "Offline Fallback"),
+                (isLive ? "gemini-3.5-flash-lite" : "Offline Fallback"),
               fallbackReason:
                 data.fallbackReason || data.lesson.fallbackReason || undefined,
             };
+            const isInPlaceTakeover =
+              effectiveMode === "takeover" &&
+              Boolean(activeSel?.linkedZone?.zoneId);
             const willReplaceBoot =
+              !isInPlaceTakeover &&
               zonesHistoryRef.current.length === 1 &&
               zonesHistoryRef.current[0]?.id === "initial_boot_preset" &&
               !activeSel;
-            const targetZoneNum = willReplaceBoot
+            const targetZoneNum = isInPlaceTakeover
+              ? activeSel?.linkedZone?.zoneNumber ?? 1
+              : willReplaceBoot
               ? 1
               : zonesHistoryRef.current.length + 1;
             spawnBoundedSimulationZone(enrichedLesson, {
@@ -1191,7 +1326,11 @@ export function AiWhiteboard({
             if (!customQuery) setAiQueryInput("");
             if (isLive) {
               toast.success(
-                `🟢 Live AI (${enrichedLesson.modelUsed}) drew Zone #${targetZoneNum}: ${enrichedLesson.topic}`
+                isInPlaceTakeover
+                  ? `🟢 Live AI (${enrichedLesson.modelUsed}) took over Zone #${targetZoneNum}: ${enrichedLesson.topic}`
+                  : activeSel?.linkedZone
+                  ? `🟢 Live AI (${enrichedLesson.modelUsed}) branched Zone #${targetZoneNum} from Zone #${activeSel.linkedZone.zoneNumber}: ${enrichedLesson.topic}`
+                  : `🟢 Live AI (${enrichedLesson.modelUsed}) drew Zone #${targetZoneNum}: ${enrichedLesson.topic}`
               );
             } else {
               toast.warning(
@@ -1212,11 +1351,18 @@ export function AiWhiteboard({
       }
 
       // Deterministic instant fallback (selection-aware!)
+      const isInPlaceTakeover =
+        effectiveMode === "takeover" && Boolean(activeSel?.linkedZone?.zoneId);
       const willReplaceBoot =
+        !isInPlaceTakeover &&
         zonesHistoryRef.current.length === 1 &&
         zonesHistoryRef.current[0]?.id === "initial_boot_preset" &&
         !activeSel;
-      const nextNum = willReplaceBoot ? 1 : zonesHistoryRef.current.length + 1;
+      const nextNum = isInPlaceTakeover
+        ? activeSel?.linkedZone?.zoneNumber ?? 1
+        : willReplaceBoot
+        ? 1
+        : zonesHistoryRef.current.length + 1;
       const fallback: AiWhiteboardLesson = {
         ...generateAiExcalidrawLessonForQuery(finalQuery, activeSel),
         aiSource: "deterministic_fallback",
@@ -1236,6 +1382,9 @@ export function AiWhiteboard({
       aiQueryInput,
       selectionMode,
       selectionContext,
+      activeLesson,
+      activeZoneIdx,
+      stepIndex,
       roomId,
       problemTitle,
       currentCode,
@@ -1495,7 +1644,9 @@ export function AiWhiteboard({
   const ExcalidrawComp = excalidrawModule?.Excalidraw;
   const MainMenuComp = excalidrawModule?.MainMenu;
   const WelcomeScreenComp = excalidrawModule?.WelcomeScreen;
-  const hasActiveSelection = selectionContext.selectedElements.length > 0;
+  const hasActiveSelection =
+    selectionContext.selectedElements.length > 0 ||
+    Boolean(selectionContext.linkedZone);
 
   return (
     <div
@@ -1679,7 +1830,7 @@ export function AiWhiteboard({
         </div>
       </header>
 
-      {/* ACTIVE BOARD ZONES BAR (Shows all dynamically placed non-overlapping zones + Fit All Zones button) */}
+      {/* ACTIVE BOARD ZONES BAR (Click any zone to focus camera AND link/tag that zone for follow-up AI queries, branching, or takeover) */}
       <div
         className="px-3.5 py-1.5 flex items-center justify-between gap-2 text-xs shrink-0 overflow-x-auto"
         style={{
@@ -1696,6 +1847,8 @@ export function AiWhiteboard({
 
           {zonesHistory.map((z, zIdx) => {
             const isCurrentZone = zIdx === activeZoneIdx;
+            const isLinkedZone =
+              selectionContext.linkedZone?.zoneId === z.zoneId;
             const savedStep =
               (z.zoneId ? zoneStepMapRef.current.get(z.zoneId) : 0) ?? 0;
             const isLiveZone = z.aiSource === "gemini_live";
@@ -1709,6 +1862,15 @@ export function AiWhiteboard({
                   setActiveZoneIdx(zIdx);
                   setStepIndex(savedStep);
                   setIsPlayingSteps(false);
+                  // Automatically link/tag the clicked zone so the user can ask AI about it, branch from it, or take it over!
+                  setSelectionContext(
+                    createSelectionContextForZone(
+                      z,
+                      zIdx,
+                      savedStep,
+                      selectionMode
+                    )
+                  );
                   const targetFrame = z.frames[savedStep] ?? z.frames[0];
                   if (targetFrame) {
                     injectZoneFrameIntoExcalidraw(
@@ -1722,14 +1884,18 @@ export function AiWhiteboard({
                 style={{
                   background: isCurrentZone ? "#2b2d42" : "#ffffff",
                   color: isCurrentZone ? "#ffd166" : "#2b2d42",
-                  border: "2px solid #2b2d42",
+                  border: isLinkedZone
+                    ? "2px solid #e11d48"
+                    : "2px solid #2b2d42",
                   boxShadow: isCurrentZone ? "0 2px 0 #ef476f" : "none",
                 }}
-                title={`Focus camera on Zone #${zIdx + 1}: ${z.topic} • Answered by: ${
+                title={`Click to focus & link Zone #${zIdx + 1}: ${
+                  z.topic
+                } for AI questions, branching, or takeover • Answered by: ${
                   z.modelUsed || (isLiveZone ? "Live AI" : "Offline Preset")
                 }`}
               >
-                <span>#{zIdx + 1}</span>
+                <span>{isLinkedZone ? `🎯 #${zIdx + 1}` : `#${zIdx + 1}`}</span>
                 <span className="max-w-[140px] truncate font-sans font-extrabold">
                   {z.topic}
                 </span>
@@ -1755,23 +1921,51 @@ export function AiWhiteboard({
           })}
         </div>
 
-        <button
-          type="button"
-          onClick={handleFitAllZones}
-          className="px-2.5 py-0.5 rounded-lg font-mono text-[10px] font-black flex items-center gap-1 cursor-pointer shrink-0 transition hover:bg-amber-200"
-          style={{
-            background: "#ffd166",
-            color: "#2b2d42",
-            border: "2px solid #2b2d42",
-          }}
-          title="Zoom out to view all non-overlapping teaching zones across the entire whiteboard"
-        >
-          <Maximize2 className="w-3 h-3" />
-          <span>Fit All Zones ({zonesHistory.length})</span>
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {!hasActiveSelection && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectionContext(
+                  createSelectionContextForZone(
+                    activeLesson,
+                    activeZoneIdx,
+                    stepIndex,
+                    selectionMode
+                  )
+                );
+              }}
+              className="px-2.5 py-0.5 rounded-lg font-mono text-[10px] font-black flex items-center gap-1 cursor-pointer shrink-0 transition hover:bg-rose-100"
+              style={{
+                background: "#ffe4e6",
+                color: "#9f1239",
+                border: "2px solid #e11d48",
+              }}
+              title="Tag / link the current zone so your next AI question branches from or takes over this zone with full context"
+            >
+              <GitBranch className="w-3 h-3" />
+              <span>Link Zone #{activeZoneIdx + 1} for AI</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleFitAllZones}
+            className="px-2.5 py-0.5 rounded-lg font-mono text-[10px] font-black flex items-center gap-1 cursor-pointer shrink-0 transition hover:bg-amber-200"
+            style={{
+              background: "#ffd166",
+              color: "#2b2d42",
+              border: "2px solid #2b2d42",
+            }}
+            title="Zoom out to view all non-overlapping teaching zones across the entire whiteboard"
+          >
+            <Maximize2 className="w-3 h-3" />
+            <span>Fit All Zones ({zonesHistory.length})</span>
+          </button>
+        </div>
       </div>
 
-      {/* DRAG-SELECTION AWARENESS BAR (Appears automatically when the user drag-selects elements on the whiteboard!) */}
+      {/* LINKED ZONE & DRAG-SELECTION AWARENESS BAR (Appears when a zone is clicked/linked or when elements are drag-selected on the canvas) */}
       {hasActiveSelection && (
         <div
           className="px-3.5 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0 animate-in fade-in duration-150"
@@ -1792,7 +1986,11 @@ export function AiWhiteboard({
             >
               <MousePointerClick className="w-3.5 h-3.5" />
               <span>
-                Selected Area ({selectionContext.selectedElements.length} items)
+                {selectionContext.linkedZone
+                  ? `Linked Zone #${selectionContext.linkedZone.zoneNumber}: ${
+                      selectionContext.linkedZone.topic
+                    } (Step ${selectionContext.linkedZone.activeStepIndex + 1})`
+                  : `Selected Area (${selectionContext.selectedElements.length} items)`}
               </span>
             </span>
 
@@ -1816,10 +2014,14 @@ export function AiWhiteboard({
                   color: selectionMode === "branch" ? "#ffffff" : "#2b2d42",
                   border: "1.5px solid #2b2d42",
                 }}
-                title="Keep selected drawing intact and spawn a connected simulation zone right next to it"
+                title="Keep linked zone intact and spawn a connected simulation zone right next to it with full context"
               >
                 <GitBranch className="w-3 h-3" />
-                <span>Branch Next to Selection</span>
+                <span>
+                  {selectionContext.linkedZone
+                    ? `Branch From Zone #${selectionContext.linkedZone.zoneNumber}`
+                    : "Branch Next to Selection"}
+                </span>
               </button>
 
               <button
@@ -1832,21 +2034,33 @@ export function AiWhiteboard({
                   color: selectionMode === "takeover" ? "#ffffff" : "#2b2d42",
                   border: "1.5px solid #2b2d42",
                 }}
-                title="AI takes over the selected area in-place and converts it into a live step-by-step simulation"
+                title="AI takes over the linked zone in-place and replaces it with your requested simulation"
               >
                 <Zap className="w-3 h-3" />
-                <span>AI Take Over Selection</span>
+                <span>
+                  {selectionContext.linkedZone
+                    ? `AI Take Over Zone #${selectionContext.linkedZone.zoneNumber}`
+                    : "AI Take Over Selection"}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* 1-Click Actions on the User's Selected Area */}
+          {/* 1-Click Actions on the User's Linked Zone / Selected Area */}
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() =>
                 void handleRunAiWhiteboardQuery(
-                  "Show how the brute force O(N^2) dry run works on this selected area",
+                  selectionContext.linkedZone
+                    ? `Using the exact dataset [${(
+                        selectionContext.extractedNumbers || []
+                      ).join(", ")}] from Zone #${
+                        selectionContext.linkedZone.zoneNumber
+                      } ("${
+                        selectionContext.linkedZone.topic
+                      }"), show how the brute force O(N^2) dry run works step by step`
+                    : "Show how the brute force O(N^2) dry run works on this selected area",
                   selectionMode
                 )
               }
@@ -1858,13 +2072,38 @@ export function AiWhiteboard({
               type="button"
               onClick={() =>
                 void handleRunAiWhiteboardQuery(
-                  "Take over from this selected diagram and simulate the optimal O(N) Two Pointers approach",
+                  selectionContext.linkedZone
+                    ? `Using the exact dataset [${(
+                        selectionContext.extractedNumbers || []
+                      ).join(", ")}] from Zone #${
+                        selectionContext.linkedZone.zoneNumber
+                      } ("${
+                        selectionContext.linkedZone.topic
+                      }"), simulate the optimal approach step by step with dry run`
+                    : "Take over from this selected diagram and simulate the optimal approach",
                   selectionMode
                 )
               }
               className="px-2.5 py-0.5 rounded-lg font-extrabold text-[11px] bg-emerald-300 hover:bg-emerald-400 border-2 border-[#2b2d42] cursor-pointer"
             >
-              🚀 Optimize Selected Area
+              🚀 Optimize This Zone
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                lastSelectionHashRef.current = "";
+                setSelectionContext({
+                  selectedElements: [],
+                  bounds: null,
+                  extractedNumbers: [],
+                  extractedTexts: [],
+                  linkedZone: null,
+                });
+              }}
+              className="px-2 py-0.5 rounded-lg font-extrabold text-[11px] bg-white hover:bg-slate-100 border-2 border-[#2b2d42] cursor-pointer"
+              title="Unlink zone so your next AI query spawns an independent standalone zone"
+            >
+              ✕ Unlink
             </button>
           </div>
         </div>
@@ -1969,7 +2208,9 @@ export function AiWhiteboard({
         <div className="flex items-center gap-1.5 font-extrabold text-xs shrink-0">
           <Sparkles className="w-4 h-4 text-rose-500" />
           <span>
-            {hasActiveSelection
+            {selectionContext.linkedZone
+              ? `Ask AI About Zone #${selectionContext.linkedZone.zoneNumber}:`
+              : hasActiveSelection
               ? `Ask AI About Selected (${selectionContext.selectedElements.length}):`
               : "Ask AI to Draw in New Zone:"}
           </span>
@@ -1986,7 +2227,9 @@ export function AiWhiteboard({
             }
           }}
           placeholder={
-            hasActiveSelection
+            selectionContext.linkedZone
+              ? `Ask about linked Zone #${selectionContext.linkedZone.zoneNumber} ("${selectionContext.linkedZone.topic}"): e.g. "What if k=4?" or "Show the brute force version"...`
+              : hasActiveSelection
               ? 'Ask about your drag-selected region: e.g. "How would the brute force dry run look on this selection?" or "Take over from here"...'
               : 'e.g. "How would the dry run of the brute force approach look?" or "Simulate Two Pointers on [2, 4, 7, 11, 15] target 18"...'
           }
@@ -2044,7 +2287,11 @@ export function AiWhiteboard({
             <>
               <Send className="w-3.5 h-3.5" />
               <span>
-                {hasActiveSelection
+                {selectionContext.linkedZone
+                  ? selectionMode === "takeover"
+                    ? `Take Over Zone #${selectionContext.linkedZone.zoneNumber}`
+                    : `Branch From Zone #${selectionContext.linkedZone.zoneNumber}`
+                  : hasActiveSelection
                   ? selectionMode === "takeover"
                     ? "Take Over Selection"
                     : "Branch From Selection"

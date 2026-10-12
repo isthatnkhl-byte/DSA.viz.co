@@ -3927,27 +3927,68 @@ app.post("/api/whiteboard/ai-teach", aiLimiter, async (req: Request, res: Respon
   const roomId = String(req.body?.roomId || "default");
   const problemTitle = String(req.body?.problemTitle || "").trim();
   const code = String(req.body?.code || "").trim();
-  const selectionContext: WhiteboardSelectionContext | null =
+  const rawSelectionContext: WhiteboardSelectionContext | null =
     req.body?.selectionContext && typeof req.body.selectionContext === "object"
       ? req.body.selectionContext
       : null;
+  const activeZoneContext =
+    req.body?.activeZoneContext && typeof req.body.activeZoneContext === "object"
+      ? req.body.activeZoneContext
+      : null;
 
-  const hasSelection =
+  const selectionContext: WhiteboardSelectionContext | null = rawSelectionContext
+    ? {
+        ...rawSelectionContext,
+        linkedZone: rawSelectionContext.linkedZone || activeZoneContext || null,
+      }
+    : activeZoneContext
+      ? {
+          selectedElements: [],
+          bounds: activeZoneContext.bounds || null,
+          extractedNumbers: Array.isArray(activeZoneContext.dataValues)
+            ? activeZoneContext.dataValues
+            : [],
+          extractedTexts: Array.isArray(activeZoneContext.dataLabels)
+            ? activeZoneContext.dataLabels
+            : [],
+          mode: "branch",
+          linkedZone: activeZoneContext,
+        }
+      : null;
+
+  const lz = selectionContext?.linkedZone || null;
+  const hasSelection = Boolean(
     selectionContext &&
-    Array.isArray(selectionContext.selectedElements) &&
-    selectionContext.selectedElements.length > 0;
+      ((Array.isArray(selectionContext.selectedElements) &&
+        selectionContext.selectedElements.length > 0) ||
+        lz)
+  );
+
+  const linkedZonePromptSection = lz
+    ? `
+LINKED / SELECTED PREVIOUS WHITEBOARD ZONE (ZONE #${lz.zoneNumber} — "${lz.topic}"):
+- Zone ID & Topic: ${lz.zoneId} | Topic="${lz.topic}" | Badge="${lz.badge || ""}"
+- Currently Viewed Step in Linked Zone: Step ${(lz.activeStepIndex ?? 0) + 1}/${lz.totalSteps || 1} — "${lz.activeStepTitle || ""}"
+- Current Step Narration: "${lz.activeStepNarration || ""}"
+- Current Step Math Invariant: "${lz.activeStepMathInvariant || ""}"
+- Full Step Progression of Linked Zone: ${JSON.stringify(lz.allStepsSummary || [])}
+- Exact Data Values in Linked Zone: [${(lz.dataValues || []).join(", ")}]
+- Exact Text/Labels in Linked Zone: ${JSON.stringify(lz.dataLabels || [])}`
+    : "";
 
   const selectionPromptBlock = hasSelection
     ? `
-USER'S CURRENT DRAG-SELECTED WHITEBOARD AREA (CRITICAL CONTEXT):
-- Selection Mode: ${selectionContext?.mode === "takeover" ? "TAKE OVER / CONTINUE FROM SELECTED DIAGRAM" : "ANSWER / BRANCH FROM SELECTED DIAGRAM"}
+USER'S LINKED ZONE & SELECTED WHITEBOARD CONTEXT (CRITICAL — MUST USE THIS CONTEXT):
+- Action Mode: ${selectionContext?.mode === "takeover" ? `TAKE OVER / REPLACE LINKED ZONE IN-PLACE (${lz ? `Zone #${lz.zoneNumber}: ${lz.topic}` : "Selected Diagram"})` : `BRANCH / ANSWER QUESTION ABOUT LINKED ZONE (${lz ? `Zone #${lz.zoneNumber}: ${lz.topic}` : "Selected Diagram"})`}${linkedZonePromptSection}
 - Bounding Box on Canvas: x=${selectionContext?.bounds?.minX}..${selectionContext?.bounds?.maxX}, y=${selectionContext?.bounds?.minY}..${selectionContext?.bounds?.maxY} (${selectionContext?.bounds?.width}x${selectionContext?.bounds?.height}px)
-- Extracted Numbers in Selection (left-to-right): [${(selectionContext?.extractedNumbers || []).join(", ")}]
-- Extracted Text Labels in Selection: ${JSON.stringify(selectionContext?.extractedTexts || [])}
+- Extracted Numbers in Selection (left-to-right): [${(selectionContext?.extractedNumbers || lz?.dataValues || []).join(", ")}]
+- Extracted Text Labels in Selection: ${JSON.stringify(selectionContext?.extractedTexts || lz?.dataLabels || [])}
 - Selected Shapes Summary: ${JSON.stringify((selectionContext?.selectedElements || []).slice(0, 12))}
 
-INSTRUCTION FOR SELECTED AREA:
-You MUST directly reference the exact numbers, values, pointers, or partial dry-run state inside the user's selected whiteboard area above! If the user asks for a dry run, brute force comparison, optimization, or "continue from here", use the exact numbers/elements they selected on the whiteboard.`
+MANDATORY INSTRUCTION FOR LINKED / SELECTED ZONE:
+1. The user has explicitly selected/linked ${lz ? `Zone #${lz.zoneNumber} ("${lz.topic}") at Step ${(lz.activeStepIndex ?? 0) + 1} ("${lz.activeStepTitle}")` : "an existing diagram on the whiteboard"} and asked: "${query}".
+2. You MUST ground your entire visual simulation and explanation in this linked zone's topic ("${lz?.topic || ""}"), its exact dataset [${(selectionContext?.extractedNumbers || lz?.dataValues || []).join(", ")}], and its current state ("${lz?.activeStepMathInvariant || lz?.activeStepNarration || ""}").
+3. If the user asks a follow-up question (e.g., "why did we do this?", "what if we use brute force?", "optimize this", "continue from here", "take over"), directly answer/demonstrate it using the exact numbers and algorithm context from the linked zone!`
     : "";
 
   const colorMap: Record<string, { stroke: string; bg: string }> = {

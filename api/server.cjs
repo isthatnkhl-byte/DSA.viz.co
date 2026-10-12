@@ -242758,17 +242758,15 @@ var env2 = typeof process !== "undefined" && process?.env ? process.env : {};
 var OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 var OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 var GEMINI_API_BASE_URL = (env2["GEMINI_API_BASE_URL"] || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/, "");
-var rawDefaultGeminiModel = env2["DEFAULT_MODEL_NAME"] || env2["GEMINI_MODEL"] || "gemini-2.5-flash";
-var DEFAULT_GEMINI_MODEL = /^gemini-3\./i.test(rawDefaultGeminiModel) ? "gemini-2.5-flash" : rawDefaultGeminiModel;
+var rawDefaultGeminiModel = env2["DEFAULT_MODEL_NAME"] || env2["GEMINI_MODEL"] || "gemini-flash-latest";
+var DEFAULT_GEMINI_MODEL = /^gemini-(2\.5|2\.0|3\.)/i.test(rawDefaultGeminiModel) ? "gemini-flash-latest" : rawDefaultGeminiModel;
 var API_TIMEOUT_MS = Number(env2["AI_TIMEOUT_MS"]) || 25e3;
 var REVIEW_MODELS = Array.from(
   /* @__PURE__ */ new Set([
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
     DEFAULT_GEMINI_MODEL,
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",
@@ -242780,12 +242778,10 @@ var REVIEW_MODELS = Array.from(
 );
 var VIZ_MODELS = Array.from(
   /* @__PURE__ */ new Set([
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
     DEFAULT_GEMINI_MODEL,
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",
@@ -294698,7 +294694,7 @@ var apiLimiter = rate_limit_default({
   store: createHybridRateLimitStore("api", 60 * 1e3),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Too many requests, please try again later." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+  validate: { default: false, trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 var aiLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
@@ -294707,7 +294703,7 @@ var aiLimiter = rate_limit_default({
   store: createHybridRateLimitStore("ai", 60 * 1e3),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "AI rate limit exceeded. Please wait a moment and try again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+  validate: { default: false, trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 var compilerLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
@@ -294716,7 +294712,7 @@ var compilerLimiter = rate_limit_default({
   store: createHybridRateLimitStore("compiler", 60 * 1e3),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Compiler rate limit exceeded. Please wait a moment before running again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+  validate: { default: false, trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 var vaultAndOAuthLimiter = rate_limit_default({
   windowMs: 1 * 60 * 1e3,
@@ -294725,7 +294721,7 @@ var vaultAndOAuthLimiter = rate_limit_default({
   store: createHybridRateLimitStore("vault_oauth", 60 * 1e3),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Sensitive auth/vault rate limit exceeded. Please wait a moment and try again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+  validate: { default: false, trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 var inFlightCompilations = 0;
 var MAX_CONCURRENT_COMPILATIONS = 5;
@@ -294788,13 +294784,12 @@ async function generateContentWithFallback2(ai, preferredModel, params) {
   const geminiKey = getGeminiKey();
   let lastError = null;
   if (geminiKey) {
-    const normalizedPreferred = /^gemini-3\./i.test(preferredModel) ? "gemini-2.5-flash" : preferredModel;
+    const normalizedPreferred = /^gemini-(2\.5|2\.0|3\.)/i.test(preferredModel) ? "gemini-flash-latest" : preferredModel;
     const candidateModels = [
       normalizedPreferred,
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-lite",
-      "gemini-flash-latest"
+      "gemini-flash-lite-latest",
+      "gemini-flash-latest",
+      "gemini-2.5-flash"
     ].filter((m2, i2, arr) => m2 && arr.indexOf(m2) === i2);
     for (const model of candidateModels) {
       try {
@@ -297549,16 +297544,38 @@ You MUST directly reference the exact numbers, values, pointers, or partial dry-
   ].filter(Boolean).join(" ");
   const colorMap = {
     blue: { stroke: "#0284c7", bg: "#e0f2fe" },
+    cyan: { stroke: "#0891b2", bg: "#cffafe" },
+    teal: { stroke: "#0d9488", bg: "#ccfbf1" },
     green: { stroke: "#16a34a", bg: "#dcfce7" },
+    emerald: { stroke: "#059669", bg: "#d1fae5" },
     amber: { stroke: "#d97706", bg: "#fef3c7" },
+    orange: { stroke: "#ea580c", bg: "#ffedd5" },
+    yellow: { stroke: "#ca8a04", bg: "#fef9c3" },
     rose: { stroke: "#e11d48", bg: "#ffe4e6" },
+    red: { stroke: "#dc2626", bg: "#fee2e2" },
     purple: { stroke: "#7c3aed", bg: "#f3e8ff" },
-    slate: { stroke: "#334155", bg: "#f8fafc" }
+    indigo: { stroke: "#4f46e5", bg: "#e0e7ff" },
+    slate: { stroke: "#334155", bg: "#f8fafc" },
+    gray: { stroke: "#475569", bg: "#f1f5f9" }
+  };
+  const resolveTheme = (rawColor, fallback = "slate") => {
+    const key = String(rawColor || fallback).trim().toLowerCase();
+    if (colorMap[key]) return colorMap[key];
+    if (key.startsWith("#") && (key.length === 4 || key.length === 7)) {
+      return { stroke: key, bg: "#f8fafc" };
+    }
+    return colorMap[fallback] || colorMap.slate;
   };
   try {
     const geminiKey = getGeminiKey();
-    if (geminiKey && query.length > 3) {
-      const ai = new GoogleGenAI2({ apiKey: geminiKey });
+    const hasAnyAiKey = Boolean(geminiKey || getOpenAIKey() || getOpenRouterKey());
+    if (hasAnyAiKey && query.length > 2) {
+      const ai = new GoogleGenAI2({
+        apiKey: geminiKey || "placeholder",
+        httpOptions: {
+          headers: { "User-Agent": "aistudio-build" }
+        }
+      });
       const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Co-Teacher with direct control over an Excalidraw Whiteboard (local simulation coordinates x: 60..780, y: 40..470).
 The user asked: "${fullPromptContext}"
 ${code ? `Candidate's current code snippet:
@@ -297651,23 +297668,24 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
 5. Space adjacent custom nodes horizontally by at least (width + 24) pixels so boxes NEVER overlap each other.
 6. Provide 2 to 4 "waypoints" per step tracing the AI teacher's pointer across the active elements.`;
       const llmRes = await Promise.race([
-        ai.models.generateContent({
-          model: "gemini-2.5-flash",
+        generateContentWithFallback2(ai, "gemini-flash-lite-latest", {
           contents: sysPrompt,
           config: { responseMimeType: "application/json" }
         }),
         new Promise(
-          (_, reject) => setTimeout(() => reject(new Error("AI Whiteboard timeout")), 8500)
+          (_, reject) => setTimeout(() => reject(new Error("AI Whiteboard timeout")), 24e3)
         )
       ]);
       const rawText = llmRes.text || "";
-      const parsed = JSON.parse(rawText);
-      if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
-        const frames = parsed.steps.map(
+      const parsed = extractJson(rawText);
+      const rawSteps = Array.isArray(parsed?.steps) ? parsed.steps : Array.isArray(parsed?.viz_steps) ? parsed.viz_steps : [];
+      if (parsed && rawSteps.length > 0) {
+        const frames = rawSteps.map(
           (st, sIdx) => {
             const ver = sIdx + 1;
             const stepWaypoints = [];
             const placedNodeRects = [];
+            const nodeBoundsById = /* @__PURE__ */ new Map();
             let maxNodeRight = 740;
             const shapeEls = [];
             if (Array.isArray(st.widgets)) {
@@ -297683,7 +297701,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   const cellW = Number(w.cellWidth) || 58;
                   const cellH = Number(w.cellHeight) || 46;
                   const highlights = Array.isArray(w.highlightedCells) ? w.highlightedCells.map((hc) => {
-                    const cTheme = colorMap[String(hc.color || "amber")] || colorMap.amber;
+                    const cTheme = resolveTheme(hc.color, "amber");
                     return {
                       row: Number(hc.row) || 0,
                       col: Number(hc.col) || 0,
@@ -297713,7 +297731,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   }
                 } else if (wType === "hashmap" && Array.isArray(w.entries)) {
                   const entries = w.entries.slice(0, 7).map((e2) => {
-                    const hlColor = e2.highlight ? colorMap[String(e2.highlight)] || colorMap.amber : null;
+                    const hlColor = e2.highlight ? resolveTheme(e2.highlight, "amber") : null;
                     return {
                       key: String(e2.key ?? ""),
                       value: String(e2.value ?? ""),
@@ -297750,7 +297768,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   );
                   if (Array.isArray(w.items)) {
                     w.items.slice(0, 5).forEach((item, iIdx) => {
-                      const itTheme = colorMap[String(item?.color || "blue")] || colorMap.blue;
+                      const itTheme = resolveTheme(item?.color, "blue");
                       const itemLbl = typeof item === "string" ? item : String(item?.label || "");
                       if (variant === "stack") {
                         const ix = wx + 14;
@@ -297798,7 +297816,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   const axisMin = Number(w.axisMin) || 0;
                   const axisMax = Math.max(axisMin + 4, Number(w.axisMax) || 16);
                   const ivs = w.intervals.slice(0, 6).map((iv, ivIdx) => {
-                    const ivTheme = colorMap[String(iv.color || "blue")] || colorMap.blue;
+                    const ivTheme = resolveTheme(iv.color, "blue");
                     return {
                       id: String(iv.id || `iv-${ivIdx}`),
                       label: String(iv.label || `[${iv.start},${iv.end}]`),
@@ -297834,11 +297852,10 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
             }
             if (Array.isArray(st.nodes)) {
               st.nodes.forEach((n, nIdx) => {
-                const nid = String(n.id || `node-${nIdx}`).replace(
-                  /[^a-zA-Z0-9_-]/g,
-                  "-"
-                );
-                const isSplit = n.shape === "split_node" || Array.isArray(n.compartments) && n.compartments.length > 1;
+                const rawId = String(n.id || `node-${nIdx}`);
+                const nid = rawId.replace(/[^a-zA-Z0-9_-]/g, "-");
+                const shapeKind = String(n.shape || n.type || "rect").toLowerCase();
+                const isSplit = shapeKind === "split_node" || Array.isArray(n.compartments) && n.compartments.length > 1;
                 const nw = Math.max(
                   isSplit ? 110 : 76,
                   Math.min(260, Number(n.width) || (isSplit ? 136 : 104))
@@ -297862,8 +297879,10 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   guard++;
                 }
                 placedNodeRects.push({ x: nx, y: ny, width: nw, height: nh });
+                nodeBoundsById.set(rawId, { x: nx, y: ny, width: nw, height: nh });
+                nodeBoundsById.set(nid, { x: nx, y: ny, width: nw, height: nh });
                 maxNodeRight = Math.max(maxNodeRight, nx + nw);
-                const theme = colorMap[String(n.color || "slate")] || colorMap.slate;
+                const theme = resolveTheme(n.color, "slate");
                 const strokeW = n.highlight ? 3 : 2;
                 if (n.highlight) {
                   stepWaypoints.push({
@@ -297890,7 +297909,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                     })
                   );
                 } else {
-                  if (n.shape === "ellipse") {
+                  if (shapeKind === "ellipse" || shapeKind === "circle") {
                     shapeEls.push(
                       excalidrawEllipse(`ai-sh-${nid}`, nx, ny, nw, nh, {
                         strokeColor: theme.stroke,
@@ -297899,7 +297918,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                         version: ver
                       })
                     );
-                  } else if (n.shape === "diamond") {
+                  } else if (shapeKind === "diamond") {
                     shapeEls.push(
                       excalidrawDiamond(`ai-sh-${nid}`, nx, ny, nw, nh, {
                         strokeColor: theme.stroke,
@@ -297967,7 +297986,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 "ai-hdr-title",
                 78,
                 44,
-                `Step ${ver}/${parsed.steps.length}: ${String(st.title || "Simulation Step")}`,
+                `Step ${ver}/${rawSteps.length}: ${String(st.title || "Simulation Step")}`,
                 {
                   fontSize: 16,
                   strokeColor: "#0369a1",
@@ -297994,44 +298013,48 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
             if (Array.isArray(st.arrows)) {
               st.arrows.forEach((a, aIdx) => {
                 const aid = String(a.id || `arr-${aIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
-                const theme = colorMap[String(a.color || "blue")] || colorMap.blue;
+                const theme = resolveTheme(a.color, "blue");
                 const style = a.style === "curved" || a.style === "elbow" ? a.style : "straight";
                 const routing = a.routing === "v-h-v" || a.routing === "l-shape" ? a.routing : "h-v-h";
+                const fromBox = a.from ? nodeBoundsById.get(String(a.from)) : void 0;
+                const toBox = a.to ? nodeBoundsById.get(String(a.to)) : void 0;
+                let fx = Number(a.fromX);
+                let fy = Number(a.fromY);
+                let tx = Number(a.toX);
+                let ty = Number(a.toY);
+                if ((!Number.isFinite(fx) || !Number.isFinite(fy)) && fromBox) {
+                  fx = fromBox.x + fromBox.width;
+                  fy = fromBox.y + Math.round(fromBox.height / 2);
+                }
+                if ((!Number.isFinite(tx) || !Number.isFinite(ty)) && toBox) {
+                  tx = toBox.x;
+                  ty = toBox.y + Math.round(toBox.height / 2);
+                }
+                fx = Number.isFinite(fx) ? fx : 150;
+                fy = Number.isFinite(fy) ? fy : 210;
+                tx = Number.isFinite(tx) ? tx : 220;
+                ty = Number.isFinite(ty) ? ty : 210;
                 if (style !== "straight" || a.bidirectional || a.label) {
                   els.push(
-                    ...excalidrawLabeledConnector(
-                      `ai-ar-${aid}`,
-                      Number(a.fromX) || 150,
-                      Number(a.fromY) || 210,
-                      Number(a.toX) || 220,
-                      Number(a.toY) || 210,
-                      {
-                        style,
-                        curvature: typeof a.curvature === "number" ? a.curvature : -44,
-                        routing,
-                        bidirectional: Boolean(a.bidirectional),
-                        label: a.label ? String(a.label) : void 0,
-                        strokeColor: theme.stroke,
-                        labelBgColor: theme.bg,
-                        strokeWidth: 2.5,
-                        version: ver
-                      }
-                    )
+                    ...excalidrawLabeledConnector(`ai-ar-${aid}`, fx, fy, tx, ty, {
+                      style,
+                      curvature: typeof a.curvature === "number" ? a.curvature : -44,
+                      routing,
+                      bidirectional: Boolean(a.bidirectional),
+                      label: a.label ? String(a.label) : void 0,
+                      strokeColor: theme.stroke,
+                      labelBgColor: theme.bg,
+                      strokeWidth: 2.5,
+                      version: ver
+                    })
                   );
                 } else {
                   els.push(
-                    excalidrawArrow(
-                      `ai-ar-${aid}`,
-                      Number(a.fromX) || 150,
-                      Number(a.fromY) || 210,
-                      Number(a.toX) || 220,
-                      Number(a.toY) || 210,
-                      {
-                        strokeColor: theme.stroke,
-                        strokeWidth: 2.5,
-                        version: ver
-                      }
-                    )
+                    excalidrawArrow(`ai-ar-${aid}`, fx, fy, tx, ty, {
+                      strokeColor: theme.stroke,
+                      strokeWidth: 2.5,
+                      version: ver
+                    })
                   );
                 }
               });
@@ -298058,17 +298081,26 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
         const lesson = {
           id: `ai_lesson_${Date.now()}`,
           topic: String(parsed.topic || query).slice(0, 56),
-          badge: String(parsed.badge || "AI Live Simulation"),
+          badge: String(parsed.badge || `AI Live (${llmRes.modelUsed})`),
           frames
         };
-        return res.json({ ok: true, lesson });
+        return res.json({
+          ok: true,
+          source: "gemini_live",
+          modelUsed: llmRes.modelUsed,
+          lesson
+        });
       }
     }
   } catch (err) {
     console.warn("[AI Whiteboard] Using deterministic Excalidraw generator fallback:", err?.message);
   }
   const fallbackLesson = generateAiExcalidrawLessonForQuery(query, selectionContext);
-  return res.json({ ok: true, lesson: fallbackLesson });
+  return res.json({
+    ok: true,
+    source: "deterministic_fallback",
+    lesson: fallbackLesson
+  });
 });
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {

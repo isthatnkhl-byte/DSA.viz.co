@@ -10,21 +10,19 @@ const GEMINI_API_BASE_URL = (
   env["GEMINI_API_BASE_URL"] || "https://generativelanguage.googleapis.com/v1beta"
 ).replace(/\/+$/, "");
 
-const rawDefaultGeminiModel = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-2.5-flash";
-const DEFAULT_GEMINI_MODEL = /^gemini-3\./i.test(rawDefaultGeminiModel)
-  ? "gemini-2.5-flash"
+const rawDefaultGeminiModel = env["DEFAULT_MODEL_NAME"] || env["GEMINI_MODEL"] || "gemini-flash-latest";
+const DEFAULT_GEMINI_MODEL = /^gemini-(2\.5|2\.0|3\.)/i.test(rawDefaultGeminiModel)
+  ? "gemini-flash-latest"
   : rawDefaultGeminiModel;
 const API_TIMEOUT_MS = Number(env["AI_TIMEOUT_MS"]) || 25000;
 
 /** Supported review models prioritized by speed, availability, and capability. */
 export const REVIEW_MODELS = Array.from(
   new Set([
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
     DEFAULT_GEMINI_MODEL,
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",
@@ -38,12 +36,10 @@ export const REVIEW_MODELS = Array.from(
 /** Supported visualizer models prioritized by speed, availability, and capability. */
 export const VIZ_MODELS = Array.from(
   new Set([
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
     DEFAULT_GEMINI_MODEL,
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
     "openai/gpt-4o-mini",
     "gpt-4o-mini",
     "gpt-4o",

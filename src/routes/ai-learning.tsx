@@ -1067,7 +1067,43 @@ export function AiLearningPage() {
                           <button
                             key={i}
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
+                              const loadingId = toast.loading(
+                                `🤖 AI Co-Teacher is generating live simulation for "${prompt.slice(0, 44)}..."`
+                              );
+                              try {
+                                const res = await fetch("/api/whiteboard/ai-teach", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    query: prompt,
+                                    roomId: "ai-learning-main-stage",
+                                    problemTitle: activeModule.title,
+                                    code: activeModule.cppSnippet,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  const data = await res.json();
+                                  if (
+                                    data?.lesson &&
+                                    Array.isArray(data.lesson.frames) &&
+                                    data.lesson.frames.length > 0
+                                  ) {
+                                    setLessonOverride({
+                                      ...data.lesson,
+                                      id: `${data.lesson.id || "ai_live"}_${Date.now()}`,
+                                    });
+                                    toast.dismiss(loadingId);
+                                    toast.success(
+                                      `AI spawned live "${data.lesson.topic}" (${data.modelUsed || "AI Co-Teacher"})!`
+                                    );
+                                    return;
+                                  }
+                                }
+                              } catch {
+                                // fallback below
+                              }
+                              toast.dismiss(loadingId);
                               const lesson =
                                 generateAiExcalidrawLessonForQuery(prompt);
                               setLessonOverride({

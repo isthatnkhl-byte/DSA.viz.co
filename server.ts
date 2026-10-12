@@ -61,6 +61,7 @@ import {
   getGeminiKey,
   getOpenAIKey,
   getOpenRouterKey,
+  extractJson,
 } from './src/lib/openrouter.server';
 import { getRoomWhiteboard } from './src/server/whiteboard';
 import {
@@ -558,7 +559,7 @@ const apiLimiter = rateLimit({
   store: createHybridRateLimitStore("api", 60 * 1000),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Too many requests, please try again later." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+  validate: { default: false, trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 
 const aiLimiter = rateLimit({
@@ -567,7 +568,7 @@ const aiLimiter = rateLimit({
   store: createHybridRateLimitStore("ai", 60 * 1000),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "AI rate limit exceeded. Please wait a moment and try again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+  validate: { default: false, trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 
 const compilerLimiter = rateLimit({
@@ -576,7 +577,7 @@ const compilerLimiter = rateLimit({
   store: createHybridRateLimitStore("compiler", 60 * 1000),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Compiler rate limit exceeded. Please wait a moment before running again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+  validate: { default: false, trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 
 const vaultAndOAuthLimiter = rateLimit({
@@ -585,7 +586,7 @@ const vaultAndOAuthLimiter = rateLimit({
   store: createHybridRateLimitStore("vault_oauth", 60 * 1000),
   keyGenerator: rateLimitKeyGenerator,
   message: { error: "Sensitive auth/vault rate limit exceeded. Please wait a moment and try again." },
-  validate: { trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
+  validate: { default: false, trustProxy: false, xForwardedForHeader: false, forwardedHeader: false, keyGeneratorIpFallback: false }
 });
 
 // Compiler concurrency tracker
@@ -673,15 +674,14 @@ async function generateContentWithFallback(
   let lastError: any = null;
 
   if (geminiKey) {
-    const normalizedPreferred = /^gemini-3\./i.test(preferredModel)
-      ? "gemini-2.5-flash"
+    const normalizedPreferred = /^gemini-(2\.5|2\.0|3\.)/i.test(preferredModel)
+      ? "gemini-flash-latest"
       : preferredModel;
     const candidateModels = [
       normalizedPreferred,
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-lite",
+      "gemini-flash-lite-latest",
       "gemini-flash-latest",
+      "gemini-2.5-flash",
     ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
     for (const model of candidateModels) {
@@ -3927,17 +3927,40 @@ You MUST directly reference the exact numbers, values, pointers, or partial dry-
 
   const colorMap: Record<string, { stroke: string; bg: string }> = {
     blue: { stroke: "#0284c7", bg: "#e0f2fe" },
+    cyan: { stroke: "#0891b2", bg: "#cffafe" },
+    teal: { stroke: "#0d9488", bg: "#ccfbf1" },
     green: { stroke: "#16a34a", bg: "#dcfce7" },
+    emerald: { stroke: "#059669", bg: "#d1fae5" },
     amber: { stroke: "#d97706", bg: "#fef3c7" },
+    orange: { stroke: "#ea580c", bg: "#ffedd5" },
+    yellow: { stroke: "#ca8a04", bg: "#fef9c3" },
     rose: { stroke: "#e11d48", bg: "#ffe4e6" },
+    red: { stroke: "#dc2626", bg: "#fee2e2" },
     purple: { stroke: "#7c3aed", bg: "#f3e8ff" },
+    indigo: { stroke: "#4f46e5", bg: "#e0e7ff" },
     slate: { stroke: "#334155", bg: "#f8fafc" },
+    gray: { stroke: "#475569", bg: "#f1f5f9" },
+  };
+
+  const resolveTheme = (rawColor: any, fallback = "slate"): { stroke: string; bg: string } => {
+    const key = String(rawColor || fallback).trim().toLowerCase();
+    if (colorMap[key]) return colorMap[key]!;
+    if (key.startsWith("#") && (key.length === 4 || key.length === 7)) {
+      return { stroke: key, bg: "#f8fafc" };
+    }
+    return colorMap[fallback] || colorMap.slate!;
   };
 
   try {
     const geminiKey = getGeminiKey();
-    if (geminiKey && query.length > 3) {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
+    const hasAnyAiKey = Boolean(geminiKey || getOpenAIKey() || getOpenRouterKey());
+    if (hasAnyAiKey && query.length > 2) {
+      const ai = new GoogleGenAI({
+        apiKey: geminiKey || "placeholder",
+        httpOptions: {
+          headers: { "User-Agent": "aistudio-build" },
+        },
+      });
       const sysPrompt = `You are an expert FAANG Technical Interviewer & Visual Algorithm Co-Teacher with direct control over an Excalidraw Whiteboard (local simulation coordinates x: 60..780, y: 40..470).
 The user asked: "${fullPromptContext}"
 ${code ? `Candidate's current code snippet:\n${code.slice(0, 600)}` : ""}
@@ -4030,20 +4053,25 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
 6. Provide 2 to 4 "waypoints" per step tracing the AI teacher's pointer across the active elements.`;
 
       const llmRes = await Promise.race([
-        ai.models.generateContent({
-          model: "gemini-2.5-flash",
+        generateContentWithFallback(ai, "gemini-flash-lite-latest", {
           contents: sysPrompt,
           config: { responseMimeType: "application/json" },
         }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("AI Whiteboard timeout")), 8500)
+          setTimeout(() => reject(new Error("AI Whiteboard timeout")), 24000)
         ),
       ]);
 
       const rawText = llmRes.text || "";
-      const parsed = JSON.parse(rawText);
-      if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
-        const frames: AiWhiteboardStepFrame[] = parsed.steps.map(
+      const parsed = extractJson(rawText);
+      const rawSteps = Array.isArray(parsed?.steps)
+        ? parsed.steps
+        : Array.isArray(parsed?.viz_steps)
+          ? parsed.viz_steps
+          : [];
+
+      if (parsed && rawSteps.length > 0) {
+        const frames: AiWhiteboardStepFrame[] = rawSteps.map(
           (st: any, sIdx: number) => {
             const ver = sIdx + 1;
             const stepWaypoints: Array<{ x: number; y: number }> = [];
@@ -4053,6 +4081,10 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
               width: number;
               height: number;
             }> = [];
+            const nodeBoundsById = new Map<
+              string,
+              { x: number; y: number; width: number; height: number }
+            >();
             let maxNodeRight = 740;
 
             const shapeEls: WbElement[] = [];
@@ -4073,7 +4105,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   const cellH = Number(w.cellHeight) || 46;
                   const highlights = Array.isArray(w.highlightedCells)
                     ? w.highlightedCells.map((hc: any) => {
-                        const cTheme = colorMap[String(hc.color || "amber")] || colorMap.amber!;
+                        const cTheme = resolveTheme(hc.color, "amber");
                         return {
                           row: Number(hc.row) || 0,
                           col: Number(hc.col) || 0,
@@ -4110,7 +4142,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 } else if (wType === "hashmap" && Array.isArray(w.entries)) {
                   const entries = w.entries.slice(0, 7).map((e: any) => {
                     const hlColor = e.highlight
-                      ? colorMap[String(e.highlight)] || colorMap.amber!
+                      ? resolveTheme(e.highlight, "amber")
                       : null;
                     return {
                       key: String(e.key ?? ""),
@@ -4149,8 +4181,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   );
                   if (Array.isArray(w.items)) {
                     w.items.slice(0, 5).forEach((item: any, iIdx: number) => {
-                      const itTheme =
-                        colorMap[String(item?.color || "blue")] || colorMap.blue!;
+                      const itTheme = resolveTheme(item?.color, "blue");
                       const itemLbl =
                         typeof item === "string" ? item : String(item?.label || "");
                       if (variant === "stack") {
@@ -4199,8 +4230,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                   const axisMin = Number(w.axisMin) || 0;
                   const axisMax = Math.max(axisMin + 4, Number(w.axisMax) || 16);
                   const ivs = w.intervals.slice(0, 6).map((iv: any, ivIdx: number) => {
-                    const ivTheme =
-                      colorMap[String(iv.color || "blue")] || colorMap.blue!;
+                    const ivTheme = resolveTheme(iv.color, "blue");
                     return {
                       id: String(iv.id || `iv-${ivIdx}`),
                       label: String(iv.label || `[${iv.start},${iv.end}]`),
@@ -4238,12 +4268,11 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
             // 2. Render custom nodes (rect, ellipse, diamond, or multi-compartment split_node)
             if (Array.isArray(st.nodes)) {
               st.nodes.forEach((n: any, nIdx: number) => {
-                const nid = String(n.id || `node-${nIdx}`).replace(
-                  /[^a-zA-Z0-9_-]/g,
-                  "-"
-                );
+                const rawId = String(n.id || `node-${nIdx}`);
+                const nid = rawId.replace(/[^a-zA-Z0-9_-]/g, "-");
+                const shapeKind = String(n.shape || n.type || "rect").toLowerCase();
                 const isSplit =
-                  n.shape === "split_node" ||
+                  shapeKind === "split_node" ||
                   (Array.isArray(n.compartments) && n.compartments.length > 1);
                 const nw = Math.max(
                   isSplit ? 110 : 76,
@@ -4275,10 +4304,11 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 }
 
                 placedNodeRects.push({ x: nx, y: ny, width: nw, height: nh });
+                nodeBoundsById.set(rawId, { x: nx, y: ny, width: nw, height: nh });
+                nodeBoundsById.set(nid, { x: nx, y: ny, width: nw, height: nh });
                 maxNodeRight = Math.max(maxNodeRight, nx + nw);
 
-                const theme =
-                  colorMap[String(n.color || "slate")] || colorMap.slate!;
+                const theme = resolveTheme(n.color, "slate");
                 const strokeW = n.highlight ? 3 : 2;
 
                 if (n.highlight) {
@@ -4312,7 +4342,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                     })
                   );
                 } else {
-                  if (n.shape === "ellipse") {
+                  if (shapeKind === "ellipse" || shapeKind === "circle") {
                     shapeEls.push(
                       excalidrawEllipse(`ai-sh-${nid}`, nx, ny, nw, nh, {
                         strokeColor: theme.stroke,
@@ -4321,7 +4351,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                         version: ver,
                       })
                     );
-                  } else if (n.shape === "diamond") {
+                  } else if (shapeKind === "diamond") {
                     shapeEls.push(
                       excalidrawDiamond(`ai-sh-${nid}`, nx, ny, nw, nh, {
                         strokeColor: theme.stroke,
@@ -4391,7 +4421,7 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 "ai-hdr-title",
                 78,
                 44,
-                `Step ${ver}/${parsed.steps.length}: ${String(st.title || "Simulation Step")}`,
+                `Step ${ver}/${rawSteps.length}: ${String(st.title || "Simulation Step")}`,
                 {
                   fontSize: 16,
                   strokeColor: "#0369a1",
@@ -4420,48 +4450,56 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
             if (Array.isArray(st.arrows)) {
               st.arrows.forEach((a: any, aIdx: number) => {
                 const aid = String(a.id || `arr-${aIdx}`).replace(/[^a-zA-Z0-9_-]/g, "-");
-                const theme = colorMap[String(a.color || "blue")] || colorMap.blue!;
+                const theme = resolveTheme(a.color, "blue");
                 const style =
                   a.style === "curved" || a.style === "elbow" ? a.style : "straight";
                 const routing =
                   a.routing === "v-h-v" || a.routing === "l-shape" ? a.routing : "h-v-h";
 
+                // Resolve coordinates from either explicit fromX/toX or node IDs (a.from / a.to)
+                const fromBox = a.from ? nodeBoundsById.get(String(a.from)) : undefined;
+                const toBox = a.to ? nodeBoundsById.get(String(a.to)) : undefined;
+
+                let fx = Number(a.fromX);
+                let fy = Number(a.fromY);
+                let tx = Number(a.toX);
+                let ty = Number(a.toY);
+
+                if ((!Number.isFinite(fx) || !Number.isFinite(fy)) && fromBox) {
+                  fx = fromBox.x + fromBox.width;
+                  fy = fromBox.y + Math.round(fromBox.height / 2);
+                }
+                if ((!Number.isFinite(tx) || !Number.isFinite(ty)) && toBox) {
+                  tx = toBox.x;
+                  ty = toBox.y + Math.round(toBox.height / 2);
+                }
+                fx = Number.isFinite(fx) ? fx : 150;
+                fy = Number.isFinite(fy) ? fy : 210;
+                tx = Number.isFinite(tx) ? tx : 220;
+                ty = Number.isFinite(ty) ? ty : 210;
+
                 if (style !== "straight" || a.bidirectional || a.label) {
                   els.push(
-                    ...excalidrawLabeledConnector(
-                      `ai-ar-${aid}`,
-                      Number(a.fromX) || 150,
-                      Number(a.fromY) || 210,
-                      Number(a.toX) || 220,
-                      Number(a.toY) || 210,
-                      {
-                        style,
-                        curvature:
-                          typeof a.curvature === "number" ? a.curvature : -44,
-                        routing,
-                        bidirectional: Boolean(a.bidirectional),
-                        label: a.label ? String(a.label) : undefined,
-                        strokeColor: theme.stroke,
-                        labelBgColor: theme.bg,
-                        strokeWidth: 2.5,
-                        version: ver,
-                      }
-                    )
+                    ...excalidrawLabeledConnector(`ai-ar-${aid}`, fx, fy, tx, ty, {
+                      style,
+                      curvature:
+                        typeof a.curvature === "number" ? a.curvature : -44,
+                      routing,
+                      bidirectional: Boolean(a.bidirectional),
+                      label: a.label ? String(a.label) : undefined,
+                      strokeColor: theme.stroke,
+                      labelBgColor: theme.bg,
+                      strokeWidth: 2.5,
+                      version: ver,
+                    })
                   );
                 } else {
                   els.push(
-                    excalidrawArrow(
-                      `ai-ar-${aid}`,
-                      Number(a.fromX) || 150,
-                      Number(a.fromY) || 210,
-                      Number(a.toX) || 220,
-                      Number(a.toY) || 210,
-                      {
-                        strokeColor: theme.stroke,
-                        strokeWidth: 2.5,
-                        version: ver,
-                      }
-                    )
+                    excalidrawArrow(`ai-ar-${aid}`, fx, fy, tx, ty, {
+                      strokeColor: theme.stroke,
+                      strokeWidth: 2.5,
+                      version: ver,
+                    })
                   );
                 }
               });
@@ -4497,11 +4535,16 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
         const lesson: AiWhiteboardLesson = {
           id: `ai_lesson_${Date.now()}`,
           topic: String(parsed.topic || query).slice(0, 56),
-          badge: String(parsed.badge || "AI Live Simulation"),
+          badge: String(parsed.badge || `AI Live (${llmRes.modelUsed})`),
           frames,
         };
 
-        return res.json({ ok: true, lesson });
+        return res.json({
+          ok: true,
+          source: "gemini_live",
+          modelUsed: llmRes.modelUsed,
+          lesson,
+        });
       }
     }
   } catch (err) {
@@ -4509,7 +4552,11 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
   }
 
   const fallbackLesson = generateAiExcalidrawLessonForQuery(query, selectionContext);
-  return res.json({ ok: true, lesson: fallbackLesson });
+  return res.json({
+    ok: true,
+    source: "deterministic_fallback",
+    lesson: fallbackLesson,
+  });
 });
 
 async function startServer() {

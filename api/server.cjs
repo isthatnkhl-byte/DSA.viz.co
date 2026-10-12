@@ -242097,7 +242097,7 @@ var cachedEphemeralProdKey = null;
 var cachedPrevVaultMasterKey = null;
 var cachedPrevVaultSecretSource = "";
 function getVaultMasterKey() {
-  const configuredSecret = cleanEnv(process.env.USER_KEYS_ENCRYPTION_KEY) || cleanEnv(process.env.VAULT_MASTER_KEY) || cleanEnv(process.env.ENCRYPTION_KEY) || cleanEnv(process.env.GITHUB_CLIENT_SECRET) || cleanEnv(process.env.LIVEKIT_API_SECRET);
+  const configuredSecret = cleanEnv(process.env.USER_KEYS_ENCRYPTION_KEY) || cleanEnv(process.env.VAULT_MASTER_KEY) || cleanEnv(process.env.ENCRYPTION_KEY) || cleanEnv(process.env.GITHUB_CLIENT_SECRET) || cleanEnv(process.env.LIVEKIT_API_SECRET) || cleanEnv(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) || cleanEnv(process.env.GEMINI_API_KEY) || cleanEnv(process.env.GOOGLE_API_KEY) || cleanEnv(process.env.VITE_FIREBASE_API_KEY) || cleanEnv(firebase_applet_config_default.apiKey);
   if (!configuredSecret) {
     if (process.env.NODE_ENV === "production") {
       if (!cachedEphemeralProdKey) {
@@ -242861,16 +242861,21 @@ function extractJson(str) {
   if (first !== -1 && last > first) attempts.push(str.slice(first, last + 1));
   for (const a of attempts) {
     const trimmed = a.trim();
-    const parseAttempts = [trimmed, trimmed.replace(/,\s*([}\]])/g, "$1")];
+    const cleanedCommas = trimmed.replace(/,\s*([}\]])/g, "$1");
+    const sanitizedCtrl = cleanedCommas.replace(/[\u0000-\u001F]+/g, " ");
+    const parseAttempts = [trimmed, cleanedCommas, sanitizedCtrl];
     for (const textToParse of parseAttempts) {
       try {
         const parsed = JSON.parse(textToParse);
         if (parsed && typeof parsed === "object") {
           if (Array.isArray(parsed)) {
-            return { viz_steps: parsed };
+            return { viz_steps: parsed, steps: parsed };
           }
-          if (!parsed.viz_steps && (parsed.vizSteps || parsed.steps)) {
-            parsed.viz_steps = parsed.vizSteps || parsed.steps;
+          if (!parsed.viz_steps && (parsed.vizSteps || parsed.steps || parsed.frames || parsed.simulationSteps)) {
+            parsed.viz_steps = parsed.vizSteps || parsed.steps || parsed.frames || parsed.simulationSteps;
+          }
+          if (!parsed.steps && parsed.viz_steps) {
+            parsed.steps = parsed.viz_steps;
           }
           if (!parsed.code_lines && (parsed.codeLines || parsed.code)) {
             parsed.code_lines = parsed.codeLines || parsed.code;
@@ -294790,33 +294795,51 @@ function getGeminiClient2() {
   });
 }
 async function generateContentWithFallback2(ai, preferredModel, params) {
-  const geminiKey = getGeminiKey();
+  const primaryGeminiKey = getGeminiKey();
+  const serverEnvGeminiKey = cleanEnv2(
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || ""
+  );
+  const geminiKeysToTry = [primaryGeminiKey, serverEnvGeminiKey].filter(
+    (k, i2, arr) => Boolean(k) && arr.indexOf(k) === i2
+  );
   let lastError = null;
-  if (geminiKey) {
-    const normalizedPreferred = /^gemini-(2\.5|2\.0|3\.)/i.test(preferredModel) ? "gemini-flash-latest" : preferredModel;
-    const candidateModels = [
-      normalizedPreferred,
-      "gemini-flash-lite-latest",
-      "gemini-flash-latest",
-      "gemini-2.5-flash"
-    ].filter((m2, i2, arr) => m2 && arr.indexOf(m2) === i2);
+  const normalizedPreferred = /^gemini-(2\.5|2\.0|3\.)/i.test(preferredModel) ? "gemini-flash-latest" : preferredModel;
+  const candidateModels = [
+    normalizedPreferred,
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
+    "gemini-2.5-flash"
+  ].filter((m2, i2, arr) => m2 && arr.indexOf(m2) === i2);
+  for (let kIdx = 0; kIdx < geminiKeysToTry.length; kIdx++) {
+    const activeKey = geminiKeysToTry[kIdx];
+    const client = kIdx === 0 && activeKey === primaryGeminiKey ? ai : new GoogleGenAI2({
+      apiKey: activeKey,
+      httpOptions: {
+        headers: { "User-Agent": "aistudio-build" },
+        timeout: 24e3
+      }
+    });
     for (const model of candidateModels) {
       try {
-        const resp = await ai.models.generateContent({
+        const resp = await client.models.generateContent({
           model,
           contents: params.contents,
           config: params.config
         });
-        return {
-          text: resp.text || "",
-          modelUsed: model
-        };
+        if (resp?.text) {
+          return {
+            text: resp.text,
+            modelUsed: model
+          };
+        }
       } catch (err) {
         lastError = err;
         const status = err?.status || err?.code || err?.error && err?.error?.code;
         const msg = String(err?.message || err || "");
-        console.log(`[Gemini Fallback] Model ${model} returned (${status}): ${msg}. Attempting fallback candidate...`);
-        if (status === 401 || status === 403 || status === 429 || msg.includes("API_KEY_INVALID") || msg.toLowerCase().includes("api key not valid") || msg.includes("RESOURCE_EXHAUSTED")) {
+        console.log(
+          `[Gemini Fallback] Key#${kIdx + 1} Model ${model} returned (${status}): ${msg}. Attempting next candidate...`
+        );
+        if (status === 401 || status === 403 || msg.includes("API_KEY_INVALID") || msg.toLowerCase().includes("api key not valid")) {
           break;
         }
       }
@@ -297571,12 +297594,18 @@ You MUST directly reference the exact numbers, values, pointers, or partial dry-
     }
     return colorMap[fallback] || colorMap.slate;
   };
+  let fallbackReason = "No AI API key configured";
   try {
     const geminiKey = getGeminiKey();
-    const hasAnyAiKey = Boolean(geminiKey || getOpenAIKey() || getOpenRouterKey());
+    const serverEnvGeminiKey = cleanEnv2(
+      process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || ""
+    );
+    const hasAnyAiKey = Boolean(
+      geminiKey || serverEnvGeminiKey || getOpenAIKey() || getOpenRouterKey()
+    );
     if (hasAnyAiKey && query.length > 2) {
       const ai = new GoogleGenAI2({
-        apiKey: geminiKey || "placeholder",
+        apiKey: geminiKey || serverEnvGeminiKey || "placeholder",
         httpOptions: {
           headers: { "User-Agent": "aistudio-build" }
         }
@@ -297680,18 +297709,32 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
 3. Only use "arrows" to connect two different nodes ("from": "node-a", "to": "node-b"). Do NOT create self-arrows or floating badge arrows on a single node.
 4. "widgets" is optional \u2014 include ONLY when needed ("grid2d", "hashmap", "container", or "intervals").
 5. Space adjacent horizontal nodes by at least (width + 22) pixels inside x: 65..780, y: 165..280.`;
-      const llmRes = await Promise.race([
+      let llmRes = await Promise.race([
         generateContentWithFallback2(ai, "gemini-flash-lite-latest", {
           contents: sysPrompt,
           config: { responseMimeType: "application/json" }
         }),
         new Promise(
-          (_, reject) => setTimeout(() => reject(new Error("AI Whiteboard timeout")), 24e3)
+          (_, reject) => setTimeout(() => reject(new Error("AI Whiteboard timeout")), 26e3)
         )
       ]);
-      const rawText = llmRes.text || "";
-      const parsed = extractJson(rawText);
-      const rawSteps = Array.isArray(parsed?.steps) ? parsed.steps : Array.isArray(parsed?.viz_steps) ? parsed.viz_steps : [];
+      let rawText = llmRes.text || "";
+      let parsed = extractJson(rawText);
+      let rawSteps = Array.isArray(parsed?.steps) ? parsed.steps : Array.isArray(parsed?.viz_steps) ? parsed.viz_steps : [];
+      if (!parsed || rawSteps.length === 0) {
+        llmRes = await Promise.race([
+          generateContentWithFallback2(ai, "gemini-flash-latest", {
+            contents: sysPrompt,
+            config: { responseMimeType: "application/json" }
+          }),
+          new Promise(
+            (_, reject) => setTimeout(() => reject(new Error("AI Whiteboard retry timeout")), 22e3)
+          )
+        ]);
+        rawText = llmRes.text || "";
+        parsed = extractJson(rawText);
+        rawSteps = Array.isArray(parsed?.steps) ? parsed.steps : Array.isArray(parsed?.viz_steps) ? parsed.viz_steps : [];
+      }
       if (parsed && rawSteps.length > 0) {
         const frames = rawSteps.map(
           (st, sIdx) => {
@@ -298295,7 +298338,9 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
           id: `ai_lesson_${Date.now()}`,
           topic: String(parsed.topic || query).slice(0, 56),
           badge: String(parsed.badge || `AI Live (${llmRes.modelUsed})`),
-          frames
+          frames,
+          aiSource: "gemini_live",
+          modelUsed: llmRes.modelUsed
         };
         return res.json({
           ok: true,
@@ -298303,15 +298348,23 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
           modelUsed: llmRes.modelUsed,
           lesson
         });
+      } else {
+        fallbackReason = "AI returned empty steps";
       }
     }
   } catch (err) {
-    console.warn("[AI Whiteboard] Using deterministic Excalidraw generator fallback:", err?.message);
+    fallbackReason = String(err?.message || "AI request error").slice(0, 80);
+    console.warn("[AI Whiteboard] Using deterministic Excalidraw generator fallback:", fallbackReason);
   }
   const fallbackLesson = generateAiExcalidrawLessonForQuery(query, selectionContext);
+  fallbackLesson.aiSource = "deterministic_fallback";
+  fallbackLesson.modelUsed = "Offline Fallback";
+  fallbackLesson.fallbackReason = fallbackReason;
   return res.json({
     ok: true,
     source: "deterministic_fallback",
+    modelUsed: "Offline Fallback",
+    fallbackReason,
     lesson: fallbackLesson
   });
 });

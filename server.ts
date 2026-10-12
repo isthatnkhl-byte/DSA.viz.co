@@ -4722,8 +4722,10 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
             // 2. End of active window / last highlighted element (R pointer)
             // 3. State tracker card (windowSum / maxSum)
             // 4. Settle on the active R pointer / rightmost highlighted element so the cursor visibly advances across the array each step!
+            const candidateWaypoints =
+              stepWaypoints.length > 0 ? stepWaypoints : pointerMarkerWaypoints;
             const uniqueNodeWaypoints: Array<{ x: number; y: number }> = [];
-            for (const pt of [...stepWaypoints, ...pointerMarkerWaypoints]) {
+            for (const pt of candidateWaypoints) {
               const exists = uniqueNodeWaypoints.some(
                 (u) => Math.hypot(pt.x - u.x, pt.y - u.y) <= 12
               );

@@ -298246,8 +298246,9 @@ Strict Layout Rules (to prevent any overlapping or messy UI):
                 }
               });
             }
+            const candidateWaypoints = stepWaypoints.length > 0 ? stepWaypoints : pointerMarkerWaypoints;
             const uniqueNodeWaypoints = [];
-            for (const pt of [...stepWaypoints, ...pointerMarkerWaypoints]) {
+            for (const pt of candidateWaypoints) {
               const exists = uniqueNodeWaypoints.some(
                 (u) => Math.hypot(pt.x - u.x, pt.y - u.y) <= 12
               );

@@ -16,6 +16,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useThemeColor } from "@/hooks/useThemeColor";
 
 interface DryRunStep {
   step: number;
@@ -249,6 +250,7 @@ function drawArrow(
 }
 
 export function FeaturesBento() {
+  const { isDark } = useThemeColor();
   const [activeStepIdx, setActiveStepIdx] = useState(2);
   const [linkMode, setLinkMode] = useState<"branch" | "takeover">("branch");
 
@@ -288,30 +290,61 @@ export function FeaturesBento() {
     const bgCtx = bgCanvas.getContext("2d", { alpha: false });
     if (bgCtx) {
       bgCtx.translate(320, 320);
-      const bgGrad = bgCtx.createLinearGradient(0, 0, W, H);
-      bgGrad.addColorStop(0, "#0b0408");
-      bgGrad.addColorStop(0.5, "#13070d");
-      bgGrad.addColorStop(1, "#080306");
-      bgCtx.fillStyle = bgGrad;
-      bgCtx.fillRect(-320, -320, W + 640, H + 640);
 
-      const rad1 = bgCtx.createRadialGradient(340, 180, 10, 340, 180, 460);
-      rad1.addColorStop(0, "rgba(225, 29, 72, 0.20)");
-      rad1.addColorStop(1, "rgba(225, 29, 72, 0)");
-      bgCtx.fillStyle = rad1;
-      bgCtx.fillRect(0, 0, W, H);
+      if (isDark) {
+        const bgGrad = bgCtx.createLinearGradient(0, 0, W, H);
+        bgGrad.addColorStop(0, "#09040e");
+        bgGrad.addColorStop(0.5, "#12061c");
+        bgGrad.addColorStop(1, "#07020b");
+        bgCtx.fillStyle = bgGrad;
+        bgCtx.fillRect(-320, -320, W + 640, H + 640);
 
-      const rad2 = bgCtx.createRadialGradient(980, 460, 10, 980, 460, 460);
-      rad2.addColorStop(0, "rgba(249, 115, 22, 0.16)");
-      rad2.addColorStop(1, "rgba(249, 115, 22, 0)");
-      bgCtx.fillStyle = rad2;
-      bgCtx.fillRect(0, 0, W, H);
+        const rad1 = bgCtx.createRadialGradient(340, 180, 10, 340, 180, 460);
+        rad1.addColorStop(0, "rgba(124, 58, 237, 0.20)");
+        rad1.addColorStop(1, "rgba(124, 58, 237, 0)");
+        bgCtx.fillStyle = rad1;
+        bgCtx.fillRect(0, 0, W, H);
 
-      roundRect(bgCtx, 28, 148, W - 56, 512, 18, "#f8fafc", "#cbd5e1", 2);
-      bgCtx.fillStyle = "#cbd5e1";
-      for (let wx = 48; wx < W - 48; wx += 24) {
-        for (let wy = 168; wy < 644; wy += 24) {
-          bgCtx.fillRect(wx, wy, 1.5, 1.5);
+        const rad2 = bgCtx.createRadialGradient(980, 460, 10, 980, 460, 460);
+        rad2.addColorStop(0, "rgba(245, 158, 11, 0.15)");
+        rad2.addColorStop(1, "rgba(245, 158, 11, 0)");
+        bgCtx.fillStyle = rad2;
+        bgCtx.fillRect(0, 0, W, H);
+
+        roundRect(bgCtx, 28, 148, W - 56, 512, 18, "#100918", "rgba(139, 92, 246, 0.25)", 2);
+        bgCtx.fillStyle = "rgba(139, 92, 246, 0.18)";
+        for (let wx = 48; wx < W - 48; wx += 24) {
+          for (let wy = 168; wy < 644; wy += 24) {
+            bgCtx.fillRect(wx, wy, 1.5, 1.5);
+          }
+        }
+      } else {
+        // Light mode: pristine studio whiteboard
+        const bgGrad = bgCtx.createLinearGradient(0, 0, W, H);
+        bgGrad.addColorStop(0, "#f8fafc");
+        bgGrad.addColorStop(0.5, "#f1f5f9");
+        bgGrad.addColorStop(1, "#e2e8f0");
+        bgCtx.fillStyle = bgGrad;
+        bgCtx.fillRect(-320, -320, W + 640, H + 640);
+
+        const rad1 = bgCtx.createRadialGradient(340, 180, 10, 340, 180, 460);
+        rad1.addColorStop(0, "rgba(124, 58, 237, 0.08)");
+        rad1.addColorStop(1, "rgba(124, 58, 237, 0)");
+        bgCtx.fillStyle = rad1;
+        bgCtx.fillRect(0, 0, W, H);
+
+        const rad2 = bgCtx.createRadialGradient(980, 460, 10, 980, 460, 460);
+        rad2.addColorStop(0, "rgba(245, 158, 11, 0.08)");
+        rad2.addColorStop(1, "rgba(245, 158, 11, 0)");
+        bgCtx.fillStyle = rad2;
+        bgCtx.fillRect(0, 0, W, H);
+
+        roundRect(bgCtx, 28, 148, W - 56, 512, 18, "#ffffff", "#cbd5e1", 2);
+        bgCtx.fillStyle = "#cbd5e1";
+        for (let wx = 48; wx < W - 48; wx += 24) {
+          for (let wy = 168; wy < 644; wy += 24) {
+            bgCtx.fillRect(wx, wy, 1.5, 1.5);
+          }
         }
       }
     }
@@ -324,18 +357,33 @@ export function FeaturesBento() {
       ctx.drawImage(bgCanvas, -320, -320);
 
       // Top App Chrome Bar
-      roundRect(
-        ctx,
-        28,
-        20,
-        W - 56,
-        54,
-        14,
-        "rgba(24, 12, 18, 0.94)",
-        "rgba(225, 29, 72, 0.45)",
-        1.5
-      );
-      ctx.fillStyle = "#fb7185";
+      if (isDark) {
+        roundRect(
+          ctx,
+          28,
+          20,
+          W - 56,
+          54,
+          14,
+          "rgba(22, 14, 30, 0.94)",
+          "rgba(139, 92, 246, 0.35)",
+          1.5
+        );
+        ctx.fillStyle = "#c084fc";
+      } else {
+        roundRect(
+          ctx,
+          28,
+          20,
+          W - 56,
+          54,
+          14,
+          "rgba(255, 255, 255, 0.96)",
+          "rgba(148, 163, 184, 0.35)",
+          1.5
+        );
+        ctx.fillStyle = "#6366f1";
+      }
       ctx.font = "bold 14px monospace";
       ctx.fillText("DSA.viz.co // AI Co-Teacher Whiteboard Engine", 52, 52);
 
@@ -348,20 +396,20 @@ export function FeaturesBento() {
         255,
         32,
         8,
-        "rgba(6, 78, 59, 0.9)",
-        "rgba(16, 185, 129, 0.9)",
+        isDark ? "rgba(6, 78, 59, 0.9)" : "#ecfdf5",
+        isDark ? "rgba(16, 185, 129, 0.9)" : "#10b981",
         1.8
       );
-      ctx.fillStyle = `rgba(52, 211, 153, ${badgePulse.toFixed(2)})`;
+      ctx.fillStyle = `rgba(16, 185, 129, ${badgePulse.toFixed(2)})`;
       ctx.beginPath();
       ctx.arc(472, 47, 5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#ecfdf5";
+      ctx.fillStyle = isDark ? "#ecfdf5" : "#047857";
       ctx.font = "bold 12px monospace";
       ctx.fillText("LIVE AI: gemini-3.5-flash-lite", 486, 51);
 
       // Board Zones Bar
-      ctx.fillStyle = "#94a3b8";
+      ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
       ctx.font = "bold 11px monospace";
       ctx.fillText("BOARD ZONES:", 740, 51);
 
@@ -373,11 +421,29 @@ export function FeaturesBento() {
         185,
         32,
         8,
-        isZone1Linked ? "rgba(225, 29, 72, 0.32)" : "rgba(30, 41, 59, 0.85)",
-        isZone1Linked ? "#f43f5e" : "#475569",
+        isZone1Linked
+          ? isDark
+            ? "rgba(124, 58, 237, 0.32)"
+            : "#f5f3ff"
+          : isDark
+          ? "rgba(30, 41, 59, 0.85)"
+          : "#f1f5f9",
+        isZone1Linked
+          ? isDark
+            ? "#a78bfa"
+            : "#7c3aed"
+          : isDark
+          ? "#475569"
+          : "#cbd5e1",
         isZone1Linked ? 2.2 : 1.2
       );
-      ctx.fillStyle = isZone1Linked ? "#ffe4e6" : "#e2e8f0";
+      ctx.fillStyle = isZone1Linked
+        ? isDark
+          ? "#ede9fe"
+          : "#5b21b6"
+        : isDark
+        ? "#e2e8f0"
+        : "#334155";
       ctx.font = "bold 11px monospace";
       ctx.fillText(
         isZone1Linked ? "🎯 #1 Sliding Window" : "#1 Sliding Window",
@@ -396,28 +462,44 @@ export function FeaturesBento() {
           195,
           32,
           8,
-          "rgba(245, 158, 11, 0.26)",
+          isDark ? "rgba(245, 158, 11, 0.26)" : "#fef3c7",
           "#f59e0b",
           2
         );
-        ctx.fillStyle = "#fde68a";
+        ctx.fillStyle = isDark ? "#fde68a" : "#b45309";
         ctx.font = "bold 11px monospace";
         ctx.fillText("🌿 #2 Optimal Branch", 1042, 51);
         ctx.restore();
       }
 
       // Prompt Bar Row
-      roundRect(
-        ctx,
-        28,
-        84,
-        W - 56,
-        52,
-        12,
-        "rgba(18, 10, 15, 0.96)",
-        "rgba(244, 63, 94, 0.45)",
-        1.5
-      );
+      if (isDark) {
+        roundRect(
+          ctx,
+          28,
+          84,
+          W - 56,
+          52,
+          12,
+          "rgba(18, 10, 26, 0.96)",
+          "rgba(139, 92, 246, 0.35)",
+          1.5
+        );
+        ctx.fillStyle = "#c084fc";
+      } else {
+        roundRect(
+          ctx,
+          28,
+          84,
+          W - 56,
+          52,
+          12,
+          "rgba(255, 255, 255, 0.98)",
+          "rgba(148, 163, 184, 0.35)",
+          1.5
+        );
+        ctx.fillStyle = "#6366f1";
+      }
       const prompt1 =
         "Simulate sliding window algorithm for max subarray sum k=3 with dry run";
       const prompt2 =
@@ -430,11 +512,10 @@ export function FeaturesBento() {
           ? prompt1.length
           : Math.floor(lerp(0, prompt2.length, (t - 9.8) / 0.8));
 
-      ctx.fillStyle = "#f43f5e";
       ctx.font = "bold 12px monospace";
       ctx.fillText("ASK AI >", 48, 115);
 
-      ctx.fillStyle = "#f8fafc";
+      ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
       ctx.font = "13px monospace";
       ctx.fillText(
         activePrompt.slice(0, typedLen) +
@@ -445,7 +526,7 @@ export function FeaturesBento() {
 
       const btnLabel =
         t >= 9.8 ? "🌿 Branch From Zone #1" : "✨ Ask AI Co-Teacher";
-      const btnColor = t >= 9.8 ? "#e11d48" : "#f97316";
+      const btnColor = t >= 9.8 ? "#7c3aed" : "#f59e0b";
       roundRect(ctx, W - 245, 92, 205, 36, 8, btnColor, "#ffffff", 1.2);
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 12px monospace";
@@ -493,6 +574,19 @@ export function FeaturesBento() {
         const zw = 668;
         const zh = 476;
 
+        const z1Bg = isDark
+          ? isZone1Linked
+            ? "#130920"
+            : "#0d1322"
+          : "#ffffff";
+        const z1Border = isZone1Linked
+          ? isDark
+            ? "#8b5cf6"
+            : "#7c3aed"
+          : isDark
+          ? "#38bdf8"
+          : "#0284c7";
+
         roundRect(
           ctx,
           zx,
@@ -500,11 +594,19 @@ export function FeaturesBento() {
           zw,
           zh,
           14,
-          "#ffffff",
-          isZone1Linked ? "#e11d48" : "#0284c7",
-          isZone1Linked ? 3 : 2,
+          z1Bg,
+          z1Border,
+          isZone1Linked ? 2.5 : 2,
           true
         );
+
+        const z1HeaderBg = isZone1Linked
+          ? isDark
+            ? "rgba(124, 58, 237, 0.28)"
+            : "#f5f3ff"
+          : isDark
+          ? "rgba(2, 132, 199, 0.25)"
+          : "#e0f2fe";
 
         roundRect(
           ctx,
@@ -513,11 +615,17 @@ export function FeaturesBento() {
           zw,
           42,
           12,
-          isZone1Linked ? "#ffe4e6" : "#e0f2fe",
-          isZone1Linked ? "#e11d48" : "#0284c7",
+          z1HeaderBg,
+          z1Border,
           1.5
         );
-        ctx.fillStyle = isZone1Linked ? "#be123c" : "#0369a1";
+        ctx.fillStyle = isZone1Linked
+          ? isDark
+            ? "#ede9fe"
+            : "#5b21b6"
+          : isDark
+          ? "#bae6fd"
+          : "#0369a1";
         ctx.font = "bold 13px monospace";
         ctx.fillText(
           "ZONE #1 • SLIDING WINDOW MAX SUBARRAY SUM (K=3)",
@@ -532,11 +640,11 @@ export function FeaturesBento() {
           202,
           28,
           6,
-          "#dcfce7",
-          "#16a34a",
+          isDark ? "rgba(6, 78, 59, 0.9)" : "#dcfce7",
+          isDark ? "rgba(16, 185, 129, 0.9)" : "#16a34a",
           1.5
         );
-        ctx.fillStyle = "#15803d";
+        ctx.fillStyle = isDark ? "#ecfdf5" : "#15803d";
         ctx.font = "bold 11px monospace";
         ctx.fillText("LIVE AI: gemini-3.5-flash-lite", zx + zw - 206, zy + 25);
 
@@ -547,14 +655,14 @@ export function FeaturesBento() {
           zw - 36,
           62,
           10,
-          "#f0f9ff",
-          "#0284c7",
+          isDark ? "rgba(2, 132, 199, 0.15)" : "#f0f9ff",
+          isDark ? "#38bdf8" : "#0284c7",
           1.5
         );
-        ctx.fillStyle = "#0369a1";
+        ctx.fillStyle = isDark ? "#38bdf8" : "#0369a1";
         ctx.font = "bold 14px monospace";
         ctx.fillText(stepTitles[stepIdx]!, zx + 30, zy + 76);
-        ctx.fillStyle = "#0f172a";
+        ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
         ctx.font = "12px monospace";
         ctx.fillText(invariants[stepIdx]!, zx + 30, zy + 100);
 
@@ -565,11 +673,11 @@ export function FeaturesBento() {
           zw - 36,
           32,
           8,
-          "#f8fafc",
-          "#64748b",
+          isDark ? "rgba(30, 41, 59, 0.7)" : "#f8fafc",
+          isDark ? "#475569" : "#cbd5e1",
           1.2
         );
-        ctx.fillStyle = "#334155";
+        ctx.fillStyle = isDark ? "#94a3b8" : "#334155";
         ctx.font = "bold 12px monospace";
         ctx.fillText(
           "Raw Input Dataset: arr = [2, 1, 5, 1, 3, 2]  |  Window Size k = 3",
@@ -592,12 +700,12 @@ export function FeaturesBento() {
           winW,
           cellH + 20,
           12,
-          "rgba(254, 243, 199, 0.42)",
+          isDark ? "rgba(245, 158, 11, 0.22)" : "rgba(254, 243, 199, 0.65)",
           "#d97706",
           3,
           true
         );
-        ctx.fillStyle = "#b45309";
+        ctx.fillStyle = isDark ? "#fde68a" : "#b45309";
         ctx.font = "bold 11px monospace";
         ctx.fillText(
           `ACTIVE WINDOW [${winStart}..${winEnd}]`,
@@ -609,15 +717,33 @@ export function FeaturesBento() {
           const cx = rowStartX + i * (cellW + cellGap);
           const inWin = i >= winStart && i <= winEnd;
           const isPeak = stepIdx === 2 && inWin;
-          const stroke = isPeak ? "#16a34a" : inWin ? "#d97706" : "#64748b";
-          const bg = isPeak ? "#dcfce7" : inWin ? "#fef3c7" : "#f8fafc";
+          const stroke = isPeak
+            ? isDark
+              ? "#4ade80"
+              : "#16a34a"
+            : inWin
+            ? "#d97706"
+            : isDark
+            ? "#475569"
+            : "#cbd5e1";
+          const bg = isPeak
+            ? isDark
+              ? "rgba(22, 163, 74, 0.25)"
+              : "#dcfce7"
+            : inWin
+            ? isDark
+              ? "rgba(217, 119, 6, 0.25)"
+              : "#fef3c7"
+            : isDark
+            ? "rgba(30, 41, 59, 0.8)"
+            : "#ffffff";
 
-          ctx.fillStyle = "#64748b";
+          ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
           ctx.font = "11px monospace";
           ctx.fillText(`[${i}]`, cx + 28, rowY - 4);
 
           roundRect(ctx, cx, rowY, cellW, cellH, 10, bg, stroke, inWin ? 3 : 1.5);
-          ctx.fillStyle = "#0f172a";
+          ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
           ctx.font = "bold 22px monospace";
           ctx.fillText(String(arr[i]), cx + 31, rowY + 40);
         }
@@ -625,13 +751,13 @@ export function FeaturesBento() {
         const lx = rowStartX + smoothWinStart * (cellW + cellGap) + cellW / 2;
         const rx =
           rowStartX + (smoothWinStart + 2) * (cellW + cellGap) + cellW / 2;
-        drawArrow(ctx, lx, rowY + cellH + 38, lx, rowY + cellH + 6, "#0284c7", 3);
-        ctx.fillStyle = "#0284c7";
+        drawArrow(ctx, lx, rowY + cellH + 38, lx, rowY + cellH + 6, isDark ? "#38bdf8" : "#0284c7", 3);
+        ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7";
         ctx.font = "bold 13px monospace";
         ctx.fillText(`L=${winStart}`, lx - 16, rowY + cellH + 54);
 
-        drawArrow(ctx, rx, rowY + cellH + 38, rx, rowY + cellH + 6, "#16a34a", 3);
-        ctx.fillStyle = "#16a34a";
+        drawArrow(ctx, rx, rowY + cellH + 38, rx, rowY + cellH + 6, isDark ? "#4ade80" : "#16a34a", 3);
+        ctx.fillStyle = isDark ? "#4ade80" : "#16a34a";
         ctx.font = "bold 13px monospace";
         ctx.fillText(`R=${winEnd}`, rx - 16, rowY + cellH + 54);
 
@@ -639,20 +765,20 @@ export function FeaturesBento() {
           {
             k: "window [L..R]",
             v: `[${winStart} .. ${winEnd}]`,
-            stroke: "#0284c7",
-            bg: "#e0f2fe",
+            stroke: isDark ? "#38bdf8" : "#0284c7",
+            bg: isDark ? "rgba(2, 132, 199, 0.2)" : "#e0f2fe",
           },
           {
             k: "windowSum",
             v: String(winSums[stepIdx]),
             stroke: "#d97706",
-            bg: "#fef3c7",
+            bg: isDark ? "rgba(217, 119, 6, 0.2)" : "#fef3c7",
           },
           {
             k: "maxSum (Best)",
             v: `${maxSums[stepIdx]}${stepIdx === 2 ? " 🎯" : ""}`,
-            stroke: "#16a34a",
-            bg: "#dcfce7",
+            stroke: isDark ? "#4ade80" : "#16a34a",
+            bg: isDark ? "rgba(22, 163, 74, 0.2)" : "#dcfce7",
           },
         ];
         cards.forEach((c, idx) => {
@@ -662,7 +788,7 @@ export function FeaturesBento() {
           ctx.fillStyle = c.stroke;
           ctx.font = "bold 11px monospace";
           ctx.fillText(c.k, kx + 12, ky + 22);
-          ctx.fillStyle = "#0f172a";
+          ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
           ctx.font = "bold 18px monospace";
           ctx.fillText(c.v, kx + 12, ky + 50);
         });
@@ -675,11 +801,11 @@ export function FeaturesBento() {
             zw - 36,
             24,
             6,
-            "#ffe4e6",
-            "#e11d48",
+            isDark ? "rgba(124, 58, 237, 0.25)" : "#f5f3ff",
+            isDark ? "#a78bfa" : "#7c3aed",
             1.5
           );
-          ctx.fillStyle = "#be123c";
+          ctx.fillStyle = isDark ? "#ede9fe" : "#5b21b6";
           ctx.font = "bold 11px monospace";
           ctx.fillText(
             "🎯 LINKED CONTEXT PINNED: Topic + Step 3/4 + Data [2, 1, 5, 1, 3, 2] sent to AI",
@@ -697,16 +823,38 @@ export function FeaturesBento() {
         ctx.save();
         ctx.globalAlpha = z2Alpha;
 
-        drawArrow(ctx, 720, 395, 768, 395, "#e11d48", 3.5, true);
+        const arrowColor = isDark ? "#a78bfa" : "#7c3aed";
+        drawArrow(ctx, 720, 395, 768, 395, arrowColor, 3.5, true);
 
         const z2x = 774;
         const z2y = 166;
         const z2w = 462;
         const z2h = 476;
 
-        roundRect(ctx, z2x, z2y, z2w, z2h, 14, "#ffffff", "#d97706", 2.5, true);
-        roundRect(ctx, z2x, z2y, z2w, 42, 12, "#fef3c7", "#d97706", 1.5);
-        ctx.fillStyle = "#b45309";
+        roundRect(
+          ctx,
+          z2x,
+          z2y,
+          z2w,
+          z2h,
+          14,
+          isDark ? "#120a1c" : "#ffffff",
+          "#d97706",
+          2.5,
+          true
+        );
+        roundRect(
+          ctx,
+          z2x,
+          z2y,
+          z2w,
+          42,
+          12,
+          isDark ? "rgba(245, 158, 11, 0.25)" : "#fef3c7",
+          "#d97706",
+          1.5
+        );
+        ctx.fillStyle = isDark ? "#fde68a" : "#b45309";
         ctx.font = "bold 12px monospace";
         ctx.fillText("🌿 ZONE #2 • BRANCHED FROM ZONE #1", z2x + 14, z2y + 26);
 
@@ -717,11 +865,11 @@ export function FeaturesBento() {
           184,
           28,
           6,
-          "#dcfce7",
-          "#16a34a",
+          isDark ? "rgba(6, 78, 59, 0.9)" : "#dcfce7",
+          isDark ? "rgba(16, 185, 129, 0.9)" : "#16a34a",
           1.5
         );
-        ctx.fillStyle = "#15803d";
+        ctx.fillStyle = isDark ? "#ecfdf5" : "#15803d";
         ctx.font = "bold 10px monospace";
         ctx.fillText("LIVE AI: gemini-3.5-flash", z2x + z2w - 186, z2y + 25);
 
@@ -732,11 +880,11 @@ export function FeaturesBento() {
           z2w - 32,
           32,
           8,
-          "#ffe4e6",
-          "#e11d48",
+          isDark ? "rgba(124, 58, 237, 0.25)" : "#f5f3ff",
+          isDark ? "#a78bfa" : "#7c3aed",
           1.5
         );
-        ctx.fillStyle = "#be123c";
+        ctx.fillStyle = isDark ? "#ede9fe" : "#5b21b6";
         ctx.font = "bold 11px monospace";
         ctx.fillText(
           "Branched from Zone #1 • Dataset [2, 1, 5, 1, 3, 2]",
@@ -751,11 +899,11 @@ export function FeaturesBento() {
           z2w - 32,
           150,
           10,
-          "#f8fafc",
-          "#0284c7",
+          isDark ? "rgba(2, 132, 199, 0.15)" : "#f8fafc",
+          isDark ? "#38bdf8" : "#0284c7",
           1.8
         );
-        ctx.fillStyle = "#0369a1";
+        ctx.fillStyle = isDark ? "#38bdf8" : "#0369a1";
         ctx.font = "bold 13px monospace";
         ctx.fillText(
           "Why Sliding Window Beats Nested Loops:",
@@ -770,11 +918,11 @@ export function FeaturesBento() {
           z2w - 56,
           44,
           8,
-          "#fee2e2",
-          "#dc2626",
+          isDark ? "rgba(239, 68, 68, 0.2)" : "#fee2e2",
+          isDark ? "#f87171" : "#dc2626",
           1.5
         );
-        ctx.fillStyle = "#991b1b";
+        ctx.fillStyle = isDark ? "#fca5a5" : "#991b1b";
         ctx.font = "bold 12px monospace";
         ctx.fillText(
           "Brute Force O(n*k): Re-sums 3 cells each step (18 ops)",
@@ -789,11 +937,11 @@ export function FeaturesBento() {
           z2w - 56,
           44,
           8,
-          "#dcfce7",
-          "#16a34a",
+          isDark ? "rgba(22, 163, 74, 0.2)" : "#dcfce7",
+          isDark ? "#4ade80" : "#16a34a",
           1.5
         );
-        ctx.fillStyle = "#166534";
+        ctx.fillStyle = isDark ? "#86efac" : "#166534";
         ctx.font = "bold 12px monospace";
         ctx.fillText(
           "Sliding Window O(n): Subtract outgoing, add incoming (6 ops)",
@@ -808,11 +956,11 @@ export function FeaturesBento() {
           z2w - 32,
           188,
           10,
-          "#f0fdf4",
-          "#16a34a",
+          isDark ? "rgba(22, 163, 74, 0.15)" : "#f0fdf4",
+          isDark ? "#22c55e" : "#16a34a",
           1.8
         );
-        ctx.fillStyle = "#15803d";
+        ctx.fillStyle = isDark ? "#4ade80" : "#15803d";
         ctx.font = "bold 13px monospace";
         ctx.fillText(
           "O(1) Window Transition Delta at Step 3:",
@@ -820,11 +968,21 @@ export function FeaturesBento() {
           z2y + 288
         );
 
-        roundRect(ctx, z2x + 26, z2y + 306, 118, 64, 8, "#e0f2fe", "#0284c7", 2);
-        ctx.fillStyle = "#0369a1";
+        roundRect(
+          ctx,
+          z2x + 26,
+          z2y + 306,
+          118,
+          64,
+          8,
+          isDark ? "rgba(2, 132, 199, 0.2)" : "#e0f2fe",
+          isDark ? "#38bdf8" : "#0284c7",
+          2
+        );
+        ctx.fillStyle = isDark ? "#38bdf8" : "#0369a1";
         ctx.font = "bold 11px monospace";
         ctx.fillText("Prev Sum [1..3]", z2x + 38, z2y + 328);
-        ctx.fillStyle = "#0f172a";
+        ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
         ctx.font = "bold 20px monospace";
         ctx.fillText("7", z2x + 76, z2y + 355);
 
@@ -835,14 +993,14 @@ export function FeaturesBento() {
           126,
           64,
           8,
-          "#fef3c7",
+          isDark ? "rgba(217, 119, 6, 0.2)" : "#fef3c7",
           "#d97706",
           2
         );
-        ctx.fillStyle = "#b45309";
+        ctx.fillStyle = isDark ? "#fde68a" : "#b45309";
         ctx.font = "bold 11px monospace";
         ctx.fillText("Delta (-arr[1]+arr[4])", z2x + 170, z2y + 328);
-        ctx.fillStyle = "#0f172a";
+        ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
         ctx.font = "bold 18px monospace";
         ctx.fillText("-1 + 3 = +2", z2x + 178, z2y + 355);
 
@@ -853,18 +1011,18 @@ export function FeaturesBento() {
           122,
           64,
           8,
-          "#dcfce7",
-          "#16a34a",
+          isDark ? "rgba(22, 163, 74, 0.2)" : "#dcfce7",
+          isDark ? "#4ade80" : "#16a34a",
           2.5
         );
-        ctx.fillStyle = "#15803d";
+        ctx.fillStyle = isDark ? "#4ade80" : "#15803d";
         ctx.font = "bold 11px monospace";
         ctx.fillText("Peak Sum [2..4]", z2x + 322, z2y + 328);
-        ctx.fillStyle = "#15803d";
+        ctx.fillStyle = isDark ? "#4ade80" : "#15803d";
         ctx.font = "bold 20px monospace";
         ctx.fillText("9 🎯", z2x + 350, z2y + 355);
 
-        ctx.fillStyle = "#334155";
+        ctx.fillStyle = isDark ? "#94a3b8" : "#334155";
         ctx.font = "bold 12px monospace";
         ctx.fillText(
           "✓ Preserves full context from Linked Zone #1 automatically!",
@@ -886,7 +1044,7 @@ export function FeaturesBento() {
       const speed = Math.hypot(vx, vy);
       const hist = camStateRef.current.history;
 
-      // 1. Smooth Neon Comet Ribbon Trail
+      // 1. Smooth Neon Comet Ribbon Trail (Primary theme violet/indigo)
       if (hist.length > 2) {
         ctx.save();
         ctx.lineCap = "round";
@@ -897,7 +1055,9 @@ export function FeaturesBento() {
           ctx.beginPath();
           ctx.moveTo(p0.x, p0.y);
           ctx.lineTo(p1.x, p1.y);
-          ctx.strokeStyle = `rgba(244, 63, 94, ${(ratio * ratio * 0.5).toFixed(3)})`;
+          ctx.strokeStyle = isDark
+            ? `rgba(167, 139, 250, ${(ratio * ratio * 0.55).toFixed(3)})`
+            : `rgba(124, 58, 237, ${(ratio * ratio * 0.45).toFixed(3)})`;
           ctx.lineWidth = 1.5 + ratio * 10;
           ctx.stroke();
         }
@@ -912,7 +1072,9 @@ export function FeaturesBento() {
           ctx.save();
           ctx.beginPath();
           ctx.arc(kf.x, kf.y, r, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(244, 63, 94, ${((1 - p) * 0.85).toFixed(3)})`;
+          ctx.strokeStyle = isDark
+            ? `rgba(167, 139, 250, ${((1 - p) * 0.85).toFixed(3)})`
+            : `rgba(124, 58, 237, ${((1 - p) * 0.80).toFixed(3)})`;
           ctx.lineWidth = 3 * (1 - p);
           ctx.stroke();
           ctx.restore();
@@ -937,7 +1099,9 @@ export function FeaturesBento() {
         // Outer laser halo
         ctx.beginPath();
         ctx.arc(4, 10, 16, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(225, 29, 72, 0.22)";
+        ctx.fillStyle = isDark
+          ? "rgba(167, 139, 250, 0.25)"
+          : "rgba(124, 58, 237, 0.20)";
         ctx.fill();
 
         // Crisp vector pointer arrow (no text label below it)
@@ -950,7 +1114,7 @@ export function FeaturesBento() {
         ctx.lineTo(10, 15);
         ctx.lineTo(18, 15);
         ctx.closePath();
-        ctx.fillStyle = "#e11d48";
+        ctx.fillStyle = isDark ? "#8b5cf6" : "#7c3aed";
         ctx.fill();
         ctx.lineWidth = 2.2;
         ctx.strokeStyle = "#ffffff";
@@ -1008,7 +1172,7 @@ export function FeaturesBento() {
       drawCursorClean(t, st.curX, st.curY, vx, vy);
       ctx.restore();
 
-      // Screen-space Cinematic Vignette
+      // Screen-space Cinematic Vignette (subtle in light mode, cinematic in dark mode)
       const vig = ctx.createRadialGradient(
         W / 2,
         H / 2,
@@ -1018,7 +1182,10 @@ export function FeaturesBento() {
         W * 0.65
       );
       vig.addColorStop(0, "rgba(0,0,0,0)");
-      vig.addColorStop(1, "rgba(5, 2, 4, 0.46)");
+      vig.addColorStop(
+        1,
+        isDark ? "rgba(5, 2, 8, 0.46)" : "rgba(148, 163, 184, 0.10)"
+      );
       ctx.fillStyle = vig;
       ctx.fillRect(0, 0, W, H);
 
@@ -1032,7 +1199,7 @@ export function FeaturesBento() {
 
     rafId = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, cameraTrackEnabled]);
+  }, [isPlaying, cameraTrackEnabled, isDark]);
 
   const activeStep =
     LIVE_WHITEBOARD_STEPS[activeStepIdx] ?? LIVE_WHITEBOARD_STEPS[2]!;
@@ -1105,19 +1272,19 @@ export function FeaturesBento() {
             </p>
 
             {/* Interactive Mini Whiteboard Canvas Preview */}
-            <div className="my-5 rounded-2xl border border-slate-300/80 bg-[#f8fafc] text-slate-900 p-4 font-mono text-xs shadow-inner relative overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-200">
-                <span className="inline-flex items-center gap-1.5 font-bold text-[11px] text-sky-700 bg-sky-100 border border-sky-300 rounded-md px-2.5 py-0.5">
+            <div className="my-5 rounded-2xl border border-border/80 bg-slate-50/80 dark:bg-card/90 text-foreground p-4 font-mono text-xs shadow-inner relative overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-3 border-b border-border/60">
+                <span className="inline-flex items-center gap-1.5 font-bold text-[11px] text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/60 border border-sky-300 dark:border-sky-800 rounded-md px-2.5 py-0.5">
                   ZONE #1 • SLIDING WINDOW MAX SUBARRAY SUM (K=3)
                 </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-400 rounded-md px-2 py-0.5">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-400 dark:border-emerald-800 rounded-md px-2 py-0.5">
                   ✓ LIVE AI: gemini-3.5-flash-lite
                 </span>
               </div>
 
-              <div className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 mb-3 flex items-center justify-between">
+              <div className="rounded-lg border border-border/70 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-foreground mb-3 flex items-center justify-between">
                 <span>Input: arr = [2, 1, 5, 1, 3, 2], k = 3</span>
-                <span className="text-sky-700">
+                <span className="text-sky-600 dark:text-sky-400">
                   Step {activeStep.step}/4: {activeStep.title}
                 </span>
               </div>
@@ -1131,7 +1298,7 @@ export function FeaturesBento() {
                   const isRight = idx === activeStep.winEnd;
                   return (
                     <div key={idx} className="flex flex-col items-center relative">
-                      <span className="text-[10px] text-slate-500 mb-1">
+                      <span className="text-[10px] text-muted-foreground mb-1">
                         [{idx}]
                       </span>
                       <button
@@ -1146,22 +1313,22 @@ export function FeaturesBento() {
                         }
                         className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center font-bold text-sm sm:text-base transition-all duration-500 ease-out ${
                           isPeak
-                            ? "bg-emerald-100 border-2 border-emerald-600 text-emerald-950 ring-2 ring-amber-500/60 shadow-md scale-105"
+                            ? "bg-emerald-500/20 border-2 border-emerald-500 text-emerald-700 dark:text-emerald-300 ring-2 ring-amber-500/50 shadow-md scale-105"
                             : inWin
-                            ? "bg-amber-100 border-2 border-amber-600 text-amber-950 ring-2 ring-amber-400/50 shadow-sm scale-105"
-                            : "bg-white border border-slate-300 text-slate-700"
+                            ? "bg-amber-500/20 border-2 border-amber-500 text-amber-700 dark:text-amber-300 ring-2 ring-amber-400/40 shadow-xs scale-105"
+                            : "bg-background border border-border text-foreground hover:border-primary/50"
                         }`}
                       >
                         {val}
                       </button>
                       <div className="h-6 mt-1 flex items-center justify-center">
                         {isLeft && (
-                          <span className="inline-flex items-center rounded bg-sky-100 border border-sky-500 px-1.5 py-0.5 text-[9px] font-bold text-sky-800">
+                          <span className="inline-flex items-center rounded bg-sky-500/15 border border-sky-500/40 px-1.5 py-0.5 text-[9px] font-bold text-sky-700 dark:text-sky-300">
                             ↑ L={idx}
                           </span>
                         )}
                         {isRight && (
-                          <span className="inline-flex items-center rounded bg-emerald-100 border border-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
+                          <span className="inline-flex items-center rounded bg-emerald-500/15 border border-emerald-500/40 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
                             ↑ R={idx}
                           </span>
                         )}
@@ -1171,35 +1338,35 @@ export function FeaturesBento() {
                 })}
               </div>
 
-              <div className="grid grid-cols-3 gap-2 mt-1 pt-2.5 border-t border-slate-200">
-                <div className="rounded-lg border border-sky-400 bg-sky-50 px-2.5 py-1.5">
-                  <div className="text-[9px] font-bold text-sky-700 uppercase">
+              <div className="grid grid-cols-3 gap-2 mt-1 pt-2.5 border-t border-border/60">
+                <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5">
+                  <div className="text-[9px] font-bold text-sky-700 dark:text-sky-300 uppercase">
                     window [L..R]
                   </div>
-                  <div className="text-xs font-black text-slate-900">
+                  <div className="text-xs font-black text-foreground">
                     [{activeStep.winStart} .. {activeStep.winEnd}]
                   </div>
                 </div>
-                <div className="rounded-lg border border-amber-500 bg-amber-50 px-2.5 py-1.5">
-                  <div className="text-[9px] font-bold text-amber-800 uppercase">
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5">
+                  <div className="text-[9px] font-bold text-amber-700 dark:text-amber-300 uppercase">
                     windowSum
                   </div>
-                  <div className="text-xs font-black text-slate-900">
+                  <div className="text-xs font-black text-foreground">
                     {activeStep.windowSum}
                   </div>
                 </div>
-                <div className="rounded-lg border border-emerald-500 bg-emerald-50 px-2.5 py-1.5">
-                  <div className="text-[9px] font-bold text-emerald-800 uppercase">
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5">
+                  <div className="text-[9px] font-bold text-emerald-700 dark:text-emerald-300 uppercase">
                     maxSum (Best)
                   </div>
-                  <div className="text-xs font-black text-emerald-900">
+                  <div className="text-xs font-black text-emerald-600 dark:text-emerald-400">
                     {activeStep.maxSum} {activeStep.step >= 3 ? "🎯" : ""}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between gap-2 bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-700 truncate">
+              <div className="mt-3 flex items-center justify-between gap-2 bg-muted/40 rounded-lg px-3 py-1.5 border border-border/60">
+                <span className="text-[10px] font-bold text-foreground truncate">
                   {activeStep.invariant}
                 </span>
                 <div className="flex items-center gap-1 shrink-0">
@@ -1210,8 +1377,8 @@ export function FeaturesBento() {
                       onClick={() => setActiveStepIdx(idx)}
                       className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
                         idx === activeStepIdx
-                          ? "bg-rose-600 text-white"
-                          : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-200"
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "bg-background text-muted-foreground border border-border hover:bg-muted hover:text-foreground"
                       }`}
                     >
                       S{st.step}
@@ -1227,8 +1394,8 @@ export function FeaturesBento() {
               Live Markers, Raw Arrays &amp; AI Laser Cursor
             </span>
             <Link
-              to="/interview"
-              className="flex items-center gap-1 hover:underline"
+              to="/ai-learning"
+              className="flex items-center gap-1 hover:underline font-bold"
             >
               <span>Open AI Whiteboard</span>
               <ArrowRight className="size-3.5" />
@@ -1243,7 +1410,7 @@ export function FeaturesBento() {
               <div className="size-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shadow-xs">
                 <GitBranch className="size-6" />
               </div>
-              <span className="rounded-full border border-rose-500/40 bg-rose-500/15 px-3 py-1 font-mono text-[11px] font-bold text-rose-300">
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-[11px] font-bold text-primary">
                 🎯 Linked Zone Context
               </span>
             </div>
@@ -1258,13 +1425,13 @@ export function FeaturesBento() {
               topic, active step invariant, and dataset for follow-up questions.
             </p>
 
-            <div className="my-5 rounded-2xl border border-rose-500/30 bg-background/85 p-4 font-mono text-xs space-y-3 shadow-inner">
+            <div className="my-5 rounded-2xl border border-primary/25 bg-background/85 p-4 font-mono text-xs space-y-3 shadow-inner">
               <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/50">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-400">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary">
                   <Crosshair className="size-3.5" />
                   <span>Linked Zone #1: Sliding Window (Step 3/4)</span>
                 </span>
-                <span className="rounded bg-rose-500/20 border border-rose-500/40 px-1.5 py-0.5 text-[10px] font-bold text-rose-300">
+                <span className="rounded bg-primary/15 border border-primary/30 px-1.5 py-0.5 text-[10px] font-bold text-primary">
                   Pinned
                 </span>
               </div>
@@ -1290,7 +1457,7 @@ export function FeaturesBento() {
                   onClick={() => setLinkMode("branch")}
                   className={`rounded-xl border px-3 py-2 text-left transition-all ${
                     linkMode === "branch"
-                      ? "border-rose-500 bg-rose-500/20 text-rose-200 font-bold"
+                      ? "border-primary bg-primary/15 text-primary font-bold shadow-xs"
                       : "border-border/60 bg-secondary/40 text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -1304,7 +1471,7 @@ export function FeaturesBento() {
                   onClick={() => setLinkMode("takeover")}
                   className={`rounded-xl border px-3 py-2 text-left transition-all ${
                     linkMode === "takeover"
-                      ? "border-amber-500 bg-amber-500/20 text-amber-200 font-bold"
+                      ? "border-amber-500 bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold shadow-xs"
                       : "border-border/60 bg-secondary/40 text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -1318,15 +1485,15 @@ export function FeaturesBento() {
               <div className="rounded-xl border border-border/50 bg-secondary/30 px-3 py-2 text-[11px] text-foreground/90 font-sans">
                 {linkMode === "branch" ? (
                   <span>
-                    <strong className="text-rose-400 font-mono">
+                    <strong className="text-primary font-mono">
                       Branch Mode:
                     </strong>{" "}
                     Spawns non-overlapping <strong>Zone #2</strong> to the right
-                    of Zone #1 with a dashed rose arrow and full context banner.
+                    of Zone #1 with a connecting dashed arrow and full context banner.
                   </span>
                 ) : (
                   <span>
-                    <strong className="text-amber-400 font-mono">
+                    <strong className="text-amber-600 dark:text-amber-400 font-mono">
                       Takeover Mode:
                     </strong>{" "}
                     Replaces <strong>Zone #1</strong> directly in-place at its
@@ -1344,7 +1511,7 @@ export function FeaturesBento() {
               <span>Zero context loss across zones</span>
             </span>
             <Link
-              to="/interview"
+              to="/ai-learning"
               className="inline-flex items-center gap-1 text-[11px] hover:underline"
             >
               <span>Try Zone Linking</span>
@@ -1357,21 +1524,21 @@ export function FeaturesBento() {
       {/* =====================================================================
           ENHANCED FLAGSHIP LIVE MOTION GRAPHICS SHOWCASE
          ===================================================================== */}
-      <div className="relative group rounded-3xl p-1 bg-gradient-to-r from-rose-500/35 via-orange-500/25 to-rose-500/35 shadow-[0_0_80px_-20px_rgba(244,63,94,0.4)]">
-        <div className="rounded-[23px] bg-[#0c050a]/95 backdrop-blur-2xl p-5 sm:p-8">
+      <div className="relative group rounded-3xl p-1 bg-gradient-to-r from-primary/30 via-accent/20 to-primary/30 shadow-[0_20px_80px_-20px_color-mix(in_oklch,var(--primary)_25%,transparent)]">
+        <div className="rounded-[23px] bg-card/95 border border-border/70 backdrop-blur-2xl p-5 sm:p-8 shadow-xl">
           {/* Showcase Header Bar */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-rose-500/20">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-border/60">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-500/15 px-3 py-1 text-[11px] font-mono font-bold text-rose-300 mb-2 shadow-xs">
-                <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-                <Film className="size-3.5 text-rose-400" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-mono font-bold text-primary mb-2 shadow-xs">
+                <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                <Film className="size-3.5 text-primary" />
                 <span>60FPS AI WHITEBOARD MOTION GRAPHICS SHOWCASE</span>
               </div>
               <h3 className="text-2xl sm:text-3xl font-display font-black text-foreground">
                 Watch the AI Co-Teacher Draw, Link Zones &amp; Branch Live
               </h3>
               <p className="text-xs sm:text-sm text-muted-foreground font-sans mt-1">
-                Interactive 60fps simulation illustrating live natural-language prompt parsing, stroke-by-stroke array drawing, zone tagging (<code className="text-rose-400 font-mono">🎯 Zone #1</code>), and branching into <code className="text-amber-400 font-mono">🌿 Zone #2</code> with full context.
+                Interactive 60fps simulation illustrating live natural-language prompt parsing, stroke-by-stroke array drawing, zone tagging (<code className="text-primary font-mono">🎯 Zone #1</code>), and branching into <code className="text-accent font-mono">🌿 Zone #2</code> with full context.
               </p>
             </div>
 
@@ -1382,12 +1549,12 @@ export function FeaturesBento() {
                 onClick={() => setCameraTrackEnabled((v) => !v)}
                 className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 font-mono text-xs font-bold transition-all ${
                   cameraTrackEnabled
-                    ? "border-rose-500/70 bg-rose-500/25 text-rose-200 shadow-md ring-1 ring-rose-400/40"
+                    ? "border-primary/60 bg-primary/15 text-primary shadow-xs ring-1 ring-primary/30"
                     : "border-border/80 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border"
                 }`}
                 title="Toggle Dynamic Camera Center Tracking & Zoom Focus"
               >
-                <Camera className="size-3.5 text-rose-400" />
+                <Camera className="size-3.5 text-primary" />
                 <span>Camera Zoom: {cameraTrackEnabled ? "ON" : "OFF"}</span>
               </button>
 
@@ -1417,29 +1584,29 @@ export function FeaturesBento() {
           </div>
 
           {/* Widescreen 16:9 Cinema Bezel */}
-          <div className="mt-6 relative rounded-2xl border-2 border-rose-500/35 bg-[#070305] overflow-hidden shadow-2xl">
+          <div className="mt-6 relative rounded-2xl border border-border/80 dark:border-primary/30 bg-muted/20 dark:bg-black/40 overflow-hidden shadow-2xl">
             {/* Window Studio Chrome Header */}
-            <div className="border-b border-rose-500/20 bg-[#12070e] px-4 py-2.5 flex items-center justify-between gap-3 text-xs font-mono">
+            <div className="border-b border-border/60 bg-muted/50 dark:bg-card/80 px-4 py-2.5 flex items-center justify-between gap-3 text-xs font-mono">
               <div className="flex items-center gap-2">
                 <span className="size-2.5 rounded-full bg-rose-500" />
                 <span className="size-2.5 rounded-full bg-amber-400" />
                 <span className="size-2.5 rounded-full bg-emerald-400" />
-                <span className="ml-2 hidden sm:inline text-slate-400 text-[11px]">
+                <span className="ml-2 hidden sm:inline text-muted-foreground text-[11px]">
                   dsa.viz.co / ai-whiteboard / sliding-window-dry-run
                 </span>
               </div>
               <div className="flex items-center gap-2 text-[10px]">
-                <span className="text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-500/40 px-2 py-0.5 rounded">
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
                   gemini-3.5-flash-lite
                 </span>
-                <span className="text-slate-400 font-bold">
+                <span className="text-muted-foreground font-bold">
                   {elapsedSec.toFixed(1)}s / {TOTAL_DURATION.toFixed(1)}s
                 </span>
               </div>
             </div>
 
             {/* 60fps Native Retina Canvas */}
-            <div className="relative w-full aspect-video bg-[#070305]">
+            <div className="relative w-full aspect-video bg-white dark:bg-[#070305]">
               <canvas
                 ref={canvasRef}
                 width={1280}
@@ -1449,9 +1616,9 @@ export function FeaturesBento() {
             </div>
 
             {/* Bottom Timeline Caption Strip */}
-            <div className="border-t border-rose-500/20 bg-[#12070e] px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs">
+            <div className="border-t border-border/60 bg-muted/40 dark:bg-card/80 px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs">
               <div className="flex items-center gap-2">
-                <span className="rounded bg-primary/20 border border-primary/40 px-2 py-0.5 text-[10px] font-bold text-primary">
+                <span className="rounded bg-primary/15 border border-primary/30 px-2 py-0.5 text-[10px] font-bold text-primary">
                   {currentChapter.code}
                 </span>
                 <span className="font-bold text-foreground text-xs">
@@ -1475,16 +1642,16 @@ export function FeaturesBento() {
                   onClick={() => handleJumpToChapter(idx)}
                   className={`relative rounded-2xl border p-3.5 text-left transition-all duration-300 overflow-hidden ${
                     isActive
-                      ? "border-rose-500/80 bg-gradient-to-b from-rose-500/15 to-card/90 shadow-lg ring-1 ring-rose-500/40"
-                      : "border-border/60 bg-background/60 hover:border-rose-500/40 hover:bg-card/70"
+                      ? "border-primary bg-primary/10 dark:bg-primary/15 shadow-md ring-1 ring-primary/40"
+                      : "border-border/60 bg-card/60 hover:border-primary/40 hover:bg-card/90"
                   }`}
                 >
                   {/* Subtle active top progress hairline */}
                   {isActive && (
-                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 to-amber-400 animate-pulse" />
+                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-accent animate-pulse" />
                   )}
                   <div className="flex items-center justify-between font-mono text-[10px] mb-1.5">
-                    <span className={isActive ? "text-rose-400 font-bold" : "text-muted-foreground"}>
+                    <span className={isActive ? "text-primary font-bold" : "text-muted-foreground"}>
                       {ch.code}
                     </span>
                     <span className="text-muted-foreground font-mono">
@@ -1503,33 +1670,33 @@ export function FeaturesBento() {
           </div>
 
           {/* 3 Sleek Highlight Feature Strips Underneath the Player */}
-          <div className="mt-8 pt-6 border-t border-rose-500/20 grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
+          <div className="mt-8 pt-6 border-t border-border/60 grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
             <div className="rounded-2xl border border-border/70 bg-card/60 p-4 flex items-start gap-3 hover:border-emerald-500/50 transition-colors">
-              <div className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shrink-0 mt-0.5">
+              <div className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
                 <Cpu className="size-4" />
               </div>
               <div>
                 <div className="font-bold text-foreground text-sm font-display">100% Live Model Attribution</div>
                 <div className="text-muted-foreground text-xs font-sans mt-0.5 leading-relaxed">
-                  Every simulation stamps a verified <code className="text-emerald-400 font-mono">LIVE AI: gemini-3.5-flash-lite</code> badge on the zone header.
+                  Every simulation stamps a verified <code className="text-emerald-600 dark:text-emerald-400 font-mono">LIVE AI: gemini-3.5-flash-lite</code> badge on the zone header.
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-card/60 p-4 flex items-start gap-3 hover:border-rose-500/50 transition-colors">
-              <div className="p-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 shrink-0 mt-0.5">
+            <div className="rounded-2xl border border-border/70 bg-card/60 p-4 flex items-start gap-3 hover:border-primary/50 transition-colors">
+              <div className="p-2 rounded-xl bg-primary/15 border border-primary/30 text-primary shrink-0 mt-0.5">
                 <Activity className="size-4" />
               </div>
               <div>
                 <div className="font-bold text-foreground text-sm font-display">Context-Aware Branching</div>
                 <div className="text-muted-foreground text-xs font-sans mt-0.5 leading-relaxed">
-                  Tag any zone (<code className="text-rose-400 font-mono">🎯 #1</code>) to inject its exact array values and active invariant into follow-up queries.
+                  Tag any zone (<code className="text-primary font-mono">🎯 #1</code>) to inject its exact array values and active invariant into follow-up queries.
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-card/60 p-4 flex items-start gap-3 hover:border-amber-500/50 transition-colors">
-              <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0 mt-0.5">
+            <div className="rounded-2xl border border-border/70 bg-card/60 p-4 flex items-start gap-3 hover:border-accent/50 transition-colors">
+              <div className="p-2 rounded-xl bg-accent/15 border border-accent/30 text-accent shrink-0 mt-0.5">
                 <Workflow className="size-4" />
               </div>
               <div>

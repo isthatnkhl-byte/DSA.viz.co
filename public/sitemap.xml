@@ -3,169 +3,403 @@
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
         http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
-  <!-- Core Platform Entrypoints -->
+
+  <!-- ===== Core Platform Entrypoints ===== -->
   <url>
-    <loc>https://dsa-viz-co.vercel.app/</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problems</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problems</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/sheets</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/sheets</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/playground</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/playground</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/compiler</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/compiler</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/live-interview</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/live-interview</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.88</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/auth</loc>
-    <lastmod>2026-10-11</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.70</priority>
+    <loc>https://dsa.viz.co/ai-learning</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
   </url>
 
-  <!-- High-Search-Volume Interactive Algorithm Visualizers -->
+  <!-- ===== Arrays & Two Pointers ===== -->
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/two-sum</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/two-sum</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/three-sum</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.88</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/trapping-rain-water</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.88</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/container-with-most-water</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.87</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/maximum-subarray</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.87</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/product-of-array-except-self</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/rotate-array</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.84</priority>
+  </url>
+
+  <!-- ===== Sliding Window ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/longest-substring-without-repeating-characters</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.88</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/minimum-window-substring</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.87</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/sliding-window-maximum</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- ===== Binary Search ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/binary-search</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.88</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/median-of-two-sorted-arrays</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.87</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/search-in-rotated-sorted-array</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/find-minimum-in-rotated-sorted-array</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- ===== Linked Lists ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/reverse-linked-list</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.88</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/merge-two-sorted-lists</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/linked-list-cycle</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/three-sum</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/lru-cache</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.87</priority>
+  </url>
+
+  <!-- ===== Trees ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/binary-tree-inorder-traversal</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.87</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/maximum-depth-of-binary-tree</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/lowest-common-ancestor-of-a-binary-search-tree</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/trapping-rain-water</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/binary-tree-level-order-traversal</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/lru-cache</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/validate-binary-search-tree</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/number-of-islands</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/serialize-and-deserialize-binary-tree</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.84</priority>
+  </url>
+
+  <!-- ===== Graphs ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/number-of-islands</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.88</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/max-area-of-island</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/course-schedule</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/rotting-oranges</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/max-area-of-island</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/clone-graph</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.84</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/pacific-atlantic-water-flow</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.84</priority>
+  </url>
+
+  <!-- ===== Dynamic Programming ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/climbing-stairs</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.88</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/coin-change</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.87</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/longest-common-subsequence</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.87</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/edit-distance</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/word-break</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/longest-substring-without-repeating-characters</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/house-robber</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/median-of-two-sorted-arrays</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/unique-paths</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.84</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/decode-ways</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.84</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/partition-equal-subset-sum</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.83</priority>
+  </url>
+
+  <!-- ===== Stack & Queue ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/valid-parentheses</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.87</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/min-stack</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/merge-intervals</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/daily-temperatures</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/coin-change</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/largest-rectangle-in-histogram</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.84</priority>
+  </url>
+
+  <!-- ===== Heap / Priority Queue ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/kth-largest-element-in-an-array</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/find-median-from-data-stream</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/course-schedule</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/merge-k-sorted-lists</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- ===== Backtracking ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/permutations</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/subsets</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/reverse-linked-list</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/n-queens</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.84</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/word-search</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- ===== Intervals & Sorting ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/merge-intervals</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.86</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/meeting-rooms-ii</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.84</priority>
+  </url>
+  <url>
+    <loc>https://dsa.viz.co/problem/sort-colors</loc>
+    <lastmod>2026-10-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.83</priority>
+  </url>
+
+  <!-- ===== Trie ===== -->
+  <url>
+    <loc>https://dsa.viz.co/problem/implement-trie-prefix-tree</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/binary-search</loc>
-    <lastmod>2026-10-11</lastmod>
+    <loc>https://dsa.viz.co/problem/word-search-ii</loc>
+    <lastmod>2026-10-13</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
+    <priority>0.84</priority>
   </url>
-  <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/maximum-subarray</loc>
-    <lastmod>2026-10-11</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/climbing-stairs</loc>
-    <lastmod>2026-10-11</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/valid-parentheses</loc>
-    <lastmod>2026-10-11</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/edit-distance</loc>
-    <lastmod>2026-10-11</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/word-break</loc>
-    <lastmod>2026-10-11</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/rotting-oranges</loc>
-    <lastmod>2026-10-11</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://dsa-viz-co.vercel.app/problem/kth-largest-element-in-an-array</loc>
-    <lastmod>2026-10-11</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
+
 </urlset>

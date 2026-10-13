@@ -82,6 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "DSA.viz.co — Interactive Algorithm Visualizer, DSA Sheets & C++20 Compiler" },
+      { name: "google-site-verification", content: "KONYW4tS7hYdirLm0WK8L878N-0ZI9xhXgxo4nzg8ok" },
       {
         name: "description",
         content:
@@ -90,10 +91,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "keywords",
         content:
-          "DSA visualizer, algorithm visualizer, data structures and algorithms visualizer, LeetCode visualizer, step by step algorithm animation, DSA sheets, Striver SDE sheet, Blind 75, NeetCode 150, Grind 75, Love Babbar 450, C++20 online compiler, Java online compiler, Python algorithm visualizer, AI mock coding interview, DSA.viz.co, dsavizco",
+          "DSA visualizer, algorithm visualizer, data structures and algorithms visualizer, LeetCode visualizer, step by step algorithm animation, DSA sheets, Striver SDE sheet, Blind 75, NeetCode 150, Grind 75, Love Babbar 450, C++20 online compiler, Java online compiler, Python algorithm visualizer, AI mock coding interview, binary tree visualizer, graph algorithm visualizer, dynamic programming visualizer, DSA.viz.co, dsavizco",
       },
       { name: "author", content: "DSA.viz.co" },
       { name: "robots", content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" },
+      { name: "theme-color", content: "#7C3AED" },
       { property: "og:site_name", content: "DSA.viz.co" },
       { property: "og:title", content: "DSA.viz.co — Master Algorithms by Seeing How They Think" },
       {
@@ -102,8 +104,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "Step through 1,500+ LeetCode interview problems frame by frame, inspect live pointer mutations and recursion stacks, practice curated DSA sheets, and run sandboxed C++20/Java/Python code.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:image", content: "/og-image.jpg" },
-      { property: "og:image:secure_url", content: "/og-image.jpg" },
+      { property: "og:url", content: "https://dsa.viz.co/" },
+      { property: "og:locale", content: "en_US" },
+      { property: "og:image", content: "https://dsa.viz.co/og-image.jpg" },
+      { property: "og:image:secure_url", content: "https://dsa.viz.co/og-image.jpg" },
       { property: "og:image:type", content: "image/jpeg" },
       { property: "og:image:width", content: "1408" },
       { property: "og:image:height", content: "768" },
@@ -116,12 +120,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "Step through 1,500+ LeetCode interview problems frame by frame with live pointer animations, curated DSA sheets, Socratic AI coaching, and sandboxed C++20 execution.",
       },
-      { name: "twitter:image", content: "/og-image.jpg" },
+      { name: "twitter:image", content: "https://dsa.viz.co/og-image.jpg" },
       { name: "twitter:image:alt", content: "DSA.viz.co — Master algorithms by seeing how they think (Algorithms • Visualizer • Compiler)" },
     ],
     links: [
+      { rel: "canonical", href: "https://dsa.viz.co/" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      { rel: "preload", as: "image", href: "/og-image.jpg" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap",
@@ -138,6 +144,111 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
       { rel: "alternate icon", href: "/favicon.ico" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+    ],
+    scripts: [
+      // WebSite schema — enables Google Sitelinks Search Box
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "DSA.viz.co",
+          "alternateName": ["DSA Viz", "dsavizco"],
+          "url": "https://dsa.viz.co/",
+          "description": "Interactive algorithm visualizer and DSA learning platform with 1,500+ problems, step-by-step animations, curated DSA sheets, and AI mock interviews.",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://dsa.viz.co/problems?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
+        }),
+      },
+      // SoftwareApplication schema — enables app-style rich results
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          "name": "DSA.viz.co",
+          "applicationCategory": "EducationalApplication",
+          "operatingSystem": "Web",
+          "url": "https://dsa.viz.co/",
+          "description": "Master Data Structures & Algorithms with frame-by-frame algorithm visualization, 1,500+ LeetCode problems, curated DSA sheets, AI mock interviews, and a sandboxed C++20/Java/Python compiler.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "featureList": [
+            "1,500+ Interactive Algorithm Visualizations",
+            "Step-by-step animation with live pointer tracking",
+            "Curated DSA Sheets: Striver SDE, Blind 75, NeetCode 150, Grind 75, Love Babbar 450",
+            "Online C++20, Java 21, Python 3.12 Sandbox Compiler",
+            "Socratic AI Coding Coach (Gemini + OpenRouter)",
+            "Proctored FAANG Mock Interview Simulator",
+            "52-Week Progress Heatmap & GitHub Sync"
+          ],
+          "screenshot": "https://dsa.viz.co/og-image.jpg",
+          "author": {
+            "@type": "Person",
+            "name": "Nikhil",
+            "url": "https://github.com/isthatnkhl-byte"
+          }
+        }),
+      },
+      // FAQPage schema — can trigger FAQ accordion rich results in SERPs
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is DSA.viz.co?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "DSA.viz.co is a free interactive algorithm visualization platform that lets you step through 1,500+ LeetCode and DSA problems frame by frame, watching live pointer mutations, recursion stacks, and DP table fills animate in real time."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does DSA.viz.co support Striver SDE Sheet and NeetCode 150?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. DSA.viz.co includes curated DSA sheets including Striver's SDE Sheet, NeetCode 150, Blind 75, Grind 75, and Love Babbar 450, with interactive checkboxes, search, random unsolved problem picker, and direct links to animated visualizers."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is DSA.viz.co free to use?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, DSA.viz.co is completely free. You can bring your own Gemini, OpenAI, or OpenRouter API key to unlock unlimited AI coaching, or use the platform without any key for visualizations, DSA sheets, and the C++20/Java/Python compiler."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Which programming languages does the online compiler support?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "The DSA.viz.co compiler supports C++20 (GCC 14.1), C17, Java 21, Python 3.12, JavaScript, and TypeScript, all running in isolated cloud sandboxes with no local installation required."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does DSA.viz.co compare to VisuAlgo?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "While VisuAlgo focuses on classic algorithm animations, DSA.viz.co additionally provides a dynamic multi-testcase LeetCode judge, curated DSA sheets (Striver, NeetCode, Blind 75), an AI Socratic coach, a proctored mock interview room, and an integrated cloud compiler — all in a single platform."
+              }
+            }
+          ]
+        }),
+      },
     ],
   }),
   component: RootComponent,
@@ -201,6 +312,10 @@ function GlobalVizcoBuddyIntegration() {
   useEffect(() => {
     if (typeof document !== "undefined") {
       const path = location.pathname;
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://dsa.viz.co";
+      const fullUrl = `${origin}${path}`;
+
+      // --- Dynamic title + description ---
       let seo = ROUTE_SEO_MAP[path];
       if (!seo && path.startsWith("/problem/")) {
         const slug = path.replace("/problem/", "").replace(/\/$/, "");
@@ -218,9 +333,46 @@ function GlobalVizcoBuddyIntegration() {
         const descTag = document.querySelector('meta[name="description"]');
         if (descTag) descTag.setAttribute("content", seo.description);
       }
+
+      // --- Canonical + og:url ---
       const canonicalTag = document.querySelector('link[rel="canonical"]');
-      if (canonicalTag && typeof window !== "undefined") {
-        canonicalTag.setAttribute("href", `${window.location.origin}${path}`);
+      if (canonicalTag) canonicalTag.setAttribute("href", fullUrl);
+      const ogUrlTag = document.querySelector('meta[property="og:url"]');
+      if (ogUrlTag) ogUrlTag.setAttribute("content", fullUrl);
+
+      // --- noindex for auth-gated pages (protect crawl budget) ---
+      const AUTH_GATED = ["/profile", "/auth"];
+      let robotsTag = document.querySelector('meta[name="robots"]');
+      if (!robotsTag) {
+        robotsTag = document.createElement("meta");
+        robotsTag.setAttribute("name", "robots");
+        document.head.appendChild(robotsTag);
+      }
+      if (AUTH_GATED.includes(path)) {
+        robotsTag.setAttribute("content", "noindex, nofollow");
+      } else {
+        robotsTag.setAttribute("content", "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1");
+      }
+
+      // --- BreadcrumbList JSON-LD for problem pages ---
+      const existingBreadcrumb = document.getElementById("ld-breadcrumb");
+      if (existingBreadcrumb) existingBreadcrumb.remove();
+      if (path.startsWith("/problem/")) {
+        const slug = path.replace("/problem/", "").replace(/\/$/, "");
+        const humanTitle = slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        const breadcrumbScript = document.createElement("script");
+        breadcrumbScript.id = "ld-breadcrumb";
+        breadcrumbScript.type = "application/ld+json";
+        breadcrumbScript.textContent = JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": `${origin}/` },
+            { "@type": "ListItem", "position": 2, "name": "Problems", "item": `${origin}/problems` },
+            { "@type": "ListItem", "position": 3, "name": humanTitle, "item": fullUrl },
+          ]
+        });
+        document.head.appendChild(breadcrumbScript);
       }
     }
 

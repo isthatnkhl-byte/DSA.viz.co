@@ -1,7 +1,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore } from 'firebase/firestore';
-import fallbackConfig from '../../firebase-applet-config.json';
+
+import fallbackConfig from '../config/firebase-config';
 
 const clean = (val?: string | null) => {
   if (!val) return undefined;

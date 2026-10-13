@@ -168805,8 +168805,8 @@ var initializeFirestore = import_firestore.default.initializeFirestore;
 var setLogFunction = import_firestore.default.setLogFunction;
 var v1 = import_firestore.default.v1;
 
-// firebase-applet-config.json
-var firebase_applet_config_default = {
+// src/config/firebase-config.ts
+var fallbackConfig = {
   projectId: "seventh-cabinet-mq6d2",
   appId: "1:1037937233068:web:5a3785c0d15a0dc2baa309",
   apiKey: "AIzaSyBl1G3_B-f4YGRVZS5cjh2_Iyh0FHitvUc",
@@ -168818,14 +168818,15 @@ var firebase_applet_config_default = {
   oAuthClientId: "1037937233068-5pofpmshk9e6iliq208jg35kuhi81a3v.apps.googleusercontent.com",
   recaptchaSiteKey: ""
 };
+var firebase_config_default = fallbackConfig;
 
 // src/lib/firebase-admin.ts
 var clean = (val) => {
   if (!val) return void 0;
   return val.trim().replace(/^["']|["']$/g, "").trim();
 };
-var projectId = clean(process.env.VITE_FIREBASE_PROJECT_ID) || firebase_applet_config_default.projectId;
-var databaseId = clean(process.env.VITE_FIREBASE_DATABASE_ID) || firebase_applet_config_default.firestoreDatabaseId;
+var projectId = clean(process.env.VITE_FIREBASE_PROJECT_ID) || firebase_config_default.projectId;
+var databaseId = clean(process.env.VITE_FIREBASE_DATABASE_ID) || firebase_config_default.firestoreDatabaseId;
 function resolveAdminCredentialOptions() {
   const serviceAccountJson = clean(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) || clean(process.env.FIREBASE_SERVICE_ACCOUNT);
   if (serviceAccountJson) {
@@ -168998,7 +168999,7 @@ async function verifyFirebaseIdTokenCryptographically(token) {
         return null;
       }
       const cleanEnv3 = (v) => v?.trim().replace(/^["']|["']$/g, "").trim();
-      const projectId2 = cleanEnv3(process.env.VITE_FIREBASE_PROJECT_ID) || cleanEnv3(process.env.FIREBASE_PROJECT_ID) || firebase_applet_config_default.projectId;
+      const projectId2 = cleanEnv3(process.env.VITE_FIREBASE_PROJECT_ID) || cleanEnv3(process.env.FIREBASE_PROJECT_ID) || firebase_config_default.projectId;
       const expectedIssuer = `https://securetoken.google.com/${projectId2}`;
       const now = Math.floor(Date.now() / 1e3);
       const isNotExpired = typeof payload.exp === "number" && payload.exp > now - 120;
@@ -242085,10 +242086,10 @@ var cleanEnv = (val) => {
   return val.trim().replace(/^["']|["']$/g, "").trim();
 };
 function getFirebaseProjectId() {
-  return cleanEnv(process.env.VITE_FIREBASE_PROJECT_ID) || cleanEnv(process.env.FIREBASE_PROJECT_ID) || firebase_applet_config_default.projectId;
+  return cleanEnv(process.env.VITE_FIREBASE_PROJECT_ID) || cleanEnv(process.env.FIREBASE_PROJECT_ID) || firebase_config_default.projectId;
 }
 function getFirebaseDatabaseId() {
-  const dbId = cleanEnv(process.env.VITE_FIREBASE_DATABASE_ID) || firebase_applet_config_default.firestoreDatabaseId || "(default)";
+  const dbId = cleanEnv(process.env.VITE_FIREBASE_DATABASE_ID) || firebase_config_default.firestoreDatabaseId || "(default)";
   return dbId;
 }
 var cachedVaultMasterKey = null;
@@ -242097,7 +242098,7 @@ var cachedEphemeralProdKey = null;
 var cachedPrevVaultMasterKey = null;
 var cachedPrevVaultSecretSource = "";
 function getVaultMasterKey() {
-  const configuredSecret = cleanEnv(process.env.USER_KEYS_ENCRYPTION_KEY) || cleanEnv(process.env.VAULT_MASTER_KEY) || cleanEnv(process.env.ENCRYPTION_KEY) || cleanEnv(process.env.GITHUB_CLIENT_SECRET) || cleanEnv(process.env.LIVEKIT_API_SECRET) || cleanEnv(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) || cleanEnv(process.env.GEMINI_API_KEY) || cleanEnv(process.env.GOOGLE_API_KEY) || cleanEnv(process.env.VITE_FIREBASE_API_KEY) || cleanEnv(firebase_applet_config_default.apiKey);
+  const configuredSecret = cleanEnv(process.env.USER_KEYS_ENCRYPTION_KEY) || cleanEnv(process.env.VAULT_MASTER_KEY) || cleanEnv(process.env.ENCRYPTION_KEY) || cleanEnv(process.env.GITHUB_CLIENT_SECRET) || cleanEnv(process.env.LIVEKIT_API_SECRET) || cleanEnv(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) || cleanEnv(process.env.GEMINI_API_KEY) || cleanEnv(process.env.GOOGLE_API_KEY) || cleanEnv(process.env.VITE_FIREBASE_API_KEY) || cleanEnv(firebase_config_default.apiKey);
   if (!configuredSecret) {
     if (process.env.NODE_ENV === "production") {
       if (!cachedEphemeralProdKey) {

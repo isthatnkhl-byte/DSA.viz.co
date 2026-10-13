@@ -7,14 +7,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Build outputs
 dist
 dist-ssr
 .output
 .vinxi
 .tanstack/**
 .nitro
-*.local
 
 # Wrangler / Cloudflare
 .wrangler/
@@ -30,17 +32,37 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files (never commit real secrets)
 .env
+.env.local
+.env.production
+
+# Source maps (keep out of git, served in prod from Vercel)
 *.map
 
 # Scratch and database query scripts
 query_*.js
 query_*.ts
 test-compile*.js
+test-compile*.mjs
 test-strat*.ts
 test-user.ts
 test-leetcode.ts
+test-problem.mjs
+test-browser.mjs
+patch.py
+
+# Zips and local archives
 *.zip
+*.rar
+*.tar.gz
+*.7z
+
+# Local SQLite / tmp data
 .data/
 
-
+# Stray images (not part of public assets)
+IMG_*.jpg
+IMG_*.png
+IMG_*.jpeg

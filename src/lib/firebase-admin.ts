@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { initializeApp, getApps, getApp, cert, type AppOptions } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import fallbackConfig from '../../firebase-applet-config.json';
+import fallbackConfig from '../config/firebase-config';
 
 const clean = (val?: string | null) => {
   if (!val) return undefined;

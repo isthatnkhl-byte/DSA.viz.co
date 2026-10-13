@@ -6,7 +6,7 @@ import type { Request, Response, NextFunction } from "express";
 import { GoogleGenAI } from "@google/genai";
 import { adminDb, isAdminDbAvailable, markAdminDbUnavailable } from "./firebase-admin";
 import { verifyFirebaseIdTokenCryptographically } from "../middleware/auth";
-import fallbackConfig from "../../firebase-applet-config.json";
+import fallbackConfig from "../config/firebase-config";
 
 export type SupportedKeyProvider = "gemini" | "openrouter" | "openai";
 

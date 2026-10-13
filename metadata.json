@@ -1,6 +1,0 @@
-{
-  "name": "DSA.viz",
-  "description": "Interactive animated visualization engine for 1500+ LeetCode problems with real-time AI invariant auditing and C++ compiler sandbox.",
-  "requestFramePermissions": ["camera", "microphone"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

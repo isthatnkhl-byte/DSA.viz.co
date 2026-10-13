@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { adminAuth, isAdminDbAvailable } from '../lib/firebase-admin';
 import { DecodedIdToken } from 'firebase-admin/auth';
 
-import fallbackConfig from '../../firebase-applet-config.json';
+import fallbackConfig from '../config/firebase-config';
 
 export interface AuthRequest extends Request {
   user?: DecodedIdToken;

@@ -14,9 +14,10 @@ import {
   Activity,
   Cpu,
   Workflow,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useThemeColor } from "@/hooks/useThemeColor";
 
 interface DryRunStep {
   step: number;
@@ -250,7 +251,17 @@ function drawArrow(
 }
 
 export function FeaturesBento() {
-  const { isDark } = useThemeColor();
+  // Independent Whiteboard Canvas Mode (board-specific theme, decoupled from overall website theme)
+  const [boardTheme, setBoardTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("dsa_board_canvas_theme");
+        if (saved === "light" || saved === "dark") return saved;
+      } catch {}
+    }
+    return "light";
+  });
+  const isBoardDark = boardTheme === "dark";
   const [activeStepIdx, setActiveStepIdx] = useState(2);
   const [linkMode, setLinkMode] = useState<"branch" | "takeover">("branch");
 
@@ -291,7 +302,7 @@ export function FeaturesBento() {
     if (bgCtx) {
       bgCtx.translate(320, 320);
 
-      if (isDark) {
+      if (isBoardDark) {
         const bgGrad = bgCtx.createLinearGradient(0, 0, W, H);
         bgGrad.addColorStop(0, "#09040e");
         bgGrad.addColorStop(0.5, "#12061c");
@@ -357,7 +368,7 @@ export function FeaturesBento() {
       ctx.drawImage(bgCanvas, -320, -320);
 
       // Top App Chrome Bar
-      if (isDark) {
+      if (isBoardDark) {
         roundRect(
           ctx,
           28,
@@ -396,20 +407,20 @@ export function FeaturesBento() {
         255,
         32,
         8,
-        isDark ? "rgba(6, 78, 59, 0.9)" : "#ecfdf5",
-        isDark ? "rgba(16, 185, 129, 0.9)" : "#10b981",
+        isBoardDark ? "rgba(6, 78, 59, 0.9)" : "#ecfdf5",
+        isBoardDark ? "rgba(16, 185, 129, 0.9)" : "#10b981",
         1.8
       );
       ctx.fillStyle = `rgba(16, 185, 129, ${badgePulse.toFixed(2)})`;
       ctx.beginPath();
       ctx.arc(472, 47, 5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = isDark ? "#ecfdf5" : "#047857";
+      ctx.fillStyle = isBoardDark ? "#ecfdf5" : "#047857";
       ctx.font = "bold 12px monospace";
       ctx.fillText("LIVE AI: gemini-3.5-flash-lite", 486, 51);
 
       // Board Zones Bar
-      ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+      ctx.fillStyle = isBoardDark ? "#94a3b8" : "#64748b";
       ctx.font = "bold 11px monospace";
       ctx.fillText("BOARD ZONES:", 740, 51);
 
@@ -422,26 +433,26 @@ export function FeaturesBento() {
         32,
         8,
         isZone1Linked
-          ? isDark
+          ? isBoardDark
             ? "rgba(124, 58, 237, 0.32)"
             : "#f5f3ff"
-          : isDark
+          : isBoardDark
           ? "rgba(30, 41, 59, 0.85)"
           : "#f1f5f9",
         isZone1Linked
-          ? isDark
+          ? isBoardDark
             ? "#a78bfa"
             : "#7c3aed"
-          : isDark
+          : isBoardDark
           ? "#475569"
           : "#cbd5e1",
         isZone1Linked ? 2.2 : 1.2
       );
       ctx.fillStyle = isZone1Linked
-        ? isDark
+        ? isBoardDark
           ? "#ede9fe"
           : "#5b21b6"
-        : isDark
+        : isBoardDark
         ? "#e2e8f0"
         : "#334155";
       ctx.font = "bold 11px monospace";
@@ -462,18 +473,18 @@ export function FeaturesBento() {
           195,
           32,
           8,
-          isDark ? "rgba(245, 158, 11, 0.26)" : "#fef3c7",
+          isBoardDark ? "rgba(245, 158, 11, 0.26)" : "#fef3c7",
           "#f59e0b",
           2
         );
-        ctx.fillStyle = isDark ? "#fde68a" : "#b45309";
+        ctx.fillStyle = isBoardDark ? "#fde68a" : "#b45309";
         ctx.font = "bold 11px monospace";
         ctx.fillText("🌿 #2 Optimal Branch", 1042, 51);
         ctx.restore();
       }
 
       // Prompt Bar Row
-      if (isDark) {
+      if (isBoardDark) {
         roundRect(
           ctx,
           28,
@@ -515,7 +526,7 @@ export function FeaturesBento() {
       ctx.font = "bold 12px monospace";
       ctx.fillText("ASK AI >", 48, 115);
 
-      ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
+      ctx.fillStyle = isBoardDark ? "#f8fafc" : "#0f172a";
       ctx.font = "13px monospace";
       ctx.fillText(
         activePrompt.slice(0, typedLen) +
@@ -574,16 +585,16 @@ export function FeaturesBento() {
         const zw = 668;
         const zh = 476;
 
-        const z1Bg = isDark
+        const z1Bg = isBoardDark
           ? isZone1Linked
             ? "#130920"
             : "#0d1322"
           : "#ffffff";
         const z1Border = isZone1Linked
-          ? isDark
+          ? isBoardDark
             ? "#8b5cf6"
             : "#7c3aed"
-          : isDark
+          : isBoardDark
           ? "#38bdf8"
           : "#0284c7";
 
@@ -601,10 +612,10 @@ export function FeaturesBento() {
         );
 
         const z1HeaderBg = isZone1Linked
-          ? isDark
+          ? isBoardDark
             ? "rgba(124, 58, 237, 0.28)"
             : "#f5f3ff"
-          : isDark
+          : isBoardDark
           ? "rgba(2, 132, 199, 0.25)"
           : "#e0f2fe";
 
@@ -620,10 +631,10 @@ export function FeaturesBento() {
           1.5
         );
         ctx.fillStyle = isZone1Linked
-          ? isDark
+          ? isBoardDark
             ? "#ede9fe"
             : "#5b21b6"
-          : isDark
+          : isBoardDark
           ? "#bae6fd"
           : "#0369a1";
         ctx.font = "bold 13px monospace";
@@ -640,11 +651,11 @@ export function FeaturesBento() {
           202,
           28,
           6,
-          isDark ? "rgba(6, 78, 59, 0.9)" : "#dcfce7",
-          isDark ? "rgba(16, 185, 129, 0.9)" : "#16a34a",
+          isBoardDark ? "rgba(6, 78, 59, 0.9)" : "#dcfce7",
+          isBoardDark ? "rgba(16, 185, 129, 0.9)" : "#16a34a",
           1.5
         );
-        ctx.fillStyle = isDark ? "#ecfdf5" : "#15803d";
+        ctx.fillStyle = isBoardDark ? "#ecfdf5" : "#15803d";
         ctx.font = "bold 11px monospace";
         ctx.fillText("LIVE AI: gemini-3.5-flash-lite", zx + zw - 206, zy + 25);
 
@@ -655,14 +666,14 @@ export function FeaturesBento() {
           zw - 36,
           62,
           10,
-          isDark ? "rgba(2, 132, 199, 0.15)" : "#f0f9ff",
-          isDark ? "#38bdf8" : "#0284c7",
+          isBoardDark ? "rgba(2, 132, 199, 0.15)" : "#f0f9ff",
+          isBoardDark ? "#38bdf8" : "#0284c7",
           1.5
         );
-        ctx.fillStyle = isDark ? "#38bdf8" : "#0369a1";
+        ctx.fillStyle = isBoardDark ? "#38bdf8" : "#0369a1";
         ctx.font = "bold 14px monospace";
         ctx.fillText(stepTitles[stepIdx]!, zx + 30, zy + 76);
-        ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
+        ctx.fillStyle = isBoardDark ? "#f8fafc" : "#0f172a";
         ctx.font = "12px monospace";
         ctx.fillText(invariants[stepIdx]!, zx + 30, zy + 100);
 
@@ -673,11 +684,11 @@ export function FeaturesBento() {
           zw - 36,
           32,
           8,
-          isDark ? "rgba(30, 41, 59, 0.7)" : "#f8fafc",
-          isDark ? "#475569" : "#cbd5e1",
+          isBoardDark ? "rgba(30, 41, 59, 0.7)" : "#f8fafc",
+          isBoardDark ? "#475569" : "#cbd5e1",
           1.2
         );
-        ctx.fillStyle = isDark ? "#94a3b8" : "#334155";
+        ctx.fillStyle = isBoardDark ? "#94a3b8" : "#334155";
         ctx.font = "bold 12px monospace";
         ctx.fillText(
           "Raw Input Dataset: arr = [2, 1, 5, 1, 3, 2]  |  Window Size k = 3",
@@ -700,12 +711,12 @@ export function FeaturesBento() {
           winW,
           cellH + 20,
           12,
-          isDark ? "rgba(245, 158, 11, 0.22)" : "rgba(254, 243, 199, 0.65)",
+          isBoardDark ? "rgba(245, 158, 11, 0.22)" : "rgba(254, 243, 199, 0.65)",
           "#d97706",
           3,
           true
         );
-        ctx.fillStyle = isDark ? "#fde68a" : "#b45309";
+        ctx.fillStyle = isBoardDark ? "#fde68a" : "#b45309";
         ctx.font = "bold 11px monospace";
         ctx.fillText(
           `ACTIVE WINDOW [${winStart}..${winEnd}]`,
@@ -718,32 +729,32 @@ export function FeaturesBento() {
           const inWin = i >= winStart && i <= winEnd;
           const isPeak = stepIdx === 2 && inWin;
           const stroke = isPeak
-            ? isDark
+            ? isBoardDark
               ? "#4ade80"
               : "#16a34a"
             : inWin
             ? "#d97706"
-            : isDark
+            : isBoardDark
             ? "#475569"
             : "#cbd5e1";
           const bg = isPeak
-            ? isDark
+            ? isBoardDark
               ? "rgba(22, 163, 74, 0.25)"
               : "#dcfce7"
             : inWin
-            ? isDark
+            ? isBoardDark
               ? "rgba(217, 119, 6, 0.25)"
               : "#fef3c7"
-            : isDark
+            : isBoardDark
             ? "rgba(30, 41, 59, 0.8)"
             : "#ffffff";
 
-          ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+          ctx.fillStyle = isBoardDark ? "#94a3b8" : "#64748b";
           ctx.font = "11px monospace";
           ctx.fillText(`[${i}]`, cx + 28, rowY - 4);
 
           roundRect(ctx, cx, rowY, cellW, cellH, 10, bg, stroke, inWin ? 3 : 1.5);
-          ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
+          ctx.fillStyle = isBoardDark ? "#f8fafc" : "#0f172a";
           ctx.font = "bold 22px monospace";
           ctx.fillText(String(arr[i]), cx + 31, rowY + 40);
         }
@@ -751,13 +762,13 @@ export function FeaturesBento() {
         const lx = rowStartX + smoothWinStart * (cellW + cellGap) + cellW / 2;
         const rx =
           rowStartX + (smoothWinStart + 2) * (cellW + cellGap) + cellW / 2;
-        drawArrow(ctx, lx, rowY + cellH + 38, lx, rowY + cellH + 6, isDark ? "#38bdf8" : "#0284c7", 3);
-        ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7";
+        drawArrow(ctx, lx, rowY + cellH + 38, lx, rowY + cellH + 6, isBoardDark ? "#38bdf8" : "#0284c7", 3);
+        ctx.fillStyle = isBoardDark ? "#38bdf8" : "#0284c7";
         ctx.font = "bold 13px monospace";
         ctx.fillText(`L=${winStart}`, lx - 16, rowY + cellH + 54);
 
-        drawArrow(ctx, rx, rowY + cellH + 38, rx, rowY + cellH + 6, isDark ? "#4ade80" : "#16a34a", 3);
-        ctx.fillStyle = isDark ? "#4ade80" : "#16a34a";
+        drawArrow(ctx, rx, rowY + cellH + 38, rx, rowY + cellH + 6, isBoardDark ? "#4ade80" : "#16a34a", 3);
+        ctx.fillStyle = isBoardDark ? "#4ade80" : "#16a34a";
         ctx.font = "bold 13px monospace";
         ctx.fillText(`R=${winEnd}`, rx - 16, rowY + cellH + 54);
 
@@ -765,20 +776,20 @@ export function FeaturesBento() {
           {
             k: "window [L..R]",
             v: `[${winStart} .. ${winEnd}]`,
-            stroke: isDark ? "#38bdf8" : "#0284c7",
-            bg: isDark ? "rgba(2, 132, 199, 0.2)" : "#e0f2fe",
+            stroke: isBoardDark ? "#38bdf8" : "#0284c7",
+            bg: isBoardDark ? "rgba(2, 132, 199, 0.2)" : "#e0f2fe",
           },
           {
             k: "windowSum",
             v: String(winSums[stepIdx]),
             stroke: "#d97706",
-            bg: isDark ? "rgba(217, 119, 6, 0.2)" : "#fef3c7",
+            bg: isBoardDark ? "rgba(217, 119, 6, 0.2)" : "#fef3c7",
           },
           {
             k: "maxSum (Best)",
             v: `${maxSums[stepIdx]}${stepIdx === 2 ? " 🎯" : ""}`,
-            stroke: isDark ? "#4ade80" : "#16a34a",
-            bg: isDark ? "rgba(22, 163, 74, 0.2)" : "#dcfce7",
+            stroke: isBoardDark ? "#4ade80" : "#16a34a",
+            bg: isBoardDark ? "rgba(22, 163, 74, 0.2)" : "#dcfce7",
           },
         ];
         cards.forEach((c, idx) => {
@@ -788,7 +799,7 @@ export function FeaturesBento() {
           ctx.fillStyle = c.stroke;
           ctx.font = "bold 11px monospace";
           ctx.fillText(c.k, kx + 12, ky + 22);
-          ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
+          ctx.fillStyle = isBoardDark ? "#f8fafc" : "#0f172a";
           ctx.font = "bold 18px monospace";
           ctx.fillText(c.v, kx + 12, ky + 50);
         });
@@ -801,11 +812,11 @@ export function FeaturesBento() {
             zw - 36,
             24,
             6,
-            isDark ? "rgba(124, 58, 237, 0.25)" : "#f5f3ff",
-            isDark ? "#a78bfa" : "#7c3aed",
+            isBoardDark ? "rgba(124, 58, 237, 0.25)" : "#f5f3ff",
+            isBoardDark ? "#a78bfa" : "#7c3aed",
             1.5
           );
-          ctx.fillStyle = isDark ? "#ede9fe" : "#5b21b6";
+          ctx.fillStyle = isBoardDark ? "#ede9fe" : "#5b21b6";
           ctx.font = "bold 11px monospace";
           ctx.fillText(
             "🎯 LINKED CONTEXT PINNED: Topic + Step 3/4 + Data [2, 1, 5, 1, 3, 2] sent to AI",
@@ -823,7 +834,7 @@ export function FeaturesBento() {
         ctx.save();
         ctx.globalAlpha = z2Alpha;
 
-        const arrowColor = isDark ? "#a78bfa" : "#7c3aed";
+        const arrowColor = isBoardDark ? "#a78bfa" : "#7c3aed";
         drawArrow(ctx, 720, 395, 768, 395, arrowColor, 3.5, true);
 
         const z2x = 774;
@@ -838,7 +849,7 @@ export function FeaturesBento() {
           z2w,
           z2h,
           14,
-          isDark ? "#120a1c" : "#ffffff",
+          isBoardDark ? "#120a1c" : "#ffffff",
           "#d97706",
           2.5,
           true
@@ -850,11 +861,11 @@ export function FeaturesBento() {
           z2w,
           42,
           12,
-          isDark ? "rgba(245, 158, 11, 0.25)" : "#fef3c7",
+          isBoardDark ? "rgba(245, 158, 11, 0.25)" : "#fef3c7",
           "#d97706",
           1.5
         );
-        ctx.fillStyle = isDark ? "#fde68a" : "#b45309";
+        ctx.fillStyle = isBoardDark ? "#fde68a" : "#b45309";
         ctx.font = "bold 12px monospace";
         ctx.fillText("🌿 ZONE #2 • BRANCHED FROM ZONE #1", z2x + 14, z2y + 26);
 
@@ -865,11 +876,11 @@ export function FeaturesBento() {
           184,
           28,
           6,
-          isDark ? "rgba(6, 78, 59, 0.9)" : "#dcfce7",
-          isDark ? "rgba(16, 185, 129, 0.9)" : "#16a34a",
+          isBoardDark ? "rgba(6, 78, 59, 0.9)" : "#dcfce7",
+          isBoardDark ? "rgba(16, 185, 129, 0.9)" : "#16a34a",
           1.5
         );
-        ctx.fillStyle = isDark ? "#ecfdf5" : "#15803d";
+        ctx.fillStyle = isBoardDark ? "#ecfdf5" : "#15803d";
         ctx.font = "bold 10px monospace";
         ctx.fillText("LIVE AI: gemini-3.5-flash", z2x + z2w - 186, z2y + 25);
 
@@ -880,11 +891,11 @@ export function FeaturesBento() {
           z2w - 32,
           32,
           8,
-          isDark ? "rgba(124, 58, 237, 0.25)" : "#f5f3ff",
-          isDark ? "#a78bfa" : "#7c3aed",
+          isBoardDark ? "rgba(124, 58, 237, 0.25)" : "#f5f3ff",
+          isBoardDark ? "#a78bfa" : "#7c3aed",
           1.5
         );
-        ctx.fillStyle = isDark ? "#ede9fe" : "#5b21b6";
+        ctx.fillStyle = isBoardDark ? "#ede9fe" : "#5b21b6";
         ctx.font = "bold 11px monospace";
         ctx.fillText(
           "Branched from Zone #1 • Dataset [2, 1, 5, 1, 3, 2]",
@@ -899,11 +910,11 @@ export function FeaturesBento() {
           z2w - 32,
           150,
           10,
-          isDark ? "rgba(2, 132, 199, 0.15)" : "#f8fafc",
-          isDark ? "#38bdf8" : "#0284c7",
+          isBoardDark ? "rgba(2, 132, 199, 0.15)" : "#f8fafc",
+          isBoardDark ? "#38bdf8" : "#0284c7",
           1.8
         );
-        ctx.fillStyle = isDark ? "#38bdf8" : "#0369a1";
+        ctx.fillStyle = isBoardDark ? "#38bdf8" : "#0369a1";
         ctx.font = "bold 13px monospace";
         ctx.fillText(
           "Why Sliding Window Beats Nested Loops:",
@@ -918,11 +929,11 @@ export function FeaturesBento() {
           z2w - 56,
           44,
           8,
-          isDark ? "rgba(239, 68, 68, 0.2)" : "#fee2e2",
-          isDark ? "#f87171" : "#dc2626",
+          isBoardDark ? "rgba(239, 68, 68, 0.2)" : "#fee2e2",
+          isBoardDark ? "#f87171" : "#dc2626",
           1.5
         );
-        ctx.fillStyle = isDark ? "#fca5a5" : "#991b1b";
+        ctx.fillStyle = isBoardDark ? "#fca5a5" : "#991b1b";
         ctx.font = "bold 12px monospace";
         ctx.fillText(
           "Brute Force O(n*k): Re-sums 3 cells each step (18 ops)",
@@ -937,11 +948,11 @@ export function FeaturesBento() {
           z2w - 56,
           44,
           8,
-          isDark ? "rgba(22, 163, 74, 0.2)" : "#dcfce7",
-          isDark ? "#4ade80" : "#16a34a",
+          isBoardDark ? "rgba(22, 163, 74, 0.2)" : "#dcfce7",
+          isBoardDark ? "#4ade80" : "#16a34a",
           1.5
         );
-        ctx.fillStyle = isDark ? "#86efac" : "#166534";
+        ctx.fillStyle = isBoardDark ? "#86efac" : "#166534";
         ctx.font = "bold 12px monospace";
         ctx.fillText(
           "Sliding Window O(n): Subtract outgoing, add incoming (6 ops)",
@@ -956,11 +967,11 @@ export function FeaturesBento() {
           z2w - 32,
           188,
           10,
-          isDark ? "rgba(22, 163, 74, 0.15)" : "#f0fdf4",
-          isDark ? "#22c55e" : "#16a34a",
+          isBoardDark ? "rgba(22, 163, 74, 0.15)" : "#f0fdf4",
+          isBoardDark ? "#22c55e" : "#16a34a",
           1.8
         );
-        ctx.fillStyle = isDark ? "#4ade80" : "#15803d";
+        ctx.fillStyle = isBoardDark ? "#4ade80" : "#15803d";
         ctx.font = "bold 13px monospace";
         ctx.fillText(
           "O(1) Window Transition Delta at Step 3:",
@@ -975,14 +986,14 @@ export function FeaturesBento() {
           118,
           64,
           8,
-          isDark ? "rgba(2, 132, 199, 0.2)" : "#e0f2fe",
-          isDark ? "#38bdf8" : "#0284c7",
+          isBoardDark ? "rgba(2, 132, 199, 0.2)" : "#e0f2fe",
+          isBoardDark ? "#38bdf8" : "#0284c7",
           2
         );
-        ctx.fillStyle = isDark ? "#38bdf8" : "#0369a1";
+        ctx.fillStyle = isBoardDark ? "#38bdf8" : "#0369a1";
         ctx.font = "bold 11px monospace";
         ctx.fillText("Prev Sum [1..3]", z2x + 38, z2y + 328);
-        ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
+        ctx.fillStyle = isBoardDark ? "#f8fafc" : "#0f172a";
         ctx.font = "bold 20px monospace";
         ctx.fillText("7", z2x + 76, z2y + 355);
 
@@ -993,14 +1004,14 @@ export function FeaturesBento() {
           126,
           64,
           8,
-          isDark ? "rgba(217, 119, 6, 0.2)" : "#fef3c7",
+          isBoardDark ? "rgba(217, 119, 6, 0.2)" : "#fef3c7",
           "#d97706",
           2
         );
-        ctx.fillStyle = isDark ? "#fde68a" : "#b45309";
+        ctx.fillStyle = isBoardDark ? "#fde68a" : "#b45309";
         ctx.font = "bold 11px monospace";
         ctx.fillText("Delta (-arr[1]+arr[4])", z2x + 170, z2y + 328);
-        ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
+        ctx.fillStyle = isBoardDark ? "#f8fafc" : "#0f172a";
         ctx.font = "bold 18px monospace";
         ctx.fillText("-1 + 3 = +2", z2x + 178, z2y + 355);
 
@@ -1011,18 +1022,18 @@ export function FeaturesBento() {
           122,
           64,
           8,
-          isDark ? "rgba(22, 163, 74, 0.2)" : "#dcfce7",
-          isDark ? "#4ade80" : "#16a34a",
+          isBoardDark ? "rgba(22, 163, 74, 0.2)" : "#dcfce7",
+          isBoardDark ? "#4ade80" : "#16a34a",
           2.5
         );
-        ctx.fillStyle = isDark ? "#4ade80" : "#15803d";
+        ctx.fillStyle = isBoardDark ? "#4ade80" : "#15803d";
         ctx.font = "bold 11px monospace";
         ctx.fillText("Peak Sum [2..4]", z2x + 322, z2y + 328);
-        ctx.fillStyle = isDark ? "#4ade80" : "#15803d";
+        ctx.fillStyle = isBoardDark ? "#4ade80" : "#15803d";
         ctx.font = "bold 20px monospace";
         ctx.fillText("9 🎯", z2x + 350, z2y + 355);
 
-        ctx.fillStyle = isDark ? "#94a3b8" : "#334155";
+        ctx.fillStyle = isBoardDark ? "#94a3b8" : "#334155";
         ctx.font = "bold 12px monospace";
         ctx.fillText(
           "✓ Preserves full context from Linked Zone #1 automatically!",
@@ -1055,7 +1066,7 @@ export function FeaturesBento() {
           ctx.beginPath();
           ctx.moveTo(p0.x, p0.y);
           ctx.lineTo(p1.x, p1.y);
-          ctx.strokeStyle = isDark
+          ctx.strokeStyle = isBoardDark
             ? `rgba(167, 139, 250, ${(ratio * ratio * 0.55).toFixed(3)})`
             : `rgba(124, 58, 237, ${(ratio * ratio * 0.45).toFixed(3)})`;
           ctx.lineWidth = 1.5 + ratio * 10;
@@ -1072,7 +1083,7 @@ export function FeaturesBento() {
           ctx.save();
           ctx.beginPath();
           ctx.arc(kf.x, kf.y, r, 0, Math.PI * 2);
-          ctx.strokeStyle = isDark
+          ctx.strokeStyle = isBoardDark
             ? `rgba(167, 139, 250, ${((1 - p) * 0.85).toFixed(3)})`
             : `rgba(124, 58, 237, ${((1 - p) * 0.80).toFixed(3)})`;
           ctx.lineWidth = 3 * (1 - p);
@@ -1099,7 +1110,7 @@ export function FeaturesBento() {
         // Outer laser halo
         ctx.beginPath();
         ctx.arc(4, 10, 16, 0, Math.PI * 2);
-        ctx.fillStyle = isDark
+        ctx.fillStyle = isBoardDark
           ? "rgba(167, 139, 250, 0.25)"
           : "rgba(124, 58, 237, 0.20)";
         ctx.fill();
@@ -1114,7 +1125,7 @@ export function FeaturesBento() {
         ctx.lineTo(10, 15);
         ctx.lineTo(18, 15);
         ctx.closePath();
-        ctx.fillStyle = isDark ? "#8b5cf6" : "#7c3aed";
+        ctx.fillStyle = isBoardDark ? "#8b5cf6" : "#7c3aed";
         ctx.fill();
         ctx.lineWidth = 2.2;
         ctx.strokeStyle = "#ffffff";
@@ -1184,7 +1195,7 @@ export function FeaturesBento() {
       vig.addColorStop(0, "rgba(0,0,0,0)");
       vig.addColorStop(
         1,
-        isDark ? "rgba(5, 2, 8, 0.46)" : "rgba(148, 163, 184, 0.10)"
+        isBoardDark ? "rgba(5, 2, 8, 0.46)" : "rgba(148, 163, 184, 0.10)"
       );
       ctx.fillStyle = vig;
       ctx.fillRect(0, 0, W, H);
@@ -1199,7 +1210,7 @@ export function FeaturesBento() {
 
     rafId = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, cameraTrackEnabled, isDark]);
+  }, [isPlaying, cameraTrackEnabled, isBoardDark]);
 
   const activeStep =
     LIVE_WHITEBOARD_STEPS[activeStepIdx] ?? LIVE_WHITEBOARD_STEPS[2]!;
@@ -1542,8 +1553,38 @@ export function FeaturesBento() {
               </p>
             </div>
 
-            {/* Camera Zoom Toggle & Play Controls */}
+            {/* Camera Zoom Toggle, Board Theme Mode & Play Controls */}
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Dedicated Whiteboard Theme Toggle (Board-Specific, Independent of Website Theme) */}
+              <button
+                type="button"
+                onClick={() => {
+                  const next = boardTheme === "dark" ? "light" : "dark";
+                  setBoardTheme(next);
+                  try {
+                    localStorage.setItem("dsa_board_canvas_theme", next);
+                  } catch {}
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 font-mono text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                  isBoardDark
+                    ? "border-amber-500/60 bg-amber-500/15 text-amber-500 dark:text-amber-400"
+                    : "border-primary/60 bg-primary/15 text-primary"
+                }`}
+                title="Toggle Whiteboard Canvas Mode (Board only, independent of overall website theme)"
+              >
+                {isBoardDark ? (
+                  <>
+                    <Sun className="size-3.5 text-amber-400" />
+                    <span>Board: Dark</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="size-3.5 text-primary" />
+                    <span>Board: Light</span>
+                  </>
+                )}
+              </button>
+
               <button
                 type="button"
                 onClick={() => setCameraTrackEnabled((v) => !v)}
@@ -1586,27 +1627,60 @@ export function FeaturesBento() {
           {/* Widescreen 16:9 Cinema Bezel */}
           <div className="mt-6 relative rounded-2xl border border-border/80 dark:border-primary/30 bg-muted/20 dark:bg-black/40 overflow-hidden shadow-2xl">
             {/* Window Studio Chrome Header */}
-            <div className="border-b border-border/60 bg-muted/50 dark:bg-card/80 px-4 py-2.5 flex items-center justify-between gap-3 text-xs font-mono">
+            <div className={`border-b transition-colors duration-300 px-4 py-2.5 flex items-center justify-between gap-3 text-xs font-mono ${
+              isBoardDark ? "border-border/40 bg-[#120716]" : "border-slate-200 bg-slate-100"
+            }`}>
               <div className="flex items-center gap-2">
                 <span className="size-2.5 rounded-full bg-rose-500" />
                 <span className="size-2.5 rounded-full bg-amber-400" />
                 <span className="size-2.5 rounded-full bg-emerald-400" />
-                <span className="ml-2 hidden sm:inline text-muted-foreground text-[11px]">
+                <span className={`ml-2 hidden sm:inline text-[11px] ${
+                  isBoardDark ? "text-slate-400" : "text-slate-600 font-medium"
+                }`}>
                   dsa.viz.co / ai-whiteboard / sliding-window-dry-run
                 </span>
               </div>
               <div className="flex items-center gap-2 text-[10px]">
+                {/* 1-Click Board Mode Switcher Badge */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = boardTheme === "dark" ? "light" : "dark";
+                    setBoardTheme(next);
+                    try {
+                      localStorage.setItem("dsa_board_canvas_theme", next);
+                    } catch {}
+                  }}
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded font-mono font-bold cursor-pointer transition-colors ${
+                    isBoardDark
+                      ? "bg-slate-800 text-amber-300 border border-slate-700 hover:bg-slate-700"
+                      : "bg-white text-slate-800 border border-slate-300 hover:bg-slate-50 shadow-xs"
+                  }`}
+                  title="Toggle Whiteboard Canvas Mode"
+                >
+                  {isBoardDark ? (
+                    <>
+                      <Sun className="size-3 text-amber-400" />
+                      <span>Dark Board</span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="size-3 text-primary" />
+                      <span>Light Board</span>
+                    </>
+                  )}
+                </button>
                 <span className="text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
                   gemini-3.5-flash-lite
                 </span>
-                <span className="text-muted-foreground font-bold">
+                <span className={`font-bold ${isBoardDark ? "text-slate-400" : "text-slate-600"}`}>
                   {elapsedSec.toFixed(1)}s / {TOTAL_DURATION.toFixed(1)}s
                 </span>
               </div>
             </div>
 
             {/* 60fps Native Retina Canvas */}
-            <div className="relative w-full aspect-video bg-white dark:bg-[#070305]">
+            <div className={`relative w-full aspect-video transition-colors duration-300 ${isBoardDark ? "bg-[#070305]" : "bg-[#f8fafc]"}`}>
               <canvas
                 ref={canvasRef}
                 width={1280}
@@ -1616,16 +1690,18 @@ export function FeaturesBento() {
             </div>
 
             {/* Bottom Timeline Caption Strip */}
-            <div className="border-t border-border/60 bg-muted/40 dark:bg-card/80 px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs">
+            <div className={`border-t transition-colors duration-300 px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs ${
+              isBoardDark ? "border-border/40 bg-[#120716]" : "border-slate-200 bg-slate-100"
+            }`}>
               <div className="flex items-center gap-2">
                 <span className="rounded bg-primary/15 border border-primary/30 px-2 py-0.5 text-[10px] font-bold text-primary">
                   {currentChapter.code}
                 </span>
-                <span className="font-bold text-foreground text-xs">
+                <span className={`font-bold text-xs ${isBoardDark ? "text-foreground" : "text-slate-900"}`}>
                   {currentChapter.title}
                 </span>
               </div>
-              <span className="text-[11px] text-muted-foreground font-sans truncate">
+              <span className={`text-[11px] font-sans truncate ${isBoardDark ? "text-muted-foreground" : "text-slate-600"}`}>
                 {currentChapter.subtitle}
               </span>
             </div>

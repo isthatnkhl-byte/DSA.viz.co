@@ -29,6 +29,8 @@ import {
   Zap,
   Trash2,
   Layers,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getAuthHeaders } from "@/lib/api-client";
@@ -146,6 +148,37 @@ export function AiWhiteboard({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [activePresetId, setActivePresetId] =
     useState<WhiteboardPresetId | null>(null);
+
+  // Dedicated Whiteboard Theme Mode (independent of website theme)
+  const [boardTheme, setBoardTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("dsa_whiteboard_board_theme");
+        if (saved === "light" || saved === "dark") return saved;
+      } catch {}
+    }
+    return "light";
+  });
+
+  const toggleBoardTheme = useCallback(() => {
+    setBoardTheme((prev) => {
+      const next = prev === "dark" ? "light" : "dark";
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("dsa_whiteboard_board_theme", next);
+        } catch {}
+      }
+      if (excalidrawAPI) {
+        excalidrawAPI.updateScene({
+          appState: {
+            theme: next,
+            viewBackgroundColor: next === "dark" ? "#121212" : "#ffffff",
+          },
+        });
+      }
+      return next;
+    });
+  }, [excalidrawAPI]);
 
   // Bounded Simulation Zones Registry (starts completely clean: no hardcoded initial boot preset!)
   const [zonesHistory, setZonesHistory] = useState<AiWhiteboardLesson[]>([]);
@@ -1127,6 +1160,22 @@ export function AiWhiteboard({
         }
       }
 
+      // Sync internal Excalidraw theme toggle into boardTheme state
+      if (
+        appState?.theme &&
+        (appState.theme === "light" || appState.theme === "dark")
+      ) {
+        setBoardTheme((prev) => {
+          if (prev !== appState.theme) {
+            try {
+              localStorage.setItem("dsa_whiteboard_board_theme", appState.theme);
+            } catch {}
+            return appState.theme;
+          }
+          return prev;
+        });
+      }
+
       if (readOnly) return;
       let changedCount = 0;
       for (const el of els) {
@@ -1761,6 +1810,35 @@ export function AiWhiteboard({
             <Trash2 className="w-3.5 h-3.5" />
           </button>
 
+          {/* Dedicated Whiteboard Theme Mode Toggle (Whiteboard specific, decoupled from website theme) */}
+          <button
+            type="button"
+            onClick={toggleBoardTheme}
+            className="px-2 py-1.5 rounded-lg font-black transition cursor-pointer flex items-center gap-1.5 text-xs"
+            style={{
+              background: boardTheme === "dark" ? "#2b2d42" : "#ffffff",
+              border: "2px solid #2b2d42",
+              color: boardTheme === "dark" ? "#ffd166" : "#2b2d42",
+            }}
+            title={
+              boardTheme === "dark"
+                ? "Switch Whiteboard to Light Mode (Whiteboard only, independent of website theme)"
+                : "Switch Whiteboard to Dark Mode (Whiteboard only, independent of website theme)"
+            }
+          >
+            {boardTheme === "dark" ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline font-mono text-[10px] font-extrabold">Board: Dark</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline font-mono text-[10px] font-extrabold">Board: Light</span>
+              </>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={handleExportSceneJson}
@@ -2278,8 +2356,8 @@ export function AiWhiteboard({
 
       {/* 3. Excalidraw Host (.wb-host from Agentic-Hub-office) */}
       <div
-        className="wb-host flex-1 min-h-0 relative"
-        style={{ background: "#ffffff" }}
+        className="wb-host flex-1 min-h-0 relative transition-colors duration-200"
+        style={{ background: boardTheme === "dark" ? "#121212" : "#ffffff" }}
       >
         {/* Pinned "Model Which Answered" Badge on the Drawing Box */}
         <div
@@ -2349,14 +2427,16 @@ export function AiWhiteboard({
             initialData={{
               elements: currentFrame ? currentFrame.elements : [],
               appState: {
-                viewBackgroundColor: "#ffffff",
+                theme: boardTheme,
+                viewBackgroundColor:
+                  boardTheme === "dark" ? "#121212" : "#ffffff",
               },
               scrollToContent: false,
             }}
             onChange={handleExcalidrawChange}
             isCollaborating={true}
             name={`${problemTitle || "DSA.viz"} Whiteboard`}
-            theme="light"
+            theme={boardTheme}
             langCode="en"
             autoFocus={false}
             aiEnabled={false}

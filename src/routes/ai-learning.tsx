@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { getAuthHeaders } from "@/lib/api-client";
 import { SiteHeader } from "@/components/SiteHeader";
 import { AiWhiteboard } from "@/components/interview/AiWhiteboard";
+import { AgUiAgentPanel } from "@/components/ag-ui/AgUiAgentPanel";
 import {
   buildExcalidrawTwoPointersLesson,
   buildExcalidrawSlidingWindowLesson,
@@ -569,7 +570,7 @@ const QUICK_AI_PROMPTS = [
 export function AiLearningPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    "curriculum" | "inspector" | "quiz" | "lab"
+    "curriculum" | "inspector" | "quiz" | "lab" | "ag-ui"
   >("curriculum");
   const [selectedModuleId, setSelectedModuleId] =
     useState<string | null>(null);
@@ -787,6 +788,11 @@ export function AiLearningPage() {
                       id: "lab",
                       label: "AI Lab",
                       icon: SlidersHorizontal,
+                    },
+                    {
+                      id: "ag-ui",
+                      label: "AG-UI Stream",
+                      icon: Zap,
                     },
                   ] as const
                 ).map((tab) => {
@@ -1237,6 +1243,12 @@ export function AiLearningPage() {
                         placeholder="Jot down invariants and insights while the AI teaches on the whiteboard..."
                       />
                     </div>
+                  </div>
+                )}
+
+                {activeTab === "ag-ui" && (
+                  <div className="space-y-3 pb-6">
+                    <AgUiAgentPanel />
                   </div>
                 )}
               </div>

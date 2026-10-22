@@ -84,6 +84,10 @@ import {
 } from './src/shared/whiteboard';
 
 
+import { AgUiStreamWriter } from './src/lib/ag-ui/stream-writer';
+import { AgUiAgentBridge } from './src/lib/ag-ui/agent-bridge.server';
+import { AgUiRunAgentInput, AgUiEventType } from './src/lib/ag-ui/types';
+
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
@@ -519,7 +523,7 @@ const API_ENDPOINTS = [
   "/livekit-token", "/generate-plan", "/verify-trace", "/visualize-dataset", "/playground-review",
   "/code-diff-nudge", "/rate-submission", "/generate-mistakes-report",
   "/user-reports", "/compiler", "/health", "/debug", "/user-keys",
-  "/activity", "/telemetry", "/collab"
+  "/activity", "/telemetry", "/collab", "/ag-ui"
 ];
 app.use((req, _res, next) => {
   const pathname = req.url.split("?")[0];
@@ -1813,6 +1817,63 @@ app.delete("/api/submissions/:id", requireAuth, async (req: any, res) => {
   }
 });
 // ---------------------
+
+// ==============================================================================
+// ⚡ AG-UI PROTOCOL MIDDLEWARE (Agent-User Interaction Protocol Specification)
+// Spec: https://github.com/ag-ui-protocol/ag-ui
+// Real-time token streaming, AI reasoning extraction, sandbox tools & RFC 6902 state deltas
+// ==============================================================================
+
+app.get("/api/ag-ui/health", (_req: Request, res: Response) => {
+  res.json({
+    status: "ok",
+    protocol: "AG-UI",
+    version: "1.0.0",
+    transport: "Server-Sent Events (SSE)",
+    supportedEvents: Object.values(AgUiEventType),
+  });
+});
+
+app.get("/api/ag-ui/schema", (_req: Request, res: Response) => {
+  res.json({
+    protocol: "AG-UI",
+    specVersion: "1.0",
+    specificationUrl: "https://github.com/ag-ui-protocol/ag-ui",
+    capabilities: {
+      streaming: true,
+      reasoning: true,
+      tools: true,
+      stateDeltas: "RFC 6902 (JSON Patch)",
+      heartbeatMs: 15000,
+    },
+    eventTypes: Object.values(AgUiEventType),
+  });
+});
+
+app.post("/api/ag-ui/stream", aiLimiter, async (req: Request, res: Response) => {
+  const writer = new AgUiStreamWriter(res);
+
+  try {
+    const input: AgUiRunAgentInput = {
+      prompt: req.body?.prompt,
+      messages: req.body?.messages,
+      currentUiState: req.body?.currentUiState,
+      role: req.body?.role || "dsa_mentor",
+      model: req.body?.model || "gemini-2.5-flash",
+      threadId: req.body?.threadId,
+      activeContext: req.body?.activeContext,
+      enableTools: req.body?.enableTools ?? true,
+    };
+
+    const bridge = new AgUiAgentBridge(writer, input);
+    await bridge.execute();
+  } catch (error: any) {
+    console.error("[AG-UI] Stream Controller encountered unhandled error:", error);
+    if (!writer.isClosed) {
+      writer.sendError(`err_${Date.now()}`, error?.message || "Internal server streaming error");
+    }
+  }
+});
 
 // API: Multi-turn Chatbot endpoint with Socratic Interviewer & Firestore access
 app.post("/api/chat", requireAuth, aiLimiter, async (req: any, res: Response) => {

@@ -24,6 +24,7 @@ export class AgUiStreamWriter {
     this.res.setHeader("Connection", "keep-alive");
     this.res.setHeader("X-Accel-Buffering", "no"); // Bypass Nginx / proxy buffers
     this.res.setHeader("Transfer-Encoding", "chunked");
+    (this.res.socket as any)?.setNoDelay?.(true);
     this.res.flushHeaders?.();
 
     // Start 15s keepalive heartbeat
@@ -65,7 +66,9 @@ export class AgUiStreamWriter {
     try {
       const payloadString = JSON.stringify(fullEvent);
       const sseMessage = `id: ${this.eventIndex}\ndata: ${payloadString}\n\n`;
-      return this.res.write(sseMessage);
+      const written = this.res.write(sseMessage);
+      (this.res as any).flush?.();
+      return written;
     } catch (err) {
       console.error("[AG-UI StreamWriter] Error encoding event:", err);
       return false;

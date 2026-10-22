@@ -202,4 +202,5 @@ export interface AgUiRunAgentInput {
   threadId?: string;
   activeContext?: Record<string, any>;
   enableTools?: boolean;
+  apiKey?: string;
 }

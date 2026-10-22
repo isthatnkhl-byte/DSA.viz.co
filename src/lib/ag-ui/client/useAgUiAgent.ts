@@ -55,12 +55,12 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
     activeTools: [],
     uiState: {
       activeStep: 0,
-      totalSteps: 8,
+      totalSteps: 0,
       visualizerType: "array",
       currentFrame: {
-        array: [4, 2, 9, 1, 7, 5],
+        array: [],
         highlightIndices: [],
-        explanation: "Initial array state ready for execution.",
+        explanation: "Ready to simulate algorithmic state transitions.",
       },
       telemetry: {
         status: "idle",
@@ -73,33 +73,6 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Microtask buffer to prevent re-render thrashing at high token frequencies
-  const pendingTokensRef = useRef<string>("");
-  const pendingReasoningRef = useRef<string>("");
-  const flushScheduledRef = useRef<boolean>(false);
-
-  const scheduleFlush = useCallback(() => {
-    if (flushScheduledRef.current) return;
-    flushScheduledRef.current = true;
-
-    requestAnimationFrame(() => {
-      const textChunk = pendingTokensRef.current;
-      const reasoningChunk = pendingReasoningRef.current;
-
-      pendingTokensRef.current = "";
-      pendingReasoningRef.current = "";
-      flushScheduledRef.current = false;
-
-      if (textChunk || reasoningChunk) {
-        setState((prev) => ({
-          ...prev,
-          streamingText: textChunk ? prev.streamingText + textChunk : prev.streamingText,
-          reasoning: reasoningChunk ? prev.reasoning + reasoningChunk : prev.reasoning,
-        }));
-      }
-    });
-  }, []);
-
   const handleAgUiEvent = useCallback((event: AgUiEvent) => {
     switch (event.type) {
       case AgUiEventType.RUN_STARTED:
@@ -107,7 +80,7 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
           ...prev,
           isRunning: true,
           runId: event.runId,
-          statusText: `Agent active (${event.agentName || "AG-UI Engine"})`,
+          statusText: `Streaming active (${event.agentName || "AG-UI Engine"})`,
           error: null,
           durationMs: null,
         }));
@@ -146,12 +119,13 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
         break;
 
       case AgUiEventType.REASONING_START:
-        // Ready for reasoning stream
         break;
 
       case AgUiEventType.REASONING_MESSAGE_CONTENT:
-        pendingReasoningRef.current += event.delta;
-        scheduleFlush();
+        setState((prev) => ({
+          ...prev,
+          reasoning: prev.reasoning + event.delta,
+        }));
         break;
 
       case AgUiEventType.REASONING_MESSAGE_END:
@@ -161,23 +135,13 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
         break;
 
       case AgUiEventType.TEXT_MESSAGE_CONTENT:
-        pendingTokensRef.current += event.delta;
-        scheduleFlush();
+        setState((prev) => ({
+          ...prev,
+          streamingText: prev.streamingText + event.delta,
+        }));
         break;
 
       case AgUiEventType.TEXT_MESSAGE_END:
-        // Flush remaining tokens immediately
-        if (pendingTokensRef.current || pendingReasoningRef.current) {
-          const textChunk = pendingTokensRef.current;
-          const reasoningChunk = pendingReasoningRef.current;
-          pendingTokensRef.current = "";
-          pendingReasoningRef.current = "";
-          setState((prev) => ({
-            ...prev,
-            streamingText: prev.streamingText + textChunk,
-            reasoning: prev.reasoning + reasoningChunk,
-          }));
-        }
         break;
 
       case AgUiEventType.TOOL_CALL_START:
@@ -225,7 +189,6 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
       case AgUiEventType.STATE_DELTA:
         setState((prev) => {
           try {
-            // Immutable clone
             const target = JSON.parse(JSON.stringify(prev.uiState));
             const result = applyPatch(target, event.delta as Operation[]);
             return {
@@ -243,7 +206,7 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
         setState((prev) => ({
           ...prev,
           isRunning: false,
-          statusText: "Run complete",
+          statusText: "Stream complete",
           durationMs: event.durationMs || null,
         }));
         break;
@@ -253,11 +216,11 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
           ...prev,
           isRunning: false,
           error: event.error,
-          statusText: "Run encountered an error",
+          statusText: "Encountered an error",
         }));
         break;
     }
-  }, [scheduleFlush]);
+  }, []);
 
   const triggerAgent = useCallback(
     async (prompt: string, overrideState?: Record<string, any>, options?: Partial<AgUiRunAgentInput>) => {
@@ -283,9 +246,6 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
         uiState: overrideState || prev.uiState,
       }));
 
-      pendingTokensRef.current = "";
-      pendingReasoningRef.current = "";
-
       try {
         let idToken: string | undefined = undefined;
         try {
@@ -299,17 +259,23 @@ export function useAgUiAgent(endpointUrl: string = "/api/ag-ui/stream"): UseAgUi
 
         const authHeaders = await getAuthHeaders().catch(() => ({}));
 
+        // Check if user saved personal Gemini key in localStorage
+        const storedKey = typeof localStorage !== "undefined" ? localStorage.getItem("dsaviz:gemini_api_key") : null;
+        const apiKey = options?.apiKey || storedKey || undefined;
+
         const response = await fetch(endpointUrl, {
           method: "POST",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
             ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+            ...(apiKey ? { "x-gemini-key": apiKey } : {}),
             ...authHeaders,
           },
           body: JSON.stringify({
             prompt,
             currentUiState: overrideState || state.uiState,
+            apiKey,
             ...options,
           }),
           signal: controller.signal,

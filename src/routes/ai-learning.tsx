@@ -764,7 +764,7 @@ export function AiLearningPage() {
             >
               {/* Companion Panel Tab Header */}
               <div
-                className="grid grid-cols-4 gap-1 p-2 border-b-[3px] border-[#2b2d42]"
+                className="grid grid-cols-5 gap-1 p-2 border-b-[3px] border-[#2b2d42]"
                 style={{ background: "#f4ede2" }}
               >
                 {(

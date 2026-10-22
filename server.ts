@@ -1863,6 +1863,7 @@ app.post("/api/ag-ui/stream", aiLimiter, async (req: Request, res: Response) => 
       threadId: req.body?.threadId,
       activeContext: req.body?.activeContext,
       enableTools: req.body?.enableTools ?? true,
+      apiKey: req.body?.apiKey || (req.headers["x-gemini-key"] as string) || undefined,
     };
 
     const bridge = new AgUiAgentBridge(writer, input);

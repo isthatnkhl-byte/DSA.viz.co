@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { useAgUiAgent } from "@/lib/ag-ui/client/useAgUiAgent";
 import {
@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
-  Sparkles,
   Play,
   Square,
   RotateCcw,
@@ -21,6 +20,8 @@ import {
   Sliders,
   Check,
   Copy,
+  Key,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,7 +33,7 @@ interface AgUiAgentPanelProps {
 
 export const AgUiAgentPanel: React.FC<AgUiAgentPanelProps> = ({
   className = "",
-  initialPrompt = "Explain and trace QuickSort partition with pointers",
+  initialPrompt = "Trace Binary Search step-by-step with low, mid, and high pointers",
 }) => {
   const {
     isRunning,
@@ -51,13 +52,40 @@ export const AgUiAgentPanel: React.FC<AgUiAgentPanelProps> = ({
 
   const [prompt, setPrompt] = useState(initialPrompt);
   const [showReasoning, setShowReasoning] = useState(true);
-  const [showStateInspector, setShowStateInspector] = useState(true);
+  const [showStateInspector, setShowStateInspector] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [activeApiKey, setActiveApiKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("dsaviz:gemini_api_key");
+      if (stored) {
+        setActiveApiKey(stored);
+        setApiKeyInput(stored);
+      }
+    } catch {}
+  }, []);
+
+  const handleSaveApiKey = () => {
+    const trimmed = apiKeyInput.trim();
+    if (trimmed) {
+      localStorage.setItem("dsaviz:gemini_api_key", trimmed);
+      setActiveApiKey(trimmed);
+      toast.success("Gemini API Key saved for live streaming");
+    } else {
+      localStorage.removeItem("dsaviz:gemini_api_key");
+      setActiveApiKey(null);
+      toast.info("Cleared personal key — using Dynamic Socratic Stream");
+    }
+    setShowKeyInput(false);
+  };
 
   const handleRun = (customPrompt?: string) => {
     const textToRun = customPrompt || prompt;
     if (!textToRun.trim() || isRunning) return;
-    triggerAgent(textToRun);
+    triggerAgent(textToRun, undefined, { apiKey: activeApiKey || undefined });
   };
 
   const handleCopyCode = () => {
@@ -68,20 +96,22 @@ export const AgUiAgentPanel: React.FC<AgUiAgentPanelProps> = ({
   };
 
   const quickPrompts = [
-    { label: "⚡ QuickSort Invariant Trace", prompt: "Explain QuickSort partition invariant with pointers and frame trace." },
-    { label: "🔍 Binary Search Convergence", prompt: "Trace Binary Search step-by-step with low, mid, and high pointers." },
-    { label: "🔄 2-Sum Hash Map Probe", prompt: "Decompose 2-Sum using a complement hash table with memory metrics." },
-    { label: "🌲 AVL Tree Balance Factor", prompt: "Demonstrate Left-Right rotation state transition for an unbalanced AVL tree." },
+    { label: "🔍 Binary Search", prompt: "Trace Binary Search step-by-step with low, mid, and high pointers" },
+    { label: "🔄 Two Sum Hash", prompt: "Solve Two Sum with hash map complement lookups and active indices" },
+    { label: "🪟 Sliding Window", prompt: "Trace Sliding Window dynamic subarray expansion and shrinkage" },
+    { label: "🔗 Reverse Linked List", prompt: "Trace iterative Linked List reversal pointer flips" },
+    { label: "⚡ QuickSort Partition", prompt: "Trace QuickSort partition invariant with i, j, and pivot pointers" },
+    { label: "📈 DP Tabulation", prompt: "Trace Climbing Stairs / Fibonacci DP state table transitions" },
   ];
 
   const currentFrame = uiState?.currentFrame;
-  const currentArray = Array.isArray(currentFrame?.array) ? currentFrame.array : [4, 2, 9, 1, 7, 5];
+  const currentArray = Array.isArray(currentFrame?.array) ? currentFrame.array : [];
   const highlightIndices: number[] = Array.isArray(currentFrame?.highlightIndices) ? currentFrame.highlightIndices : [];
   const telemetry = uiState?.telemetry || {};
 
   return (
     <div className={`flex flex-col gap-4 font-mono text-xs rounded-xl border-2 border-border bg-card text-card-foreground p-5 shadow-2xl relative overflow-hidden ${className}`}>
-      {/* Neo-brutalist corner registration crosses */}
+      {/* Registration Crosses */}
       <span className="absolute top-2 left-2 text-muted-foreground/30 font-bold select-none">+</span>
       <span className="absolute top-2 right-2 text-muted-foreground/30 font-bold select-none">+</span>
       <span className="absolute bottom-2 left-2 text-muted-foreground/30 font-bold select-none">+</span>
@@ -106,8 +136,22 @@ export const AgUiAgentPanel: React.FC<AgUiAgentPanelProps> = ({
           </div>
         </div>
 
-        {/* Live Status Badge */}
+        {/* Live Engine & Key Settings */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowKeyInput(!showKeyInput)}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded border text-[10px] font-semibold cursor-pointer transition-colors ${
+              activeApiKey
+                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20"
+                : "bg-muted text-muted-foreground border-border hover:text-foreground"
+            }`}
+            title="Configure Gemini API key"
+          >
+            <Key className="size-3" />
+            <span>{activeApiKey ? "Gemini Live Key Active" : "Key: Socratic Fallback"}</span>
+          </button>
+
           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold ${
             isRunning
               ? "bg-amber-500/10 text-amber-500 border-amber-500/30 animate-pulse"
@@ -127,10 +171,39 @@ export const AgUiAgentPanel: React.FC<AgUiAgentPanelProps> = ({
         </div>
       </div>
 
+      {/* API Key Modal / Dropdown */}
+      {showKeyInput && (
+        <div className="p-3 bg-muted/40 border-2 border-primary/30 rounded-lg flex flex-col gap-2">
+          <div className="flex items-center justify-between text-[11px] font-bold text-foreground">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="size-3.5 text-primary" />
+              <span>Personal Gemini API Key (Optional)</span>
+            </span>
+            <span className="text-[10px] text-muted-foreground font-normal">Stored strictly in local browser</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              placeholder="Paste AIzaSy... (leave empty for built-in Socratic streaming)"
+              className="flex-1 bg-background border border-border rounded px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-mono"
+            />
+            <button
+              type="button"
+              onClick={handleSaveApiKey}
+              className="px-3 py-1.5 bg-primary text-primary-foreground font-bold rounded text-xs hover:bg-primary/90 cursor-pointer"
+            >
+              Save Key
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Quick Prompt Selector */}
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
-          <Sliders className="size-3" /> Presets:
+          <Sliders className="size-3" /> Quick Presets:
         </span>
         {quickPrompts.map((qp, idx) => (
           <button
@@ -162,7 +235,7 @@ export const AgUiAgentPanel: React.FC<AgUiAgentPanelProps> = ({
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             disabled={isRunning}
-            placeholder="Ask agent to solve, debug, or trace algorithmic state..."
+            placeholder="Type any algorithm (e.g. Binary Search, Two Sum, BFS, DP, QuickSort)..."
             className="w-full bg-background border-2 border-border rounded-lg px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary font-mono transition-colors"
           />
         </div>
@@ -257,7 +330,7 @@ export const AgUiAgentPanel: React.FC<AgUiAgentPanelProps> = ({
         <div className="flex flex-col gap-2 p-3 bg-muted/30 border border-border rounded-lg">
           <div className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
             <Terminal className="size-3 text-primary" />
-            <span>Active Sandbox Tools</span>
+            <span>Active Sandbox Verification Tools</span>
           </div>
           <div className="flex flex-col gap-2">
             {activeTools.map((tool) => (
@@ -310,26 +383,34 @@ export const AgUiAgentPanel: React.FC<AgUiAgentPanelProps> = ({
 
         {/* Dynamic Array Bars Visualizer */}
         <div className="bg-background border-2 border-border rounded-lg p-4 flex flex-col gap-3">
-          <div className="flex items-end justify-center gap-3 h-28 pt-4">
-            {currentArray.map((val: number, idx: number) => {
-              const isHighlighted = highlightIndices.includes(idx);
-              const heightPercent = Math.min(Math.max((val / 10) * 100, 20), 100);
-              return (
-                <div key={idx} className="flex flex-col items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-muted-foreground">{val}</span>
-                  <div
-                    style={{ height: `${heightPercent}%` }}
-                    className={`w-7 rounded-t-md transition-all duration-300 flex items-center justify-center font-bold text-[10px] ${
-                      isHighlighted
-                        ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 scale-105"
-                        : "bg-muted-foreground/30 text-foreground hover:bg-muted-foreground/50"
-                    }`}
-                  />
-                  <span className="text-[9px] text-muted-foreground/80">[{idx}]</span>
-                </div>
-              );
-            })}
-          </div>
+          {currentArray.length > 0 ? (
+            <div className="flex items-end justify-center gap-3 h-28 pt-4">
+              {currentArray.map((val: number, idx: number) => {
+                const isHighlighted = highlightIndices.includes(idx);
+                const maxVal = Math.max(...currentArray, 10);
+                const heightPercent = Math.min(Math.max((val / maxVal) * 100, 20), 100);
+                return (
+                  <div key={idx} className="flex flex-col items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-muted-foreground">{val}</span>
+                    <div
+                      style={{ height: `${heightPercent}%` }}
+                      className={`w-7 rounded-t-md transition-all duration-300 flex items-center justify-center font-bold text-[10px] ${
+                        isHighlighted
+                          ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 scale-105"
+                          : "bg-muted-foreground/30 text-foreground hover:bg-muted-foreground/50"
+                      }`}
+                    />
+                    <span className="text-[9px] text-muted-foreground/80">[{idx}]</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-24 text-muted-foreground text-xs gap-1.5">
+              <Cpu className="size-5 opacity-40 animate-pulse" />
+              <span>Canvas ready — click a preset or submit a prompt to stream live transitions</span>
+            </div>
+          )}
 
           {currentFrame?.explanation && (
             <div className="text-[11px] text-foreground bg-muted/40 p-2.5 rounded border border-border/80 flex items-center gap-2">
@@ -384,7 +465,7 @@ export const AgUiAgentPanel: React.FC<AgUiAgentPanelProps> = ({
           </div>
         ) : (
           <div className="text-muted-foreground text-[11px] italic py-6 text-center">
-            {isRunning ? "Agent is reasoning and synthesizing tokens..." : "Submit a prompt or click a preset above to stream tokens and AI state progress."}
+            {isRunning ? "Agent is decomposing constraints and streaming tokens..." : "Submit a prompt or click a preset above to stream tokens and AI state progress live."}
           </div>
         )}
       </div>

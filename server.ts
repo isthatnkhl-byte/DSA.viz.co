@@ -5062,7 +5062,20 @@ async function startServer() {
     });
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(
+      express.static(distPath, {
+        maxAge: "1d",
+        setHeaders: (res: Response, filePath: string) => {
+          if (filePath.includes(path.sep + "assets" + path.sep)) {
+            // Immutable caching for Vite hashed asset bundles
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          } else if (filePath.endsWith(".html")) {
+            // HTML files revalidate to ensure immediate fresh releases
+            res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+          }
+        },
+      })
+    );
     app.get("*all", (_req: Request, res: Response) => {
       res.sendFile(path.join(distPath, "index.html"));
     });

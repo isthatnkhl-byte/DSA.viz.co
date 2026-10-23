@@ -16,9 +16,12 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1200,
-    rolldownOptions: {
+    rollupOptions: {
       output: {
         manualChunks(id: string) {
+          if (id.includes("node_modules/@excalidraw")) {
+            return "vendor-excalidraw";
+          }
           if (id.includes("node_modules/firebase") || id.includes("node_modules/@firebase")) {
             return "vendor-firebase";
           }

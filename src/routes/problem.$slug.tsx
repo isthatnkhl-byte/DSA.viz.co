@@ -67,17 +67,67 @@ export const Route = createFileRoute("/problem/$slug")({
         meta: [{ title: "Problem not found — DSA.viz" }, { name: "robots", content: "noindex" }],
       };
     }
-    const t = `${loaderData.problem.title} — DSA.viz`;
-    const d = `Write pseudocode for ${loaderData.problem.title} (${loaderData.problem.difficulty}), get an AI interviewer verdict and watch your algorithm animated step by step.`;
+    const slug = loaderData.problem.slug || "";
+    const canonicalUrl = `https://dsa.viz.co/problem/${slug}`;
+    const t = `${loaderData.problem.title} — Step-by-Step Algorithm Visualizer & Editorial | DSA.viz.co`;
+    const d = `Visualize ${loaderData.problem.title} (${loaderData.problem.difficulty}) with interactive frame-by-frame pointer mutations, invariant proofs, LeetCode test cases, and Socratic AI feedback.`;
+
     return {
       meta: [
         { title: t },
         { name: "description", content: d },
+        {
+          name: "keywords",
+          content: `${loaderData.problem.title}, ${loaderData.problem.title} visualizer, ${loaderData.problem.title} leetcode solution, ${loaderData.problem.category || "DSA"}, ${loaderData.problem.difficulty} algorithm, DSA.viz.co`,
+        },
+        { property: "og:site_name", content: "DSA.viz.co" },
         { property: "og:title", content: t },
         { property: "og:description", content: d },
         { property: "og:type", content: "article" },
+        { property: "og:url", content: canonicalUrl },
+        { property: "og:image", content: "https://dsa.viz.co/og-image.jpg" },
         { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:site", content: "@dsaviz" },
+        { name: "twitter:title", content: t },
+        { name: "twitter:description", content: d },
+        { name: "twitter:image", content: "https://dsa.viz.co/og-image.jpg" },
       ],
+      links: [{ rel: "canonical", href: canonicalUrl }],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "TechArticle",
+            "headline": t,
+            "description": d,
+            "url": canonicalUrl,
+            "image": "https://dsa.viz.co/og-image.jpg",
+            "proficiencyLevel": loaderData.problem.difficulty,
+            "about": {
+              "@type": "ComputerLanguage",
+              "name": "Data Structures and Algorithms"
+            },
+            "author": {
+              "@type": "Organization",
+              "name": "DSA.viz.co",
+              "url": "https://dsa.viz.co/"
+            }
+          })
+        },
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://dsa.viz.co/" },
+              { "@type": "ListItem", "position": 2, "name": "Problems", "item": "https://dsa.viz.co/problems" },
+              { "@type": "ListItem", "position": 3, "name": loaderData.problem.title, "item": canonicalUrl }
+            ]
+          })
+        }
+      ]
     };
   },
   component: ProblemPage,

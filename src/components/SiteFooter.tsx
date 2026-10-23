@@ -76,6 +76,12 @@ export function SiteFooter() {
                 <Link to={"/sheets" as any} className="text-muted-foreground hover:text-primary transition-colors">
                   Curated DSA Sheets
                 </Link>
+                <Link to={"/ai-notes" as any} className="text-muted-foreground hover:text-primary transition-colors">
+                  AI Notes &amp; Handwritten PDF
+                </Link>
+                <Link to={"/ai-learning" as any} className="text-muted-foreground hover:text-primary transition-colors">
+                  AI Learning Whiteboard
+                </Link>
                 <Link to="/playground" className="text-muted-foreground hover:text-primary transition-colors">
                   Interactive Playground
                 </Link>

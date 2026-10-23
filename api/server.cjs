@@ -300474,7 +300474,18 @@ async function startServer() {
     });
   } else {
     const distPath = import_path6.default.join(process.cwd(), "dist");
-    app.use(import_express.default.static(distPath));
+    app.use(
+      import_express.default.static(distPath, {
+        maxAge: "1d",
+        setHeaders: (res, filePath) => {
+          if (filePath.includes(import_path6.default.sep + "assets" + import_path6.default.sep)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          } else if (filePath.endsWith(".html")) {
+            res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+          }
+        }
+      })
+    );
     app.get("*all", (_req, res) => {
       res.sendFile(import_path6.default.join(distPath, "index.html"));
     });

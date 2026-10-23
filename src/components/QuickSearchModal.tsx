@@ -1,3 +1,4 @@
+import { SingleLineBagIcon } from "@/components/notes/SingleLineBagIcon";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { AiWord } from "@/components/brand/AiWord";
 import { createPortal } from "react-dom";
@@ -27,6 +28,7 @@ const TOP_SHEETS = [
 ];
 
 const CORE_PLATFORMS = [
+  { name: "AI Notes & Handwritten PDF", to: "/ai-notes", icon: SingleLineBagIcon, desc: "Multi-page handwritten revision notes compiler" },
   { name: "AI Learning Whiteboard", to: "/ai-learning", icon: AiWord, desc: "Full-screen Excalidraw AI Co-Teacher & live simulation" },
   { name: "Interactive Visualizer", to: "/playground", icon: AiWord, desc: "Step-by-step algorithm trace sandbox" },
   { name: "Problem Catalog", to: "/problems", icon: Layers, desc: "1,500+ company-tagged problems" },
@@ -115,7 +117,7 @@ export function QuickSearchModal({ isOpen, onClose }: QuickSearchModalProps) {
               setQuery(e.target.value);
               setSelectedIndex(0);
             }}
-            placeholder="Search 1,500+ problems, topics, sheets..."
+            placeholder="Search 1,500+ problems, topics, sheets..." aria-label="Search problems, topics, sheets"
             className="flex-1 bg-transparent font-sans text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:outline-hidden"
           />
           {query ? (

@@ -210,7 +210,7 @@ export function VizcoBuddy() {
                   setBubbleDismissed(true);
                 }}
                 className="shrink-0 p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors"
-                title="Dismiss hint"
+                title="Dismiss hint" aria-label="Dismiss hint"
               >
                 <X className="size-3" />
               </button>

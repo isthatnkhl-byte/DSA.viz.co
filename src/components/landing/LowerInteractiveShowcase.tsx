@@ -166,7 +166,7 @@ export function LowerInteractiveShowcase() {
                   >
                     {tab.timeComplexity}
                   </span>
-                  <span className={isSelected ? "text-primary-foreground/40" : "text-border"}>•</span>
+                  <span className={isSelected ? "text-primary-foreground/70" : "text-border"} aria-hidden="true">•</span>
                   <span
                     className={`font-mono text-[10px] truncate hidden sm:inline ${
                       isSelected ? "text-primary-foreground/75" : "text-muted-foreground/80"
@@ -860,7 +860,7 @@ function QuickSortVisualizer({
                         className="absolute inset-0 rounded-lg bg-primary/12 border-l-2 border-primary pointer-events-none"
                       />
                     )}
-                    <span className="relative z-10 select-none text-muted-foreground/50 mr-2.5 inline-block w-3 text-right">
+                    <span className="relative z-10 select-none text-muted-foreground mr-2.5 inline-block w-3 text-right" aria-hidden="true">
                       {idx + 1}
                     </span>
                     <span className="relative z-10 whitespace-pre">{line}</span>
@@ -1169,7 +1169,7 @@ function GraphBfsVisualizer({
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="font-mono text-xs text-muted-foreground/60"
+                      className="font-mono text-xs text-muted-foreground"
                     >
                       [ Empty ]
                     </motion.span>
@@ -1456,7 +1456,7 @@ function GraphBfsVisualizer({
                         className="absolute inset-0 rounded-lg bg-primary/12 border-l-2 border-primary pointer-events-none"
                       />
                     )}
-                    <span className="relative z-10 select-none text-muted-foreground/50 mr-2.5 inline-block w-3 text-right">
+                    <span className="relative z-10 select-none text-muted-foreground mr-2.5 inline-block w-3 text-right" aria-hidden="true">
                       {idx + 1}
                     </span>
                     <span className="relative z-10 whitespace-pre">{line}</span>
@@ -1895,7 +1895,7 @@ function BstTraversalVisualizer({
                         className="absolute inset-0 rounded-lg bg-primary/12 border-l-2 border-primary pointer-events-none"
                       />
                     )}
-                    <span className="relative z-10 select-none text-muted-foreground/50 mr-2.5 inline-block w-3 text-right">
+                    <span className="relative z-10 select-none text-muted-foreground mr-2.5 inline-block w-3 text-right" aria-hidden="true">
                       {idx + 1}
                     </span>
                     <span className="relative z-10 whitespace-pre">{line}</span>
@@ -2272,7 +2272,7 @@ function DpGridVisualizer({
                       const val = DP_TABLE[r]?.[c] ?? 0;
 
                       let cellStyle =
-                        "border-border/50 bg-secondary/25 text-muted-foreground/45";
+                        "border-border/50 bg-secondary/25 text-muted-foreground";
                       if (isTarget) {
                         cellStyle =
                           "border-primary bg-primary text-primary-foreground font-black shadow-md scale-105";
@@ -2358,7 +2358,7 @@ function DpGridVisualizer({
                         className="absolute inset-0 rounded-lg bg-primary/12 border-l-2 border-primary pointer-events-none"
                       />
                     )}
-                    <span className="relative z-10 select-none text-muted-foreground/50 mr-2.5 inline-block w-3 text-right">
+                    <span className="relative z-10 select-none text-muted-foreground mr-2.5 inline-block w-3 text-right" aria-hidden="true">
                       {idx + 1}
                     </span>
                     <span className="relative z-10 whitespace-pre">{line}</span>

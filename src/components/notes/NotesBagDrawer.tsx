@@ -175,6 +175,7 @@ export const NotesBagDrawer: React.FC<NotesBagDrawerProps> = ({ onOpenPdfModal }
           <input
             ref={fileInputRef}
             type="file"
+            aria-label="Upload JSON algorithm notes or problem visualizer files"
             accept=".json,application/json,.txt"
             onChange={(e) => handleFileUpload(e.target.files)}
             className="hidden"

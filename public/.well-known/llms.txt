@@ -1,0 +1,27 @@
+# DSA.viz.co — Educational Algorithm Visualizer & CS Sandbox
+> Master Data Structures & Algorithms by seeing how they think. Step through 1,500+ LeetCode-format algorithmic problems frame by frame with live pointer animations, curated DSA roadmaps, Socratic AI coaching, handwritten PDF note synthesis, and sandboxed C++20/Java/Python execution.
+
+## Core Application URLs
+- Homepage: https://dsa.viz.co/
+- Problem Catalog (1,500+ algorithms): https://dsa.viz.co/problems
+- Interactive Algorithm Visualizer: https://dsa.viz.co/problem/:slug (e.g., https://dsa.viz.co/problem/two-sum, https://dsa.viz.co/problem/trapping-rain-water)
+- Curated DSA Sheets & Roadmaps: https://dsa.viz.co/sheets (Striver A2Z, Blind 75, NeetCode 150, Grind 75, Love Babbar 450)
+- AI Whiteboard & Socratic Co-Teacher: https://dsa.viz.co/ai-learning
+- FAANG AI Mock Technical Interview Simulator: https://dsa.viz.co/live-interview
+- AI Notes Handwritten PDF Compiler: https://dsa.viz.co/ai-notes
+- Multi-Language Online Compiler (C++20, C17, Java, Python): https://dsa.viz.co/compiler
+- Custom Invariant & Algorithm Sandbox: https://dsa.viz.co/playground
+- User Performance Telemetry & Profile: https://dsa.viz.co/profile
+
+## Key Features & Capabilities
+1. **Interactive Algorithm Visualizer**: Step-by-step frame execution with visual array pointers, stack frames, binary heap trees, dynamic programming 2D tables, graph traversals (BFS/DFS/Dijkstra), and recursion call stacks.
+2. **AI Notes Engine**: Universal "Add to Notes Bag" across the visualizer, whiteboard, and compiler. Compiles algorithm states and Excalidraw drawings into a handwritten-style A4 PDF with ruled lines and sticky notes (calibrated to 2-3 items per page).
+3. **FAANG Mock Interview**: 3-Tier proctored interview room with speech-to-text, Socratic guidance, live whiteboard, anti-cheat telemetry, and rubric scorecard generation.
+4. **Sandboxed Code Execution**: WebAssembly and server-isolated compilers for C++20 (GCC 14), Java 21, Python 3.12, and Node.js.
+5. **DSA Study Roadmaps**: Structured topic-wise progress tracking across Striver SDE / A2Z, NeetCode 150, Blind 75, and Love Babbar 450.
+
+## API Endpoints (Educational Fair Use)
+- `GET /api/statement?slug=<problem-slug>`: Problem metadata, input/output specifications, and examples.
+- `GET /api/health`: Platform status and API health.
+- `GET /sitemap.xml`: Complete index of canonical problem and roadmap URLs.
+- `GET /robots.txt`: Web crawler access rules.

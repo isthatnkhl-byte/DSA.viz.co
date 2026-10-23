@@ -87,7 +87,7 @@ export function AlgorithmLiveTicker() {
                   key={`comp-${half}-${idx}`}
                   className="inline-flex items-center gap-3 px-3 py-1 text-sm transition-all duration-200"
                 >
-                  <span className="text-muted-foreground/30 text-sm">✦</span>
+                  <span className="text-muted-foreground/60 text-sm" aria-hidden="true">✦</span>
                   <span
                     className={`font-black tracking-widest text-[13px] uppercase ${item.color} drop-shadow-sm`}
                   >

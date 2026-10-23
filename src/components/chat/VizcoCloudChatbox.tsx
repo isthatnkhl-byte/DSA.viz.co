@@ -585,6 +585,7 @@ export function VizcoCloudChatbox() {
                 onChange={(e) => setSelectedModel(e.target.value as any)}
                 className="rounded-lg border border-border/70 bg-card px-2 py-1 font-mono text-[10px] text-muted-foreground hover:text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer shrink-0"
                 title="Select AI Model"
+                aria-label="Select AI Model"
               >
                 <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
                 <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
@@ -700,6 +701,7 @@ export function VizcoCloudChatbox() {
                     <input
                       type="text"
                       placeholder="e.g., Two Sum, LRU Cache, Custom Graph DFS"
+                      aria-label="Topic or Problem Title"
                       value={customProblemTitle}
                       onChange={(e) => setCustomProblemTitle(e.target.value)}
                       className="w-full mt-0.5 rounded-lg border border-border/80 bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
@@ -711,6 +713,7 @@ export function VizcoCloudChatbox() {
                     <input
                       type="text"
                       placeholder="e.g., Focus on recursive DP with space optimization, or review my syntax"
+                      aria-label="Custom Goal or Instructions"
                       value={customGoal}
                       onChange={(e) => setCustomGoal(e.target.value)}
                       className="w-full mt-0.5 rounded-lg border border-border/80 bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
@@ -722,6 +725,7 @@ export function VizcoCloudChatbox() {
                     <textarea
                       rows={3}
                       placeholder="Paste your code snippet or pseudocode here..."
+                      aria-label="Custom Code or Notes"
                       value={customUserCode}
                       onChange={(e) => setCustomUserCode(e.target.value)}
                       className="w-full mt-0.5 rounded-lg border border-border/80 bg-background px-2.5 py-1.5 font-mono text-[11px] text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary resize-y"
@@ -1040,6 +1044,7 @@ export function VizcoCloudChatbox() {
             <div className="relative flex items-end gap-2 rounded-2xl border border-primary/30 bg-background/90 p-1.5 shadow-inner transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
               <textarea
                 ref={inputRef}
+                aria-label="Chat input: ask Socratic AI assistant a question or request hint"
                 value={inputText}
                 onChange={(e) => {
                   setInputText(e.target.value);

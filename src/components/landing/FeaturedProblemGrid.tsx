@@ -73,7 +73,7 @@ export function FeaturedProblemGrid() {
       </div>
 
       {/* Category Filter Pills */}
-      <div className="flex flex-wrap items-center gap-2 mb-6" role="tablist">
+      <div className="flex flex-wrap items-center gap-2 mb-6" role="tablist" aria-label="Problem category tabs">
         {[
           { id: "all", label: "All Top Classics" },
           { id: "arrays", label: "Two Pointers & Arrays" },
@@ -86,6 +86,8 @@ export function FeaturedProblemGrid() {
             <button
               key={tab.id}
               type="button"
+              role="tab"
+              aria-selected={isSelected}
               onClick={() => setFilter(tab.id as CategoryFilter)}
               className={`rounded-xl px-3.5 py-1.5 font-mono text-xs transition-all duration-200 border ${
                 isSelected

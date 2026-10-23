@@ -18,24 +18,29 @@ export default defineConfig({
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
-        manualChunks(id: string) {
-          if (id.includes("node_modules/@excalidraw")) {
-            return "vendor-excalidraw";
+        manualChunks(rawId: string) {
+          const id = rawId.replace(/\\/g, "/");
+          if (
+            id.includes("/clsx/") ||
+            id.endsWith("/clsx") ||
+            id.includes("clsx") ||
+            id.includes("tailwind-merge") ||
+            id.includes("@radix-ui") ||
+            id.includes("lucide-react")
+          ) {
+            return "vendor-ui";
           }
-          if (id.includes("node_modules/firebase") || id.includes("node_modules/@firebase")) {
+          if (id.includes("firebase") || id.includes("@firebase")) {
             return "vendor-firebase";
           }
-          if (id.includes("node_modules/@monaco-editor") || id.includes("node_modules/prism-react-renderer")) {
+          if (id.includes("@monaco-editor") || id.includes("prism-react-renderer")) {
             return "vendor-editor";
           }
-          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) {
+          if (id.includes("recharts") || id.includes("/d3-") || id.includes("/d3/")) {
             return "vendor-charts";
           }
-          if (id.includes("node_modules/motion") || id.includes("node_modules/framer-motion")) {
+          if (id.includes("motion") || id.includes("framer-motion")) {
             return "vendor-motion";
-          }
-          if (id.includes("node_modules/@radix-ui") || id.includes("node_modules/lucide-react")) {
-            return "vendor-ui";
           }
           return undefined;
         },
@@ -49,4 +54,3 @@ export default defineConfig({
     watch: process.env.DISABLE_HMR === "true" ? null : {},
   },
 });
-

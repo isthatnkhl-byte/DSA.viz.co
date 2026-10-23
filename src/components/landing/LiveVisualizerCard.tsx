@@ -546,7 +546,7 @@ export function LiveVisualizerCard() {
           {/* Center: Single-Row 4-Algorithm Switcher Tabs with 60fps Active Pill */}
           <div
             className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 rounded-2xl border border-border/70 bg-background/70 p-1.5"
-            role="tablist"
+            role="tablist" aria-label="Algorithm interactive preview tabs"
           >
             {(Object.keys(ALGORITHMS) as AlgorithmType[]).map((key) => {
               const item = ALGORITHMS[key];

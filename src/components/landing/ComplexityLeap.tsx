@@ -240,6 +240,7 @@ export function ComplexityLeap() {
 
               <input
                 type="range"
+                aria-label="Input size N slider for Big-O complexity calculation"
                 min="50"
                 max="50000"
                 step="50"

@@ -377,6 +377,7 @@ export function ApiKeyVaultManager({ onSaved }: { onSaved?: () => void }) {
           <div className="relative flex-1">
             <input
               type={revealInput ? "text" : "password"}
+              aria-label="API key input field"
               value={apiKeyInput}
               onChange={(e) => {
                 setApiKeyInput(e.target.value);
@@ -394,6 +395,7 @@ export function ApiKeyVaultManager({ onSaved }: { onSaved?: () => void }) {
               onClick={() => setRevealInput((v) => !v)}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8C8378] hover:text-[#EAE6DF]"
               title={revealInput ? "Hide key input" : "Reveal key input"}
+              aria-label={revealInput ? "Hide key input" : "Reveal key input"}
             >
               {revealInput ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
             </button>

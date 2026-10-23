@@ -6,7 +6,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { AiWord } from "@/components/brand/AiWord";
-import "@excalidraw/excalidraw/index.css";
 import {
   Play,
   Pause,
@@ -738,7 +737,7 @@ export function AiWhiteboard({
   // Dynamically load @excalidraw/excalidraw on the client
   useEffect(() => {
     let mounted = true;
-    import("@excalidraw/excalidraw")
+    Promise.all([import("@excalidraw/excalidraw"), import("@excalidraw/excalidraw/index.css")]).then(([mod]) => mod)
       .then((mod) => {
         if (mounted) {
           setExcalidrawModule(mod);

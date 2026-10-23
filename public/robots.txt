@@ -1,3 +1,4 @@
+# DSA.viz.co robots.txt - Production Crawling Directives
 User-agent: Googlebot
 Allow: /
 Disallow: /api/
@@ -11,7 +12,6 @@ Allow: /favicon.svg
 User-agent: Bingbot
 Allow: /
 Disallow: /api/
-Crawl-delay: 10
 
 User-agent: Twitterbot
 Allow: /
@@ -31,9 +31,23 @@ Allow: /
 User-agent: Slackbot
 Allow: /
 
+User-agent: GPTBot
+Allow: /
+Allow: /llms.txt
+Disallow: /api/
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /llms.txt
+Disallow: /api/
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /llms.txt
+Disallow: /api/
+
 User-agent: *
 Allow: /
 Disallow: /api/
-Crawl-delay: 10
 
 Sitemap: https://dsa.viz.co/sitemap.xml

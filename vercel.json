@@ -13,7 +13,7 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/((?!api/|assets/|\\.well-known/|og-image\\.jpg|og-image\\.png|favicon.*|apple-touch-icon\\.png|robots\\.txt|sitemap\\.xml|site\\.webmanifest|google.*\\.html).*|$)",
+      "source": "/((?!api/|assets/|\\.well-known/|og-image\\.jpg|og-image\\.png|favicon.*|apple-touch-icon\\.png|robots\\.txt|sitemap\\.xml|site\\.webmanifest|llms\\.txt|google.*\\.html).*|$)",
       "destination": "/index.html"
     }
   ],
@@ -24,6 +24,58 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600"
+        }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/llms.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/.well-known/llms.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
         }
       ]
     },

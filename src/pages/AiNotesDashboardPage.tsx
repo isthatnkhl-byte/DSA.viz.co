@@ -39,6 +39,16 @@ import { AiWord } from "@/components/brand/AiWord";
 import { SingleLineBagIcon } from "@/components/notes/SingleLineBagIcon";
 
 export function AiNotesDashboardPage() {
+  // Dynamically load Caveat handwriting font only when user visits AI Notes
+  React.useEffect(() => {
+    if (typeof document !== "undefined" && !document.getElementById("font-caveat")) {
+      const link = document.createElement("link");
+      link.id = "font-caveat";
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap";
+      document.head.appendChild(link);
+    }
+  }, []);
   const {
     items,
     removeItem,

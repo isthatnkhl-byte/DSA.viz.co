@@ -1635,7 +1635,7 @@ export function FeaturesBento() {
                 <span className="size-2.5 rounded-full bg-amber-400" />
                 <span className="size-2.5 rounded-full bg-emerald-400" />
                 <span className={`ml-2 hidden sm:inline text-[11px] ${
-                  isBoardDark ? "text-slate-400" : "text-slate-600 font-medium"
+                  isBoardDark ? "text-slate-300" : "text-slate-700 font-semibold"
                 }`}>
                   dsa.viz.co / ai-whiteboard / sliding-window-dry-run
                 </span>
@@ -1673,7 +1673,7 @@ export function FeaturesBento() {
                 <span className="text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
                   gemini-3.5-flash-lite
                 </span>
-                <span className={`font-bold ${isBoardDark ? "text-slate-400" : "text-slate-600"}`}>
+                <span className={`font-bold ${isBoardDark ? "text-slate-300" : "text-slate-700 font-bold"}`}>
                   {elapsedSec.toFixed(1)}s / {TOTAL_DURATION.toFixed(1)}s
                 </span>
               </div>
@@ -1701,7 +1701,7 @@ export function FeaturesBento() {
                   {currentChapter.title}
                 </span>
               </div>
-              <span className={`text-[11px] font-sans truncate ${isBoardDark ? "text-muted-foreground" : "text-slate-600"}`}>
+              <span className={`text-[11px] font-sans truncate ${isBoardDark ? "text-slate-300" : "text-slate-700 font-medium"}`}>
                 {currentChapter.subtitle}
               </span>
             </div>

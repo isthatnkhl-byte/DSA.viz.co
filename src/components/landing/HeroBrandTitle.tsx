@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { motion, useAnimate } from "motion/react";
 import { useThemeColor } from "@/hooks/useThemeColor";
@@ -78,50 +78,56 @@ export function HeroBrandTitle({
   const isSpotlightPhase =
     introPhase === "dsa" || introPhase === "viz" || introPhase === "co";
 
-  useLayoutEffect(() => {
+  useEffect(() => {
+    let rafId: number;
     const measureCoords = () => {
-      const titleRow = titleRowRef.current;
-      const perchEl = logoPerchRef.current;
-      const navEl = document.getElementById("navbar-brand-logo-slot");
-      if (!titleRow || !perchEl) return;
+      rafId = requestAnimationFrame(() => {
+        const titleRow = titleRowRef.current;
+        const perchEl = logoPerchRef.current;
+        const navEl = document.getElementById("navbar-brand-logo-slot");
+        if (!titleRow || !perchEl) return;
 
-      const titleRect = titleRow.getBoundingClientRect();
-      const titleCenterX = titleRect.left + titleRect.width / 2;
+        const titleRect = titleRow.getBoundingClientRect();
+        const titleCenterX = titleRect.left + titleRect.width / 2;
 
-      const getSegmentCenterX = (startIdx: number, endIdx: number, fallbackRatio: number) => {
-        const startEl = charRefs.current[startIdx];
-        const endEl = charRefs.current[endIdx];
-        if (!startEl || !endEl) return titleRect.width * fallbackRatio;
-        const sRect = startEl.getBoundingClientRect();
-        const eRect = endEl.getBoundingClientRect();
-        return (sRect.left + eRect.right) / 2 - titleCenterX;
-      };
+        const getSegmentCenterX = (startIdx: number, endIdx: number, fallbackRatio: number) => {
+          const startEl = charRefs.current[startIdx];
+          const endEl = charRefs.current[endIdx];
+          if (!startEl || !endEl) return titleRect.width * fallbackRatio;
+          const sRect = startEl.getBoundingClientRect();
+          const eRect = endEl.getBoundingClientRect();
+          return (sRect.left + eRect.right) / 2 - titleCenterX;
+        };
 
-      const dsaX = getSegmentCenterX(0, 2, -0.31);
-      const vizX = getSegmentCenterX(3, 5, 0.06);
-      const coX = getSegmentCenterX(6, 7, 0.37);
+        const dsaX = getSegmentCenterX(0, 2, -0.31);
+        const vizX = getSegmentCenterX(3, 5, 0.06);
+        const coX = getSegmentCenterX(6, 7, 0.37);
 
-      // logoPerchRef is never transformed by brandVerticalOffset, so its bounding rect is 100% invariant
-      const perchRect = perchEl.getBoundingClientRect();
-      const perchCenterX = perchRect.left + perchRect.width / 2;
-      const perchCenterY = perchRect.top + perchRect.height / 2;
+        // logoPerchRef is never transformed by brandVerticalOffset, so its bounding rect is 100% invariant
+        const perchRect = perchEl.getBoundingClientRect();
+        const perchCenterX = perchRect.left + perchRect.width / 2;
+        const perchCenterY = perchRect.top + perchRect.height / 2;
 
-      let navX = -380;
-      let navY = -310;
-      if (navEl) {
-        const navRect = navEl.getBoundingClientRect();
-        const navCenterX = navRect.left + navRect.width / 2;
-        const navCenterY = navRect.top + navRect.height / 2;
-        navX = navCenterX - perchCenterX;
-        navY = navCenterY - perchCenterY;
-      }
+        let navX = -380;
+        let navY = -310;
+        if (navEl) {
+          const navRect = navEl.getBoundingClientRect();
+          const navCenterX = navRect.left + navRect.width / 2;
+          const navCenterY = navRect.top + navRect.height / 2;
+          navX = navCenterX - perchCenterX;
+          navY = navCenterY - perchCenterY;
+        }
 
-      setCoords({ navX, navY, dsaX, vizX, coX });
+        setCoords({ navX, navY, dsaX, vizX, coX });
+      });
     };
 
     measureCoords();
     window.addEventListener("resize", measureCoords);
-    return () => window.removeEventListener("resize", measureCoords);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", measureCoords);
+    };
   }, []);
 
   // Trigger a hardware-accelerated 60fps parabolic hop arc without ever remounting the SVG logo

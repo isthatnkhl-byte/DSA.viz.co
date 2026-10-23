@@ -3,18 +3,6 @@ import raw from "../data/problems.json" with { type: "json" };
 import { classifyProblem } from "./problemClassifier";
 
 let rawStatements: Record<string, string> = {};
-if (typeof window !== "undefined") {
-  // Defer loading 1.7MB statements.json off the critical path
-  setTimeout(() => {
-    import("../data/statements.json")
-      .then((mod) => {
-        rawStatements = ((mod as any)?.default ?? mod ?? {}) as Record<string, string>;
-      })
-      .catch(() => {
-        // ignore
-      });
-  }, 1500);
-}
 
 export type ProblemDatasetSpec = {
   name: string;

@@ -8,17 +8,6 @@ export function registerStatementsMap(data: Record<string, string>): void {
   }
 }
 
-// Defer loading the 1.7MB statements.json into a separate async chunk on the client
-import("../data/statements.json")
-  .then((mod) => {
-    const loaded = ((mod as any)?.default || mod || {}) as Record<string, string>;
-    if (Object.keys(map).length === 0) {
-      map = loaded;
-    }
-  })
-  .catch(() => {
-    // Synthesized statement fallback handles missing/offline chunks
-  });
 
 const problemsList = ((problemsData as any)?.default || problemsData || []) as Array<{
   slug: string;

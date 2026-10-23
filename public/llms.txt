@@ -1,27 +1,28 @@
-# DSA.viz.co — Educational Algorithm Visualizer & CS Sandbox
-> Master Data Structures & Algorithms by seeing how they think. Step through 1,500+ LeetCode-format algorithmic problems frame by frame with live pointer animations, curated DSA roadmaps, Socratic AI coaching, handwritten PDF note synthesis, and sandboxed C++20/Java/Python execution.
+# DSA.viz.co
 
-## Core Application URLs
-- Homepage: https://dsa.viz.co/
-- Problem Catalog (1,500+ algorithms): https://dsa.viz.co/problems
-- Interactive Algorithm Visualizer: https://dsa.viz.co/problem/:slug (e.g., https://dsa.viz.co/problem/two-sum, https://dsa.viz.co/problem/trapping-rain-water)
-- Curated DSA Sheets & Roadmaps: https://dsa.viz.co/sheets (Striver A2Z, Blind 75, NeetCode 150, Grind 75, Love Babbar 450)
-- AI Whiteboard & Socratic Co-Teacher: https://dsa.viz.co/ai-learning
-- FAANG AI Mock Technical Interview Simulator: https://dsa.viz.co/live-interview
-- AI Notes Handwritten PDF Compiler: https://dsa.viz.co/ai-notes
-- Multi-Language Online Compiler (C++20, C17, Java, Python): https://dsa.viz.co/compiler
-- Custom Invariant & Algorithm Sandbox: https://dsa.viz.co/playground
-- User Performance Telemetry & Profile: https://dsa.viz.co/profile
+> Master Data Structures & Algorithms by seeing how they think. Step through 1,500+ classic algorithmic problems frame by frame with live pointer animations, curated DSA roadmaps, Socratic AI coaching, handwritten PDF note synthesis, and sandboxed C++20/Java/Python execution.
 
-## Key Features & Capabilities
-1. **Interactive Algorithm Visualizer**: Step-by-step frame execution with visual array pointers, stack frames, binary heap trees, dynamic programming 2D tables, graph traversals (BFS/DFS/Dijkstra), and recursion call stacks.
-2. **AI Notes Engine**: Universal "Add to Notes Bag" across the visualizer, whiteboard, and compiler. Compiles algorithm states and Excalidraw drawings into a handwritten-style A4 PDF with ruled lines and sticky notes (calibrated to 2-3 items per page).
-3. **FAANG Mock Interview**: 3-Tier proctored interview room with speech-to-text, Socratic guidance, live whiteboard, anti-cheat telemetry, and rubric scorecard generation.
-4. **Sandboxed Code Execution**: WebAssembly and server-isolated compilers for C++20 (GCC 14), Java 21, Python 3.12, and Node.js.
-5. **DSA Study Roadmaps**: Structured topic-wise progress tracking across Striver SDE / A2Z, NeetCode 150, Blind 75, and Love Babbar 450.
+## Core Interactive Applications
 
-## API Endpoints (Educational Fair Use)
-- `GET /api/statement?slug=<problem-slug>`: Problem metadata, input/output specifications, and examples.
-- `GET /api/health`: Platform status and API health.
-- `GET /sitemap.xml`: Complete index of canonical problem and roadmap URLs.
-- `GET /robots.txt`: Web crawler access rules.
+- [Interactive Algorithm Visualizer](https://dsa.viz.co/problem/two-sum): Frame-by-frame execution with live pointer mutations, recursion trees, 2D DP grids, and invariant audits.
+- [Curated DSA Study Sheets](https://dsa.viz.co/sheets): Structured roadmaps for Striver A2Z, Blind 75, NeetCode 150, Grind 75, and Love Babbar 450 with progress tracking.
+- [AI Learning Whiteboard](https://dsa.viz.co/ai-learning): Full-screen Excalidraw whiteboard paired with an interactive Socratic AI co-teacher for live visual simulations.
+- [FAANG Mock Interview Simulator](https://dsa.viz.co/live-interview): 3-Tier proctored coding interview room with real-time speech-to-text, whiteboard collaboration, and rubric evaluation.
+- [AI Notes Engine](https://dsa.viz.co/ai-notes): Universal notebook aggregator that synthesizes algorithm state cards, sketches, and solutions into handwritten-style A4 PDFs.
+- [Online Multi-Language Compiler](https://dsa.viz.co/compiler): Sandboxed code runner with support for C++20 (GCC 14), C17, Java 21, and Python 3.12 with stdin/stdout streams.
+- [Algorithm Invariant Playground](https://dsa.viz.co/playground): Freeform custom laboratory to stress-test arbitrary algorithms against edge-case data structures.
+- [Algorithmic Telemetry & Profile](https://dsa.viz.co/profile): Account dashboard with problem velocity analytics, connected LeetCode/GitHub links, and GDPR data export.
+
+## Problem Catalog & Reference
+
+- [Problem Catalog](https://dsa.viz.co/problems): Searchable database of 1,500+ LeetCode problems categorized by topic, difficulty, and company tags.
+- [Two Sum Visualizer](https://dsa.viz.co/problem/two-sum): Classic hash map lookup and complement tracking visualization.
+- [Trapping Rain Water Visualizer](https://dsa.viz.co/problem/trapping-rain-water): Two-pointer elevation array and trapped water volume simulation.
+- [Longest Substring Without Repeating Characters](https://dsa.viz.co/problem/longest-substring-without-repeating-characters): Dynamic sliding window pointer expansion and contract simulation.
+
+## Optional
+
+- [Sitemap Index](https://dsa.viz.co/sitemap.xml): Complete XML sitemap of all canonical problem and roadmap pages.
+- [Robots Directives](https://dsa.viz.co/robots.txt): Crawler rules and accessibility definitions for search indexing bots.
+- [Terms & Fair Use Notice](https://dsa.viz.co/terms): 17 U.S.C. § 107 nominative and educational fair use legal disclaimers.
+- [Privacy Policy](https://dsa.viz.co/privacy): Security, encryption, and zero-PII storage policy.

@@ -191,7 +191,7 @@ export function DsaSheetSection() {
       </div>
 
       {/* Nominative Fair Use & Creator Attribution Notice */}
-      <p className="mt-6 text-center text-[11px] font-mono text-muted-foreground/80 max-w-3xl mx-auto">
+      <p className="mt-6 text-center text-[11px] font-mono text-muted-foreground font-medium max-w-3xl mx-auto">
         Attribution &amp; Nominative Fair Use: Roadmap titles (NeetCode 150, Striver&apos;s SDE/A2Z by TakeUForward, Blind 75) belong to their respective creators and are indexed here for non-commercial visual education with direct links to original problems.
       </p>
     </section>

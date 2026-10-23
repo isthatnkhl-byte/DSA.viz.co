@@ -114,7 +114,7 @@ export function SiteHeader({
                     dsa<span className="text-primary font-black transition-colors duration-300">.viz.co</span>
                   </span>
                 </div>
-                <p className="-mt-0.5 font-mono text-[9px] sm:text-[10px] tracking-[0.12em] uppercase text-[#A39B8F] font-semibold">
+                <p className="-mt-0.5 font-mono text-[9px] sm:text-[10px] tracking-[0.12em] uppercase text-[#D4CDC3] font-semibold">
                   (algorithms•visualizer•compiler)
                 </p>
               </div>

@@ -1606,8 +1606,6 @@ html.light[data-theme="sage"] {
     var(--primary) 100%
   ) !important;
   background-size: 200% 100% !important;
-  animation: smooth-gradient-shift 4.8s linear infinite !important;
-  will-change: background-position, transform;
   color: #ffffff !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -1616,10 +1614,11 @@ html.light[data-theme="sage"] {
     inset 0 -1px 2px 0 rgba(0, 0, 0, 0.22),
     0 6px 22px -3px color-mix(in oklch, var(--primary) 45%, transparent),
     0 0 28px -4px color-mix(in oklch, var(--accent) 35%, transparent);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-position 0.6s ease;
 }
 
 .btn-moving-theme-gradient:hover {
-  animation-duration: 3.2s !important;
+  background-position: 100% 50% !important;
   box-shadow:
     inset 0 1px 2px 0 rgba(255, 255, 255, 0.62),
     inset 0 -1px 2px 0 rgba(0, 0, 0, 0.28),
@@ -1690,7 +1689,11 @@ html.light .btn-moving-theme-gradient {
     var(--primary) 100%
   );
   background-size: 200% 100%;
-  animation: smooth-gradient-shift 4.8s linear infinite !important;
+  transition: background-position 0.6s ease;
+}
+
+.border-moving-theme-gradient:hover {
+  background-position: 100% 50%;
 }
 
 /* ==========================================================================
@@ -1928,17 +1931,15 @@ html.light .dsavizco-pixel-char[data-neighbor="true"] {
     0 0 40px color-mix(in oklch, var(--complement) 45%, transparent);
 }
 
-/* Gentle ambient breathing cycle for the glow */
+/* Gentle ambient breathing cycle for the glow - 100% GPU composited transform and opacity */
 @keyframes dsavizco-ambient-breathe {
   0% {
     opacity: 0.82;
     transform: translate(-50%, -50%) scale(0.97);
-    filter: blur(20px);
   }
   100% {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1.04);
-    filter: blur(26px);
   }
 }
 

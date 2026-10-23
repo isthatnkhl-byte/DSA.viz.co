@@ -425,6 +425,24 @@ export function LiveVisualizerCard() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setIsInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInView(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const currentAlgo = ALGORITHMS[algoKey];
   const steps = currentAlgo.steps;
@@ -438,7 +456,7 @@ export function LiveVisualizerCard() {
   };
 
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && isInView) {
       const delay = Math.max(900, Math.floor(2400 / playbackSpeed));
       timerRef.current = setInterval(() => {
         setStepIdx((prev) => (prev >= steps.length - 1 ? 0 : prev + 1));
@@ -450,7 +468,7 @@ export function LiveVisualizerCard() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, playbackSpeed, steps.length]);
+  }, [isPlaying, isInView, playbackSpeed, steps.length]);
 
   const isCoincident = currentStep.l === currentStep.r;
 
@@ -473,7 +491,7 @@ export function LiveVisualizerCard() {
   const slotWidthPct = 100 / array.length;
 
   return (
-    <section className="relative py-12 sm:py-16 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto w-full">
+    <section ref={sectionRef} className="relative py-12 sm:py-16 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto w-full">
       {/* Multi-Layered Flagship Ambient Spotlight */}
       <div className="pointer-events-none absolute -inset-x-4 -inset-y-6 -z-10 overflow-hidden rounded-[2.5rem]">
         <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 size-[420px] rounded-full bg-primary/20 blur-[130px]" />
@@ -1197,8 +1215,9 @@ export function LiveVisualizerCard() {
                       )}
                       <div className="relative z-10 flex items-center gap-3 min-w-0">
                         <span
+                          aria-hidden="true"
                           className={`w-4 text-right text-[10px] select-none transition-colors duration-300 ${
-                            isActive ? "text-primary font-black" : "opacity-40"
+                            isActive ? "text-primary font-black" : "text-muted-foreground/80 font-medium"
                           }`}
                         >
                           {c.line}
@@ -1279,7 +1298,7 @@ export function LiveVisualizerCard() {
                                 : "bg-primary text-primary-foreground"
                               : isPast
                                 ? "bg-secondary text-foreground"
-                                : "bg-secondary/50 text-muted-foreground"
+                                : "bg-secondary/70 text-foreground/80 font-bold"
                           }`}
                         >
                           {idx + 1}

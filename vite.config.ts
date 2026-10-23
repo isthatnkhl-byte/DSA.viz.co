@@ -16,10 +16,39 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1200,
+    modulePreload: {
+      resolveDependencies(filename, deps, { hostId, hostType }) {
+        if (hostType === "html") {
+          // Do not eagerly preload non-critical deferred vendor chunks on initial page HTML
+          return deps.filter(
+            (dep) =>
+              !dep.includes("vendor-charts") &&
+              !dep.includes("vendor-firestore") &&
+              !dep.includes("vendor-editor") &&
+              !dep.includes("cytoscape") &&
+              !dep.includes("katex")
+          );
+        }
+        return deps;
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks(rawId: string) {
           const id = rawId.replace(/\\/g, "/");
+          if (
+            id.includes("/node_modules/react/") ||
+            id.includes("/node_modules/react-dom/") ||
+            id.includes("/node_modules/scheduler/") ||
+            id.includes("/node_modules/react-is/") ||
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/scheduler/") ||
+            id.includes("node_modules/react-is/") ||
+            id.includes("@tanstack/")
+          ) {
+            return "vendor-react";
+          }
           if (
             id.includes("/clsx/") ||
             id.endsWith("/clsx") ||
@@ -29,6 +58,9 @@ export default defineConfig({
             id.includes("lucide-react")
           ) {
             return "vendor-ui";
+          }
+          if (id.includes("firebase/firestore") || id.includes("@firebase/firestore")) {
+            return "vendor-firestore";
           }
           if (id.includes("firebase") || id.includes("@firebase")) {
             return "vendor-firebase";

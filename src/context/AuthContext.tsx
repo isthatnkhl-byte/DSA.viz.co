@@ -8,7 +8,6 @@ import {
   signOut as firebaseSignOut,
   User as FirebaseUser,
 } from "firebase/auth";
-import { getOrCreateUserProfile, updateUserProfile } from "@/lib/firestore-service";
 
 export interface UserProfile {
   id: string;
@@ -241,6 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Fetch directly from Firebase Firestore and merge with any non-null fields from /api/profile or legacy cache
       try {
+        const { getOrCreateUserProfile } = await import("@/lib/firestore-service");
         const firestoreDoc = await getOrCreateUserProfile(
           firebaseUser.uid,
           firebaseUser.email,
@@ -335,6 +335,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("dsa_viz_display_name", clean);
     }
     try {
+      const { updateUserProfile } = await import("@/lib/firestore-service");
       await updateUserProfile(auth.currentUser.uid, {
         displayName: clean,
         display_name: clean,

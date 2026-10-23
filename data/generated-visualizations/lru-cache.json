@@ -1,0 +1,254 @@
+{
+  "primary_type": "linkedlist",
+  "code_lines": [
+    "class LRUCache {",
+    "  constructor(capacity) {",
+    "    this.capacity = capacity;",
+    "    this.map = new Map();",
+    "    this.head = null;",
+    "    this.tail = null;",
+    "  }",
+    "  put(key, value) {",
+    "    if (this.map.has(key)) {",
+    "      let node = this.map.get(key);",
+    "      node.val = value;",
+    "      this.moveToHead(node);",
+    "    } else {",
+    "      if (this.map.size >= this.capacity) {",
+    "        let lru = this.tail;",
+    "        this.removeNode(lru);",
+    "        this.map.delete(lru.key);",
+    "      }",
+    "      let newNode = { key, val: value, prev: null, next: null };",
+    "      this.addToHead(newNode);",
+    "      this.map.set(key, newNode);",
+    "    }",
+    "  }",
+    "  get(key) {",
+    "    if (!this.map.has(key)) return -1;",
+    "    let node = this.map.get(key);",
+    "    this.moveToHead(node);",
+    "    return node.val;",
+    "  }",
+    "}"
+  ],
+  "visualization_manifest": {
+    "viz_steps": [
+      {
+        "step": 1,
+        "title": "Initialize LRU Cache",
+        "description": "Capacity set to 2. Hash map and doubly linked list are empty.",
+        "active_line": 2,
+        "variables": {
+          "capacity": 2,
+          "map": "{}",
+          "head": "null",
+          "tail": "null"
+        },
+        "datastructure_state": {
+          "type": "linkedlist",
+          "nodes": [],
+          "pointers": [],
+          "hashmap": {}
+        }
+      },
+      {
+        "step": 2,
+        "title": "put(1, 100): Cache is empty",
+        "description": "Key 1 not found. Create node {1:100} and add to head.",
+        "active_line": 15,
+        "variables": {
+          "key": 1,
+          "value": 100,
+          "map": "{1: Node(1,100)}"
+        },
+        "datastructure_state": {
+          "type": "linkedlist",
+          "nodes": [
+            {
+              "id": "1",
+              "val": "1:100",
+              "next": null,
+              "prev": null
+            }
+          ],
+          "pointers": [
+            {
+              "name": "head",
+              "target": "1"
+            },
+            {
+              "name": "tail",
+              "target": "1"
+            }
+          ],
+          "hashmap": {
+            "1": "Node(1,100)"
+          }
+        }
+      },
+      {
+        "step": 3,
+        "title": "put(2, 200): Insert second item",
+        "description": "Key 2 not found. Size < capacity. Add Node(2,200) to head.",
+        "active_line": 18,
+        "variables": {
+          "key": 2,
+          "value": 200,
+          "map": "{1: Node(1,100), 2: Node(2,200)}"
+        },
+        "datastructure_state": {
+          "type": "linkedlist",
+          "nodes": [
+            {
+              "id": "2",
+              "val": "2:200",
+              "next": "1",
+              "prev": null
+            },
+            {
+              "id": "1",
+              "val": "1:100",
+              "next": null,
+              "prev": "2"
+            }
+          ],
+          "pointers": [
+            {
+              "name": "head",
+              "target": "2"
+            },
+            {
+              "name": "tail",
+              "target": "1"
+            }
+          ],
+          "hashmap": {
+            "1": "Node(1,100)",
+            "2": "Node(2,200)"
+          }
+        }
+      },
+      {
+        "step": 4,
+        "title": "get(1): Access key 1",
+        "description": "Key 1 exists. Return 100 and move Node(1,100) to head.",
+        "active_line": 23,
+        "variables": {
+          "key": 1,
+          "result": 100,
+          "map": "{1: Node(1,100), 2: Node(2,200)}"
+        },
+        "datastructure_state": {
+          "type": "linkedlist",
+          "nodes": [
+            {
+              "id": "1",
+              "val": "1:100",
+              "next": "2",
+              "prev": null
+            },
+            {
+              "id": "2",
+              "val": "2:200",
+              "next": null,
+              "prev": "1"
+            }
+          ],
+          "pointers": [
+            {
+              "name": "head",
+              "target": "1"
+            },
+            {
+              "name": "tail",
+              "target": "2"
+            }
+          ],
+          "hashmap": {
+            "1": "Node(1,100)",
+            "2": "Node(2,200)"
+          }
+        }
+      },
+      {
+        "step": 5,
+        "title": "put(3, 300): Capacity reached, evict tail",
+        "description": "Capacity (2) reached. Remove LRU tail Node(2,200) and delete from map.",
+        "active_line": 11,
+        "variables": {
+          "key": 3,
+          "value": 300,
+          "evicted": 2,
+          "map": "{1: Node(1,100)}"
+        },
+        "datastructure_state": {
+          "type": "linkedlist",
+          "nodes": [
+            {
+              "id": "1",
+              "val": "1:100",
+              "next": null,
+              "prev": null
+            }
+          ],
+          "pointers": [
+            {
+              "name": "head",
+              "target": "1"
+            },
+            {
+              "name": "tail",
+              "target": "1"
+            }
+          ],
+          "hashmap": {
+            "1": "Node(1,100)"
+          }
+        }
+      },
+      {
+        "step": 6,
+        "title": "put(3, 300): Insert new key",
+        "description": "Add Node(3,300) to head. Final state contains keys 3 and 1.",
+        "active_line": 18,
+        "variables": {
+          "key": 3,
+          "value": 300,
+          "map": "{1: Node(1,100), 3: Node(3,300)}"
+        },
+        "datastructure_state": {
+          "type": "linkedlist",
+          "nodes": [
+            {
+              "id": "3",
+              "val": "3:300",
+              "next": "1",
+              "prev": null
+            },
+            {
+              "id": "1",
+              "val": "1:100",
+              "next": null,
+              "prev": "3"
+            }
+          ],
+          "pointers": [
+            {
+              "name": "head",
+              "target": "3"
+            },
+            {
+              "name": "tail",
+              "target": "1"
+            }
+          ],
+          "hashmap": {
+            "1": "Node(1,100)",
+            "3": "Node(3,300)"
+          }
+        }
+      }
+    ]
+  }
+}

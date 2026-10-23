@@ -1,0 +1,107 @@
+{
+  "code_lines": [
+    "def trap(height):",
+    "    if not height: return 0",
+    "    left, right = 0, len(height) - 1",
+    "    left_max, right_max = 0, 0",
+    "    wSum = 0",
+    "    while left < right:",
+    "        if height[left] < height[right]:",
+    "            if height[left] >= left_max: left_max = height[left]",
+    "            else: wSum += left_max - height[left]",
+    "            left += 1",
+    "        else:",
+    "            if height[right] >= right_max: right_max = height[right]",
+    "            else: wSum += right_max - height[right]",
+    "            right -= 1",
+    "    return wSum"
+  ],
+  "test_array": [
+    0,
+    1,
+    0,
+    2,
+    1,
+    0,
+    1,
+    3,
+    2,
+    1,
+    2,
+    1
+  ],
+  "execution_plan": [
+    "Initialize left=0, right=11, left_max=0, right_max=0, wSum=0.",
+    "Step 1: height[0] < height[11] (0 < 1). left_max updated to 0. left moves to 1.",
+    "Step 2: height[1] >= height[11] (1 >= 1). right_max updated to 1. right moves to 10.",
+    "Step 3: height[1] < height[10] (1 < 2). left_max updated to 1. left moves to 2.",
+    "Step 4: height[2] < height[10] (0 < 2). left_max is 1, water += 1 - 0 = 1. left moves to 3.",
+    "Step 5: height[3] >= height[10] (2 >= 2). left_max updated to 2. left moves to 4.",
+    "Step 6: height[4] < height[10] (1 < 2). left_max is 2, water += 2 - 1 = 1 (wSum=2). left moves to 5."
+  ],
+  "visualization_manifest": [
+    {
+      "step": 0,
+      "left": 0,
+      "right": 11,
+      "left_max": 0,
+      "right_max": 0,
+      "wSum": 0,
+      "description": "Initial state: pointers at edges, max bounds and water sum are 0."
+    },
+    {
+      "step": 1,
+      "left": 1,
+      "right": 11,
+      "left_max": 0,
+      "right_max": 0,
+      "wSum": 0,
+      "description": "height[0] < height[11]. left_max becomes 0. left pointer advances to 1."
+    },
+    {
+      "step": 2,
+      "left": 1,
+      "right": 10,
+      "left_max": 0,
+      "right_max": 1,
+      "wSum": 0,
+      "description": "height[1] >= height[11]. right_max updated to 1. right pointer moves to 10."
+    },
+    {
+      "step": 3,
+      "left": 2,
+      "right": 10,
+      "left_max": 1,
+      "right_max": 1,
+      "wSum": 0,
+      "description": "height[1] < height[10]. left_max updated to 1. left pointer moves to 2."
+    },
+    {
+      "step": 4,
+      "left": 3,
+      "right": 10,
+      "left_max": 1,
+      "right_max": 1,
+      "wSum": 1,
+      "description": "height[2] (0) < left_max (1). Trapped water increases by 1 (wSum = 1). left moves to 3."
+    },
+    {
+      "step": 5,
+      "left": 4,
+      "right": 10,
+      "left_max": 2,
+      "right_max": 1,
+      "wSum": 1,
+      "description": "height[3] (2) >= left_max (1). left_max updated to 2. left moves to 4."
+    },
+    {
+      "step": 6,
+      "left": 5,
+      "right": 10,
+      "left_max": 2,
+      "right_max": 1,
+      "wSum": 2,
+      "description": "height[4] (1) < left_max (2). Trapped water increases by 1 (wSum = 2). left moves to 5."
+    }
+  ]
+}

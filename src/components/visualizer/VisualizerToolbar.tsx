@@ -9,6 +9,7 @@ import {
   Columns,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AddToNotesButton } from "@/components/notes/AddToNotesButton";
 
 interface VisualizerToolbarProps {
   hasMultipleDatasets: boolean;
@@ -21,6 +22,14 @@ interface VisualizerToolbarProps {
   onToggleMultiDataset: () => void;
   layoutMode: "stacked" | "grid" | "tabs";
   onSelectLayoutMode: (mode: "stacked" | "grid" | "tabs") => void;
+  activeStepData?: {
+    stepIndex: number;
+    totalSteps: number;
+    desc: string;
+    variables?: Record<string, any> | null;
+    activePointers?: Record<string, any>;
+    type?: string;
+  };
 }
 
 export function VisualizerToolbar({
@@ -34,6 +43,7 @@ export function VisualizerToolbar({
   onToggleMultiDataset,
   layoutMode,
   onSelectLayoutMode,
+  activeStepData,
 }: VisualizerToolbarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/80 bg-card/60 px-3.5 py-2 text-xs backdrop-blur-sm">
@@ -57,6 +67,22 @@ export function VisualizerToolbar({
       </div>
 
       <div className="flex items-center gap-2">
+                {/* Save Step to Notes Bag */}
+        {activeStepData && (
+          <AddToNotesButton
+            variant="compact"
+            getItem={() => ({
+              title: `Visualizer State: Step ${activeStepData.stepIndex + 1} (${activeStepData.type || "Trace"})`,
+              sourceType: "VISUALIZER_TRACE",
+              invariantText: activeStepData.desc,
+              activePointers: activeStepData.activePointers,
+              stateJson: activeStepData.variables || undefined,
+              tags: ["Visualizer", activeStepData.type || "Algorithm", `Step${activeStepData.stepIndex + 1}`],
+              aiTakeaway: `Observed at simulation step ${activeStepData.stepIndex + 1} of ${activeStepData.totalSteps}.`,
+            })}
+          />
+        )}
+
         {/* Variable Watch Toggle */}
         <Button
           variant="ghost"

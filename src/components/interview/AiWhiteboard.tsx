@@ -33,6 +33,7 @@ import {
   Moon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AddToNotesButton } from "@/components/notes/AddToNotesButton";
 import { getAuthHeaders } from "@/lib/api-client";
 import type { WhiteboardElement } from "@/lib/crdt-collab.server";
 import {

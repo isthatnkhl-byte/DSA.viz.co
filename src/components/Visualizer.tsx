@@ -1539,7 +1539,7 @@ export const Visualizer = memo(function Visualizer({
       />
 
       {/* Presentation, Multi-Dataset & Inspection Controls */}
-      <VisualizerToolbar
+            <VisualizerToolbar
         hasMultipleDatasets={hasMultipleDatasets}
         activeDataset={current.activeDataset ?? undefined}
         showVariableWatch={showVariableWatch}
@@ -1550,6 +1550,19 @@ export const Visualizer = memo(function Visualizer({
         onToggleMultiDataset={() => setMultiDatasetEnabled((v) => !v)}
         layoutMode={layoutMode}
         onSelectLayoutMode={setLayoutMode}
+        activeStepData={{
+          stepIndex: step,
+          totalSteps: safeSteps.length,
+          desc: toText(current.desc),
+          variables: current.variables,
+          activePointers: {
+            left: current.left,
+            right: current.right,
+            current: current.current,
+            mid: (current as any).mid,
+          },
+          type,
+        }}
       />
 
       {/* Smart Cross-Dataset Shift / Transition Indicator Banner */}

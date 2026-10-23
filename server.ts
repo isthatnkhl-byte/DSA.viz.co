@@ -87,6 +87,8 @@ import {
 import { AgUiStreamWriter } from './src/lib/ag-ui/stream-writer';
 import { AgUiAgentBridge } from './src/lib/ag-ui/agent-bridge.server';
 import { AgUiRunAgentInput, AgUiEventType } from './src/lib/ag-ui/types';
+import { compileHandwrittenNotesHtml } from './src/lib/notes/pdf-compiler';
+import { NotesBagItem, PdfCompilationConfig } from './src/lib/notes/types';
 
 import path from "path";
 import fs from "fs";
@@ -523,7 +525,7 @@ const API_ENDPOINTS = [
   "/livekit-token", "/generate-plan", "/verify-trace", "/visualize-dataset", "/playground-review",
   "/code-diff-nudge", "/rate-submission", "/generate-mistakes-report",
   "/user-reports", "/compiler", "/health", "/debug", "/user-keys",
-  "/activity", "/telemetry", "/collab", "/ag-ui"
+  "/activity", "/telemetry", "/collab", "/ag-ui", "/notes"
 ];
 app.use((req, _res, next) => {
   const pathname = req.url.split("?")[0];
@@ -1876,7 +1878,49 @@ app.post("/api/ag-ui/stream", aiLimiter, async (req: Request, res: Response) => 
   }
 });
 
-// API: Multi-turn Chatbot endpoint with Socratic Interviewer & Firestore access
+// ==============================================================================
+// 🎒 AI NOTES & HANDWRITTEN PDF SYNTHESIS COMPILER ENDPOINT
+// ==============================================================================
+app.post("/api/notes/compile", async (req: Request, res: Response) => {
+  try {
+    const {
+      items = [],
+      documentTitle = "DSA Mastery Handwritten Notes",
+      itemsPerPage = 2,
+      styleTheme = "HANDWRITTEN_NOTEBOOK",
+      includeAiSummaries = true,
+    } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "At least one note item is required to compile notes." });
+    }
+
+    // Strict constraint: 1 to 3 items per page (default 2 per user requirement)
+    const clampedItemsPerPage = Math.max(1, Math.min(3, Number(itemsPerPage) || 2));
+
+    const config: PdfCompilationConfig = {
+      documentTitle: String(documentTitle).slice(0, 80),
+      itemsPerPage: clampedItemsPerPage,
+      styleTheme,
+      includeAiSummaries: Boolean(includeAiSummaries),
+    };
+
+    const { html, totalPages } = compileHandwrittenNotesHtml(items, config);
+
+    return res.json({
+      ok: true,
+      title: config.documentTitle,
+      totalPages,
+      itemsPerPage: clampedItemsPerPage,
+      totalItems: items.length,
+      htmlDocument: html,
+      summary: `Synthesized ${totalPages} page(s) with ${items.length} items (${clampedItemsPerPage} items/page).`,
+    });
+  } catch (err: any) {
+    console.error("[Notes Compiler] Compilation error:", err);
+    return res.status(500).json({ error: "Failed to compile handwritten notes: " + (err?.message || err) });
+  }
+});
 app.post("/api/chat", requireAuth, aiLimiter, async (req: any, res: Response) => {
   try {
     const {

@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { getAuthHeaders } from "@/lib/api-client";
 import { SiteHeader } from "@/components/SiteHeader";
+import { AddToNotesButton } from "@/components/notes/AddToNotesButton";
 import { AiWhiteboard } from "@/components/interview/AiWhiteboard";
 import { AgUiAgentPanel } from "@/components/ag-ui/AgUiAgentPanel";
 import {
@@ -968,9 +969,25 @@ export function AiLearningPage() {
 
                     {/* Loop Invariant Card */}
                     <div className="rounded-xl p-3 border-2 border-[#2b2d42] bg-white">
-                      <div className="flex items-center gap-1.5 text-xs font-black text-[#2b2d42]">
-                        <Lightbulb className="size-4 text-amber-500" />
-                        <span>Core Algorithmic Invariant</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 text-xs font-black text-[#2b2d42]">
+                          <Lightbulb className="size-4 text-amber-500" />
+                          <span>Core Algorithmic Invariant</span>
+                        </div>
+                        <AddToNotesButton
+                          variant="compact"
+                          getItem={() => ({
+                            title: `${activeModule.title} — Algorithmic Invariant`,
+                            sourceType: "AI_LEARNING_MODULE",
+                            codeSnippet: activeModule.cppSnippet,
+                            codeLanguage: "cpp",
+                            invariantText: activeModule.invariant,
+                            explanation: activeModule.summary,
+                            tags: ["AILearning", activeModule.pattern.replace(/\s+/g, ""), activeModule.difficulty],
+                            userNotes: currentFrame ? `Step: ${currentFrame.title}\n${currentFrame.narration}` : undefined,
+                            aiTakeaway: `Complexity: ${activeModule.complexity} | Space: ${activeModule.spaceComplexity}`,
+                          })}
+                        />
                       </div>
                       <p className="mt-1.5 text-xs text-slate-700 leading-relaxed font-medium">
                         {activeModule.invariant}
@@ -1226,14 +1243,28 @@ export function AiLearningPage() {
                         <span className="text-xs font-black text-[#2b2d42]">
                           📝 Whiteboard Study Notes
                         </span>
-                        <button
-                          type="button"
-                          onClick={handleDownloadNotes}
-                          className="px-2 py-0.5 rounded-md bg-[#f4ede2] border border-[#2b2d42] text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
-                        >
-                          <Download className="size-3" />
-                          <span>Export .md</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <AddToNotesButton
+                            variant="compact"
+                            label="Save to Bag"
+                            getItem={() => ({
+                              title: `${activeModule.title} — Study Scratchpad`,
+                              sourceType: "AI_LEARNING_MODULE",
+                              userNotes: studyNotes,
+                              invariantText: activeModule.invariant,
+                              codeSnippet: activeModule.cppSnippet,
+                              tags: ["StudyNotes", "Scratchpad"],
+                            })}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleDownloadNotes}
+                            className="px-2 py-0.5 rounded-md bg-[#f4ede2] border border-[#2b2d42] text-[10px] font-extrabold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Download className="size-3" />
+                            <span>Export .md</span>
+                          </button>
+                        </div>
                       </div>
                       <textarea
                         rows={5}

@@ -18,6 +18,8 @@ import { ChatProvider, useChat } from "@/context/ChatContext";
 import { VizcoCloudChatbox } from "@/components/chat/VizcoCloudChatbox";
 import { VizcoBuddy } from "@/components/chat/VizcoBuddy";
 import { CookieConsentBanner } from "@/components/legal/CookieConsentBanner";
+import { NotesBagProvider } from "@/context/NotesBagContext";
+import { NotesBagFloatingButton } from "@/components/notes/NotesBagFloatingButton";
 
 function NotFoundComponent() {
   return (
@@ -416,7 +418,8 @@ function RootComponent() {
         Skip to main content
       </a>
       <AuthProvider>
-        <ChatProvider>
+        <NotesBagProvider>
+          <ChatProvider>
           <CustomCursor />
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <AuthGuard>
@@ -427,7 +430,9 @@ function RootComponent() {
           {/* GDPR / CCPA / DPDP Compliant Cookie Consent & Privacy Manager */}
           <CookieConsentBanner />
           <Toaster position="bottom-right" richColors closeButton />
-        </ChatProvider>
+        <NotesBagFloatingButton />
+          </ChatProvider>
+        </NotesBagProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

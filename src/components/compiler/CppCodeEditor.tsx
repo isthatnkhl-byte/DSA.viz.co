@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { EditorTheme, SupportedLanguage } from "@/lib/compiler.types";
 import { useThemeColor } from "@/hooks/useThemeColor";
+import { AddToNotesButton } from "@/components/notes/AddToNotesButton";
 
 interface CppCodeEditorProps {
   code: string;
@@ -1109,6 +1110,17 @@ export function CppCodeEditor({
                 <span className="hidden xl:inline">GitHub</span>
               </Button>
             )}
+
+            <AddToNotesButton
+              variant="compact"
+              getItem={() => ({
+                title: `${langLabel.toUpperCase()} Code Solution (${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})`,
+                sourceType: "COMPILER_CODE",
+                codeSnippet: code,
+                codeLanguage: language,
+                tags: ["Compiler", langLabel],
+              })}
+            />
           </div>
         </div>
 

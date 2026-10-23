@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { AiWord } from "@/components/brand/AiWord";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Trophy,
-  Sparkles,
   Target,
   Github,
   ArrowLeft,
@@ -2380,7 +2380,7 @@ function ProfilePage() {
         {!user || !data ? (
           <div className="flex min-h-[340px] flex-col items-center justify-center gap-4 rounded-2xl border-[1.5px] border-dashed border-foreground/30 bg-card/50 p-8 text-center backdrop-blur-sm">
             <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/15 border border-primary/30 text-primary">
-              <Sparkles className="size-7" />
+              <AiWord className="size-7" />
             </div>
             <div className="max-w-md">
               <h2 className="text-xl font-black text-foreground">Sign In to View Your Profile</h2>

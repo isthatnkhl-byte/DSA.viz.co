@@ -1,6 +1,6 @@
 import { memo, useState, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Code2, Copy, Check, CheckCircle2, Circle, Flame, Sparkles, BookOpen, Terminal } from "lucide-react";
+import { ArrowLeft, Code2, Copy, Check, CheckCircle2, Circle, Flame, BookOpen, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Problem } from "@/lib/problems";
 import { companyLabel } from "@/lib/problems";

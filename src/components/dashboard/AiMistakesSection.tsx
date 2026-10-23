@@ -1,7 +1,7 @@
 import React, { useState } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Sparkles,
   AlertTriangle,
   CheckCircle2,
   TrendingUp,
@@ -240,7 +240,7 @@ ${currentReport.actionPlan?.map((a) => `${a.step}. **${a.title}**: ${a.descripti
             className="flex size-11 items-center justify-center rounded-2xl text-primary-foreground shadow-md"
             style={{ backgroundImage: "var(--gradient-primary)" }}
           >
-            <Sparkles className="size-5.5" />
+            <AiWord className="size-5.5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -325,7 +325,7 @@ ${currentReport.actionPlan?.map((a) => `${a.step}. **${a.title}**: ${a.descripti
           <div className="relative flex size-16 items-center justify-center">
             <div className="absolute inset-0 rounded-2xl bg-primary/20 animate-ping opacity-50" />
             <div className="relative flex size-14 items-center justify-center rounded-2xl border border-primary/50 bg-primary/10 text-primary">
-              <Sparkles className="size-7 animate-spin" />
+              <AiWord className="size-7 animate-spin" />
             </div>
           </div>
           <div>
@@ -594,7 +594,7 @@ ${currentReport.actionPlan?.map((a) => `${a.step}. **${a.title}**: ${a.descripti
         /* Empty State */
         <div className="mt-6 flex flex-col items-center justify-center py-12 text-center gap-3 rounded-2xl border border-dashed border-border/70 bg-background/30 p-6">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <Sparkles className="size-6" />
+            <AiWord className="size-6" />
           </div>
           <div>
             <h3 className="text-base font-bold text-foreground">
@@ -610,7 +610,7 @@ ${currentReport.actionPlan?.map((a) => `${a.step}. **${a.title}**: ${a.descripti
             disabled={generateMutation.isPending}
             className="mt-2 font-bold text-xs gap-2"
           >
-            <Sparkles className="size-3.5" />
+            <AiWord className="size-3.5" />
             Generate My Diagnostics Report
           </Button>
         </div>

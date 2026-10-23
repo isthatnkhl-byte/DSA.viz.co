@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { AiWord } from "@/components/brand/AiWord";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowRight, Sparkles, Terminal, Rocket, Flame, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Terminal, Rocket, Flame, ArrowUpRight, CheckCircle2 } from "lucide-react";
 
 export function DiveInPortal() {
   const { user } = useAuth();
@@ -56,7 +57,7 @@ export function DiveInPortal() {
             to="/playground"
             className="inline-flex items-center gap-2 rounded-2xl border border-border/80 bg-secondary/60 px-7 py-5 text-sm sm:text-base font-mono font-semibold text-foreground hover:bg-secondary hover:border-primary/40 transition-all duration-200 backdrop-blur-md"
           >
-            <Sparkles className="size-4 text-primary" />
+            <AiWord className="size-4 text-primary" />
             <span>Open Playground</span>
           </Link>
         </div>

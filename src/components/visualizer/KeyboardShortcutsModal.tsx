@@ -1,5 +1,6 @@
 import React from "react";
-import { Keyboard, X, Command, Sparkles } from "lucide-react";
+import { AiWord } from "@/components/brand/AiWord";
+import { Keyboard, X, Command } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface KeyboardShortcutsModalProps {
@@ -91,7 +92,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
 
         <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-[11px] text-muted-foreground font-mono">
           <span className="flex items-center gap-1">
-            <Sparkles className="size-3 text-primary" />
+            <AiWord className="size-3 text-primary" />
             <span>Hotkeys active while focusing canvas</span>
           </span>
           <Button size="sm" variant="default" className="h-7 px-3 text-xs" onClick={onClose}>

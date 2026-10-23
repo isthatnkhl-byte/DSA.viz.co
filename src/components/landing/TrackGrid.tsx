@@ -5,7 +5,6 @@ import {
   GitBranch,
   Binary,
   Network,
-  Sparkles,
   Cpu,
   Flame,
   CheckCircle2,

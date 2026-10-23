@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type {
   Val,
   LinkedListCycleState,
@@ -19,7 +20,6 @@ import {
   XCircle,
   Database,
   Layers,
-  Sparkles,
   ArrowDown,
   CornerDownRight,
   Repeat,
@@ -207,7 +207,7 @@ export function LinkedListVisualizer({
 
           {cycleEntryIdx !== null && (
             <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-              <Sparkles className="size-3.5 text-emerald-400" />
+              <AiWord className="size-3.5 text-emerald-400" />
               <span className="text-[11px] font-bold">Cycle Entry Point:</span>
               <strong className="text-foreground">Node [{cycleEntryIdx}]</strong>
             </div>

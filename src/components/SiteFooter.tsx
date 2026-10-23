@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { DsavizcoLogo } from "@/components/brand/DsavizcoLogo";
-import { Shield, Sparkles, Scale, Lock, Cookie, ArrowUp, Activity, Code2, BookOpen, ExternalLink } from "lucide-react";
+import { Shield, Scale, Lock, Cookie, ArrowUp, Activity, Code2, BookOpen, ExternalLink } from "lucide-react";
 import { CookiePreferencesModal } from "@/components/legal/CookiePreferencesModal";
 
 export function SiteFooter() {

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import Editor, { OnMount } from "@monaco-editor/react";
 import {
-  Sparkles,
   RotateCcw,
   Copy,
   Check,
@@ -689,7 +689,7 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
               >
                 {isSubmittingCode ? (
                   <>
-                    <Sparkles className="size-3.5 animate-spin" />
+                    <AiWord className="size-3.5 animate-spin" />
                     <span>Judging...</span>
                   </>
                 ) : (
@@ -734,7 +734,7 @@ export const MonacoCodeEditor = memo(function MonacoCodeEditor({
                     </>
                   ) : (
                     <>
-                      <Sparkles className="size-3.5" /> {submitButtonText}
+                      <AiWord className="size-3.5" /> {submitButtonText}
                     </>
                   )}
                 </Button>

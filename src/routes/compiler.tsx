@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { AiWord } from "@/components/brand/AiWord";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { toPng } from "html-to-image";
@@ -6,7 +7,6 @@ import {
   Terminal,
   Play,
   RotateCcw,
-  Sparkles,
   ArrowLeft,
   BookOpen,
   Zap,
@@ -894,7 +894,7 @@ function CppCompilerPage() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex size-9 items-center justify-center rounded-xl bg-accent/15 border border-accent/35 text-accent">
-                  <Sparkles className="size-4.5" />
+                  <AiWord className="size-4.5" />
                 </div>
                 <div>
                   <h3 className="font-mono text-sm font-bold text-foreground">

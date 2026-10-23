@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNotesBag } from "@/context/NotesBagContext";
 import { NotesBagItem, NoteSourceType } from "@/lib/notes/types";
-import { BookmarkPlus, Check, Sparkles } from "lucide-react";
+import { BookmarkPlus, Check } from "lucide-react";
 
 interface AddToNotesButtonProps {
   item?: Partial<NotesBagItem>;

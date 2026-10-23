@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import {
   Play,
   Pause,
   RotateCcw,
-  Sparkles,
   GitGraph,
   TrendingUp,
   Boxes,
@@ -103,7 +103,7 @@ export function LowerInteractiveShowcase() {
       {/* Section Header */}
       <div className="text-center max-w-3xl mx-auto mb-10">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-3 shadow-xs">
-          <Sparkles className="size-3.5 text-primary animate-pulse" />
+          <AiWord className="size-3.5 text-primary animate-pulse" />
           <span>Interactive Spatial Playground</span>
         </div>
         <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-black tracking-tight text-foreground">

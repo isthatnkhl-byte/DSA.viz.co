@@ -14,7 +14,6 @@ import {
   Network,
   Table,
   Layers,
-  Sparkles,
   Activity,
   CheckCircle2,
   AlertCircle,

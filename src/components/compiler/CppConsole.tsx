@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import {
   Terminal,
   RotateCcw,
@@ -11,7 +12,6 @@ import {
   FileInput,
   Zap,
   Play,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -304,7 +304,7 @@ export function CppConsole({
         {/* Quick Sample Input Presets Bar */}
         <div className="flex items-center gap-1.5 border-b border-border/50 bg-background/60 px-3 py-1.5 overflow-x-auto scrollbar-thin">
           <span className="font-mono text-[10px] font-bold text-muted-foreground shrink-0 flex items-center gap-1">
-            <Sparkles className="size-2.5 text-primary" />
+            <AiWord className="size-2.5 text-primary" />
             <span>Presets:</span>
           </span>
           {SAMPLE_INPUT_PRESETS.map((preset) => (

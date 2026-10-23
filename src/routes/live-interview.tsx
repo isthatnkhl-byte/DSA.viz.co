@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { AiWord } from "@/components/brand/AiWord";
 import { useState, useEffect, useRef, useMemo } from "react";
 import Editor from "@monaco-editor/react";
 import {
@@ -14,7 +15,6 @@ import {
   Volume2,
   VolumeX,
   RotateCcw,
-  Sparkles,
   ArrowRight,
   Clock,
   Code2,
@@ -2422,7 +2422,7 @@ function LiveInterviewPage() {
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <Sparkles className="size-3.5 text-emerald-400" /> Guided Practice / Coaching Mode
+                        <AiWord className="size-3.5 text-emerald-400" /> Guided Practice / Coaching Mode
                       </span>
                       {interviewMode === "practice" && (
                         <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-400">
@@ -2697,7 +2697,7 @@ function LiveInterviewPage() {
                   className="flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-mono font-bold border bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
                   title="Guided Practice Mode — No fullscreen lock or strike termination"
                 >
-                  <Sparkles className="size-3" />
+                  <AiWord className="size-3" />
                   <span>Practice Mode</span>
                 </div>
               ) : (
@@ -2938,7 +2938,7 @@ function LiveInterviewPage() {
                       className="px-2 py-1 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-[10px] font-mono font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1 ml-auto"
                       title="Unlock the next progressive Socratic hint level (1: Conceptual -> 2: Pattern -> 3: Blueprint)"
                     >
-                      <Sparkles className="size-2.5" />
+                      <AiWord className="size-2.5" />
                       <span>
                         Hint ({hintLevelByTier[currentTier] || 0}/3)
                       </span>
@@ -2983,7 +2983,7 @@ function LiveInterviewPage() {
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Sparkles className="size-3.5 text-sky-400" /> AI Whiteboard
+                  <AiWord className="size-3.5 text-sky-400" /> AI Whiteboard
                   {isAiTeaching && (
                     <span className="size-2 rounded-full bg-sky-400 animate-ping" />
                   )}
@@ -3031,7 +3031,7 @@ function LiveInterviewPage() {
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          <Sparkles className="size-3.5 text-amber-400" />
+                          <AiWord className="size-3.5 text-amber-400" />
                           <span className="font-mono text-[10px] uppercase font-bold text-amber-300">
                             Progressive Socratic Hint Ladder ({hintLevelByTier[currentTier] || 0}/3 Unlocked)
                           </span>
@@ -3380,7 +3380,7 @@ function LiveInterviewPage() {
                     className="h-7 text-xs font-mono gap-1 text-amber-400 hover:text-amber-300"
                     title="Request progressive Socratic hint (Level 1 -> 2 -> 3)"
                   >
-                    <Sparkles className="size-3" /> Hint ({hintLevelByTier[currentTier] || 0}/3)
+                    <AiWord className="size-3" /> Hint ({hintLevelByTier[currentTier] || 0}/3)
                   </Button>
                   <Button
                     size="sm"
@@ -3596,7 +3596,7 @@ function LiveInterviewPage() {
                   >
                     {isEvaluating ? (
                       <>
-                        <Sparkles className="size-3.5 animate-spin" />
+                        <AiWord className="size-3.5 animate-spin" />
                         <span>Verifying Complexity Invariants...</span>
                       </>
                     ) : (
@@ -4002,7 +4002,7 @@ function LiveInterviewPage() {
 
                   <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 sm:p-5 space-y-3">
                     <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
-                      <Sparkles className="size-4" />
+                      <AiWord className="size-4" />
                       Actionable Areas for Growth
                     </div>
                     <ul className="space-y-2">
@@ -4244,7 +4244,7 @@ function LiveInterviewPage() {
                     <div className="rounded-xl border border-emerald-500/35 bg-background/90 overflow-hidden flex flex-col">
                       <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-emerald-500/25 bg-emerald-500/10">
                         <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-400">
-                          <Sparkles className="size-3.5" />
+                          <AiWord className="size-3.5" />
                           <span>
                             FAANG Reference Optimal ({inspectedQuestion.tierDetails.optimal.targetTime} /{" "}
                             {inspectedQuestion.tierDetails.optimal.targetSpace})

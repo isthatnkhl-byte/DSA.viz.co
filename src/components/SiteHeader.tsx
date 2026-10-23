@@ -1,4 +1,5 @@
 import { useState, useEffect, useId } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -6,7 +7,6 @@ import {
   LayoutDashboard,
   User as UserIcon,
   LogOut,
-  Sparkles,
   Layers,
   Code2,
   Menu,
@@ -521,7 +521,7 @@ export function SiteHeader({
                         >
                           <div className="flex items-center gap-3">
                             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-                              <Sparkles className="size-4" />
+                              <AiWord className="size-4" />
                             </div>
                             <div>
                               <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
@@ -545,7 +545,7 @@ export function SiteHeader({
                         >
                           <div className="flex items-center gap-3">
                             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400">
-                              <Sparkles className="size-4" />
+                              <AiWord className="size-4" />
                             </div>
                             <div>
                               <div className="text-xs font-bold text-foreground group-hover:text-amber-400 transition-colors">

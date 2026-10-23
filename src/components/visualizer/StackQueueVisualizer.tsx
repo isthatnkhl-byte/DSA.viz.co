@@ -29,7 +29,6 @@ import {
   Clock,
   Sliders,
   ChevronRight,
-  Sparkles,
 } from "lucide-react";
 
 interface StackQueueVisualizerProps {

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import {
   Code,
   Bookmark,
   Copy,
   Check,
   Info,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import {
@@ -212,7 +212,7 @@ export function PseudocodeTraceInspector({
         <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3 font-mono text-xs animate-fade">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 font-bold text-foreground">
-              <Sparkles className="size-3.5 text-primary" />
+              <AiWord className="size-3.5 text-primary" />
               <span>{activeExplanation.title}</span>
             </div>
             {activeExplanation.complexity && (

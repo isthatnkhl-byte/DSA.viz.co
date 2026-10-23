@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import { Link } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -8,7 +9,6 @@ import {
   ChevronRight,
   ChevronLeft,
   CheckCircle2,
-  Sparkles,
   Code2,
   Terminal,
   Gauge,
@@ -1099,7 +1099,7 @@ export function LiveVisualizerCard() {
                     </>
                   ) : (
                     <>
-                      <Sparkles className="size-3.5 text-primary shrink-0 animate-spin" />
+                      <AiWord className="size-3.5 text-primary shrink-0 animate-spin" />
                       <span className="text-xs sm:text-sm font-bold text-primary truncate">
                         Line {currentStep.codeLine} Active
                       </span>

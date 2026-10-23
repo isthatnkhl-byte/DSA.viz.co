@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type { IntervalItem, IntervalCollisionState } from "./VisualizerTypes";
 import {
   Clock,
@@ -8,7 +9,6 @@ import {
   CheckCircle2,
   Split,
   Calendar,
-  Sparkles,
   ArrowRight,
   TrendingUp,
   Maximize2,
@@ -482,7 +482,7 @@ export function IntervalVisualizer({
       {selectedInterval && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-xs text-foreground animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="flex flex-wrap items-center gap-3">
-            <Sparkles className="size-4 text-primary" />
+            <AiWord className="size-4 text-primary" />
             <span className="font-bold">Inspected Interval:</span>
             <span className="font-mono font-black text-primary text-sm">[{selectedInterval.start}, {selectedInterval.end}]</span>
             <span className="rounded bg-primary/20 px-2 py-0.5 font-mono text-[10px] text-primary border border-primary/30 font-bold">
@@ -695,7 +695,7 @@ function SwimlaneTimelineView({
                 ) : isConflict ? (
                   <AlertCircle className="size-3.5 text-rose-400 shrink-0" />
                 ) : isCurrent ? (
-                  <Sparkles className="size-3.5 shrink-0" />
+                  <AiWord className="size-3.5 shrink-0" />
                 ) : null}
                 <span className="font-bold truncate">[{iv.start}, {iv.end}]</span>
               </div>

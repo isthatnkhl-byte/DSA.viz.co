@@ -5,9 +5,9 @@
 // 3. Drag-Selection Awareness (AI detects user-selected whiteboard elements/areas to answer or take over)
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import "@excalidraw/excalidraw/index.css";
 import {
-  Sparkles,
   Play,
   Pause,
   SkipBack,
@@ -2259,7 +2259,7 @@ export function AiWhiteboard({
         }}
       >
         <div className="flex items-center gap-1.5 font-extrabold text-xs shrink-0">
-          <Sparkles className="w-4 h-4 text-rose-500" />
+          <AiWord className="w-4 h-4 text-rose-500" />
           <span>
             {selectionContext.linkedZone
               ? `Ask AI About Zone #${selectionContext.linkedZone.zoneNumber}:`

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import { createPortal } from "react-dom";
 import {
   KeyRound,
@@ -10,7 +11,6 @@ import {
   Loader2,
   ExternalLink,
   X,
-  Sparkles,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -470,7 +470,7 @@ export function ApiKeyVaultManager({ onSaved }: { onSaved?: () => void }) {
                     </span>
                     {isPrimary && (
                       <span className="inline-flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-emerald-300">
-                        <Sparkles className="size-2.5" /> Primary
+                        <AiWord className="size-2.5" /> Primary
                       </span>
                     )}
                   </div>

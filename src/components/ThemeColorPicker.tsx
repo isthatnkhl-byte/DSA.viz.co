@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Palette, Check, Sun, Moon, Sparkles } from "lucide-react";
+import { AiWord } from "@/components/brand/AiWord";
+import { Palette, Check, Sun, Moon } from "lucide-react";
 import { THEME_OPTIONS, ThemeOption } from "@/lib/theme";
 import { useThemeColor } from "@/hooks/useThemeColor";
 
@@ -92,7 +93,7 @@ export function ThemeColorPicker({ compact = false, align = "right" }: ThemeColo
           <div className="mb-3 border-b border-border/60 pb-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Sparkles className="size-3 text-primary" /> Appearance & Theme
+                <AiWord className="size-3 text-primary" /> Appearance & Theme
               </span>
               <span className="text-[10px] font-mono font-bold text-primary">
                 {THEME_OPTIONS.length} Themes

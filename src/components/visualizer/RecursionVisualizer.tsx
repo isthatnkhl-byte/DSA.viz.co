@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type { CallStackFrame, RecursionTreeNode } from "./VisualizerTypes";
 import {
   GitBranch,
@@ -12,7 +13,6 @@ import {
   Database,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   AlertTriangle,
 } from "lucide-react";
 
@@ -350,7 +350,7 @@ export function RecursionVisualizer({
                   {/* Memoization Cache Hit Notice */}
                   {isMemoHit && (
                     <div className="mb-2 px-2 py-1 rounded bg-cyan-500/15 border border-cyan-500/30 text-[10px] text-cyan-300 flex items-center gap-1.5">
-                      <Sparkles className="w-3 h-3 text-cyan-300 shrink-0" />
+                      <AiWord className="w-3 h-3 text-cyan-300 shrink-0" />
                       <span>Cache Hit: Subtree bypassed. Value retrieved in O(1).</span>
                     </div>
                   )}

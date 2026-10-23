@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, memo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type { VizStep, VizType } from "@/lib/problems";
 import { VisualizerControls } from "./visualizer/VisualizerControls";
 import { TreeVisualizer } from "./visualizer/TreeVisualizer";
@@ -27,7 +28,7 @@ import { CrossDatasetShiftBanner } from "./visualizer/CrossDatasetShiftBanner";
 import { VisualizerContentPanes } from "./visualizer/VisualizerContentPanes";
 import { PseudocodeTraceInspector } from "./visualizer/PseudocodeTraceInspector";
 import { AsymptoticComplexityVisualizer } from "./visualizer/AsymptoticComplexityVisualizer";
-import { Terminal, Database, Layers, Sparkles, HelpCircle, Bot } from "lucide-react";
+import { Terminal, Database, Layers, HelpCircle, Bot } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { usePlaybackOrchestrator } from "@/hooks/usePlaybackOrchestrator";
 import {
@@ -1357,7 +1358,7 @@ export const Visualizer = memo(function Visualizer({
     <div className="flex flex-col gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 shadow-sm backdrop-blur-sm animate-fade">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-400">
-          <Sparkles className="size-3.5" />
+          <AiWord className="size-3.5" />
           <span>Auxiliary Linked List</span>
         </div>
       </div>
@@ -1374,7 +1375,7 @@ export const Visualizer = memo(function Visualizer({
     <div className="flex flex-col gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 shadow-sm backdrop-blur-sm animate-fade">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-400">
-          <Sparkles className="size-3.5" />
+          <AiWord className="size-3.5" />
           <span>Auxiliary Priority Queue / Heap Structure</span>
         </div>
         <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
@@ -1394,7 +1395,7 @@ export const Visualizer = memo(function Visualizer({
     <div className="flex flex-col gap-2 rounded-2xl border border-indigo-500/30 bg-indigo-500/5 p-3.5 shadow-sm backdrop-blur-sm animate-fade">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2 text-xs font-mono font-bold text-indigo-300">
-          <Sparkles className="size-3.5" />
+          <AiWord className="size-3.5" />
           <span>Input Array &amp; Traversal Pointer</span>
         </div>
         {current.left !== null && current.left !== undefined && (

@@ -1,5 +1,6 @@
 import React from "react";
-import { Eye, Database, Layers, Sparkles } from "lucide-react";
+import { AiWord } from "@/components/brand/AiWord";
+import { Eye, Database, Layers } from "lucide-react";
 import type { VizStep } from "@/lib/problems";
 
 interface VisualizerContentPanesProps {
@@ -110,7 +111,7 @@ export function VisualizerContentPanes({
                   : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
               }`}
             >
-              <Sparkles className="size-3.5" />
+              <AiWord className="size-3.5" />
               <span>Linked List</span>
             </button>
           )}
@@ -125,7 +126,7 @@ export function VisualizerContentPanes({
                   : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
               }`}
             >
-              <Sparkles className="size-3.5" />
+              <AiWord className="size-3.5" />
               <span>Aux Tree / Heap</span>
             </button>
           )}
@@ -140,7 +141,7 @@ export function VisualizerContentPanes({
                   : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
               }`}
             >
-              <Sparkles className="size-3.5" />
+              <AiWord className="size-3.5" />
               <span>Input Stream</span>
             </button>
           )}

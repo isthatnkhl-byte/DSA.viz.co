@@ -1,7 +1,7 @@
 import { memo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import ReactMarkdown from "react-markdown";
 import {
-  Sparkles,
   CheckCircle2,
   TrendingUp,
   ListChecks,
@@ -105,7 +105,7 @@ export const ReviewCard = memo(function ReviewCard({
       {/* Verdict & Title Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3.5">
         <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-primary" />
+          <AiWord className="size-4 text-primary" />
           <h3 className="text-sm font-bold text-foreground">Interview Evaluation & Complexity</h3>
         </div>
         <span
@@ -210,7 +210,7 @@ export const ReviewCard = memo(function ReviewCard({
           >
             {planLoading ? (
               <>
-                <Sparkles className="size-4 animate-spin text-primary-foreground" />
+                <AiWord className="size-4 animate-spin text-primary-foreground" />
                 <span>Generating 3 Datasets & Step Plan...</span>
               </>
             ) : (

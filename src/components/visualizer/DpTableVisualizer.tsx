@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type { Val, Dp1DState, Dp2DState, DpDependencyArc, DpTransitionChoice } from "./VisualizerTypes";
 import { coordKey, safeArray, safeMatrix, toText } from "./VisualizerTypes";
 import {
   Table,
-  Sparkles,
   CheckCircle,
   ArrowDownRight,
   ArrowDown,
@@ -643,7 +643,7 @@ export function DpTableVisualizer({
       {activeInspectedFormula && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2.5 text-xs text-foreground animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <Sparkles className="size-4 text-primary shrink-0" />
+            <AiWord className="size-4 text-primary shrink-0" />
             <span className="font-bold">{activeInspectedFormula.title}:</span>
             <span className="font-mono font-black text-primary text-sm break-all">{activeInspectedFormula.value}</span>
             <span className="text-muted-foreground ml-2 break-words">{activeInspectedFormula.detail}</span>
@@ -661,7 +661,7 @@ export function DpTableVisualizer({
       {/* BOTTOM SUMMARY & OPTIMAL VALUE TELEMETRY */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground font-mono px-1">
         <div className="flex items-center gap-2">
-          <Sparkles className="size-3.5 text-primary" />
+          <AiWord className="size-3.5 text-primary" />
           <span>Optimal Substructure Memoization: Subproblems computed bottom-up in topological order.</span>
         </div>
         {((activeMode === "1d" && dp1d?.optimalAnswer !== null && dp1d?.optimalAnswer !== undefined) ||

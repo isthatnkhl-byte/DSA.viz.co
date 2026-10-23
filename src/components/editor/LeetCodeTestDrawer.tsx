@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import {
   CheckCircle2,
   XCircle,
@@ -11,7 +12,6 @@ import {
   Plus,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   ShieldCheck,
   Layers,
   History,
@@ -114,7 +114,7 @@ function LearningDiagnosticsCard({
         ) : (
           <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2 space-y-0.5">
             <div className="flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-400">
-              <Sparkles className="size-3" />
+              <AiWord className="size-3" />
               <span>Optimization &amp; Next Step</span>
             </div>
             <p className="text-foreground/90 leading-relaxed">
@@ -465,7 +465,7 @@ export const LeetCodeTestDrawer: React.FC<LeetCodeTestDrawerProps> = ({
               {isRunning ? (
                 <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
                   <div className="flex items-center gap-2 text-primary font-bold">
-                    <Sparkles className="size-4 animate-spin" />
+                    <AiWord className="size-4 animate-spin" />
                     <span>Running against {sampleCases.length + (customInput.trim() ? 1 : 0)} testcases...</span>
                   </div>
                   <span className="text-[11px]">
@@ -721,7 +721,7 @@ export const LeetCodeTestDrawer: React.FC<LeetCodeTestDrawerProps> = ({
               {isSubmitting ? (
                 <div className="flex flex-col items-center justify-center py-8 gap-2.5 text-center">
                   <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                    <Sparkles className="size-4 animate-spin" />
+                    <AiWord className="size-4 animate-spin" />
                     <span>AI Judge Testing Your Code &amp; Finalizing Submission...</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground max-w-md">

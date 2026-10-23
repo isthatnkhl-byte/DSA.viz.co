@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { AiWord } from "@/components/brand/AiWord";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { DSA_SHEETS, type DSASheet } from "@/data/sheets";
@@ -6,7 +7,6 @@ import {
   CheckCircle2,
   ChevronRight,
   LayoutList,
-  Sparkles,
   Search,
   Check,
   Play,
@@ -828,7 +828,7 @@ function SheetsPage() {
             <div className="relative z-10 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.14em] text-primary">
-                  <Sparkles className="size-3" />
+                  <AiWord className="size-3" />
                   <span>7 Curated Interview Roadmaps • Topic-Grouped</span>
                 </div>
 

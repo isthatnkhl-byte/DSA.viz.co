@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Sparkles,
   Send,
   X,
   RotateCcw,
@@ -597,7 +597,7 @@ export function VizcoCloudChatbox() {
             {(activeContext?.problemTitle || activeContext?.currentStep !== undefined || activeContext?.route || activeContext?.userCode || activeContext?.customGoal) ? (
               <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b border-primary/20 bg-primary/5 px-4 py-1.5 text-[11px] text-primary shrink-0">
                 <div className="flex items-center gap-1.5 truncate max-w-[65%] sm:max-w-[70%]">
-                  <Sparkles className="size-3 shrink-0 text-accent animate-spin-slow" />
+                  <AiWord className="size-3 shrink-0 text-accent animate-spin-slow" />
                   <span className="font-semibold truncate">
                     {activeContext.problemTitle || activeContext.problemSlug || "Active on " + (activeContext.route || "DSA.viz")}
                   </span>
@@ -658,7 +658,7 @@ export function VizcoCloudChatbox() {
             ) : (
               <div className="relative z-10 flex items-center justify-between border-b border-border/40 bg-muted/20 px-4 py-1.5 text-[11px] text-muted-foreground shrink-0">
                 <span className="flex items-center gap-1.5 text-[10px]">
-                  <Sparkles className="size-3 text-muted-foreground" />
+                  <AiWord className="size-3 text-muted-foreground" />
                   <span>Freeform Mode (No attached context)</span>
                 </span>
                 <button

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type { VizStep } from "@/lib/problems";
-import { Share2, Copy, Check, Download, FileJson, X, Sparkles } from "lucide-react";
+import { Share2, Copy, Check, Download, FileJson, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ExportSnapshotModalProps {
@@ -174,7 +175,7 @@ export function ExportSnapshotModal({
 
         <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-[11px] text-muted-foreground font-mono">
           <span className="flex items-center gap-1">
-            <Sparkles className="size-3 text-primary" />
+            <AiWord className="size-3 text-primary" />
             <span>State synchronized across all views</span>
           </span>
           <Button size="sm" variant="default" className="h-7 px-3 text-xs" onClick={onClose}>

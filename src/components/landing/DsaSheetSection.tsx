@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { FolderKanban, CheckCircle2, Target, ArrowRight, Sparkles, Building2, Flame } from "lucide-react";
+import { FolderKanban, CheckCircle2, Target, ArrowRight, Building2, Flame } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface SheetCardData {

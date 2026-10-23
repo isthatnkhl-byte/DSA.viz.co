@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import type { VizStep } from "@/lib/problems";
-import { ArrowRight, Sparkles, TrendingUp, Layers, CheckCircle2 } from "lucide-react";
+import { ArrowRight, TrendingUp, Layers, CheckCircle2 } from "lucide-react";
 import { toText } from "./VisualizerTypes";
 
 interface StepDiffInspectorProps {

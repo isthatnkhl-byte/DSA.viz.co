@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type { Val, HeapSwap, TopKState, TwoHeapsState } from "./VisualizerTypes";
 import { safeArray } from "./VisualizerTypes";
 import {
@@ -7,7 +8,6 @@ import {
   ArrowDown,
   Layers,
   GitFork,
-  Sparkles,
   Plus,
   Trash2,
   RotateCcw,
@@ -1094,7 +1094,7 @@ export function BinaryHeapVisualizer({
       {/* Interactive Sandbox Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 py-2 rounded-xl bg-card/60 border border-border/70 text-xs font-mono">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-primary" />
+          <AiWord className="w-3.5 h-3.5 text-primary" />
           <span className="font-bold text-foreground">HEAP SANDBOX CONTROLLER:</span>
         </div>
 

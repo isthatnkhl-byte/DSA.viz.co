@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import {
-  Sparkles,
   ArrowRight,
   RefreshCw,
   CheckCircle2,
@@ -165,7 +165,7 @@ export function StringPatternVisualizer({
                 : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
             }`}
           >
-            <Sparkles className="size-3.5" />
+            <AiWord className="size-3.5" />
             <span>Aho-Corasick Trie Automaton</span>
           </button>
         </div>
@@ -748,7 +748,7 @@ function AhoCorasickTabRenderer({
       {/* Keywords Set Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/30 p-3.5">
         <div className="flex items-center gap-2.5">
-          <Sparkles className="size-4 text-primary" />
+          <AiWord className="size-4 text-primary" />
           <span className="font-mono text-xs font-bold text-foreground">
             Multi-Pattern Dictionary Keywords:
           </span>

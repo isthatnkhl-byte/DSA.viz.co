@@ -8,12 +8,12 @@ import React, {
   memo,
 } from "react";
 import { Link } from "@tanstack/react-router";
+import { AiWord } from "@/components/brand/AiWord";
 import {
   Search,
   X,
   SlidersHorizontal,
   BookOpen,
-  Sparkles,
   LayoutGrid,
   List,
   Flame,
@@ -591,7 +591,7 @@ export function ProblemCatalog({
           <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-3.5 py-1 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-3 shadow-sm">
-                <Sparkles className="size-3.5" />
+                <AiWord className="size-3.5" />
                 <span>DSA.viz Problem Library</span>
               </div>
               <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">

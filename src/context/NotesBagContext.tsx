@@ -5,6 +5,7 @@ import { toast } from "sonner";
 interface NotesBagContextType {
   items: NotesBagItem[];
   addItem: (item: Omit<NotesBagItem, "id" | "createdAt">) => NotesBagItem;
+  addItems: (items: Array<Omit<NotesBagItem, "id" | "createdAt">>) => NotesBagItem[];
   removeItem: (id: string) => void;
   updateItem: (id: string, updates: Partial<NotesBagItem>) => void;
   clearBag: () => void;
@@ -117,6 +118,28 @@ export const NotesBagProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return newItem;
   }, []);
 
+  const addItems = useCallback((itemsData: Array<Omit<NotesBagItem, "id" | "createdAt">>): NotesBagItem[] => {
+    if (!itemsData || itemsData.length === 0) return [];
+
+    const newItems: NotesBagItem[] = itemsData.map((itemData, idx) => ({
+      ...itemData,
+      id: `note_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
+      createdAt: Date.now() + idx,
+    }));
+
+    setItems((prev) => [...newItems, ...prev]);
+    setSelectedItemIds((prev) => [...newItems.map((n) => n.id), ...prev]);
+
+    toast.success(`Imported ${newItems.length} items to Notes Bag`, {
+      action: {
+        label: "View Notes",
+        onClick: () => setIsDrawerOpen(true),
+      },
+    });
+
+    return newItems;
+  }, []);
+
   const removeItem = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
     setSelectedItemIds((prev) => prev.filter((itemId) => itemId !== id));
@@ -157,6 +180,7 @@ export const NotesBagProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     () => ({
       items,
       addItem,
+      addItems,
       removeItem,
       updateItem,
       clearBag,
@@ -172,6 +196,7 @@ export const NotesBagProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [
       items,
       addItem,
+      addItems,
       removeItem,
       updateItem,
       clearBag,

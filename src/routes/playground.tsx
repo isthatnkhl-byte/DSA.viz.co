@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { AiWord } from "@/components/brand/AiWord";
 import { useState, useMemo, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 
@@ -9,7 +10,6 @@ import {
   Dices,
   Play,
   RotateCcw,
-  Sparkles,
   Sliders,
   CheckCircle2,
   TrendingUp,
@@ -211,7 +211,7 @@ function PlaygroundPage() {
                 <span>Back to Algorithm Library</span>
               </Link>
               <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-primary mb-2">
-                <Sparkles className="size-3.5 text-primary" />
+                <AiWord className="size-3.5 text-primary" />
                 <span>Interactive Invariant Sandbox</span>
               </div>
               <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">
@@ -587,7 +587,7 @@ while left < right:
                   <div className="rounded-3xl border border-border/70 bg-card/75 p-6 shadow-md backdrop-blur-xl">
                     <div className="mb-4 flex items-center justify-between border-b border-border/50 pb-3">
                       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        <Sparkles className="size-4 text-primary" />
+                        <AiWord className="size-4 text-primary" />
                         <span>Live Execution Trace Animation</span>
                       </div>
                       <span className="font-mono text-xs text-muted-foreground">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import {
-  Sparkles,
   AlertTriangle,
   CheckCircle2,
   HelpCircle,
@@ -279,7 +279,7 @@ export function ProblemDiffNudgePanel({
             {!analysis && !loading && (
               <div className="flex flex-col items-center justify-center py-6 text-center gap-2">
                 <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Sparkles className="size-5" />
+                  <AiWord className="size-5" />
                 </div>
                 <p className="text-xs font-semibold text-foreground">
                   Ready to audit your code with Socratic Interviewer Nudges
@@ -302,7 +302,7 @@ export function ProblemDiffNudgePanel({
 
             {loading && (
               <div className="flex flex-col items-center justify-center py-8 gap-3 text-muted-foreground animate-pulse">
-                <Sparkles className="size-6 text-primary animate-spin" />
+                <AiWord className="size-6 text-primary animate-spin" />
                 <span className="text-xs font-medium">
                   Reviewing syntax, typing patterns, and invariant bounds...
                 </span>

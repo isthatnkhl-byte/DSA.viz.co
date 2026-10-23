@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Sparkles,
   BookOpen,
   Brain,
   CheckCircle2,
@@ -688,7 +688,7 @@ export function AiLearningPage() {
         <div className="border-b border-border/80 bg-card/90 px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary/15 border border-primary/30 px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wider text-primary">
-              <Sparkles className="size-3.5" />
+              <AiWord className="size-3.5" />
               <span>AI Learning Studio</span>
             </span>
 
@@ -957,7 +957,7 @@ export function AiLearningPage() {
                       </div>
                     ) : (
                       <div className="rounded-xl p-4 border-2 border-[#2b2d42] bg-white text-center">
-                        <Sparkles className="size-5 text-rose-500 mx-auto mb-1.5" />
+                        <AiWord className="size-5 text-rose-500 mx-auto mb-1.5" />
                         <h3 className="text-xs font-black text-[#2b2d42]">
                           Canvas is Clean
                         </h3>
@@ -1100,7 +1100,7 @@ export function AiLearningPage() {
                     {/* One-Click AI Whiteboard Prompts */}
                     <div className="rounded-xl p-3 border-2 border-[#2b2d42] bg-white space-y-2">
                       <div className="text-xs font-black text-[#2b2d42] flex items-center gap-1.5">
-                        <Sparkles className="size-3.5 text-rose-500" />
+                        <AiWord className="size-3.5 text-rose-500" />
                         <span>Instant AI Whiteboard Prompts</span>
                       </div>
                       <div className="space-y-1.5">

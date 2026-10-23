@@ -1,8 +1,8 @@
 import { memo, useState } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import { CustomDatasetModal } from "./CustomDatasetModal";
 import {
   Layers,
-  Sparkles,
   AlertTriangle,
   CheckCircle2,
   Check,
@@ -217,7 +217,7 @@ export const DatasetToolbar = memo(function DatasetToolbar({
       {currentDataset?.description && (
         <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/60 bg-background/60 px-3.5 py-2.5 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Sparkles className="size-3.5 text-primary shrink-0" />
+            <AiWord className="size-3.5 text-primary shrink-0" />
             <span className="leading-snug">{currentDataset.description}</span>
           </div>
 

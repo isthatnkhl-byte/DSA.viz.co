@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Layers, Sparkles, CheckCircle2, Flame } from "lucide-react";
+import { ArrowRight, Layers, CheckCircle2, Flame } from "lucide-react";
 import { problems, companyLabel, TOTAL_PROBLEMS } from "@/lib/problems";
 import { useAuth } from "@/hooks/useAuth";
 

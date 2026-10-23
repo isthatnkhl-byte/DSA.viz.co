@@ -1,5 +1,6 @@
 import React, { memo, useState, useEffect, useRef, useCallback } from "react";
-import { Sparkles, Brain, Code2, RotateCcw, Github } from "lucide-react";
+import { AiWord } from "@/components/brand/AiWord";
+import { Brain, Code2, RotateCcw, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface PseudocodeEditorProps {
@@ -246,7 +247,7 @@ export const PseudocodeEditor = memo(function PseudocodeEditor({
               </>
             ) : (
               <>
-                <Sparkles className="size-3.5" /> Review & Step-by-Step Trace
+                <AiWord className="size-3.5" /> Review & Step-by-Step Trace
               </>
             )}
           </Button>

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type { Val } from "./VisualizerTypes";
 import { coordKey, parse2DCoord, safeArray, safeMatrix, toText } from "./VisualizerTypes";
 import type {
@@ -16,7 +17,6 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
-  Sparkles,
   Layers,
   Trophy,
   CheckCircle2,
@@ -609,7 +609,7 @@ export function MatrixVisualizer({
 
           {isIslandMode && activeAreaValue !== null && !isCurrentOOB && (
             <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-1.5 shadow-sm shadow-emerald-500/10 animate-sync-glow">
-              <Sparkles className="size-3.5 text-emerald-400" />
+              <AiWord className="size-3.5 text-emerald-400" />
               <div className="flex flex-col text-right">
                 <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-300">
                   {typeof currentArea === "number" ? "Current Area" : "Active Island"}

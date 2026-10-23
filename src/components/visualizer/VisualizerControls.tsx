@@ -1,4 +1,5 @@
 import React from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import {
   ChevronLeft,
   ChevronRight,
@@ -7,7 +8,6 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Sparkles,
   Repeat,
   FastForward,
   Rewind,
@@ -97,7 +97,7 @@ export function VisualizerControls({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-primary shadow-xs">
-            <Sparkles className="size-3.5 text-primary" />
+            <AiWord className="size-3.5 text-primary" />
             <span>{vizType}</span>
           </div>
           <span className="font-mono text-xs font-medium text-muted-foreground">

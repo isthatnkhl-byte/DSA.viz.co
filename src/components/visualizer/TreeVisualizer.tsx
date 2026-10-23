@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type {
   Val,
   TreeTraversalState,
@@ -22,7 +23,6 @@ import {
   ArrowRight,
   ArrowDownLeft,
   ArrowDownRight,
-  Sparkles,
   CheckCircle2,
   XCircle,
   Compass,
@@ -902,7 +902,7 @@ export function TreeVisualizer({
             )}
             {lcaNodes && (
               <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1">
-                <Sparkles className="size-3.5 text-emerald-400" />
+                <AiWord className="size-3.5 text-emerald-400" />
                 LCA Convergence
               </span>
             )}

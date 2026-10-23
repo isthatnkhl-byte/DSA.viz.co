@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "motion/react";
-import { Sparkles, X, MessageSquare, Lightbulb, Compass, Code2 } from "lucide-react";
+import { X, MessageSquare, Lightbulb, Compass, Code2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useChat } from "@/context/ChatContext";
@@ -69,7 +70,7 @@ export function VizcoBuddy() {
       return {
         title: activeContext.problemTitle,
         desc: "Ask about this problem!",
-        icon: Sparkles,
+        icon: AiWord,
         prompt: "Can you explain the optimal approach, intuition, and edge cases for " + activeContext.problemTitle + "?",
       };
     }
@@ -95,7 +96,7 @@ export function VizcoBuddy() {
     return {
       title: "Vizco Buddy",
       desc: "Ready to help! Click to chat.",
-      icon: Sparkles,
+      icon: AiWord,
       prompt: "Hi Vizco Buddy! How can you help me master DSA?",
     };
   };

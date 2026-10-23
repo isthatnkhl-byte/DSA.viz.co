@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type { Val, BitRegisterState } from "./VisualizerTypes";
 import { safeArray, toText } from "./VisualizerTypes";
 import {
   Binary,
   Zap,
   Cpu,
-  Sparkles,
   Hash,
   ArrowRightLeft,
   ShieldAlert,
@@ -344,7 +344,7 @@ export function BitVisualizer({
       {selectedBit !== null && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-xs text-foreground animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="flex flex-wrap items-center gap-3">
-            <Sparkles className="size-4 text-cyan-400" />
+            <AiWord className="size-4 text-cyan-400" />
             <span className="font-bold">Inspected Bit Position:</span>
             <span className="font-mono font-black text-cyan-300 text-sm">Bit #{selectedBit}</span>
             <span className="rounded bg-cyan-500/20 px-2 py-0.5 font-mono text-[10px] text-cyan-300 border border-cyan-500/30 font-bold">
@@ -413,7 +413,7 @@ export function BitVisualizer({
         </div>
         {activeMask !== null && (
           <div className="flex items-center gap-1.5 font-bold text-foreground">
-            <Sparkles className="size-3.5 text-amber-400" />
+            <AiWord className="size-3.5 text-amber-400" />
             <span>Active Bit Mask: 0x{activeMask.toString(16).toUpperCase()}</span>
           </div>
         )}

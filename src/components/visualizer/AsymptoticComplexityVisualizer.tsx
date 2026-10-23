@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -18,7 +19,6 @@ import {
   Layers,
   Sliders,
   TrendingUp,
-  Sparkles,
   Info,
   Clock,
   Zap,
@@ -528,7 +528,7 @@ export function AsymptoticComplexityVisualizer({
                     <td className="py-2 pr-2">
                       {row.status === "current" ? (
                         <span className="inline-flex items-center gap-1 rounded-md bg-primary/20 border border-primary/40 px-2 py-0.5 text-[10px] text-primary font-bold animate-pulse">
-                          <Sparkles className="size-3" />
+                          <AiWord className="size-3" />
                           Current Algorithm
                         </span>
                       ) : (

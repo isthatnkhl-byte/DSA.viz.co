@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { AiWord } from "@/components/brand/AiWord";
 import { useEffect, useState } from "react";
 import { 
-  Sparkles, 
   ArrowLeft, 
   ShieldCheck, 
   CheckCircle2, 
@@ -106,7 +106,7 @@ function AuthPage() {
         {/* Card */}
         <div className="w-full rounded-2xl border border-border/80 bg-card/75 p-6 sm:p-8 shadow-sm backdrop-blur-sm animate-rise">
           <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm shadow-primary/20">
-            <Sparkles className="size-7 animate-pulse" />
+            <AiWord className="size-7 animate-pulse" />
           </div>
 
           <h2 className="mt-4 text-2xl font-black tracking-tight text-foreground sm:text-3xl">

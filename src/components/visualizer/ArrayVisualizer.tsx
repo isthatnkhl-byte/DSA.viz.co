@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useEffect } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type {
   Val,
   DnfPartition,
@@ -17,7 +18,6 @@ import { safeArray } from "./VisualizerTypes";
 import {
   Layers,
   ArrowRightLeft,
-  Sparkles,
   Split,
   Binary,
   Compass,
@@ -760,7 +760,7 @@ export function ArrayVisualizer({
       >
         {isMathSimulation ? (
           <div className="flex flex-col items-center justify-center gap-3 opacity-80 animate-fade">
-            <Sparkles className="size-8 text-primary/60" />
+            <AiWord className="size-8 text-primary/60" />
             <span className="font-mono text-sm font-bold text-muted-foreground uppercase tracking-widest">
               Variables Trace
             </span>

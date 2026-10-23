@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import type {
   LfuCacheState,
   SkipListState,
@@ -10,7 +11,6 @@ import {
   Layers,
   ArrowRight,
   ArrowLeftRight,
-  Sparkles,
   CheckCircle2,
   XCircle,
   ShieldAlert,
@@ -175,7 +175,7 @@ function LfuCacheRenderer({ lfu }: { lfu: LfuCacheState }) {
 
           {/* Min Frequency Tracker Badge */}
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 shadow-xs">
-            <Sparkles className="size-3 text-amber-400" />
+            <AiWord className="size-3 text-amber-400" />
             <span className="text-[11px] font-bold">min_freq:</span>
             <strong className="text-amber-200 font-extrabold text-sm">{minFreq}</strong>
           </div>
@@ -341,7 +341,7 @@ function LfuCacheRenderer({ lfu }: { lfu: LfuCacheState }) {
                         </span>
                         {isMin && (
                           <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wide flex items-center gap-1">
-                            <Sparkles className="size-2.5 text-amber-400" />
+                            <AiWord className="size-2.5 text-amber-400" />
                             min_freq bucket
                           </span>
                         )}
@@ -523,7 +523,7 @@ function SkipListRenderer({ skiplist }: { skiplist: SkipListState }) {
               )}
               {probabilisticHeight !== undefined && probabilisticHeight !== null && (
                 <span className="text-amber-300 font-semibold flex items-center gap-1">
-                  <Sparkles className="size-3" /> Coin-flip Tower Height: <strong>{probabilisticHeight}</strong>
+                  <AiWord className="size-3" /> Coin-flip Tower Height: <strong>{probabilisticHeight}</strong>
                 </span>
               )}
             </div>

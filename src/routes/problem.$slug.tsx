@@ -1,8 +1,8 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { AiWord } from "@/components/brand/AiWord";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
-  Sparkles,
   RotateCcw,
   BookOpen,
   Lightbulb,
@@ -1257,7 +1257,7 @@ def solve(input_data):
           <div className="rounded-3xl border border-border/70 bg-card/60 p-6 shadow-sm backdrop-blur-md flex flex-col gap-3">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="size-4 text-primary" />
+                <AiWord className="size-4 text-primary" />
                 <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
                   Pseudocode &amp; Algorithm Draft
                 </h3>
@@ -1334,7 +1334,7 @@ def solve(input_data):
                   <div className="relative flex size-16 items-center justify-center">
                     <div className="absolute inset-0 rounded-2xl bg-primary/20 animate-ping opacity-40" />
                     <div className="relative flex size-14 items-center justify-center rounded-2xl border border-primary/50 bg-primary/10 text-primary shadow-sm shadow-primary/20">
-                      <Sparkles className="size-7 animate-pulse text-primary" />
+                      <AiWord className="size-7 animate-pulse text-primary" />
                     </div>
                   </div>
 
@@ -1465,7 +1465,7 @@ def solve(input_data):
                       onClick={insertStarterTemplate}
                       className="btn-glide gap-1.5 font-mono text-xs font-semibold border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
                     >
-                      <Sparkles className="size-3.5 text-amber-400" /> Insert Starter Template
+                      <AiWord className="size-3.5 text-amber-400" /> Insert Starter Template
                     </Button>
                   </div>
                 </div>

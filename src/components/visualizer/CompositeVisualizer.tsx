@@ -37,7 +37,6 @@ import type {
 import { safeArray, safeMatrix, toText, coordKey } from "./VisualizerTypes";
 import {
   Layers,
-  Sparkles,
   ArrowRightLeft,
   ArrowRight,
   Database,

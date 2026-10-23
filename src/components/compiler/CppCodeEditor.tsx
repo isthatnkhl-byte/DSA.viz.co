@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
+import { AiWord } from "@/components/brand/AiWord";
 import {
   Copy,
   Check,
   Download,
-  Sparkles,
   Maximize2,
   Minimize2,
   Type,
@@ -1195,7 +1195,7 @@ export function CppCodeEditor({
                 : "border-slate-700 bg-slate-950/80 text-slate-200 hover:border-primary hover:text-primary"
             }`}
           >
-            <Sparkles className="size-3 text-primary" />
+            <AiWord className="size-3 text-primary" />
             <span className="hidden sm:inline">Format</span>
           </button>
 

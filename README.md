@@ -35,6 +35,17 @@
   <a href="#-quickstart--vercel-deployment"><b>🚀 Quickstart & Deploy</b></a>
 </p>
 
+<details>
+<summary><b>✨ New: Adaptive Master Patterns Cognitive Engine (<code>/master-patterns</code>)</b> — 12-Pattern DAG · 2-Question Probe · R0–R3 Hints · Hidden-Gap Detection</summary>
+<br />
+
+- **12-Pattern Canonical Curriculum DAG (`src/data/patterns.ts`)**: 12 core interview patterns, 49 invariant strands, 40 internal/cross-pattern dependency edges, confusable twins, and twist operators.
+- **Calibrated Routing (`Intermediate` vs `Pro`) + Optional 2-Question Probe**: Bracket per-strand floor/ceiling (`strandsObserved`) dynamically or pick your track directly (`POST /api/patterns/session/start-probe`).
+- **`O(1)` Bounded Cloud Profile + IndexedDB Transcripts**: Per-user Firestore state (`users/{uid}/pattern_mastery/profile`) stores FSRS-lite stability, decay, `calibrationBias`, and capped error signatures while browser IndexedDB keeps drafts/transcripts offline-resumable.
+- **Socratic Hints, Hidden-Gap Twists & Executable Case-Study Audits**: Includes `POST /api/patterns/session/hint` (`R0 -> R3`), Gemini cross-signal checks, flipped-modality fresh-surface `retestQueue`, and C++/Python/Java case-study sandbox drivers.
+
+</details>
+
 </div>
 
 ---
@@ -141,6 +152,21 @@ Want to run unlimited AI evaluations with your own **Google Gemini (`AIza...`)**
 
 </details>
 
+<details>
+<summary><b>07 · 🧠 Adaptive Master Patterns Cognitive Engine (<code>/master-patterns</code>)</b> <i>(Click to toggle)</i></summary>
+<br />
+
+An adaptive spaced-retrieval & Socratic coaching engine modeled around **first-principles invariant mastery** rather than rote problem memorization:
+
+- **12-Pattern Canonical DAG (`src/data/patterns.ts`)**: Models **12 core interview patterns**, **49 granular strands**, **40 internal & cross-pattern dependency edges**, confusable twins, and typed twist operators (`constraint-twist`, `reverse-premise`, `break-the-premise`, `discrimination`).
+- **Calibration Track or 2-Question Binary-Search Probe (`/api/patterns/session/start-probe`)**: Learners can self-select **Intermediate** (First-Principles Notes + Excalidraw whiteboard diagrams -> Guided Checks) or **Pro** (Gauntlet -> Executable Case Study & Complexity Audit), or take a **2-question adaptive probe** that records per-strand `floor`/`ceiling`/`evidence` (`strandsObserved`) and routes automatically.
+- **Cross-Signal Hidden-Gap Detection & Twisted Follow-Ups (`src/lib/master-patterns/engine.server.ts`)**: Evaluates BOTH MCQ/code correctness and the learner's **Verbal Approach**; picking a lucky right answer with flawed reasoning triggers surgical micro-teaching, an error signature, and an immediate **Twisted Indirect Follow-Up**.
+- **Progressive `R0 -> R3` Hint Ladder + Fresh-Surface `retestQueue`**: `/api/patterns/session/hint` escalates from structural framing (`R0`) -> boundary check (`R1`) -> trace (`R2`) -> scaffold (`R3`) while factoring hint reliance into FSRS mastery updates and queuing missed/`R2+`-assisted strands for a modality-flipped unassisted retest.
+- **Executable Case-Study Test Drivers & Big-O Audits (`src/lib/master-patterns/test-drivers.ts`)**: Runs C++, Python (auto-binding both LeetCode `class Solution` and standalone functions), and Java harnesses in isolated sandboxes alongside `codeAudit` time/space tier scoring (`Incomplete` / `Brute Force` / `Better` / `Optimal`).
+- **`O(1)` Bounded Cloud Memory + IndexedDB Session Archive**: Server persists a single bounded document per user (`users/{uid}/pattern_mastery/profile`, capped at `20` active error signatures & `10` recent sessions via `src/db/pattern-mastery.ts` and `src/lib/master-patterns/scheduler.ts`), while full session transcripts & drafts stay in local IndexedDB (`src/lib/master-patterns/local-store.ts`) with `/session/rehydrate` recovery, strict server rubric stripping (`stripRubricFromCard`), AI response healing (`healer.ts`), and single-flight turn locking (`turn-liveness.ts`).
+
+</details>
+
 ---
 
 ## 📊 Multi-Datastructure Visualization Engine
@@ -172,7 +198,7 @@ flowchart TB
     subgraph Browser["🌐 Client Realm (React 19 + TanStack Router + Tailwind v4)"]
         Landing["Public Landing Stage (/)\nLive Hero Preview + Interaction Gate"]
         AuthPage["Google OAuth Gate (/auth)\nFirebase Popup + Redirect Fallback"]
-        Workspace["Protected Workspaces\n/problems · /sheets · /playground · /compiler · /live-interview · /profile"]
+        Workspace["Protected Workspaces\n/problems · /sheets · /master-patterns · /playground · /compiler · /live-interview · /profile"]
         KeyVaultModal["API Key Vault Modal\nZero-Frontend-Storage BYOK"]
     end
 
@@ -185,6 +211,7 @@ flowchart TB
 
     subgraph CoreEngines["⚙️ Backend Intelligence & Execution Engines"]
         Judge["LeetCode Multi-Testcase Judge\nSample + Hidden Boundary Runner"]
+        PatternEngine["Master Patterns Engine\n12-Pattern DAG · Probe · R0–R3 Hints · Audits"]
         AIRace["Multi-Model AI Racing Engine\nGemini 3.8/2.5 Flash ↔ OpenRouter ↔ OpenAI"]
         Compiler["Isolated Cloud Compiler\nGodbolt GCC 14.1 / Java 21 / Python 3.12 + Wandbox"]
         Sync["Telemetry Sync Engine\nFirestore + LeetCode GraphQL + GitHub REST"]
@@ -194,7 +221,7 @@ flowchart TB
     AuthPage -->|Verified Google ID Token| Workspace
     Workspace -->|Bearer JWT| HTTPS --> Headers --> AuthGate --> VaultCtx
     KeyVaultModal -->|AES-256-GCM Seal| VaultCtx
-    VaultCtx --> Judge & AIRace & Compiler & Sync
+    VaultCtx --> Judge & PatternEngine & AIRace & Compiler & Sync
 ```
 
 ### 2. Dynamic Code Judging & Promotion Lifecycle
@@ -250,11 +277,16 @@ DSA.viz.co/
 │   │   │   ├── MonacoCodeEditor.tsx     # Multi-language Monaco editor
 │   │   │   └── LeetCodeTestDrawer.tsx   # Per-testcase runner & diff diagnostic drawer
 │   │   ├── landing/                     # Neo-Brutalist Print-Tech Hero & live showcase
+│   │   ├── patterns/                    # Adaptive Master Patterns UI stages, notes & scorecard
 │   │   └── visualizer/                  # 11 specialized data-structure canvas engines
 │   ├── context/
 │   │   └── AuthContext.tsx              # Firebase Google OAuth session & profile provider
+│   ├── data/
+│   │   └── patterns.ts                  # Canonical 12-pattern, 49-strand, 40-edge curriculum DAG
 │   ├── db/                              # Firestore + Redis + /tmp/.data persistence layer
+│   │   └── pattern-mastery.ts           # Bounded O(1) per-user profile & TTL session store
 │   ├── lib/
+│   │   ├── master-patterns/             # Adaptive scheduler, cognitive engine, healer, hints, drivers & router
 │   │   ├── leetcode-judge.server.ts     # Dynamic multi-testcase AI + sandbox judge
 │   │   ├── leetcode-testcases.ts        # Canonical testcase & signature extractor
 │   │   ├── openrouter.server.ts         # Multi-model racing & failover engine
@@ -262,15 +294,20 @@ DSA.viz.co/
 │   ├── middleware/
 │   │   ├── auth.ts                      # RS256 Google OAuth bearer token verifier
 │   │   └── security.ts                  # HTTPS enforcer, HSTS, CSP, COOP & CORP headers
+│   ├── pages/
+│   │   └── MasterPatternsPage.tsx       # Master Patterns workspace & IndexedDB local trace sync
 │   └── routes/
 │       ├── index.tsx                    # Public landing page with interaction gate
 │       ├── auth.tsx                     # Google Sign-In portal with safe redirect handling
+│       ├── master-patterns.tsx          # /master-patterns adaptive DSA mastery route
 │       ├── sheets.tsx                   # Overhauled DSA Sheets hub with spotlight randomizer
 │       ├── compiler.tsx                 # Multi-language sandbox IDE
 │       ├── live-interview.tsx           # 3-Tier proctored FAANG mock interview room
 │       ├── problem.$slug.tsx            # Problem workspace, visualizer & testcase judge
 │       └── _authenticated/
 │           └── profile.tsx              # Unified Profile + Dashboard telemetry hub
+├── test/
+│   └── master-patterns-*.test.ts        # 5 test suites covering DAG, scheduler, router, drivers & hints
 ├── server.ts                            # Full-stack Express 5 API & Vite middleware server
 ├── vercel.json                          # Vercel serverless routing, maxDuration=60 & headers
 └── package.json                         # Build scripts, dependencies & test runner
@@ -337,6 +374,9 @@ npm run lint
 
 # Run the security, auth, simulator, and pipeline test suite
 npm test
+
+# Run the Adaptive Master Patterns test suite (DAG, scheduler, API router, drivers & hints)
+npx tsx --test test/master-patterns-phase1.test.ts test/master-patterns-phase2.test.ts test/master-patterns-phase3.test.ts test/master-patterns-must-adds.test.ts test/master-patterns-evolved.test.ts
 
 # Build production client assets (dist/) and serverless bundle (api/server.cjs)
 npm run build

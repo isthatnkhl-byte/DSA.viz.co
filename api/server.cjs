@@ -19075,11 +19075,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path10) {
-      if (!path10 || typeof path10 !== "string") {
+    function lookup(path11) {
+      if (!path11 || typeof path11 !== "string") {
         return false;
       }
-      var extension3 = extname("x." + path10).toLowerCase().slice(1);
+      var extension3 = extname("x." + path11).toLowerCase().slice(1);
       if (!extension3) {
         return false;
       }
@@ -22766,13 +22766,13 @@ var require_view = __commonJS({
   "node_modules/express/lib/view.js"(exports2, module2) {
     "use strict";
     var debug = require_src()("express:view");
-    var path10 = require("node:path");
-    var fs11 = require("node:fs");
-    var dirname = path10.dirname;
-    var basename3 = path10.basename;
-    var extname = path10.extname;
-    var join = path10.join;
-    var resolve = path10.resolve;
+    var path11 = require("node:path");
+    var fs12 = require("node:fs");
+    var dirname = path11.dirname;
+    var basename3 = path11.basename;
+    var extname = path11.extname;
+    var join = path11.join;
+    var resolve = path11.resolve;
     module2.exports = View;
     function View(name, options) {
       var opts = options || {};
@@ -22801,17 +22801,17 @@ var require_view = __commonJS({
       this.path = this.lookup(fileName);
     }
     View.prototype.lookup = function lookup(name) {
-      var path11;
+      var path12;
       var roots = [].concat(this.root);
       debug('lookup "%s"', name);
-      for (var i2 = 0; i2 < roots.length && !path11; i2++) {
+      for (var i2 = 0; i2 < roots.length && !path12; i2++) {
         var root = roots[i2];
         var loc = resolve(root, name);
         var dir = dirname(loc);
         var file2 = basename3(loc);
-        path11 = this.resolve(dir, file2);
+        path12 = this.resolve(dir, file2);
       }
-      return path11;
+      return path12;
     };
     View.prototype.render = function render(options, callback) {
       var sync = true;
@@ -22833,21 +22833,21 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve2(dir, file2) {
       var ext = this.ext;
-      var path11 = join(dir, file2);
-      var stat3 = tryStat(path11);
+      var path12 = join(dir, file2);
+      var stat3 = tryStat(path12);
       if (stat3 && stat3.isFile()) {
-        return path11;
+        return path12;
       }
-      path11 = join(dir, basename3(file2, ext), "index" + ext);
-      stat3 = tryStat(path11);
+      path12 = join(dir, basename3(file2, ext), "index" + ext);
+      stat3 = tryStat(path12);
       if (stat3 && stat3.isFile()) {
-        return path11;
+        return path12;
       }
     };
-    function tryStat(path11) {
-      debug('stat "%s"', path11);
+    function tryStat(path12) {
+      debug('stat "%s"', path12);
       try {
-        return fs11.statSync(path11);
+        return fs12.statSync(path12);
       } catch (e2) {
         return void 0;
       }
@@ -22964,14 +22964,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports2, module2) {
     "use strict";
     module2.exports = etag;
-    var crypto6 = require("crypto");
+    var crypto7 = require("crypto");
     var Stats = require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash2 = crypto6.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash2 = crypto7.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash2 + '"';
     }
@@ -24103,15 +24103,15 @@ var require_dist3 = __commonJS({
       let index = 0;
       function consumeUntil(end) {
         const output2 = [];
-        let path10 = "";
+        let path11 = "";
         function writePath() {
-          if (!path10)
+          if (!path11)
             return;
           output2.push({
             type: "text",
-            value: encodePath(path10)
+            value: encodePath(path11)
           });
-          path10 = "";
+          path11 = "";
         }
         while (index < chars.length) {
           const value = chars[index++];
@@ -24123,7 +24123,7 @@ var require_dist3 = __commonJS({
             if (index === chars.length) {
               throw new PathError(`Unexpected end after \\ at index ${index}`, str);
             }
-            path10 += chars[index++];
+            path11 += chars[index++];
             continue;
           }
           if (value === ":" || value === "*") {
@@ -24167,7 +24167,7 @@ var require_dist3 = __commonJS({
           if (value === "}" || value === "(" || value === ")" || value === "[" || value === "]" || value === "+" || value === "?" || value === "!") {
             throw new PathError(`Unexpected ${value} at index ${index - 1}`, str);
           }
-          path10 += value;
+          path11 += value;
         }
         if (end) {
           throw new PathError(`Unexpected end at index ${index}, expected ${end}`, str);
@@ -24177,17 +24177,17 @@ var require_dist3 = __commonJS({
       }
       return new TokenData(consumeUntil(""), str);
     }
-    function compile2(path10, options = {}) {
+    function compile2(path11, options = {}) {
       const { encode: encode5 = encodeURIComponent, delimiter = DEFAULT_DELIMITER } = options;
-      const data = typeof path10 === "object" ? path10 : parse3(path10, options);
+      const data = typeof path11 === "object" ? path11 : parse3(path11, options);
       const fn = tokensToFunction(data.tokens, delimiter, encode5);
-      return function path11(params = {}) {
+      return function path12(params = {}) {
         const missing = [];
-        const path12 = fn(params, missing);
+        const path13 = fn(params, missing);
         if (missing.length) {
           throw new TypeError(`Missing parameters: ${missing.join(", ")}`);
         }
-        return path12;
+        return path13;
       };
     }
     function tokensToFunction(tokens, delimiter, encode5) {
@@ -24249,9 +24249,9 @@ var require_dist3 = __commonJS({
         return encodeValue(value);
       };
     }
-    function match2(path10, options = {}) {
+    function match2(path11, options = {}) {
       const { decode: decode4 = decodeURIComponent, delimiter = DEFAULT_DELIMITER } = options;
-      const { regexp, keys } = pathToRegexp(path10, options);
+      const { regexp, keys } = pathToRegexp(path11, options);
       const decoders = keys.map((key) => {
         if (decode4 === false)
           return NOOP_VALUE;
@@ -24263,7 +24263,7 @@ var require_dist3 = __commonJS({
         const m2 = regexp.exec(input2);
         if (!m2)
           return false;
-        const path11 = m2[0];
+        const path12 = m2[0];
         const params = /* @__PURE__ */ Object.create(null);
         for (let i2 = 1; i2 < m2.length; i2++) {
           if (m2[i2] === void 0)
@@ -24272,21 +24272,21 @@ var require_dist3 = __commonJS({
           const decoder2 = decoders[i2 - 1];
           params[key.name] = decoder2(m2[i2]);
         }
-        return { path: path11, params };
+        return { path: path12, params };
       };
     }
-    function pathToRegexp(path10, options = {}) {
+    function pathToRegexp(path11, options = {}) {
       const { delimiter = DEFAULT_DELIMITER, end = true, sensitive = false, trailing = true } = options;
       const keys = [];
       let source = "";
       let combinations = 0;
-      function process3(path11) {
-        if (Array.isArray(path11)) {
-          for (const p of path11)
+      function process3(path12) {
+        if (Array.isArray(path12)) {
+          for (const p of path12)
             process3(p);
           return;
         }
-        const data = typeof path11 === "object" ? path11 : parse3(path11, options);
+        const data = typeof path12 === "object" ? path12 : parse3(path12, options);
         flatten(data.tokens, 0, [], (tokens) => {
           if (combinations >= 256) {
             throw new PathError("Too many path combinations", data.originalPath);
@@ -24297,7 +24297,7 @@ var require_dist3 = __commonJS({
           combinations++;
         });
       }
-      process3(path10);
+      process3(path11);
       let pattern = `^(?:${source})`;
       if (trailing)
         pattern += "(?:" + escape2(delimiter) + "$)?";
@@ -24437,18 +24437,18 @@ var require_layer = __commonJS({
     var TRAILING_SLASH_REGEXP = /\/+$/;
     var MATCHING_GROUP_REGEXP = /\((?:\?<(.*?)>)?(?!\?)/g;
     module2.exports = Layer;
-    function Layer(path10, options, fn) {
+    function Layer(path11, options, fn) {
       if (!(this instanceof Layer)) {
-        return new Layer(path10, options, fn);
+        return new Layer(path11, options, fn);
       }
-      debug("new %o", path10);
+      debug("new %o", path11);
       const opts = options || {};
       this.handle = fn;
       this.keys = [];
       this.name = fn.name || "<anonymous>";
       this.params = void 0;
       this.path = void 0;
-      this.slash = path10 === "/" && opts.end === false;
+      this.slash = path11 === "/" && opts.end === false;
       function matcher(_path) {
         if (_path instanceof RegExp) {
           const keys = [];
@@ -24487,7 +24487,7 @@ var require_layer = __commonJS({
           decode: decodeParam
         });
       }
-      this.matchers = Array.isArray(path10) ? path10.map(matcher) : [matcher(path10)];
+      this.matchers = Array.isArray(path11) ? path11.map(matcher) : [matcher(path11)];
     }
     Layer.prototype.handleError = function handleError(error61, req, res, next) {
       const fn = this.handle;
@@ -24527,9 +24527,9 @@ var require_layer = __commonJS({
         next(err);
       }
     };
-    Layer.prototype.match = function match2(path10) {
+    Layer.prototype.match = function match2(path11) {
       let match3;
-      if (path10 != null) {
+      if (path11 != null) {
         if (this.slash) {
           this.params = {};
           this.path = "";
@@ -24537,7 +24537,7 @@ var require_layer = __commonJS({
         }
         let i2 = 0;
         while (!match3 && i2 < this.matchers.length) {
-          match3 = this.matchers[i2](path10);
+          match3 = this.matchers[i2](path11);
           i2++;
         }
       }
@@ -24565,13 +24565,13 @@ var require_layer = __commonJS({
         throw err;
       }
     }
-    function loosen(path10) {
-      if (path10 instanceof RegExp || path10 === "/") {
-        return path10;
+    function loosen(path11) {
+      if (path11 instanceof RegExp || path11 === "/") {
+        return path11;
       }
-      return Array.isArray(path10) ? path10.map(function(p) {
+      return Array.isArray(path11) ? path11.map(function(p) {
         return loosen(p);
-      }) : String(path10).replace(TRAILING_SLASH_REGEXP, "");
+      }) : String(path11).replace(TRAILING_SLASH_REGEXP, "");
     }
   }
 });
@@ -24587,9 +24587,9 @@ var require_route = __commonJS({
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
     module2.exports = Route;
-    function Route(path10) {
-      debug("new %o", path10);
-      this.path = path10;
+    function Route(path11) {
+      debug("new %o", path11);
+      this.path = path11;
       this.stack = [];
       this.methods = /* @__PURE__ */ Object.create(null);
     }
@@ -24710,11 +24710,11 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module2.exports = Router;
+    module2.exports = Router2;
     module2.exports.Route = Route;
-    function Router(options) {
-      if (!(this instanceof Router)) {
-        return new Router(options);
+    function Router2(options) {
+      if (!(this instanceof Router2)) {
+        return new Router2(options);
       }
       const opts = options || {};
       function router(req, res, next) {
@@ -24728,9 +24728,9 @@ var require_router = __commonJS({
       router.stack = [];
       return router;
     }
-    Router.prototype = function() {
+    Router2.prototype = function() {
     };
-    Router.prototype.param = function param(name, fn) {
+    Router2.prototype.param = function param(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -24750,7 +24750,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router.prototype.handle = function handle(req, res, callback) {
+    Router2.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -24797,8 +24797,8 @@ var require_router = __commonJS({
         if (++sync > 100) {
           return setImmediate(next, err);
         }
-        const path10 = getPathname(req);
-        if (path10 == null) {
+        const path11 = getPathname(req);
+        if (path11 == null) {
           return done(layerError);
         }
         let layer;
@@ -24806,7 +24806,7 @@ var require_router = __commonJS({
         let route;
         while (match2 !== true && idx < stack.length) {
           layer = stack[idx++];
-          match2 = matchLayer(layer, path10);
+          match2 = matchLayer(layer, path11);
           route = layer.route;
           if (typeof match2 !== "boolean") {
             layerError = layerError || match2;
@@ -24844,18 +24844,18 @@ var require_router = __commonJS({
           } else if (route) {
             layer.handleRequest(req, res, next);
           } else {
-            trimPrefix(layer, layerError, layerPath, path10);
+            trimPrefix(layer, layerError, layerPath, path11);
           }
           sync = 0;
         });
       }
-      function trimPrefix(layer, layerError, layerPath, path10) {
+      function trimPrefix(layer, layerError, layerPath, path11) {
         if (layerPath.length !== 0) {
-          if (layerPath !== path10.substring(0, layerPath.length)) {
+          if (layerPath !== path11.substring(0, layerPath.length)) {
             next(layerError);
             return;
           }
-          const c = path10[layerPath.length];
+          const c = path11[layerPath.length];
           if (c && c !== "/") {
             next(layerError);
             return;
@@ -24877,9 +24877,9 @@ var require_router = __commonJS({
         }
       }
     };
-    Router.prototype.use = function use(handler) {
+    Router2.prototype.use = function use(handler) {
       let offset = 0;
-      let path10 = "/";
+      let path11 = "/";
       if (typeof handler !== "function") {
         let arg = handler;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -24887,7 +24887,7 @@ var require_router = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path10 = handler;
+          path11 = handler;
         }
       }
       const callbacks = flatten.call(slice.call(arguments, offset), Infinity);
@@ -24899,8 +24899,8 @@ var require_router = __commonJS({
         if (typeof fn !== "function") {
           throw new TypeError("argument handler must be a function");
         }
-        debug("use %o %s", path10, fn.name || "<anonymous>");
-        const layer = new Layer(path10, {
+        debug("use %o %s", path11, fn.name || "<anonymous>");
+        const layer = new Layer(path11, {
           sensitive: this.caseSensitive,
           strict: false,
           end: false
@@ -24910,9 +24910,9 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router.prototype.route = function route(path10) {
-      const route2 = new Route(path10);
-      const layer = new Layer(path10, {
+    Router2.prototype.route = function route(path11) {
+      const route2 = new Route(path11);
+      const layer = new Layer(path11, {
         sensitive: this.caseSensitive,
         strict: this.strict,
         end: true
@@ -24925,8 +24925,8 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router.prototype[method] = function(path10) {
-        const route = this.route(path10);
+      Router2.prototype[method] = function(path11) {
+        const route = this.route(path11);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
@@ -24955,9 +24955,9 @@ var require_router = __commonJS({
       const fqdnIndex = url2.substring(0, pathLength).indexOf("://");
       return fqdnIndex !== -1 ? url2.substring(0, url2.indexOf("/", 3 + fqdnIndex)) : void 0;
     }
-    function matchLayer(layer, path10) {
+    function matchLayer(layer, path11) {
       try {
-        return layer.match(path10);
+        return layer.match(path11);
       } catch (err) {
         return err;
       }
@@ -25108,7 +25108,7 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = require("node:path").resolve;
     var once = require_once();
-    var Router = require_router();
+    var Router2 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports2 = module2.exports = {};
@@ -25124,7 +25124,7 @@ var require_application = __commonJS({
         enumerable: true,
         get: function getrouter() {
           if (router === null) {
-            router = new Router({
+            router = new Router2({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
@@ -25185,7 +25185,7 @@ var require_application = __commonJS({
     };
     app2.use = function use(fn) {
       var offset = 0;
-      var path10 = "/";
+      var path11 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -25193,7 +25193,7 @@ var require_application = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path10 = fn;
+          path11 = fn;
         }
       }
       var fns = flatten.call(slice.call(arguments, offset), Infinity);
@@ -25203,12 +25203,12 @@ var require_application = __commonJS({
       var router = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router.use(path10, fn2);
+          return router.use(path11, fn2);
         }
-        debug(".use app under %s", path10);
-        fn2.mountpath = path10;
+        debug(".use app under %s", path11);
+        fn2.mountpath = path11;
         fn2.parent = this;
-        router.use(path10, function mounted_app(req, res, next) {
+        router.use(path11, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -25220,8 +25220,8 @@ var require_application = __commonJS({
       }, this);
       return this;
     };
-    app2.route = function route(path10) {
-      return this.router.route(path10);
+    app2.route = function route(path11) {
+      return this.router.route(path11);
     };
     app2.engine = function engine(ext, fn) {
       if (typeof fn !== "function") {
@@ -25264,7 +25264,7 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app2.path = function path10() {
+    app2.path = function path11() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
     app2.enabled = function enabled(setting) {
@@ -25280,17 +25280,17 @@ var require_application = __commonJS({
       return this.set(setting, false);
     };
     methods.forEach(function(method) {
-      app2[method] = function(path10) {
+      app2[method] = function(path11) {
         if (method === "get" && arguments.length === 1) {
-          return this.set(path10);
+          return this.set(path11);
         }
-        var route = this.route(path10);
+        var route = this.route(path11);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
     });
-    app2.all = function all(path10) {
-      var route = this.route(path10);
+    app2.all = function all(path11) {
+      var route = this.route(path11);
       var args = slice.call(arguments, 1);
       for (var i2 = 0; i2 < methods.length; i2++) {
         route[methods[i2]].apply(route, args);
@@ -26275,7 +26275,7 @@ var require_request = __commonJS({
       var subdomains2 = !isIP3(hostname3) ? hostname3.split(".").reverse() : [hostname3];
       return subdomains2.slice(offset);
     });
-    defineGetter(req, "path", function path10() {
+    defineGetter(req, "path", function path11() {
       return parse3(this).pathname;
     });
     defineGetter(req, "host", function host() {
@@ -26486,8 +26486,8 @@ var require_content_disposition = __commonJS({
       this.type = type;
       this.parameters = parameters;
     }
-    function basename3(path10) {
-      const normalized = path10.replaceAll("\\", "/");
+    function basename3(path11) {
+      const normalized = path11.replaceAll("\\", "/");
       let end = normalized.length;
       while (end > 0 && normalized[end - 1] === "/") {
         end--;
@@ -26537,17 +26537,17 @@ var require_content_disposition = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports2) {
-    var crypto6 = require("crypto");
+    var crypto7 = require("crypto");
     exports2.sign = function(val, secret) {
       if ("string" != typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto6.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto7.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports2.unsign = function(input2, secret) {
       if ("string" != typeof input2) throw new TypeError("Signed cookie string must be provided.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
       var tentativeValue = input2.slice(0, input2.lastIndexOf(".")), expectedInput = exports2.sign(tentativeValue, secret), expectedBuffer = Buffer.from(expectedInput), inputBuffer = Buffer.from(input2);
-      return expectedBuffer.length === inputBuffer.length && crypto6.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
+      return expectedBuffer.length === inputBuffer.length && crypto7.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
     };
   }
 });
@@ -26728,32 +26728,32 @@ var require_send = __commonJS({
     var escapeHtml2 = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var mime = require_mime_types();
     var ms = require_ms();
     var onFinished = require_on_finished();
     var parseRange = require_range_parser();
-    var path10 = require("path");
+    var path11 = require("path");
     var statuses = require_statuses();
     var Stream4 = require("stream");
     var util = require("util");
-    var extname = path10.extname;
-    var join = path10.join;
-    var normalize2 = path10.normalize;
-    var resolve = path10.resolve;
-    var sep = path10.sep;
+    var extname = path11.extname;
+    var join = path11.join;
+    var normalize2 = path11.normalize;
+    var resolve = path11.resolve;
+    var sep = path11.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
     module2.exports = send;
-    function send(req, path11, options) {
-      return new SendStream(req, path11, options);
+    function send(req, path12, options) {
+      return new SendStream(req, path12, options);
     }
-    function SendStream(req, path11, options) {
+    function SendStream(req, path12, options) {
       Stream4.call(this);
       var opts = options || {};
       this.options = opts;
-      this.path = path11;
+      this.path = path12;
       this.req = req;
       this._acceptRanges = opts.acceptRanges !== void 0 ? Boolean(opts.acceptRanges) : true;
       this._cacheControl = opts.cacheControl !== void 0 ? Boolean(opts.cacheControl) : true;
@@ -26867,10 +26867,10 @@ var require_send = __commonJS({
       var lastModified = this.res.getHeader("Last-Modified");
       return parseHttpDate(lastModified) <= parseHttpDate(ifRange);
     };
-    SendStream.prototype.redirect = function redirect(path11) {
+    SendStream.prototype.redirect = function redirect(path12) {
       var res = this.res;
       if (hasListeners(this, "directory")) {
-        this.emit("directory", res, path11);
+        this.emit("directory", res, path12);
         return;
       }
       if (this.hasTrailingSlash()) {
@@ -26890,38 +26890,38 @@ var require_send = __commonJS({
     SendStream.prototype.pipe = function pipe2(res) {
       var root = this._root;
       this.res = res;
-      var path11 = decode4(this.path);
-      if (path11 === -1) {
+      var path12 = decode4(this.path);
+      if (path12 === -1) {
         this.error(400);
         return res;
       }
-      if (~path11.indexOf("\0")) {
+      if (~path12.indexOf("\0")) {
         this.error(400);
         return res;
       }
       var parts;
       if (root !== null) {
-        if (path11) {
-          path11 = normalize2("." + sep + path11);
+        if (path12) {
+          path12 = normalize2("." + sep + path12);
         }
-        if (UP_PATH_REGEXP.test(path11)) {
-          debug('malicious path "%s"', path11);
+        if (UP_PATH_REGEXP.test(path12)) {
+          debug('malicious path "%s"', path12);
           this.error(403);
           return res;
         }
-        parts = path11.split(sep);
-        path11 = normalize2(join(root, path11));
+        parts = path12.split(sep);
+        path12 = normalize2(join(root, path12));
       } else {
-        if (UP_PATH_REGEXP.test(path11)) {
-          debug('malicious path "%s"', path11);
+        if (UP_PATH_REGEXP.test(path12)) {
+          debug('malicious path "%s"', path12);
           this.error(403);
           return res;
         }
-        parts = normalize2(path11).split(sep);
-        path11 = resolve(path11);
+        parts = normalize2(path12).split(sep);
+        path12 = resolve(path12);
       }
       if (containsDotFile(parts)) {
-        debug('%s dotfile "%s"', this._dotfiles, path11);
+        debug('%s dotfile "%s"', this._dotfiles, path12);
         switch (this._dotfiles) {
           case "allow":
             break;
@@ -26935,13 +26935,13 @@ var require_send = __commonJS({
         }
       }
       if (this._index.length && this.hasTrailingSlash()) {
-        this.sendIndex(path11);
+        this.sendIndex(path12);
         return res;
       }
-      this.sendFile(path11);
+      this.sendFile(path12);
       return res;
     };
-    SendStream.prototype.send = function send2(path11, stat3) {
+    SendStream.prototype.send = function send2(path12, stat3) {
       var len = stat3.size;
       var options = this.options;
       var opts = {};
@@ -26953,9 +26953,9 @@ var require_send = __commonJS({
         this.headersAlreadySent();
         return;
       }
-      debug('pipe "%s"', path11);
-      this.setHeader(path11, stat3);
-      this.type(path11);
+      debug('pipe "%s"', path12);
+      this.setHeader(path12, stat3);
+      this.type(path12);
       if (this.isConditionalGET()) {
         if (this.isPreconditionFailure()) {
           this.error(412);
@@ -27004,30 +27004,30 @@ var require_send = __commonJS({
         res.end();
         return;
       }
-      this.stream(path11, opts);
+      this.stream(path12, opts);
     };
-    SendStream.prototype.sendFile = function sendFile(path11) {
+    SendStream.prototype.sendFile = function sendFile(path12) {
       var i2 = 0;
       var self2 = this;
-      debug('stat "%s"', path11);
-      fs11.stat(path11, function onstat(err, stat3) {
-        var pathEndsWithSep = path11[path11.length - 1] === sep;
-        if (err && err.code === "ENOENT" && !extname(path11) && !pathEndsWithSep) {
+      debug('stat "%s"', path12);
+      fs12.stat(path12, function onstat(err, stat3) {
+        var pathEndsWithSep = path12[path12.length - 1] === sep;
+        if (err && err.code === "ENOENT" && !extname(path12) && !pathEndsWithSep) {
           return next(err);
         }
         if (err) return self2.onStatError(err);
-        if (stat3.isDirectory()) return self2.redirect(path11);
+        if (stat3.isDirectory()) return self2.redirect(path12);
         if (pathEndsWithSep) return self2.error(404);
-        self2.emit("file", path11, stat3);
-        self2.send(path11, stat3);
+        self2.emit("file", path12, stat3);
+        self2.send(path12, stat3);
       });
       function next(err) {
         if (self2._extensions.length <= i2) {
           return err ? self2.onStatError(err) : self2.error(404);
         }
-        var p = path11 + "." + self2._extensions[i2++];
+        var p = path12 + "." + self2._extensions[i2++];
         debug('stat "%s"', p);
-        fs11.stat(p, function(err2, stat3) {
+        fs12.stat(p, function(err2, stat3) {
           if (err2) return next(err2);
           if (stat3.isDirectory()) return next();
           self2.emit("file", p, stat3);
@@ -27035,7 +27035,7 @@ var require_send = __commonJS({
         });
       }
     };
-    SendStream.prototype.sendIndex = function sendIndex(path11) {
+    SendStream.prototype.sendIndex = function sendIndex(path12) {
       var i2 = -1;
       var self2 = this;
       function next(err) {
@@ -27043,9 +27043,9 @@ var require_send = __commonJS({
           if (err) return self2.onStatError(err);
           return self2.error(404);
         }
-        var p = join(path11, self2._index[i2]);
+        var p = join(path12, self2._index[i2]);
         debug('stat "%s"', p);
-        fs11.stat(p, function(err2, stat3) {
+        fs12.stat(p, function(err2, stat3) {
           if (err2) return next(err2);
           if (stat3.isDirectory()) return next();
           self2.emit("file", p, stat3);
@@ -27054,10 +27054,10 @@ var require_send = __commonJS({
       }
       next();
     };
-    SendStream.prototype.stream = function stream(path11, options) {
+    SendStream.prototype.stream = function stream(path12, options) {
       var self2 = this;
       var res = this.res;
-      var stream2 = fs11.createReadStream(path11, options);
+      var stream2 = fs12.createReadStream(path12, options);
       this.emit("stream", stream2);
       stream2.pipe(res);
       function cleanup() {
@@ -27072,17 +27072,17 @@ var require_send = __commonJS({
         self2.emit("end");
       });
     };
-    SendStream.prototype.type = function type(path11) {
+    SendStream.prototype.type = function type(path12) {
       var res = this.res;
       if (res.getHeader("Content-Type")) return;
-      var ext = extname(path11);
+      var ext = extname(path12);
       var type2 = mime.contentType(ext) || "application/octet-stream";
       debug("content-type %s", type2);
       res.setHeader("Content-Type", type2);
     };
-    SendStream.prototype.setHeader = function setHeader(path11, stat3) {
+    SendStream.prototype.setHeader = function setHeader(path12, stat3) {
       var res = this.res;
-      this.emit("headers", res, path11, stat3);
+      this.emit("headers", res, path12, stat3);
       if (this._acceptRanges && !res.getHeader("Accept-Ranges")) {
         debug("accept ranges");
         res.setHeader("Accept-Ranges", "bytes");
@@ -27140,9 +27140,9 @@ var require_send = __commonJS({
       }
       return err instanceof Error ? createError(status, err, { expose: false }) : createError(status, err);
     }
-    function decode4(path11) {
+    function decode4(path12) {
       try {
-        return decodeURIComponent(path11);
+        return decodeURIComponent(path12);
       } catch (err) {
         return -1;
       }
@@ -27286,7 +27286,7 @@ var require_response = __commonJS({
     var http3 = require("node:http");
     var onFinished = require_on_finished();
     var mime = require_mime_types();
-    var path10 = require("node:path");
+    var path11 = require("node:path");
     var pathIsAbsolute = require("node:path").isAbsolute;
     var statuses = require_statuses();
     var sign2 = require_cookie_signature().sign;
@@ -27295,8 +27295,8 @@ var require_response = __commonJS({
     var setCharset = require_utils3().setCharset;
     var cookie = require_cookie();
     var send = require_send();
-    var extname = path10.extname;
-    var resolve = path10.resolve;
+    var extname = path11.extname;
+    var resolve = path11.resolve;
     var vary = require_vary();
     var { Buffer: Buffer5 } = require("node:buffer");
     var res = Object.create(http3.ServerResponse.prototype);
@@ -27442,26 +27442,26 @@ var require_response = __commonJS({
       this.type("txt");
       return this.send(body);
     };
-    res.sendFile = function sendFile(path11, options, callback) {
+    res.sendFile = function sendFile(path12, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
       var next = req.next;
       var opts = options || {};
-      if (!path11) {
+      if (!path12) {
         throw new TypeError("path argument is required to res.sendFile");
       }
-      if (typeof path11 !== "string") {
+      if (typeof path12 !== "string") {
         throw new TypeError("path must be a string to res.sendFile");
       }
       if (typeof options === "function") {
         done = options;
         opts = {};
       }
-      if (!opts.root && !pathIsAbsolute(path11)) {
+      if (!opts.root && !pathIsAbsolute(path12)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
-      var pathname = encodeURI(path11);
+      var pathname = encodeURI(path12);
       opts.etag = this.app.enabled("etag");
       var file2 = send(req, pathname, opts);
       sendfile(res2, file2, opts, function(err) {
@@ -27472,7 +27472,7 @@ var require_response = __commonJS({
         }
       });
     };
-    res.download = function download(path11, filename, options, callback) {
+    res.download = function download(path12, filename, options, callback) {
       var done = callback;
       var name = filename;
       var opts = options || null;
@@ -27489,7 +27489,7 @@ var require_response = __commonJS({
         opts = filename;
       }
       var headers = {
-        "Content-Disposition": contentDisposition(name || path11)
+        "Content-Disposition": contentDisposition(name || path12)
       };
       if (opts && opts.headers) {
         var keys = Object.keys(opts.headers);
@@ -27502,7 +27502,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve(path11) : path11;
+      var fullPath = !opts.root ? resolve(path12) : path12;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -27785,11 +27785,11 @@ var require_serve_static = __commonJS({
         }
         var forwardError = !fallthrough;
         var originalUrl = parseUrl.original(req);
-        var path10 = parseUrl(req).pathname;
-        if (path10 === "/" && originalUrl.pathname.substr(-1) !== "/") {
-          path10 = "";
+        var path11 = parseUrl(req).pathname;
+        if (path11 === "/" && originalUrl.pathname.substr(-1) !== "/") {
+          path11 = "";
         }
-        var stream = send(req, path10, opts);
+        var stream = send(req, path11, opts);
         stream.on("directory", onDirectory);
         if (setHeaders) {
           stream.on("headers", setHeaders);
@@ -27856,7 +27856,7 @@ var require_express = __commonJS({
     var EventEmitter = require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router = require_router();
+    var Router2 = require_router();
     var req = require_request();
     var res = require_response();
     exports2 = module2.exports = createApplication;
@@ -27878,8 +27878,8 @@ var require_express = __commonJS({
     exports2.application = proto;
     exports2.request = req;
     exports2.response = res;
-    exports2.Route = Router.Route;
-    exports2.Router = Router;
+    exports2.Route = Router2.Route;
+    exports2.Router = Router2;
     exports2.json = bodyParser.json;
     exports2.raw = bodyParser.raw;
     exports2.static = require_serve_static();
@@ -33742,22 +33742,22 @@ var init_from = __esm({
     init_file();
     init_fetch_blob();
     ({ stat } = import_node_fs.promises);
-    blobFromSync = (path10, type) => fromBlob((0, import_node_fs.statSync)(path10), path10, type);
-    blobFrom = (path10, type) => stat(path10).then((stat3) => fromBlob(stat3, path10, type));
-    fileFrom = (path10, type) => stat(path10).then((stat3) => fromFile(stat3, path10, type));
-    fileFromSync = (path10, type) => fromFile((0, import_node_fs.statSync)(path10), path10, type);
-    fromBlob = (stat3, path10, type = "") => new fetch_blob_default([new BlobDataItem({
-      path: path10,
+    blobFromSync = (path11, type) => fromBlob((0, import_node_fs.statSync)(path11), path11, type);
+    blobFrom = (path11, type) => stat(path11).then((stat3) => fromBlob(stat3, path11, type));
+    fileFrom = (path11, type) => stat(path11).then((stat3) => fromFile(stat3, path11, type));
+    fileFromSync = (path11, type) => fromFile((0, import_node_fs.statSync)(path11), path11, type);
+    fromBlob = (stat3, path11, type = "") => new fetch_blob_default([new BlobDataItem({
+      path: path11,
       size: stat3.size,
       lastModified: stat3.mtimeMs,
       start: 0
     })], { type });
-    fromFile = (stat3, path10, type = "") => new file_default([new BlobDataItem({
-      path: path10,
+    fromFile = (stat3, path11, type = "") => new file_default([new BlobDataItem({
+      path: path11,
       size: stat3.size,
       lastModified: stat3.mtimeMs,
       start: 0
-    })], (0, import_node_path.basename)(path10), { type, lastModified: stat3.mtimeMs });
+    })], (0, import_node_path.basename)(path11), { type, lastModified: stat3.mtimeMs });
     BlobDataItem = class _BlobDataItem {
       #path;
       #start;
@@ -38602,22 +38602,22 @@ var require_crypto2 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.NodeCrypto = void 0;
-    var crypto6 = require("crypto");
+    var crypto7 = require("crypto");
     var NodeCrypto = class {
       async sha256DigestBase64(str) {
-        return crypto6.createHash("sha256").update(str).digest("base64");
+        return crypto7.createHash("sha256").update(str).digest("base64");
       }
       randomBytesBase64(count) {
-        return crypto6.randomBytes(count).toString("base64");
+        return crypto7.randomBytes(count).toString("base64");
       }
       async verify(pubkey, data, signature) {
-        const verifier = crypto6.createVerify("RSA-SHA256");
+        const verifier = crypto7.createVerify("RSA-SHA256");
         verifier.update(data);
         verifier.end();
         return verifier.verify(pubkey, signature, "base64");
       }
       async sign(privateKey, data) {
-        const signer = crypto6.createSign("RSA-SHA256");
+        const signer = crypto7.createSign("RSA-SHA256");
         signer.update(data);
         signer.end();
         return signer.sign(privateKey, "base64");
@@ -38635,7 +38635,7 @@ var require_crypto2 = __commonJS({
        *   string in hexadecimal encoding.
        */
       async sha256DigestHex(str) {
-        return crypto6.createHash("sha256").update(str).digest("hex");
+        return crypto7.createHash("sha256").update(str).digest("hex");
       }
       /**
        * Computes the HMAC hash of a message using the provided crypto key and the
@@ -38647,7 +38647,7 @@ var require_crypto2 = __commonJS({
        */
       async signWithHmacSha256(key, msg) {
         const cryptoKey = typeof key === "string" ? key : toBuffer(key);
-        return toArrayBuffer(crypto6.createHmac("sha256", cryptoKey).update(msg).digest());
+        return toArrayBuffer(crypto7.createHmac("sha256", cryptoKey).update(msg).digest());
       }
     };
     exports2.NodeCrypto = NodeCrypto;
@@ -38936,9 +38936,9 @@ var require_util2 = __commonJS({
     exports2.removeUndefinedValuesInObject = removeUndefinedValuesInObject;
     exports2.isValidFile = isValidFile;
     exports2.getWellKnownCertificateConfigFileLocation = getWellKnownCertificateConfigFileLocation;
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var os2 = require("os");
-    var path10 = require("path");
+    var path11 = require("path");
     var WELL_KNOWN_CERTIFICATE_CONFIG_FILE = "certificate_config.json";
     var CLOUDSDK_CONFIG_DIRECTORY = "gcloud";
     function snakeToCamel(str) {
@@ -39024,15 +39024,15 @@ var require_util2 = __commonJS({
     }
     async function isValidFile(filePath) {
       try {
-        const stats = await fs11.promises.lstat(filePath);
+        const stats = await fs12.promises.lstat(filePath);
         return stats.isFile();
       } catch (e2) {
         return false;
       }
     }
     function getWellKnownCertificateConfigFileLocation() {
-      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path10.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path10.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
-      return path10.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
+      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path11.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path11.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
+      return path11.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
     }
     function _isWindows() {
       return os2.platform().startsWith("win");
@@ -39560,10 +39560,10 @@ var require_oauth2client = __commonJS({
        * https://github.com/googleapis/google-auth-library-nodejs/blob/main/samples/oauth2-codeVerifier.js
        */
       async generateCodeVerifierAsync() {
-        const crypto6 = (0, crypto_1.createCrypto)();
-        const randomString2 = crypto6.randomBytesBase64(96);
+        const crypto7 = (0, crypto_1.createCrypto)();
+        const randomString2 = crypto7.randomBytesBase64(96);
         const codeVerifier = randomString2.replace(/\+/g, "~").replace(/=/g, "_").replace(/\//g, "-");
-        const unencodedCodeChallenge = await crypto6.sha256DigestBase64(codeVerifier);
+        const unencodedCodeChallenge = await crypto7.sha256DigestBase64(codeVerifier);
         const codeChallenge = unencodedCodeChallenge.split("=")[0].replace(/\+/g, "-").replace(/\//g, "_");
         return { codeVerifier, codeChallenge };
       }
@@ -40004,7 +40004,7 @@ var require_oauth2client = __commonJS({
        * @return Returns a promise resolving to LoginTicket on verification.
        */
       async verifySignedJwtWithCertsAsync(jwt2, certs, requiredAudience, issuers, maxExpiry) {
-        const crypto6 = (0, crypto_1.createCrypto)();
+        const crypto7 = (0, crypto_1.createCrypto)();
         if (!maxExpiry) {
           maxExpiry = _OAuth2Client.DEFAULT_MAX_TOKEN_LIFETIME_SECS_;
         }
@@ -40017,7 +40017,7 @@ var require_oauth2client = __commonJS({
         let envelope;
         let payload;
         try {
-          envelope = JSON.parse(crypto6.decodeBase64StringUtf8(segments[0]));
+          envelope = JSON.parse(crypto7.decodeBase64StringUtf8(segments[0]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token envelope: ${segments[0]}': ${err.message}`;
@@ -40028,7 +40028,7 @@ var require_oauth2client = __commonJS({
           throw new Error("Can't parse token envelope: " + segments[0]);
         }
         try {
-          payload = JSON.parse(crypto6.decodeBase64StringUtf8(segments[1]));
+          payload = JSON.parse(crypto7.decodeBase64StringUtf8(segments[1]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token payload '${segments[0]}`;
@@ -40045,7 +40045,7 @@ var require_oauth2client = __commonJS({
         if (envelope.alg === "ES256") {
           signature = formatEcdsa.joseToDer(signature, "ES256").toString("base64");
         }
-        const verified = await crypto6.verify(cert2, signed, signature);
+        const verified = await crypto7.verify(cert2, signed, signature);
         if (!verified) {
           throw new Error("Invalid token signature: " + jwt2);
         }
@@ -40420,14 +40420,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "node_modules/jwa/index.js"(exports2, module2) {
     var Buffer5 = require_safe_buffer().Buffer;
-    var crypto6 = require("crypto");
+    var crypto7 = require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util = require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto6.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto7.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -40517,17 +40517,17 @@ var require_jwa = __commonJS({
       return function sign2(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac2 = crypto6.createHmac("sha" + bits, secret);
+        var hmac2 = crypto7.createHmac("sha" + bits, secret);
         var sig2 = (hmac2.update(thing), hmac2.digest("base64"));
         return fromBase64(sig2);
       };
     }
     var bufferEqual;
-    var timingSafeEqual2 = "timingSafeEqual" in crypto6 ? function timingSafeEqual3(a, b) {
+    var timingSafeEqual2 = "timingSafeEqual" in crypto7 ? function timingSafeEqual3(a, b) {
       if (a.byteLength !== b.byteLength) {
         return false;
       }
-      return crypto6.timingSafeEqual(a, b);
+      return crypto7.timingSafeEqual(a, b);
     } : function timingSafeEqual3(a, b) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -40544,7 +40544,7 @@ var require_jwa = __commonJS({
       return function sign2(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto6.createSign("RSA-SHA" + bits);
+        var signer = crypto7.createSign("RSA-SHA" + bits);
         var sig2 = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase64(sig2);
       };
@@ -40554,7 +40554,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto6.createVerify("RSA-SHA" + bits);
+        var verifier = crypto7.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -40563,11 +40563,11 @@ var require_jwa = __commonJS({
       return function sign2(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto6.createSign("RSA-SHA" + bits);
+        var signer = crypto7.createSign("RSA-SHA" + bits);
         var sig2 = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto6.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto6.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto7.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto7.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase64(sig2);
       };
@@ -40577,12 +40577,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto6.createVerify("RSA-SHA" + bits);
+        var verifier = crypto7.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto6.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto6.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto7.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto7.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -40978,11 +40978,11 @@ var require_getCredentials = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getCredentials = getCredentials;
-    var path10 = require("path");
-    var fs11 = require("fs");
+    var path11 = require("path");
+    var fs12 = require("fs");
     var util_1 = require("util");
     var errorWithCode_1 = require_errorWithCode();
-    var readFile = fs11.readFile ? (0, util_1.promisify)(fs11.readFile) : async () => {
+    var readFile = fs12.readFile ? (0, util_1.promisify)(fs12.readFile) : async () => {
       throw new errorWithCode_1.ErrorWithCode("use key rather than keyFile.", "MISSING_CREDENTIALS");
     };
     var ExtensionFiles;
@@ -41050,7 +41050,7 @@ var require_getCredentials = __commonJS({
        * @returns An instance of a class that implements ICredentialsProvider.
        */
       static create(keyFilePath) {
-        const keyFileExtension = path10.extname(keyFilePath);
+        const keyFileExtension = path11.extname(keyFilePath);
         switch (keyFileExtension) {
           case ExtensionFiles.JSON:
             return new JsonCredentialsProvider(keyFilePath);
@@ -42659,12 +42659,12 @@ var require_filesubjecttokensupplier = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileSubjectTokenSupplier = void 0;
     var util_1 = require("util");
-    var fs11 = require("fs");
-    var readFile = (0, util_1.promisify)(fs11.readFile ?? (() => {
+    var fs12 = require("fs");
+    var readFile = (0, util_1.promisify)(fs12.readFile ?? (() => {
     }));
-    var realpath = (0, util_1.promisify)(fs11.realpath ?? (() => {
+    var realpath = (0, util_1.promisify)(fs12.realpath ?? (() => {
     }));
-    var lstat = (0, util_1.promisify)(fs11.lstat ?? (() => {
+    var lstat = (0, util_1.promisify)(fs12.lstat ?? (() => {
     }));
     var FileSubjectTokenSupplier = class {
       filePath;
@@ -42782,7 +42782,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CertificateSubjectTokenSupplier = exports2.InvalidConfigurationError = exports2.CertificateSourceUnavailableError = exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = void 0;
     var util_1 = require_util2();
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var crypto_1 = require("crypto");
     var https2 = require("https");
     exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = "GOOGLE_API_CERTIFICATE_CONFIG";
@@ -42876,7 +42876,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
         const configPath = this.certificateConfigPath;
         let fileContents;
         try {
-          fileContents = await fs11.promises.readFile(configPath, "utf8");
+          fileContents = await fs12.promises.readFile(configPath, "utf8");
         } catch (err) {
           throw new CertificateSourceUnavailableError(`Failed to read certificate config file at: ${configPath}`);
         }
@@ -42901,14 +42901,14 @@ var require_certificatesubjecttokensupplier = __commonJS({
       async #getKeyAndCert(certPath, keyPath) {
         let cert2, key;
         try {
-          cert2 = await fs11.promises.readFile(certPath);
+          cert2 = await fs12.promises.readFile(certPath);
           new crypto_1.X509Certificate(cert2);
         } catch (err) {
           const message2 = err instanceof Error ? err.message : String(err);
           throw new CertificateSourceUnavailableError(`Failed to read certificate file at ${certPath}: ${message2}`);
         }
         try {
-          key = await fs11.promises.readFile(keyPath);
+          key = await fs12.promises.readFile(keyPath);
           (0, crypto_1.createPrivateKey)(key);
         } catch (err) {
           const message2 = err instanceof Error ? err.message : String(err);
@@ -42927,7 +42927,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
           return JSON.stringify([leafCert.raw.toString("base64")]);
         }
         try {
-          const chainPems = await fs11.promises.readFile(this.trustChainPath, "utf8");
+          const chainPems = await fs12.promises.readFile(this.trustChainPath, "utf8");
           const pemBlocks = chainPems.match(/-----BEGIN CERTIFICATE-----[^-]+-----END CERTIFICATE-----/g) ?? [];
           const chainCerts = pemBlocks.map((pem, index) => {
             try {
@@ -43158,14 +43158,14 @@ var require_awsrequestsigner = __commonJS({
       }
     };
     exports2.AwsRequestSigner = AwsRequestSigner;
-    async function sign2(crypto6, key, msg) {
-      return await crypto6.signWithHmacSha256(key, msg);
+    async function sign2(crypto7, key, msg) {
+      return await crypto7.signWithHmacSha256(key, msg);
     }
-    async function getSigningKey(crypto6, key, dateStamp, region, serviceName) {
-      const kDate = await sign2(crypto6, `AWS4${key}`, dateStamp);
-      const kRegion = await sign2(crypto6, kDate, region);
-      const kService = await sign2(crypto6, kRegion, serviceName);
-      const kSigning = await sign2(crypto6, kService, "aws4_request");
+    async function getSigningKey(crypto7, key, dateStamp, region, serviceName) {
+      const kDate = await sign2(crypto7, `AWS4${key}`, dateStamp);
+      const kRegion = await sign2(crypto7, kDate, region);
+      const kService = await sign2(crypto7, kRegion, serviceName);
+      const kSigning = await sign2(crypto7, kService, "aws4_request");
       return kSigning;
     }
     async function generateAuthenticationHeaderMap(options) {
@@ -43629,7 +43629,7 @@ var require_pluggable_auth_handler = __commonJS({
     exports2.PluggableAuthHandler = exports2.ExecutableError = void 0;
     var executable_response_1 = require_executable_response();
     var childProcess = require("child_process");
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var ExecutableError = class extends Error {
       /**
        * The exit code returned by the executable.
@@ -43714,14 +43714,14 @@ var require_pluggable_auth_handler = __commonJS({
         }
         let filePath;
         try {
-          filePath = await fs11.promises.realpath(this.outputFile);
+          filePath = await fs12.promises.realpath(this.outputFile);
         } catch {
           return void 0;
         }
-        if (!(await fs11.promises.lstat(filePath)).isFile()) {
+        if (!(await fs12.promises.lstat(filePath)).isFile()) {
           return void 0;
         }
-        const responseString = await fs11.promises.readFile(filePath, {
+        const responseString = await fs12.promises.readFile(filePath, {
           encoding: "utf8"
         });
         if (responseString === "") {
@@ -44131,8 +44131,8 @@ var require_gdchclient = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GdchClient = exports2.GDCH_SERVICE_ACCOUNT_TYPE = void 0;
-    var crypto6 = require("crypto");
-    var fs11 = require("fs");
+    var crypto7 = require("crypto");
+    var fs12 = require("fs");
     var https2 = require("https");
     var oauth2client_1 = require_oauth2client();
     var DEFAULT_LIFETIME_IN_SECONDS = 3600;
@@ -44322,7 +44322,7 @@ var require_gdchclient = __commonJS({
         const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
         const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
         const signingInput = `${encodedHeader}.${encodedPayload}`;
-        const signature = crypto6.sign("sha256", Buffer.from(signingInput), {
+        const signature = crypto7.sign("sha256", Buffer.from(signingInput), {
           key: this.privateKey,
           dsaEncoding: "ieee-p1363"
         });
@@ -44355,7 +44355,7 @@ var require_gdchclient = __commonJS({
         const currentPath = this.caCertPath;
         this.caAgentPromise = (async () => {
           try {
-            const ca = await fs11.promises.readFile(currentPath);
+            const ca = await fs12.promises.readFile(currentPath);
             return new https2.Agent({ ca });
           } catch (err) {
             if (this.cachedCaCertPath === currentPath) {
@@ -44415,11 +44415,11 @@ var require_googleauth = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GoogleAuth = exports2.GoogleAuthExceptionMessages = void 0;
     var child_process_1 = require("child_process");
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var gaxios_1 = require_src2();
     var gcpMetadata = require_src4();
     var os2 = require("os");
-    var path10 = require("path");
+    var path11 = require("path");
     var crypto_1 = require_crypto3();
     var computeclient_1 = require_computeclient();
     var idtokenclient_1 = require_idtokenclient();
@@ -44704,20 +44704,20 @@ var require_googleauth = __commonJS({
         if (!configDir) {
           if (this._isWindows()) {
             if (process.env["APPDATA"]) {
-              configDir = path10.join(process.env["APPDATA"], "gcloud");
+              configDir = path11.join(process.env["APPDATA"], "gcloud");
             }
           } else {
             const home = process.env["HOME"];
             if (home) {
-              configDir = path10.join(home, ".config", "gcloud");
+              configDir = path11.join(home, ".config", "gcloud");
             }
           }
         }
         if (!configDir) {
           return null;
         }
-        const location = path10.join(configDir, "application_default_credentials.json");
-        if (!fs11.existsSync(location)) {
+        const location = path11.join(configDir, "application_default_credentials.json");
+        if (!fs12.existsSync(location)) {
           return null;
         }
         const client = await this._getApplicationCredentialsFromFilePath(location, options);
@@ -44734,8 +44734,8 @@ var require_googleauth = __commonJS({
           throw new Error("The file path is invalid.");
         }
         try {
-          filePath = fs11.realpathSync(filePath);
-          if (!fs11.lstatSync(filePath).isFile()) {
+          filePath = fs12.realpathSync(filePath);
+          if (!fs12.lstatSync(filePath).isFile()) {
             throw new Error();
           }
         } catch (err) {
@@ -44744,7 +44744,7 @@ var require_googleauth = __commonJS({
           }
           throw err;
         }
-        const readStream = fs11.createReadStream(filePath);
+        const readStream = fs12.createReadStream(filePath);
         return this.fromStream(readStream, options);
       }
       /**
@@ -45071,8 +45071,8 @@ var require_googleauth = __commonJS({
         if (this.jsonContent) {
           return this._cacheClientFromJSON(this.jsonContent, this.clientOptions);
         } else if (this.keyFilename) {
-          const filePath = path10.resolve(this.keyFilename);
-          const stream = fs11.createReadStream(filePath);
+          const filePath = path11.resolve(this.keyFilename);
+          const stream = fs12.createReadStream(filePath);
           return await this.fromStreamAsync(stream, this.clientOptions);
         } else if (this.apiKey) {
           const client = await this.fromAPIKey(this.apiKey, this.clientOptions);
@@ -45185,24 +45185,24 @@ var require_googleauth = __commonJS({
           const signed = await client.sign(data);
           return signed.signedBlob;
         }
-        const crypto6 = (0, crypto_1.createCrypto)();
+        const crypto7 = (0, crypto_1.createCrypto)();
         if (client instanceof jwtclient_1.JWT && client.key) {
-          const sign2 = await crypto6.sign(client.key, data);
+          const sign2 = await crypto7.sign(client.key, data);
           return sign2;
         }
         const creds = await this.getCredentials();
         if (!creds.client_email) {
           throw new Error("Cannot sign data without `client_email`.");
         }
-        return this.signBlob(crypto6, creds.client_email, data, endpoint);
+        return this.signBlob(crypto7, creds.client_email, data, endpoint);
       }
-      async signBlob(crypto6, emailOrUniqueId, data, endpoint) {
+      async signBlob(crypto7, emailOrUniqueId, data, endpoint) {
         const url2 = new URL(endpoint + `${emailOrUniqueId}:signBlob`);
         const res = await this.request({
           method: "POST",
           url: url2.href,
           data: {
-            payload: crypto6.encodeBase64StringUtf8(data)
+            payload: crypto7.encodeBase64StringUtf8(data)
           },
           retry: true,
           retryConfig: {
@@ -45784,8 +45784,8 @@ var require_validator = __commonJS({
     function isNonNullObject(value) {
       return isObject3(value) && value !== null;
     }
-    function isUid(uid) {
-      return typeof uid === "string" && uid.length > 0 && uid.length <= 128;
+    function isUid(uid2) {
+      return typeof uid2 === "string" && uid2.length > 0 && uid2.length <= 128;
     }
     function isPassword(password) {
       return typeof password === "string" && password.length >= 6;
@@ -45874,7 +45874,7 @@ var require_credential_internal = __commonJS({
     exports2.ImpersonatedServiceAccountCredential = exports2.RefreshTokenCredential = exports2.ServiceAccountCredential = exports2.ApplicationDefaultCredential = void 0;
     exports2.isApplicationDefault = isApplicationDefault;
     exports2.getApplicationDefault = getApplicationDefault;
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var node_crypto_1 = require("node:crypto");
     var google_auth_library_1 = require_src5();
     var error_1 = require_error2();
@@ -45992,7 +45992,7 @@ var require_credential_internal = __commonJS({
     var ServiceAccount = class _ServiceAccount {
       static fromPath(filePath) {
         try {
-          return new _ServiceAccount(JSON.parse(fs11.readFileSync(filePath, "utf8")));
+          return new _ServiceAccount(JSON.parse(fs12.readFileSync(filePath, "utf8")));
         } catch (error61) {
           throw new error_1.FirebaseAppError({
             code: error_1.AppErrorCode.INVALID_CREDENTIAL,
@@ -46078,7 +46078,7 @@ var require_credential_internal = __commonJS({
        */
       static validateFromPath(filePath) {
         try {
-          _RefreshToken.validateFromJSON(JSON.parse(fs11.readFileSync(filePath, "utf8")));
+          _RefreshToken.validateFromJSON(JSON.parse(fs12.readFileSync(filePath, "utf8")));
         } catch (error61) {
           throw new error_1.FirebaseAppError({
             code: error_1.AppErrorCode.INVALID_CREDENTIAL,
@@ -46153,7 +46153,7 @@ var require_credential_internal = __commonJS({
        */
       static validateFromPath(filePath) {
         try {
-          _ImpersonatedServiceAccount.validateFromJSON(JSON.parse(fs11.readFileSync(filePath, "utf8")));
+          _ImpersonatedServiceAccount.validateFromJSON(JSON.parse(fs12.readFileSync(filePath, "utf8")));
         } catch (error61) {
           throw new error_1.FirebaseAppError({
             code: error_1.AppErrorCode.INVALID_CREDENTIAL,
@@ -46971,7 +46971,7 @@ var require_lifecycle = __commonJS({
     exports2.getApp = getApp2;
     exports2.getApps = getApps2;
     exports2.deleteApp = deleteApp2;
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var validator = require_validator();
     var error_1 = require_error2();
     var credential_internal_1 = require_credential_internal();
@@ -47105,7 +47105,7 @@ var require_lifecycle = __commonJS({
         return {};
       }
       try {
-        const contents = config2.startsWith("{") ? config2 : fs11.readFileSync(config2, "utf8");
+        const contents = config2.startsWith("{") ? config2 : fs12.readFileSync(config2, "utf8");
         return JSON.parse(contents);
       } catch (error61) {
         throw new error_1.FirebaseAppError({
@@ -49178,20 +49178,20 @@ var require_parseParams = __commonJS({
 var require_basename = __commonJS({
   "node_modules/@fastify/busboy/lib/utils/basename.js"(exports2, module2) {
     "use strict";
-    module2.exports = function basename3(path10) {
-      if (typeof path10 !== "string") {
+    module2.exports = function basename3(path11) {
+      if (typeof path11 !== "string") {
         return "";
       }
-      for (var i2 = path10.length - 1; i2 >= 0; --i2) {
-        switch (path10.charCodeAt(i2)) {
+      for (var i2 = path11.length - 1; i2 >= 0; --i2) {
+        switch (path11.charCodeAt(i2)) {
           case 47:
           // '/'
           case 92:
-            path10 = path10.slice(i2 + 1);
-            return path10 === ".." || path10 === "." ? "" : path10;
+            path11 = path11.slice(i2 + 1);
+            return path11 === ".." || path11 === "." ? "" : path11;
         }
       }
-      return path10 === ".." || path10 === "." ? "" : path10;
+      return path11 === ".." || path11 === "." ? "" : path11;
     };
   }
 });
@@ -53413,12 +53413,12 @@ var require_auth_api_request = __commonJS({
        * @param uid - The uid of the user to lookup.
        * @returns A promise that resolves with the user information.
        */
-      getAccountInfoByUid(uid) {
-        if (!validator.isUid(uid)) {
+      getAccountInfoByUid(uid2) {
+        if (!validator.isUid(uid2)) {
           return Promise.reject(new error_1.FirebaseAuthError(error_1.authClientErrorCode.INVALID_UID));
         }
         const request = {
-          localId: [uid]
+          localId: [uid2]
         };
         return this.invokeRequestHandler(this.getAuthUrlBuilder(), exports2.FIREBASE_AUTH_GET_ACCOUNT_INFO, request);
       }
@@ -53557,12 +53557,12 @@ var require_auth_api_request = __commonJS({
        * @param uid - The uid of the user to delete.
        * @returns A promise that resolves when the user is deleted.
        */
-      deleteAccount(uid) {
-        if (!validator.isUid(uid)) {
+      deleteAccount(uid2) {
+        if (!validator.isUid(uid2)) {
           return Promise.reject(new error_1.FirebaseAuthError(error_1.authClientErrorCode.INVALID_UID));
         }
         const request = {
-          localId: uid
+          localId: uid2
         };
         return this.invokeRequestHandler(this.getAuthUrlBuilder(), exports2.FIREBASE_AUTH_DELETE_ACCOUNT, request);
       }
@@ -53576,11 +53576,11 @@ var require_auth_api_request = __commonJS({
           localIds: [],
           force
         };
-        uids.forEach((uid) => {
-          if (!validator.isUid(uid)) {
+        uids.forEach((uid2) => {
+          if (!validator.isUid(uid2)) {
             throw new error_1.FirebaseAuthError(error_1.authClientErrorCode.INVALID_UID);
           }
-          request.localIds.push(uid);
+          request.localIds.push(uid2);
         });
         return this.invokeRequestHandler(this.getAuthUrlBuilder(), exports2.FIREBASE_AUTH_BATCH_DELETE_ACCOUNTS, request);
       }
@@ -53592,8 +53592,8 @@ var require_auth_api_request = __commonJS({
        * @returns A promise that resolves when the operation completes
        *     with the user id that was edited.
        */
-      setCustomUserClaims(uid, customUserClaims) {
-        if (!validator.isUid(uid)) {
+      setCustomUserClaims(uid2, customUserClaims) {
+        if (!validator.isUid(uid2)) {
           return Promise.reject(new error_1.FirebaseAuthError(error_1.authClientErrorCode.INVALID_UID));
         } else if (!validator.isObject(customUserClaims)) {
           return Promise.reject(new error_1.FirebaseAuthError(error_1.authClientErrorCode.INVALID_ARGUMENT, "CustomUserClaims argument must be an object or null."));
@@ -53602,7 +53602,7 @@ var require_auth_api_request = __commonJS({
           customUserClaims = {};
         }
         const request = {
-          localId: uid,
+          localId: uid2,
           customAttributes: JSON.stringify(customUserClaims)
         };
         return this.invokeRequestHandler(this.getAuthUrlBuilder(), exports2.FIREBASE_AUTH_SET_ACCOUNT_INFO, request).then((response) => {
@@ -53617,8 +53617,8 @@ var require_auth_api_request = __commonJS({
        * @returns A promise that resolves when the operation completes
        *     with the user id that was edited.
        */
-      updateExistingAccount(uid, properties) {
-        if (!validator.isUid(uid)) {
+      updateExistingAccount(uid2, properties) {
+        if (!validator.isUid(uid2)) {
           return Promise.reject(new error_1.FirebaseAuthError(error_1.authClientErrorCode.INVALID_UID));
         } else if (!validator.isNonNullObject(properties)) {
           return Promise.reject(new error_1.FirebaseAuthError(error_1.authClientErrorCode.INVALID_ARGUMENT, "Properties argument must be a non-null object."));
@@ -53640,7 +53640,7 @@ var require_auth_api_request = __commonJS({
           });
         }
         const request = (0, deep_copy_1.deepCopy)(properties);
-        request.localId = uid;
+        request.localId = uid2;
         const deletableParams = {
           displayName: "DISPLAY_NAME",
           photoURL: "PHOTO_URL"
@@ -53717,12 +53717,12 @@ var require_auth_api_request = __commonJS({
        * @returns A promise that resolves when the operation completes
        *     successfully with the user id of the corresponding user.
        */
-      revokeRefreshTokens(uid) {
-        if (!validator.isUid(uid)) {
+      revokeRefreshTokens(uid2) {
+        if (!validator.isUid(uid2)) {
           return Promise.reject(new error_1.FirebaseAuthError(error_1.authClientErrorCode.INVALID_UID));
         }
         const request = {
-          localId: uid,
+          localId: uid2,
           // validSince is in UTC seconds.
           validSince: Math.floor((/* @__PURE__ */ new Date()).getTime() / 1e3)
         };
@@ -54384,8 +54384,8 @@ var require_crypto_signer = __commonJS({
        * @inheritDoc
        */
       sign(buffer) {
-        const crypto6 = require("node:crypto");
-        const sign2 = crypto6.createSign("RSA-SHA256");
+        const crypto7 = require("node:crypto");
+        const sign2 = crypto7.createSign("RSA-SHA256");
         sign2.update(buffer);
         return Promise.resolve(sign2.sign(this.credential.privateKey));
       }
@@ -54589,11 +54589,11 @@ var require_token_generator = __commonJS({
        * @returns A Promise fulfilled with a Firebase Auth Custom token signed with a
        *     service account key and containing the provided payload.
        */
-      createCustomToken(uid, developerClaims) {
+      createCustomToken(uid2, developerClaims) {
         let errorMessage;
-        if (!validator.isNonEmptyString(uid)) {
+        if (!validator.isNonEmptyString(uid2)) {
           errorMessage = "`uid` argument must be a non-empty string uid.";
-        } else if (uid.length > 128) {
+        } else if (uid2.length > 128) {
           errorMessage = "`uid` argument must a uid with less than or equal to 128 characters.";
         } else if (!this.isDeveloperClaimsValid_(developerClaims)) {
           errorMessage = "`developerClaims` argument must be a valid, non-null object containing the developer claims.";
@@ -54624,7 +54624,7 @@ var require_token_generator = __commonJS({
             exp: iat + ONE_HOUR_IN_SECONDS,
             iss: account,
             sub: account,
-            uid
+            uid: uid2
           };
           if (this.tenantId) {
             body.tenant_id = this.tenantId;
@@ -61828,10 +61828,10 @@ var require_request2 = __commonJS({
           throw new ArgumentError("Invalid JWKS URI: The provided URI is not a valid URL.");
         }
         const { hostname: hostname3, port, protocol, pathname, search } = url2;
-        const path10 = pathname + search;
+        const path11 = pathname + search;
         const requestOptions = {
           hostname: hostname3,
-          path: path10,
+          path: path11,
           port,
           method: "GET",
           ...options.headers && { headers: { ...options.headers } },
@@ -62594,8 +62594,8 @@ var require_lodash8 = __commonJS({
     var objectProto = Object.prototype;
     var coreJsData = root["__core-js_shared__"];
     var maskSrcKey = (function() {
-      var uid = /[^.]+$/.exec(coreJsData && coreJsData.keys && coreJsData.keys.IE_PROTO || "");
-      return uid ? "Symbol(src)_1." + uid : "";
+      var uid2 = /[^.]+$/.exec(coreJsData && coreJsData.keys && coreJsData.keys.IE_PROTO || "");
+      return uid2 ? "Symbol(src)_1." + uid2 : "";
     })();
     var funcToString = funcProto.toString;
     var hasOwnProperty = objectProto.hasOwnProperty;
@@ -64933,8 +64933,8 @@ var require_base_auth = __commonJS({
        * @returns A promise fulfilled with a custom token for the
        *   provided `uid` and payload.
        */
-      createCustomToken(uid, developerClaims) {
-        return this.tokenGenerator.createCustomToken(uid, developerClaims);
+      createCustomToken(uid2, developerClaims) {
+        return this.tokenGenerator.createCustomToken(uid2, developerClaims);
       }
       /**
        * Verifies a Firebase ID token (JWT). If the token is valid, the promise is
@@ -64980,8 +64980,8 @@ var require_base_auth = __commonJS({
        * @returns A promise fulfilled with the user
        *   data corresponding to the provided `uid`.
        */
-      getUser(uid) {
-        return this.authRequestHandler.getAccountInfoByUid(uid).then((response) => {
+      getUser(uid2) {
+        return this.authRequestHandler.getAccountInfoByUid(uid2).then((response) => {
           return new user_record_1.UserRecord(response.users[0]);
         });
       }
@@ -65033,13 +65033,13 @@ var require_base_auth = __commonJS({
        * @returns A promise fulfilled with the user data corresponding to the
        *   given provider id.
        */
-      getUserByProviderUid(providerId, uid) {
+      getUserByProviderUid(providerId, uid2) {
         if (providerId === "phone") {
-          return this.getUserByPhoneNumber(uid);
+          return this.getUserByPhoneNumber(uid2);
         } else if (providerId === "email") {
-          return this.getUserByEmail(uid);
+          return this.getUserByEmail(uid2);
         }
-        return this.authRequestHandler.getAccountInfoByFederatedUid(providerId, uid).then((response) => {
+        return this.authRequestHandler.getAccountInfoByFederatedUid(providerId, uid2).then((response) => {
           return new user_record_1.UserRecord(response.users[0]);
         });
       }
@@ -65130,8 +65130,8 @@ var require_base_auth = __commonJS({
        *   data corresponding to the newly created user.
        */
       createUser(properties) {
-        return this.authRequestHandler.createNewAccount(properties).then((uid) => {
-          return this.getUser(uid);
+        return this.authRequestHandler.createNewAccount(properties).then((uid2) => {
+          return this.getUser(uid2);
         }).catch((error61) => {
           if (error61.code === "auth/user-not-found") {
             throw new error_1.FirebaseAuthError(error_1.authClientErrorCode.INTERNAL_ERROR, "Unable to create the user record provided.");
@@ -65150,8 +65150,8 @@ var require_base_auth = __commonJS({
        * @returns An empty promise fulfilled once the user has been
        *   deleted.
        */
-      deleteUser(uid) {
-        return this.authRequestHandler.deleteAccount(uid).then(() => {
+      deleteUser(uid2) {
+        return this.authRequestHandler.deleteAccount(uid2).then(() => {
         });
       }
       /**
@@ -65224,7 +65224,7 @@ var require_base_auth = __commonJS({
        * @returns A promise fulfilled with the
        *   updated user data.
        */
-      updateUser(uid, properties) {
+      updateUser(uid2, properties) {
         properties = (0, deep_copy_1.deepCopy)(properties);
         if (properties?.providerToLink) {
           if (properties.providerToLink.providerId === "email") {
@@ -65248,7 +65248,7 @@ var require_base_auth = __commonJS({
             }
           }
         }
-        return this.authRequestHandler.updateExistingAccount(uid, properties).then((existingUid) => {
+        return this.authRequestHandler.updateExistingAccount(uid2, properties).then((existingUid) => {
           return this.getUser(existingUid);
         });
       }
@@ -65275,8 +65275,8 @@ var require_base_auth = __commonJS({
        * @returns A promise that resolves when the operation completes
        *   successfully.
        */
-      setCustomUserClaims(uid, customUserClaims) {
-        return this.authRequestHandler.setCustomUserClaims(uid, customUserClaims).then(() => {
+      setCustomUserClaims(uid2, customUserClaims) {
+        return this.authRequestHandler.setCustomUserClaims(uid2, customUserClaims).then(() => {
         });
       }
       /**
@@ -65298,8 +65298,8 @@ var require_base_auth = __commonJS({
        * @returns An empty promise fulfilled once the user's refresh
        *   tokens have been revoked.
        */
-      revokeRefreshTokens(uid) {
-        return this.authRequestHandler.revokeRefreshTokens(uid).then(() => {
+      revokeRefreshTokens(uid2) {
+        return this.authRequestHandler.revokeRefreshTokens(uid2).then(() => {
         });
       }
       /**
@@ -66267,7 +66267,7 @@ var require_firestore_client_config = __commonJS({
 var require_object_hash = __commonJS({
   "node_modules/object-hash/index.js"(exports2, module2) {
     "use strict";
-    var crypto6 = require("crypto");
+    var crypto7 = require("crypto");
     exports2 = module2.exports = objectHash;
     function objectHash(object2, options) {
       options = applyDefaults(object2, options);
@@ -66285,7 +66285,7 @@ var require_object_hash = __commonJS({
     exports2.keysMD5 = function(object2) {
       return objectHash(object2, { algorithm: "md5", encoding: "hex", excludeValues: true });
     };
-    var hashes = crypto6.getHashes ? crypto6.getHashes().slice() : ["sha1", "md5"];
+    var hashes = crypto7.getHashes ? crypto7.getHashes().slice() : ["sha1", "md5"];
     hashes.push("passthrough");
     var encodings = ["buffer", "hex", "binary", "base64"];
     function applyDefaults(object2, sourceOptions) {
@@ -66331,7 +66331,7 @@ var require_object_hash = __commonJS({
     function hash2(object2, options) {
       var hashingStream;
       if (options.algorithm !== "passthrough") {
-        hashingStream = crypto6.createHash(options.algorithm);
+        hashingStream = crypto7.createHash(options.algorithm);
       } else {
         hashingStream = new PassThrough3();
       }
@@ -69114,17 +69114,17 @@ var require_codegen = __commonJS({
 var require_fs = __commonJS({
   "node_modules/@protobufjs/fetch/util/fs.js"(exports2, module2) {
     "use strict";
-    var fs11 = null;
+    var fs12 = null;
     try {
-      fs11 = require(
+      fs12 = require(
         /* webpackIgnore: true */
         "fs"
       );
-      if (!fs11 || !fs11.readFile || !fs11.readFileSync)
-        fs11 = null;
+      if (!fs12 || !fs12.readFile || !fs12.readFileSync)
+        fs12 = null;
     } catch (e2) {
     }
-    module2.exports = fs11;
+    module2.exports = fs12;
   }
 });
 
@@ -69134,7 +69134,7 @@ var require_fetch = __commonJS({
     "use strict";
     module2.exports = fetch3;
     var asPromise = require_aspromise();
-    var fs11 = require_fs();
+    var fs12 = require_fs();
     function fetch3(filename, options, callback) {
       if (typeof options === "function") {
         callback = options;
@@ -69143,8 +69143,8 @@ var require_fetch = __commonJS({
         options = {};
       if (!callback)
         return asPromise(fetch3, this, filename, options);
-      if (!options.xhr && fs11 && fs11.readFile)
-        return fs11.readFile(filename, function fetchReadFileCallback(err, contents) {
+      if (!options.xhr && fs12 && fs12.readFile)
+        return fs12.readFile(filename, function fetchReadFileCallback(err, contents) {
           return err && typeof XMLHttpRequest !== "undefined" ? fetch3.xhr(filename, options, callback) : err ? callback(err) : callback(null, options.binary ? contents : contents.toString("utf8"));
         });
       return fetch3.xhr(filename, options, callback);
@@ -69182,15 +69182,15 @@ var require_fetch = __commonJS({
 var require_path = __commonJS({
   "node_modules/@protobufjs/path/index.js"(exports2) {
     "use strict";
-    var path10 = exports2;
+    var path11 = exports2;
     var isAbsolute = (
       /**
        * Tests if the specified path is absolute.
        * @param {string} path Path to test
        * @returns {boolean} `true` if path is absolute
        */
-      path10.isAbsolute = function isAbsolute2(path11) {
-        return /^(?:\/|\w+:)/.test(path11);
+      path11.isAbsolute = function isAbsolute2(path12) {
+        return /^(?:\/|\w+:)/.test(path12);
       }
     );
     var normalize2 = (
@@ -69199,9 +69199,9 @@ var require_path = __commonJS({
        * @param {string} path Path to normalize
        * @returns {string} Normalized path
        */
-      path10.normalize = function normalize3(path11) {
-        path11 = path11.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
-        var parts = path11.split("/"), absolute = isAbsolute(path11), prefix = "";
+      path11.normalize = function normalize3(path12) {
+        path12 = path12.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+        var parts = path12.split("/"), absolute = isAbsolute(path12), prefix = "";
         if (absolute)
           prefix = parts.shift() + "/";
         for (var i2 = 0; i2 < parts.length; ) {
@@ -69220,7 +69220,7 @@ var require_path = __commonJS({
         return prefix + parts.join("/");
       }
     );
-    path10.resolve = function resolve(originPath, includePath, alreadyNormalized) {
+    path11.resolve = function resolve(originPath, includePath, alreadyNormalized) {
       if (!alreadyNormalized)
         includePath = normalize2(includePath);
       if (isAbsolute(includePath))
@@ -69247,17 +69247,17 @@ var require_patterns = __commonJS({
 var require_fs2 = __commonJS({
   "node_modules/protobufjs/src/util/fs.js"(exports2, module2) {
     "use strict";
-    var fs11 = null;
+    var fs12 = null;
     try {
-      fs11 = require(
+      fs12 = require(
         /* webpackIgnore: true */
         "fs"
       );
-      if (!fs11 || !fs11.readFile || !fs11.readFileSync)
-        fs11 = null;
+      if (!fs12 || !fs12.readFile || !fs12.readFileSync)
+        fs12 = null;
     } catch (e2) {
     }
-    module2.exports = fs11;
+    module2.exports = fs12;
   }
 });
 
@@ -69404,18 +69404,18 @@ var require_namespace = __commonJS({
       object2.onRemove(this);
       return clearCache(this);
     };
-    Namespace.prototype.define = function define2(path10, json3) {
-      if (util.isString(path10))
-        path10 = path10.split(".");
-      else if (!Array.isArray(path10))
+    Namespace.prototype.define = function define2(path11, json3) {
+      if (util.isString(path11))
+        path11 = path11.split(".");
+      else if (!Array.isArray(path11))
         throw TypeError("illegal path");
-      if (path10 && path10.length && path10[0] === "")
+      if (path11 && path11.length && path11[0] === "")
         throw Error("path must be relative");
-      if (path10.length > util.recursionLimit)
+      if (path11.length > util.recursionLimit)
         throw Error("max depth exceeded");
       var ptr = this;
-      while (path10.length > 0) {
-        var part = path10.shift();
+      while (path11.length > 0) {
+        var part = path11.shift();
         if (ptr.nested && ptr.nested[part]) {
           ptr = ptr.nested[part];
           if (!(ptr instanceof Namespace))
@@ -69450,26 +69450,26 @@ var require_namespace = __commonJS({
       });
       return this;
     };
-    Namespace.prototype.lookup = function lookup(path10, filterTypes, parentAlreadyChecked) {
+    Namespace.prototype.lookup = function lookup(path11, filterTypes, parentAlreadyChecked) {
       if (typeof filterTypes === "boolean") {
         parentAlreadyChecked = filterTypes;
         filterTypes = void 0;
       } else if (filterTypes && !Array.isArray(filterTypes))
         filterTypes = [filterTypes];
-      if (util.isString(path10) && path10.length) {
-        if (path10 === ".")
+      if (util.isString(path11) && path11.length) {
+        if (path11 === ".")
           return this.root;
-        path10 = path10.split(".");
-      } else if (!path10.length)
+        path11 = path11.split(".");
+      } else if (!path11.length)
         return this;
-      var flatPath = path10.join(".");
-      if (path10[0] === "")
-        return this.root.lookup(path10.slice(1), filterTypes);
+      var flatPath = path11.join(".");
+      if (path11[0] === "")
+        return this.root.lookup(path11.slice(1), filterTypes);
       var found = this.root._fullyQualifiedObjects && this.root._fullyQualifiedObjects["." + flatPath];
       if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
         return found;
       }
-      found = this._lookupImpl(path10, flatPath);
+      found = this._lookupImpl(path11, flatPath);
       if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
         return found;
       }
@@ -69477,7 +69477,7 @@ var require_namespace = __commonJS({
         return null;
       var current = this;
       while (current.parent) {
-        found = current.parent._lookupImpl(path10, flatPath);
+        found = current.parent._lookupImpl(path11, flatPath);
         if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
           return found;
         }
@@ -69485,22 +69485,22 @@ var require_namespace = __commonJS({
       }
       return null;
     };
-    Namespace.prototype._lookupImpl = function lookup(path10, flatPath) {
+    Namespace.prototype._lookupImpl = function lookup(path11, flatPath) {
       if (Object.prototype.hasOwnProperty.call(this._lookupCache, flatPath)) {
         return this._lookupCache[flatPath];
       }
-      var found = this.get(path10[0]);
+      var found = this.get(path11[0]);
       var exact = null;
       if (found) {
-        if (path10.length === 1) {
+        if (path11.length === 1) {
           exact = found;
         } else if (found instanceof Namespace) {
-          path10 = path10.slice(1);
-          exact = found._lookupImpl(path10, path10.join("."));
+          path11 = path11.slice(1);
+          exact = found._lookupImpl(path11, path11.join("."));
         }
       } else {
         for (var i2 = 0; i2 < this.nestedArray.length; ++i2)
-          if (this._nestedArray[i2] instanceof Namespace && (found = this._nestedArray[i2]._lookupImpl(path10, flatPath))) {
+          if (this._nestedArray[i2] instanceof Namespace && (found = this._nestedArray[i2]._lookupImpl(path11, flatPath))) {
             exact = found;
             break;
           }
@@ -69508,28 +69508,28 @@ var require_namespace = __commonJS({
       this._lookupCache[flatPath] = exact;
       return exact;
     };
-    Namespace.prototype.lookupType = function lookupType(path10) {
-      var found = this.lookup(path10, [Type2]);
+    Namespace.prototype.lookupType = function lookupType(path11) {
+      var found = this.lookup(path11, [Type2]);
       if (!found)
-        throw Error("no such type: " + path10);
+        throw Error("no such type: " + path11);
       return found;
     };
-    Namespace.prototype.lookupEnum = function lookupEnum(path10) {
-      var found = this.lookup(path10, [Enum]);
+    Namespace.prototype.lookupEnum = function lookupEnum(path11) {
+      var found = this.lookup(path11, [Enum]);
       if (!found)
-        throw Error("no such Enum '" + path10 + "' in " + this);
+        throw Error("no such Enum '" + path11 + "' in " + this);
       return found;
     };
-    Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path10) {
-      var found = this.lookup(path10, [Type2, Enum]);
+    Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path11) {
+      var found = this.lookup(path11, [Type2, Enum]);
       if (!found)
-        throw Error("no such Type or Enum '" + path10 + "' in " + this);
+        throw Error("no such Type or Enum '" + path11 + "' in " + this);
       return found;
     };
-    Namespace.prototype.lookupService = function lookupService(path10) {
-      var found = this.lookup(path10, [Service]);
+    Namespace.prototype.lookupService = function lookupService(path11) {
+      var found = this.lookup(path11, [Service]);
       if (!found)
-        throw Error("no such Service '" + path10 + "' in " + this);
+        throw Error("no such Service '" + path11 + "' in " + this);
       return found;
     };
     Namespace._configure = function(Type_, Service_, Enum_) {
@@ -70946,13 +70946,13 @@ var require_util3 = __commonJS({
       Object.defineProperty(object2, "$type", { value: enm, enumerable: false });
       return enm;
     };
-    util.setProperty = function setProperty(dst, path10, value, ifNotSet) {
-      function setProp(dst2, path11, value2) {
-        var part = path11.shift();
+    util.setProperty = function setProperty(dst, path11, value, ifNotSet) {
+      function setProp(dst2, path12, value2) {
+        var part = path12.shift();
         if (util.isUnsafeProperty(part))
           return dst2;
-        if (path11.length > 0) {
-          dst2[part] = setProp(dst2[part] || {}, path11, value2);
+        if (path12.length > 0) {
+          dst2[part] = setProp(dst2[part] || {}, path12, value2);
         } else {
           var prevValue = dst2[part];
           if (prevValue && ifNotSet)
@@ -70965,12 +70965,12 @@ var require_util3 = __commonJS({
       }
       if (typeof dst !== "object")
         throw TypeError("dst must be an object");
-      if (!path10)
+      if (!path11)
         throw TypeError("path must be specified");
-      path10 = path10.split(".");
-      if (path10.length > util.recursionLimit)
+      path11 = path11.split(".");
+      if (path11.length > util.recursionLimit)
         throw Error("max depth exceeded");
-      return setProp(dst, path10, value);
+      return setProp(dst, path11, value);
     };
     Object.defineProperty(util, "decorateRoot", {
       get: function() {
@@ -71516,12 +71516,12 @@ var require_object = __commonJS({
        */
       fullName: {
         get: function() {
-          var path10 = [this.name], ptr = this.parent;
+          var path11 = [this.name], ptr = this.parent;
           while (ptr) {
-            path10.unshift(ptr.name);
+            path11.unshift(ptr.name);
             ptr = ptr.parent;
           }
-          return path10.join(".");
+          return path11.join(".");
         }
       }
     });
@@ -73947,22 +73947,22 @@ var require_crypto5 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.NodeCrypto = void 0;
-    var crypto6 = require("crypto");
+    var crypto7 = require("crypto");
     var NodeCrypto = class {
       async sha256DigestBase64(str) {
-        return crypto6.createHash("sha256").update(str).digest("base64");
+        return crypto7.createHash("sha256").update(str).digest("base64");
       }
       randomBytesBase64(count) {
-        return crypto6.randomBytes(count).toString("base64");
+        return crypto7.randomBytes(count).toString("base64");
       }
       async verify(pubkey, data, signature) {
-        const verifier = crypto6.createVerify("RSA-SHA256");
+        const verifier = crypto7.createVerify("RSA-SHA256");
         verifier.update(data);
         verifier.end();
         return verifier.verify(pubkey, signature, "base64");
       }
       async sign(privateKey, data) {
-        const signer = crypto6.createSign("RSA-SHA256");
+        const signer = crypto7.createSign("RSA-SHA256");
         signer.update(data);
         signer.end();
         return signer.sign(privateKey, "base64");
@@ -73980,7 +73980,7 @@ var require_crypto5 = __commonJS({
        *   string in hexadecimal encoding.
        */
       async sha256DigestHex(str) {
-        return crypto6.createHash("sha256").update(str).digest("hex");
+        return crypto7.createHash("sha256").update(str).digest("hex");
       }
       /**
        * Computes the HMAC hash of a message using the provided crypto key and the
@@ -73992,7 +73992,7 @@ var require_crypto5 = __commonJS({
        */
       async signWithHmacSha256(key, msg) {
         const cryptoKey = typeof key === "string" ? key : toBuffer(key);
-        return toArrayBuffer(crypto6.createHmac("sha256", cryptoKey).update(msg).digest());
+        return toArrayBuffer(crypto7.createHmac("sha256", cryptoKey).update(msg).digest());
       }
     };
     exports2.NodeCrypto = NodeCrypto;
@@ -74054,9 +74054,9 @@ var require_util5 = __commonJS({
     exports2.removeUndefinedValuesInObject = removeUndefinedValuesInObject;
     exports2.isValidFile = isValidFile;
     exports2.getWellKnownCertificateConfigFileLocation = getWellKnownCertificateConfigFileLocation;
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var os2 = require("os");
-    var path10 = require("path");
+    var path11 = require("path");
     var WELL_KNOWN_CERTIFICATE_CONFIG_FILE = "certificate_config.json";
     var CLOUDSDK_CONFIG_DIRECTORY = "gcloud";
     function snakeToCamel(str) {
@@ -74142,15 +74142,15 @@ var require_util5 = __commonJS({
     }
     async function isValidFile(filePath) {
       try {
-        const stats = await fs11.promises.lstat(filePath);
+        const stats = await fs12.promises.lstat(filePath);
         return stats.isFile();
       } catch (e2) {
         return false;
       }
     }
     function getWellKnownCertificateConfigFileLocation() {
-      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path10.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path10.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
-      return path10.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
+      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path11.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path11.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
+      return path11.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
     }
     function _isWindows() {
       return os2.platform().startsWith("win");
@@ -74676,10 +74676,10 @@ var require_oauth2client2 = __commonJS({
        * https://github.com/googleapis/google-auth-library-nodejs/blob/main/samples/oauth2-codeVerifier.js
        */
       async generateCodeVerifierAsync() {
-        const crypto6 = (0, crypto_1.createCrypto)();
-        const randomString2 = crypto6.randomBytesBase64(96);
+        const crypto7 = (0, crypto_1.createCrypto)();
+        const randomString2 = crypto7.randomBytesBase64(96);
         const codeVerifier = randomString2.replace(/\+/g, "~").replace(/=/g, "_").replace(/\//g, "-");
-        const unencodedCodeChallenge = await crypto6.sha256DigestBase64(codeVerifier);
+        const unencodedCodeChallenge = await crypto7.sha256DigestBase64(codeVerifier);
         const codeChallenge = unencodedCodeChallenge.split("=")[0].replace(/\+/g, "-").replace(/\//g, "_");
         return { codeVerifier, codeChallenge };
       }
@@ -75120,7 +75120,7 @@ var require_oauth2client2 = __commonJS({
        * @return Returns a promise resolving to LoginTicket on verification.
        */
       async verifySignedJwtWithCertsAsync(jwt2, certs, requiredAudience, issuers, maxExpiry) {
-        const crypto6 = (0, crypto_1.createCrypto)();
+        const crypto7 = (0, crypto_1.createCrypto)();
         if (!maxExpiry) {
           maxExpiry = _OAuth2Client.DEFAULT_MAX_TOKEN_LIFETIME_SECS_;
         }
@@ -75133,7 +75133,7 @@ var require_oauth2client2 = __commonJS({
         let envelope;
         let payload;
         try {
-          envelope = JSON.parse(crypto6.decodeBase64StringUtf8(segments[0]));
+          envelope = JSON.parse(crypto7.decodeBase64StringUtf8(segments[0]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token envelope: ${segments[0]}': ${err.message}`;
@@ -75144,7 +75144,7 @@ var require_oauth2client2 = __commonJS({
           throw new Error("Can't parse token envelope: " + segments[0]);
         }
         try {
-          payload = JSON.parse(crypto6.decodeBase64StringUtf8(segments[1]));
+          payload = JSON.parse(crypto7.decodeBase64StringUtf8(segments[1]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token payload '${segments[0]}`;
@@ -75161,7 +75161,7 @@ var require_oauth2client2 = __commonJS({
         if (envelope.alg === "ES256") {
           signature = formatEcdsa.joseToDer(signature, "ES256").toString("base64");
         }
-        const verified = await crypto6.verify(cert2, signed, signature);
+        const verified = await crypto7.verify(cert2, signed, signature);
         if (!verified) {
           throw new Error("Invalid token signature: " + jwt2);
         }
@@ -75458,10 +75458,10 @@ var require_src8 = __commonJS({
       value: true
     });
     exports2.GoogleToken = void 0;
-    var fs11 = _interopRequireWildcard(require("fs"));
+    var fs12 = _interopRequireWildcard(require("fs"));
     var _gaxios = require_src2();
     var jws = _interopRequireWildcard(require_jws());
-    var path10 = _interopRequireWildcard(require("path"));
+    var path11 = _interopRequireWildcard(require("path"));
     var _util = require("util");
     function _interopRequireWildcard(e2, t2) {
       if ("function" == typeof WeakMap) var r2 = /* @__PURE__ */ new WeakMap(), n = /* @__PURE__ */ new WeakMap();
@@ -75701,7 +75701,7 @@ var require_src8 = __commonJS({
         });
       };
     }
-    var readFile = fs11.readFile ? (0, _util.promisify)(fs11.readFile) : /* @__PURE__ */ _asyncToGenerator(/* @__PURE__ */ _regenerator().m(function _callee() {
+    var readFile = fs12.readFile ? (0, _util.promisify)(fs12.readFile) : /* @__PURE__ */ _asyncToGenerator(/* @__PURE__ */ _regenerator().m(function _callee() {
       return _regenerator().w(function(_context) {
         while (1) switch (_context.n) {
           case 0:
@@ -75835,7 +75835,7 @@ var require_src8 = __commonJS({
             return _regenerator().w(function(_context2) {
               while (1) switch (_context2.n) {
                 case 0:
-                  ext = path10.extname(keyFile);
+                  ext = path11.extname(keyFile);
                   _t = ext;
                   _context2.n = _t === ".json" ? 1 : _t === ".der" ? 4 : _t === ".crt" ? 4 : _t === ".pem" ? 4 : _t === ".p12" ? 6 : _t === ".pfx" ? 6 : 7;
                   break;
@@ -77455,12 +77455,12 @@ var require_filesubjecttokensupplier2 = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileSubjectTokenSupplier = void 0;
     var util_1 = require("util");
-    var fs11 = require("fs");
-    var readFile = (0, util_1.promisify)(fs11.readFile ?? (() => {
+    var fs12 = require("fs");
+    var readFile = (0, util_1.promisify)(fs12.readFile ?? (() => {
     }));
-    var realpath = (0, util_1.promisify)(fs11.realpath ?? (() => {
+    var realpath = (0, util_1.promisify)(fs12.realpath ?? (() => {
     }));
-    var lstat = (0, util_1.promisify)(fs11.lstat ?? (() => {
+    var lstat = (0, util_1.promisify)(fs12.lstat ?? (() => {
     }));
     var FileSubjectTokenSupplier = class {
       filePath;
@@ -77577,7 +77577,7 @@ var require_certificatesubjecttokensupplier2 = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CertificateSubjectTokenSupplier = exports2.InvalidConfigurationError = exports2.CertificateSourceUnavailableError = exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = void 0;
     var util_1 = require_util5();
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var crypto_1 = require("crypto");
     var https2 = require("https");
     exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = "GOOGLE_API_CERTIFICATE_CONFIG";
@@ -77671,7 +77671,7 @@ var require_certificatesubjecttokensupplier2 = __commonJS({
         const configPath = this.certificateConfigPath;
         let fileContents;
         try {
-          fileContents = await fs11.promises.readFile(configPath, "utf8");
+          fileContents = await fs12.promises.readFile(configPath, "utf8");
         } catch (err) {
           throw new CertificateSourceUnavailableError(`Failed to read certificate config file at: ${configPath}`);
         }
@@ -77696,14 +77696,14 @@ var require_certificatesubjecttokensupplier2 = __commonJS({
       async #getKeyAndCert(certPath, keyPath) {
         let cert2, key;
         try {
-          cert2 = await fs11.promises.readFile(certPath);
+          cert2 = await fs12.promises.readFile(certPath);
           new crypto_1.X509Certificate(cert2);
         } catch (err) {
           const message2 = err instanceof Error ? err.message : String(err);
           throw new CertificateSourceUnavailableError(`Failed to read certificate file at ${certPath}: ${message2}`);
         }
         try {
-          key = await fs11.promises.readFile(keyPath);
+          key = await fs12.promises.readFile(keyPath);
           (0, crypto_1.createPrivateKey)(key);
         } catch (err) {
           const message2 = err instanceof Error ? err.message : String(err);
@@ -77722,7 +77722,7 @@ var require_certificatesubjecttokensupplier2 = __commonJS({
           return JSON.stringify([leafCert.raw.toString("base64")]);
         }
         try {
-          const chainPems = await fs11.promises.readFile(this.trustChainPath, "utf8");
+          const chainPems = await fs12.promises.readFile(this.trustChainPath, "utf8");
           const pemBlocks = chainPems.match(/-----BEGIN CERTIFICATE-----[^-]+-----END CERTIFICATE-----/g) ?? [];
           const chainCerts = pemBlocks.map((pem, index) => {
             try {
@@ -77953,14 +77953,14 @@ var require_awsrequestsigner2 = __commonJS({
       }
     };
     exports2.AwsRequestSigner = AwsRequestSigner;
-    async function sign2(crypto6, key, msg) {
-      return await crypto6.signWithHmacSha256(key, msg);
+    async function sign2(crypto7, key, msg) {
+      return await crypto7.signWithHmacSha256(key, msg);
     }
-    async function getSigningKey(crypto6, key, dateStamp, region, serviceName) {
-      const kDate = await sign2(crypto6, `AWS4${key}`, dateStamp);
-      const kRegion = await sign2(crypto6, kDate, region);
-      const kService = await sign2(crypto6, kRegion, serviceName);
-      const kSigning = await sign2(crypto6, kService, "aws4_request");
+    async function getSigningKey(crypto7, key, dateStamp, region, serviceName) {
+      const kDate = await sign2(crypto7, `AWS4${key}`, dateStamp);
+      const kRegion = await sign2(crypto7, kDate, region);
+      const kService = await sign2(crypto7, kRegion, serviceName);
+      const kSigning = await sign2(crypto7, kService, "aws4_request");
       return kSigning;
     }
     async function generateAuthenticationHeaderMap(options) {
@@ -78420,7 +78420,7 @@ var require_pluggable_auth_handler2 = __commonJS({
     exports2.PluggableAuthHandler = exports2.ExecutableError = void 0;
     var executable_response_1 = require_executable_response2();
     var childProcess = require("child_process");
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var ExecutableError = class extends Error {
       /**
        * The exit code returned by the executable.
@@ -78505,14 +78505,14 @@ var require_pluggable_auth_handler2 = __commonJS({
         }
         let filePath;
         try {
-          filePath = await fs11.promises.realpath(this.outputFile);
+          filePath = await fs12.promises.realpath(this.outputFile);
         } catch {
           return void 0;
         }
-        if (!(await fs11.promises.lstat(filePath)).isFile()) {
+        if (!(await fs12.promises.lstat(filePath)).isFile()) {
           return void 0;
         }
-        const responseString = await fs11.promises.readFile(filePath, {
+        const responseString = await fs12.promises.readFile(filePath, {
           encoding: "utf8"
         });
         if (responseString === "") {
@@ -78922,11 +78922,11 @@ var require_googleauth2 = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GoogleAuth = exports2.GoogleAuthExceptionMessages = void 0;
     var child_process_1 = require("child_process");
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var gaxios_1 = require_src2();
     var gcpMetadata = require_src4();
     var os2 = require("os");
-    var path10 = require("path");
+    var path11 = require("path");
     var crypto_1 = require_crypto6();
     var computeclient_1 = require_computeclient2();
     var idtokenclient_1 = require_idtokenclient2();
@@ -79212,12 +79212,12 @@ var require_googleauth2 = __commonJS({
         } else {
           const home = process.env["HOME"];
           if (home) {
-            location = path10.join(home, ".config");
+            location = path11.join(home, ".config");
           }
         }
         if (location) {
-          location = path10.join(location, "gcloud", "application_default_credentials.json");
-          if (!fs11.existsSync(location)) {
+          location = path11.join(location, "gcloud", "application_default_credentials.json");
+          if (!fs12.existsSync(location)) {
             location = null;
           }
         }
@@ -79238,8 +79238,8 @@ var require_googleauth2 = __commonJS({
           throw new Error("The file path is invalid.");
         }
         try {
-          filePath = fs11.realpathSync(filePath);
-          if (!fs11.lstatSync(filePath).isFile()) {
+          filePath = fs12.realpathSync(filePath);
+          if (!fs12.lstatSync(filePath).isFile()) {
             throw new Error();
           }
         } catch (err) {
@@ -79248,7 +79248,7 @@ var require_googleauth2 = __commonJS({
           }
           throw err;
         }
-        const readStream = fs11.createReadStream(filePath);
+        const readStream = fs12.createReadStream(filePath);
         return this.fromStream(readStream, options);
       }
       /**
@@ -79560,8 +79560,8 @@ var require_googleauth2 = __commonJS({
         if (this.jsonContent) {
           return this._cacheClientFromJSON(this.jsonContent, this.clientOptions);
         } else if (this.keyFilename) {
-          const filePath = path10.resolve(this.keyFilename);
-          const stream = fs11.createReadStream(filePath);
+          const filePath = path11.resolve(this.keyFilename);
+          const stream = fs12.createReadStream(filePath);
           return await this.fromStreamAsync(stream, this.clientOptions);
         } else if (this.apiKey) {
           const client = await this.fromAPIKey(this.apiKey, this.clientOptions);
@@ -79674,24 +79674,24 @@ var require_googleauth2 = __commonJS({
           const signed = await client.sign(data);
           return signed.signedBlob;
         }
-        const crypto6 = (0, crypto_1.createCrypto)();
+        const crypto7 = (0, crypto_1.createCrypto)();
         if (client instanceof jwtclient_1.JWT && client.key) {
-          const sign2 = await crypto6.sign(client.key, data);
+          const sign2 = await crypto7.sign(client.key, data);
           return sign2;
         }
         const creds = await this.getCredentials();
         if (!creds.client_email) {
           throw new Error("Cannot sign data without `client_email`.");
         }
-        return this.signBlob(crypto6, creds.client_email, data, endpoint);
+        return this.signBlob(crypto7, creds.client_email, data, endpoint);
       }
-      async signBlob(crypto6, emailOrUniqueId, data, endpoint) {
+      async signBlob(crypto7, emailOrUniqueId, data, endpoint) {
         const url2 = new URL(endpoint + `${emailOrUniqueId}:signBlob`);
         const res = await this.request({
           method: "POST",
           url: url2.href,
           data: {
-            payload: crypto6.encodeBase64StringUtf8(data)
+            payload: crypto7.encodeBase64StringUtf8(data)
           },
           retry: true,
           retryConfig: {
@@ -96533,14 +96533,14 @@ var require_pathTemplate = __commonJS({
        * @return {Object} contains const names matched to binding values
        * @throws {TypeError} if path can't be matched to this template
        */
-      match(path10) {
-        let pathSegments = path10.split("/");
+      match(path11) {
+        let pathSegments = path11.split("/");
         const bindings = {};
         if (pathSegments.length !== this.segments.length) {
           if (!this.data.includes("**")) {
-            throw new TypeError(`This path ${path10} does not match path template ${this.data}, the number of parameters is not same.`);
+            throw new TypeError(`This path ${path11} does not match path template ${this.data}, the number of parameters is not same.`);
           } else if (pathSegments.length !== this.segments.length + 1) {
-            throw new TypeError(`This path ${path10} does not match path template ${this.data}, the number of parameters is not same with one wildcard.`);
+            throw new TypeError(`This path ${path11} does not match path template ${this.data}, the number of parameters is not same with one wildcard.`);
           }
         }
         for (let index = 0; index < this.segments.length && pathSegments.length > 0; index++) {
@@ -96595,7 +96595,7 @@ var require_pathTemplate = __commonJS({
         if (Object.keys(bindings).length !== Object.keys(this.bindings).length) {
           throw new TypeError(`The number of variables ${Object.keys(bindings).length} does not match the number of needed variables ${Object.keys(this.bindings).length}`);
         }
-        let path10 = this.inspect();
+        let path11 = this.inspect();
         for (const key of Object.keys(bindings)) {
           const b = bindings[key].toString();
           if (!this.bindings[key]) {
@@ -96606,15 +96606,15 @@ var require_pathTemplate = __commonJS({
             if (!b.match(/[^/{}]+/)) {
               throw new TypeError(`render fails for not matching ${b}`);
             }
-            path10 = path10.replace(`{${key}=*}`, `${b}`);
+            path11 = path11.replace(`{${key}=*}`, `${b}`);
           } else if (variable === "**") {
             if (!b.match(/[^{}]+/)) {
               throw new TypeError(`render fails for not matching ${b}`);
             }
-            path10 = path10.replace(`{${key}=**}`, `${b}`);
+            path11 = path11.replace(`{${key}=**}`, `${b}`);
           }
         }
-        return path10;
+        return path11;
       }
       /**
        * Renders the path template.
@@ -98449,14 +98449,14 @@ var require_tls_helpers = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CIPHER_SUITES = void 0;
     exports2.getDefaultRootsData = getDefaultRootsData;
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     exports2.CIPHER_SUITES = process.env.GRPC_SSL_CIPHER_SUITES;
     var DEFAULT_ROOTS_FILE_PATH = process.env.GRPC_DEFAULT_SSL_ROOTS_FILE_PATH;
     var defaultRootsData = null;
     function getDefaultRootsData() {
       if (DEFAULT_ROOTS_FILE_PATH) {
         if (defaultRootsData === null) {
-          defaultRootsData = fs11.readFileSync(DEFAULT_ROOTS_FILE_PATH);
+          defaultRootsData = fs12.readFileSync(DEFAULT_ROOTS_FILE_PATH);
         }
         return defaultRootsData;
       }
@@ -98489,19 +98489,19 @@ var require_uri_parser = __commonJS({
       };
     }
     var NUMBER_REGEX = /^\d+$/;
-    function splitHostPort(path10) {
-      if (path10.startsWith("[")) {
-        const hostEnd = path10.indexOf("]");
+    function splitHostPort(path11) {
+      if (path11.startsWith("[")) {
+        const hostEnd = path11.indexOf("]");
         if (hostEnd === -1) {
           return null;
         }
-        const host = path10.substring(1, hostEnd);
+        const host = path11.substring(1, hostEnd);
         if (host.indexOf(":") === -1) {
           return null;
         }
-        if (path10.length > hostEnd + 1) {
-          if (path10[hostEnd + 1] === ":") {
-            const portString = path10.substring(hostEnd + 2);
+        if (path11.length > hostEnd + 1) {
+          if (path11[hostEnd + 1] === ":") {
+            const portString = path11.substring(hostEnd + 2);
             if (NUMBER_REGEX.test(portString)) {
               return {
                 host,
@@ -98519,7 +98519,7 @@ var require_uri_parser = __commonJS({
           };
         }
       } else {
-        const splitPath = path10.split(":");
+        const splitPath = path11.split(":");
         if (splitPath.length === 2) {
           if (NUMBER_REGEX.test(splitPath[1])) {
             return {
@@ -98531,7 +98531,7 @@ var require_uri_parser = __commonJS({
           }
         } else {
           return {
-            host: path10
+            host: path11
           };
         }
       }
@@ -101567,14 +101567,14 @@ var require_client_interceptors = __commonJS({
       }
     };
     exports2.InterceptingCall = InterceptingCall;
-    function getCall(channel, path10, options) {
+    function getCall(channel, path11, options) {
       var _a4, _b;
       const deadline = (_a4 = options.deadline) !== null && _a4 !== void 0 ? _a4 : Infinity;
       const host = options.host;
       const parent = (_b = options.parent) !== null && _b !== void 0 ? _b : null;
       const propagateFlags = options.propagate_flags;
       const credentials = options.credentials;
-      const call = channel.createCall(path10, deadline, host, parent, propagateFlags);
+      const call = channel.createCall(path11, deadline, host, parent, propagateFlags);
       if (credentials) {
         call.setCredentials(credentials);
       }
@@ -102144,9 +102144,9 @@ var require_make_client = __commonJS({
       ServiceClientImpl.serviceName = serviceName;
       return ServiceClientImpl;
     }
-    function partial2(fn, path10, serialize, deserialize) {
+    function partial2(fn, path11, serialize, deserialize) {
       return function(...args) {
-        return fn.call(this, path10, serialize, deserialize, ...args);
+        return fn.call(this, path11, serialize, deserialize, ...args);
       };
     }
     function isProtobufTypeDefinition(obj) {
@@ -104899,19 +104899,19 @@ var require_util7 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.addCommonProtos = exports2.loadProtosWithOptionsSync = exports2.loadProtosWithOptions = void 0;
-    var fs11 = require("fs");
-    var path10 = require("path");
+    var fs12 = require("fs");
+    var path11 = require("path");
     var Protobuf = require_protobufjs();
     function addIncludePathResolver(root, includePaths) {
       const originalResolvePath = root.resolvePath;
       root.resolvePath = (origin, target) => {
-        if (path10.isAbsolute(target)) {
+        if (path11.isAbsolute(target)) {
           return target;
         }
         for (const directory of includePaths) {
-          const fullPath = path10.join(directory, target);
+          const fullPath = path11.join(directory, target);
           try {
-            fs11.accessSync(fullPath, fs11.constants.R_OK);
+            fs12.accessSync(fullPath, fs12.constants.R_OK);
             return fullPath;
           } catch (err) {
             continue;
@@ -110506,9 +110506,9 @@ var require_server_call = __commonJS({
       return status;
     }
     var ServerUnaryCallImpl = class extends events_1.EventEmitter {
-      constructor(path10, call, metadata, request) {
+      constructor(path11, call, metadata, request) {
         super();
-        this.path = path10;
+        this.path = path11;
         this.call = call;
         this.metadata = metadata;
         this.request = request;
@@ -110538,9 +110538,9 @@ var require_server_call = __commonJS({
     };
     exports2.ServerUnaryCallImpl = ServerUnaryCallImpl;
     var ServerReadableStreamImpl = class extends stream_1.Readable {
-      constructor(path10, call, metadata) {
+      constructor(path11, call, metadata) {
         super({ objectMode: true });
-        this.path = path10;
+        this.path = path11;
         this.call = call;
         this.metadata = metadata;
         this.cancelled = false;
@@ -110572,9 +110572,9 @@ var require_server_call = __commonJS({
     };
     exports2.ServerReadableStreamImpl = ServerReadableStreamImpl;
     var ServerWritableStreamImpl = class extends stream_1.Writable {
-      constructor(path10, call, metadata, request) {
+      constructor(path11, call, metadata, request) {
         super({ objectMode: true });
-        this.path = path10;
+        this.path = path11;
         this.call = call;
         this.metadata = metadata;
         this.request = request;
@@ -110628,9 +110628,9 @@ var require_server_call = __commonJS({
     };
     exports2.ServerWritableStreamImpl = ServerWritableStreamImpl;
     var ServerDuplexStreamImpl = class extends stream_1.Duplex {
-      constructor(path10, call, metadata) {
+      constructor(path11, call, metadata) {
         super({ objectMode: true });
-        this.path = path10;
+        this.path = path11;
         this.call = call;
         this.metadata = metadata;
         this.pendingStatus = {
@@ -112931,11 +112931,11 @@ var require_server = __commonJS({
           }
           return true;
         }
-        _retrieveHandler(path10) {
-          serverCallTrace("Received call to method " + path10 + " at address " + this.serverAddressString);
-          const handler = this.handlers.get(path10);
+        _retrieveHandler(path11) {
+          serverCallTrace("Received call to method " + path11 + " at address " + this.serverAddressString);
+          const handler = this.handlers.get(path11);
           if (handler === void 0) {
-            serverCallTrace("No handler registered for method " + path10 + ". Sending UNIMPLEMENTED status.");
+            serverCallTrace("No handler registered for method " + path11 + ". Sending UNIMPLEMENTED status.");
             return null;
           }
           return handler;
@@ -112959,10 +112959,10 @@ var require_server = __commonJS({
             channelzSessionInfo === null || channelzSessionInfo === void 0 ? void 0 : channelzSessionInfo.streamTracker.addCallFailed();
             return;
           }
-          const path10 = headers[HTTP2_HEADER_PATH];
-          const handler = this._retrieveHandler(path10);
+          const path11 = headers[HTTP2_HEADER_PATH];
+          const handler = this._retrieveHandler(path11);
           if (!handler) {
-            this._respondWithError(getUnimplementedStatusResponse(path10), stream, channelzSessionInfo);
+            this._respondWithError(getUnimplementedStatusResponse(path11), stream, channelzSessionInfo);
             return;
           }
           const callEventTracker = {
@@ -113012,10 +113012,10 @@ var require_server = __commonJS({
           if (this._verifyContentType(stream, headers) !== true) {
             return;
           }
-          const path10 = headers[HTTP2_HEADER_PATH];
-          const handler = this._retrieveHandler(path10);
+          const path11 = headers[HTTP2_HEADER_PATH];
+          const handler = this._retrieveHandler(path11);
           if (!handler) {
-            this._respondWithError(getUnimplementedStatusResponse(path10), stream, null);
+            this._respondWithError(getUnimplementedStatusResponse(path11), stream, null);
             return;
           }
           const call = (0, server_interceptors_1.getServerInterceptingCall)([...extraInterceptors, ...this.interceptors], stream, headers, null, handler, this.options);
@@ -114060,7 +114060,7 @@ var require_certificate_provider = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileWatcherCertificateProvider = void 0;
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var logging = require_logging();
     var constants_1 = require_constants2();
     var util_1 = require("util");
@@ -114068,7 +114068,7 @@ var require_certificate_provider = __commonJS({
     function trace2(text) {
       logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
     }
-    var readFilePromise = (0, util_1.promisify)(fs11.readFile);
+    var readFilePromise = (0, util_1.promisify)(fs12.readFile);
     var FileWatcherCertificateProvider = class {
       constructor(config2) {
         this.config = config2;
@@ -114323,13 +114323,13 @@ var require_resolver_uds = __commonJS({
         this.listener = listener;
         this.hasReturnedResult = false;
         this.endpoints = [];
-        let path10;
+        let path11;
         if (target.authority === "") {
-          path10 = "/" + target.path;
+          path11 = "/" + target.path;
         } else {
-          path10 = target.path;
+          path11 = target.path;
         }
-        this.endpoints = [{ addresses: [{ path: path10 }] }];
+        this.endpoints = [{ addresses: [{ path: path11 }] }];
       }
       updateResolution() {
         if (!this.hasReturnedResult) {
@@ -114389,12 +114389,12 @@ var require_resolver_ip = __commonJS({
           return;
         }
         const pathList = target.path.split(",");
-        for (const path10 of pathList) {
-          const hostPort = (0, uri_parser_1.splitHostPort)(path10);
+        for (const path11 of pathList) {
+          const hostPort = (0, uri_parser_1.splitHostPort)(path11);
           if (hostPort === null) {
             this.error = {
               code: constants_1.Status.UNAVAILABLE,
-              details: `Failed to parse ${target.scheme} address ${path10}`,
+              details: `Failed to parse ${target.scheme} address ${path11}`,
               metadata: new metadata_1.Metadata()
             };
             return;
@@ -114402,7 +114402,7 @@ var require_resolver_ip = __commonJS({
           if (target.scheme === IPV4_SCHEME && !(0, net_1.isIPv4)(hostPort.host) || target.scheme === IPV6_SCHEME && !(0, net_1.isIPv6)(hostPort.host)) {
             this.error = {
               code: constants_1.Status.UNAVAILABLE,
-              details: `Failed to parse ${target.scheme} address ${path10}`,
+              details: `Failed to parse ${target.scheme} address ${path11}`,
               metadata: new metadata_1.Metadata()
             };
             return;
@@ -115757,19 +115757,19 @@ var require_util8 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.addCommonProtos = exports2.loadProtosWithOptionsSync = exports2.loadProtosWithOptions = void 0;
-    var fs11 = require("fs");
-    var path10 = require("path");
+    var fs12 = require("fs");
+    var path11 = require("path");
     var Protobuf = require_protobufjs();
     function addIncludePathResolver(root, includePaths) {
       const originalResolvePath = root.resolvePath;
       root.resolvePath = (origin, target) => {
-        if (path10.isAbsolute(target)) {
+        if (path11.isAbsolute(target)) {
           return target;
         }
         for (const directory of includePaths) {
-          const fullPath = path10.join(directory, target);
+          const fullPath = path11.join(directory, target);
           try {
-            fs11.accessSync(fullPath, fs11.constants.R_OK);
+            fs12.accessSync(fullPath, fs12.constants.R_OK);
             return fullPath;
           } catch (err) {
             continue;
@@ -116202,23 +116202,23 @@ var require_grpc = __commonJS({
     exports2.GoogleProtoFilesRoot = exports2.GrpcClient = exports2.ClientStub = void 0;
     var grpcProtoLoader = __importStar(require_src13());
     var child_process_1 = require("child_process");
-    var fs11 = __importStar(require("fs"));
+    var fs12 = __importStar(require("fs"));
     var google_auth_library_1 = require_src9();
     var grpc = __importStar(require_src12());
     var os2 = __importStar(require("os"));
     var path_1 = require("path");
-    var path10 = __importStar(require("path"));
+    var path11 = __importStar(require("path"));
     var protobuf = __importStar(require_protobufjs());
     var object_hash_1 = __importDefault(require_object_hash());
     var gax = __importStar(require_gax());
-    var googleProtoFilesDir = path10.join(__dirname, "..", "..", "build", "protos");
+    var googleProtoFilesDir = path11.join(__dirname, "..", "..", "build", "protos");
     var INCLUDE_DIRS = [];
     INCLUDE_DIRS.push(googleProtoFilesDir);
     var protosList_json_1 = __importDefault(require_protosList());
-    var COMMON_PROTO_FILES = protosList_json_1.default.map((file2) => file2.replace(/[/\\]/g, path10.sep));
-    async function readFileAsync(path11) {
+    var COMMON_PROTO_FILES = protosList_json_1.default.map((file2) => file2.replace(/[/\\]/g, path11.sep));
+    async function readFileAsync(path12) {
       return new Promise((resolve, reject) => {
-        fs11.readFile(path11, "utf8", (err, content) => {
+        fs12.readFile(path12, "utf8", (err, content) => {
           if (err)
             return reject(err);
           else
@@ -116379,8 +116379,8 @@ var require_grpc = __commonJS({
        */
       loadProto(protoPath, filename, ignoreCache = false) {
         if (!filename) {
-          filename = path10.basename(protoPath);
-          protoPath = path10.dirname(protoPath);
+          filename = path11.basename(protoPath);
+          protoPath = path11.dirname(protoPath);
         }
         if (Array.isArray(filename) && filename.length === 0) {
           return {};
@@ -116390,10 +116390,10 @@ var require_grpc = __commonJS({
         return this.loadFromProto(filename, options, ignoreCache);
       }
       static _resolveFile(protoPath, filename) {
-        if (fs11.existsSync(path10.join(protoPath, filename))) {
-          return path10.join(protoPath, filename);
+        if (fs12.existsSync(path11.join(protoPath, filename))) {
+          return path11.join(protoPath, filename);
         } else if (COMMON_PROTO_FILES.indexOf(filename) > -1) {
-          return path10.join(googleProtoFilesDir, filename);
+          return path11.join(googleProtoFilesDir, filename);
         }
         throw new Error(filename + " could not be found in " + protoPath);
       }
@@ -116585,32 +116585,32 @@ var require_grpc = __commonJS({
       // Causes the loading of an included proto to check if it is a common
       // proto. If it is a common proto, use the bundled proto.
       resolvePath(originPath, includePath) {
-        originPath = path10.normalize(originPath);
-        includePath = path10.normalize(includePath);
-        if (path10.isAbsolute(includePath)) {
-          if (!fs11.existsSync(includePath)) {
+        originPath = path11.normalize(originPath);
+        includePath = path11.normalize(includePath);
+        if (path11.isAbsolute(includePath)) {
+          if (!fs12.existsSync(includePath)) {
             throw new Error("The include `" + includePath + "` was not found.");
           }
           return includePath;
         }
         if (COMMON_PROTO_FILES.indexOf(includePath) > -1) {
-          return path10.join(googleProtoFilesDir, includePath);
+          return path11.join(googleProtoFilesDir, includePath);
         }
         return _GoogleProtoFilesRoot._findIncludePath(originPath, includePath);
       }
       static _findIncludePath(originPath, includePath) {
-        originPath = path10.normalize(originPath);
-        includePath = path10.normalize(includePath);
+        originPath = path11.normalize(originPath);
+        includePath = path11.normalize(includePath);
         let current = originPath;
-        let found = fs11.existsSync(path10.join(current, includePath));
+        let found = fs12.existsSync(path11.join(current, includePath));
         while (!found && current.length > 0) {
-          current = current.substring(0, current.lastIndexOf(path10.sep));
-          found = fs11.existsSync(path10.join(current, includePath));
+          current = current.substring(0, current.lastIndexOf(path11.sep));
+          found = fs12.existsSync(path11.join(current, includePath));
         }
         if (!found) {
           throw new Error("The include `" + includePath + "` was not found.");
         }
-        return path10.join(current, includePath);
+        return path11.join(current, includePath);
       }
     };
     exports2.GoogleProtoFilesRoot = GoogleProtoFilesRoot;
@@ -117240,8 +117240,8 @@ var require_validate = __commonJS({
     var url_1 = require("url");
     var util_1 = require_util9();
     var timestamp_1 = require_timestamp2();
-    function customObjectMessage(arg, value, path10) {
-      const fieldPathMessage = path10 ? ` (found in field "${path10}")` : "";
+    function customObjectMessage(arg, value, path11) {
+      const fieldPathMessage = path11 ? ` (found in field "${path11}")` : "";
       if ((0, util_1.isObject)(value)) {
         const typeName = value.constructor.name;
         switch (typeName) {
@@ -118788,8 +118788,8 @@ var require_path2 = __commonJS({
       constructor(...segments) {
         super(...segments);
       }
-      static fromDotNotation(path10) {
-        return new _ObjectValueFieldPath(...path10.split("."));
+      static fromDotNotation(path11) {
+        return new _ObjectValueFieldPath(...path11.split("."));
       }
       /**
        * Constructs a new instance of FieldPath. We need this instead of using
@@ -126156,8 +126156,8 @@ var require_query = __commonJS({
         (0, path_1.validateFieldPath)("fieldPath", fieldPath);
         operator = (0, helpers_1.validateQueryOperator)("opStr", operator, value);
         (0, helpers_1.validateQueryValue)("value", value, this._allowUndefined);
-        const path10 = index_1.FieldPath.fromArgument(fieldPath);
-        if (index_1.FieldPath.documentId().isEqual(path10)) {
+        const path11 = index_1.FieldPath.fromArgument(fieldPath);
+        if (index_1.FieldPath.documentId().isEqual(path11)) {
           if (operator === "array-contains" || operator === "array-contains-any") {
             throw new Error(`Invalid Query. You can't perform '${operator}' queries on FieldPath.documentId().`);
           } else if (operator === "in" || operator === "not-in") {
@@ -126169,7 +126169,7 @@ var require_query = __commonJS({
             value = this.validateReference(value);
           }
         }
-        return new field_filter_internal_1.FieldFilterInternal(this._serializer, path10, constants_1.comparisonOperators[operator], value);
+        return new field_filter_internal_1.FieldFilterInternal(this._serializer, path11, constants_1.comparisonOperators[operator], value);
       }
       /**
        * @internal
@@ -126618,9 +126618,9 @@ var require_query = __commonJS({
         const basePath = this._queryOptions.allDescendants ? this._queryOptions.parentPath : this._queryOptions.parentPath.append(this._queryOptions.collectionId);
         let reference;
         if (typeof val === "string") {
-          const path10 = basePath.append(val);
+          const path11 = basePath.append(val);
           if (this._queryOptions.allDescendants) {
-            if (!path10.isDocument) {
+            if (!path11.isDocument) {
               throw new Error(`When querying a collection group and ordering by FieldPath.documentId(), the corresponding value must result in a valid document path, but '${val}' is not because it contains an odd number of segments.`);
             }
           } else if (val.indexOf("/") !== -1) {
@@ -127327,8 +127327,8 @@ var require_collection_reference = __commonJS({
        * @param firestore The Firestore Database client.
        * @param path The Path of this collection.
        */
-      constructor(firestore, path10, converter) {
-        super(firestore, query_options_1.QueryOptions.forCollectionQuery(path10, converter));
+      constructor(firestore, path11, converter) {
+        super(firestore, query_options_1.QueryOptions.forCollectionQuery(path11, converter));
       }
       /**
        * Returns a resource path for this collection.
@@ -127434,8 +127434,8 @@ var require_collection_reference = __commonJS({
             };
             return this.firestore.request("listDocuments", request, tag2).then((documents) => {
               return documents.map((doc) => {
-                const path10 = path_1.QualifiedResourcePath.fromSlashSeparatedString(doc.name);
-                return this.doc(path10.id);
+                const path11 = path_1.QualifiedResourcePath.fromSlashSeparatedString(doc.name);
+                return this.doc(path11.id);
               });
             });
           });
@@ -127466,11 +127466,11 @@ var require_collection_reference = __commonJS({
         } else {
           (0, path_1.validateResourcePath)("documentPath", documentPath);
         }
-        const path10 = this._resourcePath.append(documentPath);
-        if (!path10.isDocument) {
+        const path11 = this._resourcePath.append(documentPath);
+        if (!path11.isDocument) {
           throw new Error(`Value for argument "documentPath" must point to a document, but was "${documentPath}". Your path does not contain an even number of components.`);
         }
-        return new document_reference_1.DocumentReference(this.firestore, path10, this._queryOptions.converter);
+        return new document_reference_1.DocumentReference(this.firestore, path11, this._queryOptions.converter);
       }
       /**
        * Add a new document to this collection with the specified data, assigning
@@ -127745,11 +127745,11 @@ var require_document_reference = __commonJS({
        */
       collection(collectionPath) {
         (0, path_1.validateResourcePath)("collectionPath", collectionPath);
-        const path10 = this._path.append(collectionPath);
-        if (!path10.isCollection) {
+        const path11 = this._path.append(collectionPath);
+        if (!path11.isCollection) {
           throw new Error(`Value for argument "collectionPath" must point to a collection, but was "${collectionPath}". Your path does not contain an odd number of components.`);
         }
-        return new collection_reference_1.CollectionReference(this._firestore, path10);
+        return new collection_reference_1.CollectionReference(this._firestore, path11);
       }
       /**
        * Fetches the subcollections that are direct children of this document.
@@ -129529,10 +129529,10 @@ var require_pipelines = __commonJS({
     exports2.PipelineResult = PipelineResult;
     function subcollection(pathOrOptions) {
       const options = (0, pipeline_util_1.isString)(pathOrOptions) ? {} : pathOrOptions;
-      const path10 = (0, pipeline_util_1.isString)(pathOrOptions) ? pathOrOptions : pathOrOptions.path;
+      const path11 = (0, pipeline_util_1.isString)(pathOrOptions) ? pathOrOptions : pathOrOptions.path;
       const internalOptions = {
         ...options,
-        path: path10
+        path: path11
       };
       return new Pipeline(void 0, [new stage_1.SubcollectionSource(internalOptions)]);
     }
@@ -135210,7 +135210,7 @@ var require_serializer = __commonJS({
       createInteger;
       constructor(firestore) {
         this.firestore = firestore;
-        this.createDocumentReference = (path10) => firestore.doc(path10);
+        this.createDocumentReference = (path11) => firestore.doc(path11);
         this.createInteger = (n) => firestore._settings.useBigInt ? BigInt(n) : Number(n);
         this.allowUndefined = !!firestore._settings.ignoreUndefinedProperties;
       }
@@ -135355,9 +135355,9 @@ var require_serializer = __commonJS({
         }
         throw new Error(`Cannot encode value: ${val}`);
       }
-      encodeReference(path10) {
+      encodeReference(path11) {
         return {
-          referenceValue: (0, pipeline_util_1.isString)(path10) ? path10 : path10.path
+          referenceValue: (0, pipeline_util_1.isString)(path11) ? path11 : path11.path
         };
       }
       /**
@@ -135525,13 +135525,13 @@ var require_serializer = __commonJS({
       }
     };
     exports2.Serializer = Serializer;
-    function validateUserInput(arg, value, desc, options, path10, level, inArray) {
-      if (path10 && path10.size - 1 > MAX_DEPTH) {
+    function validateUserInput(arg, value, desc, options, path11, level, inArray) {
+      if (path11 && path11.size - 1 > MAX_DEPTH) {
         throw new Error(`${(0, validate_1.invalidArgumentMessage)(arg, desc)} Input object is deeper than ${MAX_DEPTH} levels or contains a cycle.`);
       }
       level = level || 0;
       inArray = inArray || false;
-      const fieldPathMessage = path10 ? ` (found in field "${path10}")` : "";
+      const fieldPathMessage = path11 ? ` (found in field "${path11}")` : "";
       if (Array.isArray(value)) {
         for (let i2 = 0; i2 < value.length; ++i2) {
           validateUserInput(
@@ -135539,7 +135539,7 @@ var require_serializer = __commonJS({
             value[i2],
             desc,
             options,
-            path10 ? path10.append(String(i2)) : new path_1.FieldPath(String(i2)),
+            path11 ? path11.append(String(i2)) : new path_1.FieldPath(String(i2)),
             level + 1,
             /* inArray= */
             true
@@ -135547,7 +135547,7 @@ var require_serializer = __commonJS({
         }
       } else if ((0, util_1.isPlainObject)(value)) {
         for (const prop of Object.keys(value)) {
-          validateUserInput(arg, value[prop], desc, options, path10 ? path10.append(new path_1.FieldPath(prop)) : new path_1.FieldPath(prop), level + 1, inArray);
+          validateUserInput(arg, value[prop], desc, options, path11 ? path11.append(new path_1.FieldPath(prop)) : new path_1.FieldPath(prop), level + 1, inArray);
         }
       } else if (value === void 0) {
         if (options.allowUndefined && level === 0) {
@@ -135563,7 +135563,7 @@ var require_serializer = __commonJS({
           throw new Error(`${(0, validate_1.invalidArgumentMessage)(arg, desc)} ${value.methodName}() must appear at the top-level and can only be used in update() or set() with {merge:true}${fieldPathMessage}.`);
         } else if (options.allowDeletes === "root") {
           if (level === 0) {
-          } else if (level === 1 && path10?.size === 1) {
+          } else if (level === 1 && path11?.size === 1) {
           } else {
             throw new Error(`${(0, validate_1.invalidArgumentMessage)(arg, desc)} ${value.methodName}() must appear at the top-level and can only be used in update() or set() with {merge:true}${fieldPathMessage}.`);
           }
@@ -135584,7 +135584,7 @@ var require_serializer = __commonJS({
       } else if (value === null) {
       } else if (isProtoValueSerializable(value)) {
       } else if (typeof value === "object") {
-        throw new Error((0, validate_1.customObjectMessage)(arg, value, path10));
+        throw new Error((0, validate_1.customObjectMessage)(arg, value, path11));
       }
     }
     function isMomentJsType(value) {
@@ -135610,9 +135610,9 @@ var require_serializer = __commonJS({
        * @param path - The field path to set.
        * @param value - The value to set.
        */
-      set(path10, value) {
-        const fieldsMap = this.getFieldsMap(path10.popLast());
-        fieldsMap[path10.lastSegment()] = Value.fromObject(value).toJSON();
+      set(path11, value) {
+        const fieldsMap = this.getFieldsMap(path11.popLast());
+        fieldsMap[path11.lastSegment()] = Value.fromObject(value).toJSON();
       }
       /**
        * Sets the provided fields to the provided values.
@@ -135623,18 +135623,18 @@ var require_serializer = __commonJS({
         let parent = new path_1.ObjectValueFieldPath();
         let upserts = {};
         let deletes = [];
-        data.forEach((value, path10) => {
-          if (!parent.isImmediateParentOf(path10)) {
+        data.forEach((value, path11) => {
+          if (!parent.isImmediateParentOf(path11)) {
             const fieldsMap2 = this.getFieldsMap(parent);
             this.applyChanges(fieldsMap2, upserts, deletes);
             upserts = {};
             deletes = [];
-            parent = path10.popLast();
+            parent = path11.popLast();
           }
           if (value) {
-            upserts[path10.lastSegment()] = Value.fromObject(value).toJSON();
+            upserts[path11.lastSegment()] = Value.fromObject(value).toJSON();
           } else {
-            deletes.push(path10.lastSegment());
+            deletes.push(path11.lastSegment());
           }
         });
         const fieldsMap = this.getFieldsMap(parent);
@@ -135644,16 +135644,16 @@ var require_serializer = __commonJS({
        * Returns the map that contains the leaf element of `path`. If the parent
        * entry does not yet exist, or if it is not a map, a new map will be created.
        */
-      getFieldsMap(path10) {
+      getFieldsMap(path11) {
         let current = this.value;
         if (!current.mapValue.fields) {
           current.mapValue = { fields: {} };
         }
-        for (let i2 = 0; i2 < path10.size; ++i2) {
-          let next = current.mapValue.fields[path10.get(i2)];
+        for (let i2 = 0; i2 < path11.size; ++i2) {
+          let next = current.mapValue.fields[path11.get(i2)];
           if (!isMapValue(next) || !next.mapValue.fields) {
             next = { mapValue: { fields: {} } };
-            current.mapValue.fields[path10.get(i2)] = next;
+            current.mapValue.fields[path11.get(i2)] = next;
           }
           current = next;
         }
@@ -136333,9 +136333,9 @@ var require_document = __commonJS({
        */
       static fromUpdateMap(ref, data) {
         const serializer = ref.firestore._serializer;
-        function merge2(target, value, path10, pos) {
-          const key = path10[pos];
-          const isLast = pos === path10.length - 1;
+        function merge2(target, value, path11, pos) {
+          const key = path11[pos];
+          const isLast = pos === path11.length - 1;
           if (target[key] === void 0) {
             if (isLast) {
               if (value instanceof field_value_1.FieldTransform) {
@@ -136352,7 +136352,7 @@ var require_document = __commonJS({
                   fields: {}
                 }
               };
-              const nestedValue = merge2(childNode.mapValue.fields, value, path10, pos + 1);
+              const nestedValue = merge2(childNode.mapValue.fields, value, path11, pos + 1);
               if (nestedValue) {
                 childNode.mapValue.fields = nestedValue;
                 target[key] = childNode;
@@ -136363,14 +136363,14 @@ var require_document = __commonJS({
             }
           } else {
             assert2(!isLast, "Can't merge current value into a nested object");
-            target[key].mapValue.fields = merge2(target[key].mapValue.fields, value, path10, pos + 1);
+            target[key].mapValue.fields = merge2(target[key].mapValue.fields, value, path11, pos + 1);
             return target;
           }
         }
         const res = {};
         for (const [key, value] of data) {
-          const path10 = key.toArray();
-          merge2(res, value, path10, 0);
+          const path11 = key.toArray();
+          merge2(res, value, path11, 0);
         }
         return new _DocumentSnapshot(ref, res);
       }
@@ -136950,20 +136950,20 @@ var require_document = __commonJS({
        */
       static fromUpdateMap(ref, data) {
         const transforms = /* @__PURE__ */ new Map();
-        function encode_(val, path10, allowTransforms) {
+        function encode_(val, path11, allowTransforms) {
           if (val instanceof field_value_1.FieldTransform && val.includeInDocumentTransform) {
             if (allowTransforms) {
-              transforms.set(path10, val);
+              transforms.set(path11, val);
             } else {
               throw new Error(`${val.methodName}() is not supported inside of array values.`);
             }
           } else if (Array.isArray(val)) {
             for (let i2 = 0; i2 < val.length; ++i2) {
-              encode_(val[i2], path10.append(String(i2)), false);
+              encode_(val[i2], path11.append(String(i2)), false);
             }
           } else if ((0, util_1.isPlainObject)(val)) {
             for (const prop of Object.keys(val)) {
-              encode_(val[prop], path10.append(new path_1.FieldPath(prop)), allowTransforms);
+              encode_(val[prop], path11.append(new path_1.FieldPath(prop)), allowTransforms);
             }
           }
         }
@@ -137008,7 +137008,7 @@ var require_document = __commonJS({
        * @returns A list of Firestore 'FieldTransform' Protos
        */
       toProto(serializer) {
-        return Array.from(this.transforms, ([path10, transform2]) => transform2.toProto(serializer, path10));
+        return Array.from(this.transforms, ([path11, transform2]) => transform2.toProto(serializer, path11));
       }
     };
     exports2.DocumentTransform = DocumentTransform;
@@ -137581,8 +137581,8 @@ var require_write_batch = __commonJS({
         allowUndefined
       });
     }
-    function validateFieldValue(arg, val, allowUndefined, path10) {
-      (0, serializer_1.validateUserInput)(arg, val, "Firestore value", { allowDeletes: "root", allowTransforms: true, allowUndefined }, path10);
+    function validateFieldValue(arg, val, allowUndefined, path11) {
+      (0, serializer_1.validateUserInput)(arg, val, "Firestore value", { allowDeletes: "root", allowTransforms: true, allowUndefined }, path11);
     }
     function validateNoConflictingFields(arg, data) {
       const fields = [];
@@ -138696,9 +138696,9 @@ var require_document_reader = __commonJS({
               snapshot = this.firestore.snapshot_(response.missing, response.readTime);
             }
             if (snapshot) {
-              const path10 = snapshot.ref.formattedName;
-              this.outstandingDocuments.delete(path10);
-              this.retrievedDocuments.set(path10, snapshot);
+              const path11 = snapshot.ref.formattedName;
+              this.outstandingDocuments.delete(path11);
+              this.retrievedDocuments.set(path11, snapshot);
               ++resultCount;
             }
           }
@@ -147747,11 +147747,11 @@ var require_src15 = __commonJS({
        */
       doc(documentPath) {
         (0, path_1.validateResourcePath)("documentPath", documentPath);
-        const path10 = path_1.ResourcePath.EMPTY.append(documentPath);
-        if (!path10.isDocument) {
+        const path11 = path_1.ResourcePath.EMPTY.append(documentPath);
+        if (!path11.isDocument) {
           throw new Error(`Value for argument "documentPath" must point to a document, but was "${documentPath}". Your path does not contain an even number of components.`);
         }
-        return new document_reference_1.DocumentReference(this, path10);
+        return new document_reference_1.DocumentReference(this, path11);
       }
       /**
        * Gets a [CollectionReference]{@link CollectionReference} instance
@@ -147773,11 +147773,11 @@ var require_src15 = __commonJS({
        */
       collection(collectionPath) {
         (0, path_1.validateResourcePath)("collectionPath", collectionPath);
-        const path10 = path_1.ResourcePath.EMPTY.append(collectionPath);
-        if (!path10.isCollection) {
+        const path11 = path_1.ResourcePath.EMPTY.append(collectionPath);
+        if (!path11.isCollection) {
           throw new Error(`Value for argument "collectionPath" must point to a collection, but was "${collectionPath}". Your path does not contain an odd number of components.`);
         }
-        return new collection_reference_1.CollectionReference(this, path10);
+        return new collection_reference_1.CollectionReference(this, path11);
       }
       /**
        * Creates and returns a new Query that includes all documents in the
@@ -162832,14 +162832,14 @@ var require_helpers3 = __commonJS({
       return true;
     }
     exports2.isInteger = isInteger;
-    function escapePathComponent(path10) {
-      if (path10.indexOf("/") === -1 && path10.indexOf("~") === -1)
-        return path10;
-      return path10.replace(/~/g, "~0").replace(/\//g, "~1");
+    function escapePathComponent(path11) {
+      if (path11.indexOf("/") === -1 && path11.indexOf("~") === -1)
+        return path11;
+      return path11.replace(/~/g, "~0").replace(/\//g, "~1");
     }
     exports2.escapePathComponent = escapePathComponent;
-    function unescapePathComponent(path10) {
-      return path10.replace(/~1/g, "/").replace(/~0/g, "~");
+    function unescapePathComponent(path11) {
+      return path11.replace(/~1/g, "/").replace(/~0/g, "~");
     }
     exports2.unescapePathComponent = unescapePathComponent;
     function _getPathRecursive(root, obj) {
@@ -162863,11 +162863,11 @@ var require_helpers3 = __commonJS({
       if (root === obj) {
         return "/";
       }
-      var path10 = _getPathRecursive(root, obj);
-      if (path10 === "") {
+      var path11 = _getPathRecursive(root, obj);
+      if (path11 === "") {
         throw new Error("Object not found in root");
       }
-      return "/" + path10;
+      return "/" + path11;
     }
     exports2.getPath = getPath;
     function hasUndefined(obj) {
@@ -163062,8 +163062,8 @@ var require_core = __commonJS({
         if (!mutateDocument) {
           document2 = helpers_js_1._deepClone(document2);
         }
-        var path10 = operation.path || "";
-        var keys = path10.split("/");
+        var path11 = operation.path || "";
+        var keys = path11.split("/");
         var obj = document2;
         var t2 = 1;
         var len = keys.length;
@@ -163370,7 +163370,7 @@ var require_duplex = __commonJS({
       return temp;
     }
     exports2.generate = generate;
-    function _generate(mirror, obj, patches, path10, invertible) {
+    function _generate(mirror, obj, patches, path11, invertible) {
       if (obj === mirror) {
         return;
       }
@@ -163387,27 +163387,27 @@ var require_duplex = __commonJS({
         if (helpers_js_1.hasOwnProperty(obj, key) && !(obj[key] === void 0 && oldVal !== void 0 && Array.isArray(obj) === false)) {
           var newVal = obj[key];
           if (typeof oldVal == "object" && oldVal != null && typeof newVal == "object" && newVal != null && Array.isArray(oldVal) === Array.isArray(newVal)) {
-            _generate(oldVal, newVal, patches, path10 + "/" + helpers_js_1.escapePathComponent(key), invertible);
+            _generate(oldVal, newVal, patches, path11 + "/" + helpers_js_1.escapePathComponent(key), invertible);
           } else {
             if (oldVal !== newVal) {
               changed = true;
               if (invertible) {
-                patches.push({ op: "test", path: path10 + "/" + helpers_js_1.escapePathComponent(key), value: helpers_js_1._deepClone(oldVal) });
+                patches.push({ op: "test", path: path11 + "/" + helpers_js_1.escapePathComponent(key), value: helpers_js_1._deepClone(oldVal) });
               }
-              patches.push({ op: "replace", path: path10 + "/" + helpers_js_1.escapePathComponent(key), value: helpers_js_1._deepClone(newVal) });
+              patches.push({ op: "replace", path: path11 + "/" + helpers_js_1.escapePathComponent(key), value: helpers_js_1._deepClone(newVal) });
             }
           }
         } else if (Array.isArray(mirror) === Array.isArray(obj)) {
           if (invertible) {
-            patches.push({ op: "test", path: path10 + "/" + helpers_js_1.escapePathComponent(key), value: helpers_js_1._deepClone(oldVal) });
+            patches.push({ op: "test", path: path11 + "/" + helpers_js_1.escapePathComponent(key), value: helpers_js_1._deepClone(oldVal) });
           }
-          patches.push({ op: "remove", path: path10 + "/" + helpers_js_1.escapePathComponent(key) });
+          patches.push({ op: "remove", path: path11 + "/" + helpers_js_1.escapePathComponent(key) });
           deleted = true;
         } else {
           if (invertible) {
-            patches.push({ op: "test", path: path10, value: mirror });
+            patches.push({ op: "test", path: path11, value: mirror });
           }
-          patches.push({ op: "replace", path: path10, value: obj });
+          patches.push({ op: "replace", path: path11, value: obj });
           changed = true;
         }
       }
@@ -163417,7 +163417,7 @@ var require_duplex = __commonJS({
       for (var t2 = 0; t2 < newKeys.length; t2++) {
         var key = newKeys[t2];
         if (!helpers_js_1.hasOwnProperty(mirror, key) && obj[key] !== void 0) {
-          patches.push({ op: "add", path: path10 + "/" + helpers_js_1.escapePathComponent(key), value: helpers_js_1._deepClone(obj[key]) });
+          patches.push({ op: "add", path: path11 + "/" + helpers_js_1.escapePathComponent(key), value: helpers_js_1._deepClone(obj[key]) });
         }
       }
     }
@@ -165785,10 +165785,10 @@ var require_ip_address = __commonJS({
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs11 = require("fs");
-    var path10 = require("path");
+    var fs12 = require("fs");
+    var path11 = require("path");
     var os2 = require("os");
-    var crypto6 = require("crypto");
+    var crypto7 = require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -165917,7 +165917,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs11.existsSync(filepath)) {
+            if (fs12.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -165925,15 +165925,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path10.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path11.resolve(process.cwd(), ".env.vault");
       }
-      if (fs11.existsSync(possibleVaultPath)) {
+      if (fs12.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path10.join(os2.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path11.join(os2.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -165950,7 +165950,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path10.resolve(process.cwd(), ".env");
+      const dotenvPath = path11.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       let processEnv = process.env;
       if (options && options.processEnv != null) {
@@ -165978,13 +165978,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path11 of optionPaths) {
+      for (const path12 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs11.readFileSync(path11, { encoding }));
+          const parsed = DotenvModule.parse(fs12.readFileSync(path12, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e2) {
           if (debug) {
-            _debug(`failed to load ${path11} ${e2.message}`);
+            _debug(`failed to load ${path12} ${e2.message}`);
           }
           lastError = e2;
         }
@@ -165997,7 +165997,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path10.relative(process.cwd(), filePath);
+            const relative = path11.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e2) {
             if (debug) {
@@ -166032,7 +166032,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto6.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto7.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error61) {
@@ -166109,7 +166109,7 @@ __export(server_exports, {
 });
 module.exports = __toCommonJS(server_exports);
 var import_crypto2 = __toESM(require("crypto"), 1);
-var import_express = __toESM(require_express2(), 1);
+var import_express2 = __toESM(require_express2(), 1);
 
 // src/middleware/auth.ts
 var import_node_crypto = __toESM(require("node:crypto"), 1);
@@ -166384,8 +166384,8 @@ async function verifyFirebaseIdTokenCryptographically(token) {
       const isValidAuthTime = payload.auth_time === void 0 || typeof payload.auth_time === "number" && payload.auth_time <= now + 120;
       const isMatchingAudience = payload.aud === projectId2;
       const isMatchingIssuer = payload.iss === expectedIssuer;
-      const uid = payload.sub || payload.user_id;
-      const hasValidUid = typeof uid === "string" && uid.length >= 6 && uid.length <= 128 && uid !== "local-dev-user" && uid !== "explorer";
+      const uid2 = payload.sub || payload.user_id;
+      const hasValidUid = typeof uid2 === "string" && uid2.length >= 6 && uid2.length <= 128 && uid2 !== "local-dev-user" && uid2 !== "explorer";
       if (isNotExpired && isValidIssuedAt && isValidAuthTime && isMatchingAudience && isMatchingIssuer && hasValidUid) {
         const certs = await getGooglePublicCerts();
         if (certs) {
@@ -166397,7 +166397,7 @@ async function verifyFirebaseIdTokenCryptographically(token) {
           return null;
         }
         const decoded = {
-          uid,
+          uid: uid2,
           email: payload.email,
           name: payload.name,
           picture: payload.picture,
@@ -166890,12 +166890,12 @@ var DATA_DIR2 = process.env.VERCEL ? import_path2.default.join("/tmp", ".data") 
 var USERS_FILE = import_path2.default.join(DATA_DIR2, "users.json");
 var MAX_USERS_IN_MEMORY = 5e3;
 var memoryUserStore = /* @__PURE__ */ new Map();
-function setMemoryUser(uid, data) {
-  if (!memoryUserStore.has(uid) && memoryUserStore.size >= MAX_USERS_IN_MEMORY) {
+function setMemoryUser(uid2, data) {
+  if (!memoryUserStore.has(uid2) && memoryUserStore.size >= MAX_USERS_IN_MEMORY) {
     const oldest = memoryUserStore.keys().next().value;
     if (oldest) memoryUserStore.delete(oldest);
   }
-  memoryUserStore.set(uid, data);
+  memoryUserStore.set(uid2, data);
 }
 try {
   if (import_fs2.default.existsSync(USERS_FILE)) {
@@ -166934,17 +166934,17 @@ function persistUsers() {
     persistUsersTimer.unref();
   }
 }
-async function getOrCreateUser(uid, email3) {
-  if (!uid) return null;
-  const defaultUsername = email3 ? email3.split("@")[0] : `user_${uid.slice(0, 6)}`;
+async function getOrCreateUser(uid2, email3) {
+  if (!uid2) return null;
+  const defaultUsername = email3 ? email3.split("@")[0] : `user_${uid2.slice(0, 6)}`;
   try {
-    const cached3 = await getCache(`user:${uid}`);
+    const cached3 = await getCache(`user:${uid2}`);
     if (cached3) return cached3;
   } catch {
   }
   if (isAdminDbAvailable()) {
     try {
-      const userRef = adminDb.collection("users").doc(uid);
+      const userRef = adminDb.collection("users").doc(uid2);
       const doc = await userRef.get();
       if (doc && doc.exists) {
         const data = doc.data();
@@ -166952,15 +166952,15 @@ async function getOrCreateUser(uid, email3) {
           await userRef.set({ displayName: defaultUsername, display_name: defaultUsername }, { merge: true }).catch(() => {
           });
           const updated = { ...data, displayName: defaultUsername, display_name: defaultUsername };
-          setMemoryUser(uid, updated);
+          setMemoryUser(uid2, updated);
           persistUsers();
-          await setCache(`user:${uid}`, updated, 1800).catch(() => {
+          await setCache(`user:${uid2}`, updated, 1800).catch(() => {
           });
           return updated;
         }
-        setMemoryUser(uid, data);
+        setMemoryUser(uid2, data);
         persistUsers();
-        await setCache(`user:${uid}`, data, 1800).catch(() => {
+        await setCache(`user:${uid2}`, data, 1800).catch(() => {
         });
         return data;
       }
@@ -166968,9 +166968,9 @@ async function getOrCreateUser(uid, email3) {
       markAdminDbUnavailable();
     }
   }
-  const existing = memoryUserStore.get(uid);
+  const existing = memoryUserStore.get(uid2);
   if (existing) {
-    await setCache(`user:${uid}`, existing, 1800).catch(() => {
+    await setCache(`user:${uid2}`, existing, 1800).catch(() => {
     });
     return existing;
   }
@@ -166982,29 +166982,29 @@ async function getOrCreateUser(uid, email3) {
   };
   if (isAdminDbAvailable()) {
     try {
-      const userRef = adminDb.collection("users").doc(uid);
+      const userRef = adminDb.collection("users").doc(uid2);
       await userRef.set(newUser);
     } catch {
       markAdminDbUnavailable();
     }
   }
-  setMemoryUser(uid, newUser);
+  setMemoryUser(uid2, newUser);
   persistUsers();
-  await setCache(`user:${uid}`, newUser, 1800).catch(() => {
+  await setCache(`user:${uid2}`, newUser, 1800).catch(() => {
   });
   return newUser;
 }
-async function updateUser(uid, data) {
-  if (!uid) return null;
-  const existing = memoryUserStore.get(uid) || {};
+async function updateUser(uid2, data) {
+  if (!uid2) return null;
+  const existing = memoryUserStore.get(uid2) || {};
   const merged = { ...existing, ...data, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
-  setMemoryUser(uid, merged);
+  setMemoryUser(uid2, merged);
   persistUsers();
-  await setCache(`user:${uid}`, merged, 1800).catch(() => {
+  await setCache(`user:${uid2}`, merged, 1800).catch(() => {
   });
   if (isAdminDbAvailable()) {
     try {
-      const userRef = adminDb.collection("users").doc(uid);
+      const userRef = adminDb.collection("users").doc(uid2);
       await userRef.set(data, { merge: true });
     } catch {
       markAdminDbUnavailable();
@@ -168398,10 +168398,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path10) {
-  if (!path10)
+function getElementAtPath(obj, path11) {
+  if (!path11)
     return obj;
-  return path10.reduce((acc, key) => acc?.[key], obj);
+  return path11.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -168813,11 +168813,11 @@ function explicitlyAborted(x2, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path10, issues) {
+function prefixIssues(path11, issues) {
   return issues.map((iss) => {
     var _a4;
     (_a4 = iss).path ?? (_a4.path = []);
-    iss.path.unshift(path10);
+    iss.path.unshift(path11);
     return iss;
   });
 }
@@ -169250,16 +169250,16 @@ function flattenError(error61, mapper = (issue2) => issue2.message) {
 }
 function formatError(error61, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error62, path10 = []) => {
+  const processError = (error62, path11 = []) => {
     for (const issue2 of error62.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path10, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path11, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path11, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path11, ...issue2.path]);
       } else {
-        const fullpath = [...path10, ...issue2.path];
+        const fullpath = [...path11, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -169298,17 +169298,17 @@ function formatError(error61, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error61, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error62, path10 = []) => {
+  const processError = (error62, path11 = []) => {
     var _a4;
     for (const issue2 of error62.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path10, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path11, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path11, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path11, ...issue2.path]);
       } else {
-        const fullpath = [...path10, ...issue2.path];
+        const fullpath = [...path11, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -169347,8 +169347,8 @@ function treeifyError(error61, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path10 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path10) {
+  const path11 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path11) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -185858,13 +185858,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path10 = ref.slice(1).split("/").filter(Boolean);
-  if (path10.length === 0) {
+  const path11 = ref.slice(1).split("/").filter(Boolean);
+  if (path11.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path10[0] === defsKey) {
-    const key = path10[1] === void 0 ? void 0 : decodeJSONPointerSegment(path10[1]);
+  if (path11[0] === defsKey) {
+    const key = path11[1] === void 0 ? void 0 : decodeJSONPointerSegment(path11[1]);
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -224161,7 +224161,7 @@ var Batches = class extends BaseModule {
       params
     );
     const urlParams = body["_url"];
-    const path10 = formatMap2("{model}:batchGenerateContent", urlParams);
+    const path11 = formatMap2("{model}:batchGenerateContent", urlParams);
     const batch = body["batch"];
     const inputConfig = batch["inputConfig"];
     const requestsWrapper = inputConfig["requests"];
@@ -224182,7 +224182,7 @@ var Batches = class extends BaseModule {
     delete body["config"];
     delete body["_url"];
     delete body["_query"];
-    return { path: path10, body };
+    return { path: path11, body };
   }
   // Helper function to get the first GCS URI
   getGcsUri(src) {
@@ -224238,16 +224238,16 @@ var Batches = class extends BaseModule {
   async createInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = createBatchJobParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("batchPredictionJobs", body["_url"]);
+      path11 = formatMap2("batchPredictionJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -224262,12 +224262,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = createBatchJobParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{model}:batchGenerateContent", body["_url"]);
+      path11 = formatMap2("{model}:batchGenerateContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -224292,18 +224292,18 @@ var Batches = class extends BaseModule {
   async createEmbeddingsInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createEmbeddingsBatchJobParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{model}:asyncBatchEmbedContent", body["_url"]);
+      path11 = formatMap2("{model}:asyncBatchEmbedContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -224332,16 +224332,16 @@ var Batches = class extends BaseModule {
   async get(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getBatchJobParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("batchPredictionJobs/{name}", body["_url"]);
+      path11 = formatMap2("batchPredictionJobs/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -224356,12 +224356,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = getBatchJobParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("batches/{name}", body["_url"]);
+      path11 = formatMap2("batches/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -224389,16 +224389,16 @@ var Batches = class extends BaseModule {
    */
   async cancel(params) {
     var _a4, _b, _c, _d;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = cancelBatchJobParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("batchPredictionJobs/{name}:cancel", body["_url"]);
+      path11 = formatMap2("batchPredictionJobs/{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -224407,12 +224407,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = cancelBatchJobParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("batches/{name}:cancel", body["_url"]);
+      path11 = formatMap2("batches/{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -224424,16 +224424,16 @@ var Batches = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listBatchJobsParametersToVertex(params);
-      path10 = formatMap2("batchPredictionJobs", body["_url"]);
+      path11 = formatMap2("batchPredictionJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -224456,12 +224456,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = listBatchJobsParametersToMldev(params);
-      path10 = formatMap2("batches", body["_url"]);
+      path11 = formatMap2("batches", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -224498,16 +224498,16 @@ var Batches = class extends BaseModule {
   async delete(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = deleteBatchJobParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("batchPredictionJobs/{name}", body["_url"]);
+      path11 = formatMap2("batchPredictionJobs/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -224528,12 +224528,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = deleteBatchJobParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("batches/{name}", body["_url"]);
+      path11 = formatMap2("batches/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -225461,16 +225461,16 @@ var Caches = class extends BaseModule {
   async create(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = createCachedContentParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("cachedContents", body["_url"]);
+      path11 = formatMap2("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -225484,12 +225484,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = createCachedContentParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("cachedContents", body["_url"]);
+      path11 = formatMap2("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -225517,16 +225517,16 @@ var Caches = class extends BaseModule {
   async get(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getCachedContentParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -225540,12 +225540,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = getCachedContentParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -225573,16 +225573,16 @@ var Caches = class extends BaseModule {
   async delete(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = deleteCachedContentParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -225605,12 +225605,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = deleteCachedContentParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -225650,16 +225650,16 @@ var Caches = class extends BaseModule {
   async update(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = updateCachedContentParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -225673,12 +225673,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = updateCachedContentParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -225695,16 +225695,16 @@ var Caches = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listCachedContentsParametersToVertex(params);
-      path10 = formatMap2("cachedContents", body["_url"]);
+      path11 = formatMap2("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -225727,12 +225727,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = listCachedContentsParametersToMldev(params);
-      path10 = formatMap2("cachedContents", body["_url"]);
+      path11 = formatMap2("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -226328,18 +226328,18 @@ var Files$1 = class Files extends BaseModule {
   async listInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = listFilesParametersToMldev(params);
-      path10 = formatMap2("files", body["_url"]);
+      path11 = formatMap2("files", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -226365,18 +226365,18 @@ var Files$1 = class Files extends BaseModule {
   async createInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createFileParametersToMldev(params);
-      path10 = formatMap2("upload/v1beta/files", body["_url"]);
+      path11 = formatMap2("upload/v1beta/files", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -226411,18 +226411,18 @@ var Files$1 = class Files extends BaseModule {
   async get(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = getFileParametersToMldev(params);
-      path10 = formatMap2("files/{file}", body["_url"]);
+      path11 = formatMap2("files/{file}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -226452,18 +226452,18 @@ var Files$1 = class Files extends BaseModule {
   async delete(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = deleteFileParametersToMldev(params);
-      path10 = formatMap2("files/{file}", body["_url"]);
+      path11 = formatMap2("files/{file}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -226489,18 +226489,18 @@ var Files$1 = class Files extends BaseModule {
   async registerFilesInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = internalRegisterFilesParametersToMldev(params);
-      path10 = formatMap2("files:register", body["_url"]);
+      path11 = formatMap2("files:register", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -231836,13 +231836,13 @@ var ApiClient = class {
       throw new Error("HTTP options are not correctly set.");
     }
   }
-  constructUrl(path10, httpOptions, prependProjectLocation) {
+  constructUrl(path11, httpOptions, prependProjectLocation) {
     const urlElement = [this.getRequestUrlInternal(httpOptions)];
     if (prependProjectLocation) {
       urlElement.push(this.getBaseResourcePath());
     }
-    if (path10 !== "") {
-      urlElement.push(path10);
+    if (path11 !== "") {
+      urlElement.push(path11);
     }
     const url2 = new URL(`${urlElement.join("/")}`);
     return url2;
@@ -232135,8 +232135,8 @@ var ApiClient = class {
       file: fileToUpload
     };
     const fileName = this.getFileName(file2);
-    const path10 = formatMap2("upload/v1beta/files", body["_url"]);
-    const uploadUrl = await this.fetchUploadUrl(path10, fileToUpload.sizeBytes, fileToUpload.mimeType, fileName, body, config2 === null || config2 === void 0 ? void 0 : config2.httpOptions);
+    const path11 = formatMap2("upload/v1beta/files", body["_url"]);
+    const uploadUrl = await this.fetchUploadUrl(path11, fileToUpload.sizeBytes, fileToUpload.mimeType, fileName, body, config2 === null || config2 === void 0 ? void 0 : config2.httpOptions);
     return uploader.upload(file2, uploadUrl, this);
   }
   /**
@@ -232160,13 +232160,13 @@ var ApiClient = class {
     if (mimeType === void 0 || mimeType === "") {
       throw new Error("Can not determine mimeType. Please provide mimeType in the config.");
     }
-    const path10 = `upload/v1beta/${fileSearchStoreName}:uploadToFileSearchStore`;
+    const path11 = `upload/v1beta/${fileSearchStoreName}:uploadToFileSearchStore`;
     const fileName = this.getFileName(file2);
     const body = {};
     if (config2 != null) {
       uploadToFileSearchStoreConfigToMldev(config2, body);
     }
-    const uploadUrl = await this.fetchUploadUrl(path10, sizeBytes, mimeType, fileName, body, config2 === null || config2 === void 0 ? void 0 : config2.httpOptions);
+    const uploadUrl = await this.fetchUploadUrl(path11, sizeBytes, mimeType, fileName, body, config2 === null || config2 === void 0 ? void 0 : config2.httpOptions);
     return uploader.uploadToFileSearchStore(file2, uploadUrl, this);
   }
   /**
@@ -232179,7 +232179,7 @@ var ApiClient = class {
     const downloader = this.clientOptions.downloader;
     await downloader.download(params, this);
   }
-  async fetchUploadUrl(path10, sizeBytes, mimeType, fileName, body, configHttpOptions) {
+  async fetchUploadUrl(path11, sizeBytes, mimeType, fileName, body, configHttpOptions) {
     var _a4;
     let httpOptions = {};
     if (configHttpOptions) {
@@ -232192,7 +232192,7 @@ var ApiClient = class {
       };
     }
     const httpResponse = await this.request({
-      path: path10,
+      path: path11,
       body: JSON.stringify(body),
       httpMethod: "POST",
       httpOptions
@@ -233425,16 +233425,16 @@ var Models = class _Models extends BaseModule {
   async generateContentInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateContentParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:generateContent", body["_url"]);
+      path11 = formatMap2("{model}:generateContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233457,12 +233457,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = generateContentParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{model}:generateContent", body["_url"]);
+      path11 = formatMap2("{model}:generateContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233488,17 +233488,17 @@ var Models = class _Models extends BaseModule {
   async generateContentStreamInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateContentParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:streamGenerateContent?alt=sse", body["_url"]);
+      path11 = formatMap2("{model}:streamGenerateContent?alt=sse", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       const apiClient = this.apiClient;
       response = apiClient.requestStream({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233534,13 +233534,13 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = generateContentParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{model}:streamGenerateContent?alt=sse", body["_url"]);
+      path11 = formatMap2("{model}:streamGenerateContent?alt=sse", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       const apiClient = this.apiClient;
       response = apiClient.requestStream({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233600,17 +233600,17 @@ var Models = class _Models extends BaseModule {
   async embedContentInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = embedContentParametersPrivateToVertex(this.apiClient, params, params);
       const endpointUrl = tIsVertexEmbedContentModel(params.model) ? "{model}:embedContent" : "{model}:predict";
-      path10 = formatMap2(endpointUrl, body["_url"]);
+      path11 = formatMap2(endpointUrl, body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233633,12 +233633,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = embedContentParametersPrivateToMldev(this.apiClient, params);
-      path10 = formatMap2("{model}:batchEmbedContents", body["_url"]);
+      path11 = formatMap2("{model}:batchEmbedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233667,16 +233667,16 @@ var Models = class _Models extends BaseModule {
   async generateImagesInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateImagesParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:predict", body["_url"]);
+      path11 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233707,16 +233707,16 @@ var Models = class _Models extends BaseModule {
   async editImageInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = editImageParametersInternalToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:predict", body["_url"]);
+      path11 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233747,16 +233747,16 @@ var Models = class _Models extends BaseModule {
   async upscaleImageInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = upscaleImageAPIParametersInternalToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:predict", body["_url"]);
+      path11 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233808,16 +233808,16 @@ var Models = class _Models extends BaseModule {
   async recontextImage(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = recontextImageParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:predict", body["_url"]);
+      path11 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233859,16 +233859,16 @@ var Models = class _Models extends BaseModule {
   async segmentImage(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = segmentImageParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:predict", body["_url"]);
+      path11 = formatMap2("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -233898,16 +233898,16 @@ var Models = class _Models extends BaseModule {
   async get(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getModelParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -233922,12 +233922,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = getModelParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -233945,16 +233945,16 @@ var Models = class _Models extends BaseModule {
   async listInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listModelsParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{models_url}", body["_url"]);
+      path11 = formatMap2("{models_url}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -233977,12 +233977,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = listModelsParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{models_url}", body["_url"]);
+      path11 = formatMap2("{models_url}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -234025,16 +234025,16 @@ var Models = class _Models extends BaseModule {
   async update(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = updateModelParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}", body["_url"]);
+      path11 = formatMap2("{model}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -234049,12 +234049,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = updateModelParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -234083,16 +234083,16 @@ var Models = class _Models extends BaseModule {
   async delete(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = deleteModelParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -234115,12 +234115,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = deleteModelParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -234162,16 +234162,16 @@ var Models = class _Models extends BaseModule {
   async countTokens(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = countTokensParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:countTokens", body["_url"]);
+      path11 = formatMap2("{model}:countTokens", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -234194,12 +234194,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = countTokensParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{model}:countTokens", body["_url"]);
+      path11 = formatMap2("{model}:countTokens", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -234243,16 +234243,16 @@ var Models = class _Models extends BaseModule {
   async computeTokens(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = computeTokensParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:computeTokens", body["_url"]);
+      path11 = formatMap2("{model}:computeTokens", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -234283,16 +234283,16 @@ var Models = class _Models extends BaseModule {
   async generateVideosInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateVideosParametersToVertex(this.apiClient, params);
-      path10 = formatMap2("{model}:predictLongRunning", body["_url"]);
+      path11 = formatMap2("{model}:predictLongRunning", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -234309,12 +234309,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = generateVideosParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("{model}:predictLongRunning", body["_url"]);
+      path11 = formatMap2("{model}:predictLongRunning", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -234419,16 +234419,16 @@ var Operations = class extends BaseModule {
   async getVideosOperationInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getOperationParametersToVertex(params);
-      path10 = formatMap2("{operationName}", body["_url"]);
+      path11 = formatMap2("{operationName}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -234440,12 +234440,12 @@ var Operations = class extends BaseModule {
       return response;
     } else {
       const body = getOperationParametersToMldev(params);
-      path10 = formatMap2("{operationName}", body["_url"]);
+      path11 = formatMap2("{operationName}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -234460,16 +234460,16 @@ var Operations = class extends BaseModule {
   async fetchPredictVideosOperationInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = fetchPredictOperationParametersToVertex(params);
-      path10 = formatMap2("{resourceName}:fetchPredictOperation", body["_url"]);
+      path11 = formatMap2("{resourceName}:fetchPredictOperation", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -235152,20 +235152,20 @@ var Tokens = class extends BaseModule {
   async create(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("The client.tokens.create method is only supported by the Gemini Developer API.");
     } else {
       const body = createAuthTokenParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("auth_tokens", body["_url"]);
+      path11 = formatMap2("auth_tokens", body["_url"]);
       queryParams = body["_query"];
       delete body["config"];
       delete body["_url"];
       delete body["_query"];
       const transformedBody = convertBidiSetupToTokenSetup(body, params.config);
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(transformedBody),
         httpMethod: "POST",
@@ -235275,18 +235275,18 @@ var Documents = class extends BaseModule {
   async get(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = getDocumentParametersToMldev(params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -235307,18 +235307,18 @@ var Documents = class extends BaseModule {
    */
   async delete(params) {
     var _a4, _b;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = deleteDocumentParametersToMldev(params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -235330,18 +235330,18 @@ var Documents = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = listDocumentsParametersToMldev(params);
-      path10 = formatMap2("{parent}/documents", body["_url"]);
+      path11 = formatMap2("{parent}/documents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -235458,18 +235458,18 @@ var FileSearchStores = class extends BaseModule {
   async create(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createFileSearchStoreParametersToMldev(this.apiClient, params);
-      path10 = formatMap2("fileSearchStores", body["_url"]);
+      path11 = formatMap2("fileSearchStores", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -235492,18 +235492,18 @@ var FileSearchStores = class extends BaseModule {
   async get(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = getFileSearchStoreParametersToMldev(params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -235524,18 +235524,18 @@ var FileSearchStores = class extends BaseModule {
    */
   async delete(params) {
     var _a4, _b;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = deleteFileSearchStoreParametersToMldev(params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -235547,18 +235547,18 @@ var FileSearchStores = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = listFileSearchStoresParametersToMldev(params);
-      path10 = formatMap2("fileSearchStores", body["_url"]);
+      path11 = formatMap2("fileSearchStores", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -235578,18 +235578,18 @@ var FileSearchStores = class extends BaseModule {
   async uploadToFileSearchStoreInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = uploadToFileSearchStoreParametersToMldev(params);
-      path10 = formatMap2("upload/v1beta/{file_search_store_name}:uploadToFileSearchStore", body["_url"]);
+      path11 = formatMap2("upload/v1beta/{file_search_store_name}:uploadToFileSearchStore", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -235617,18 +235617,18 @@ var FileSearchStores = class extends BaseModule {
   async importFile(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = importFileParametersToMldev(params);
-      path10 = formatMap2("{file_search_store_name}:importFile", body["_url"]);
+      path11 = formatMap2("{file_search_store_name}:importFile", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -236753,16 +236753,16 @@ var ClientSDK = class {
   }
   _createRequest(context2, conf, options) {
     var _a4, _b, _c, _d, _e;
-    const { method, path: path10, query, headers: opHeaders, security } = conf;
+    const { method, path: path11, query, headers: opHeaders, security } = conf;
     const base = (_a4 = conf.baseURL) !== null && _a4 !== void 0 ? _a4 : this._baseURL;
     if (!base) {
       return ERR(new InvalidRequestError("No base URL provided for operation"));
     }
     const baseURL = new URL(base);
     let reqURL;
-    if (path10) {
+    if (path11) {
       baseURL.pathname = baseURL.pathname.replace(/\/+$/, "") + "/";
-      reqURL = new URL(path10, baseURL);
+      reqURL = new URL(path11, baseURL);
       if (!reqURL.search && baseURL.search) {
         reqURL.search = baseURL.search;
       }
@@ -237577,7 +237577,7 @@ async function $do$q(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path10 = pathToFunc("/{api_version}/agents")(pathParams);
+  const path11 = pathToFunc("/{api_version}/agents")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -237608,7 +237608,7 @@ async function $do$q(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -237652,7 +237652,7 @@ async function $do$p(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/agents/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/agents/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -237682,7 +237682,7 @@ async function $do$p(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -237726,7 +237726,7 @@ async function $do$o(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/agents/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/agents/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -237756,7 +237756,7 @@ async function $do$o(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -237798,7 +237798,7 @@ async function $do$n(client, api_version, page_size, page_token, parent, options
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path10 = pathToFunc("/{api_version}/agents")(pathParams);
+  const path11 = pathToFunc("/{api_version}/agents")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token,
@@ -237833,7 +237833,7 @@ async function $do$n(client, api_version, page_size, page_token, parent, options
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     query,
     body,
@@ -237901,7 +237901,7 @@ async function $do$m(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path10 = pathToFunc("/{api_version}/environments")(pathParams);
+  const path11 = pathToFunc("/{api_version}/environments")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -237932,7 +237932,7 @@ async function $do$m(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -237976,7 +237976,7 @@ async function $do$l(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -238006,7 +238006,7 @@ async function $do$l(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -238050,7 +238050,7 @@ async function $do$k(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -238080,7 +238080,7 @@ async function $do$k(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -238121,7 +238121,7 @@ async function $do$j(client, api_version, page_size, page_token, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path10 = pathToFunc("/{api_version}/environments")(pathParams);
+  const path11 = pathToFunc("/{api_version}/environments")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token
@@ -238155,7 +238155,7 @@ async function $do$j(client, api_version, page_size, page_token, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     query,
     body,
@@ -238182,14 +238182,14 @@ async function $do$j(client, api_version, page_size, page_token, options) {
   }
   return [result, { status: "complete", request: req, response }];
 }
-function environmentsFilesList(client, environment, path10, api_version, page_size, page_token, recursive2, options) {
-  return new APIPromise($do$i(client, environment, path10, api_version, page_size, page_token, recursive2, options));
+function environmentsFilesList(client, environment, path11, api_version, page_size, page_token, recursive2, options) {
+  return new APIPromise($do$i(client, environment, path11, api_version, page_size, page_token, recursive2, options));
 }
-async function $do$i(client, environment, path10, api_version, page_size, page_token, recursive2, options) {
+async function $do$i(client, environment, path11, api_version, page_size, page_token, recursive2, options) {
   var _a4, _b, _c;
   const input2 = {
     environment,
-    path: path10,
+    path: path11,
     api_version,
     page_size,
     page_token,
@@ -238274,8 +238274,8 @@ var Files2 = class extends ClientSDK {
   /**
    * Retrieves a file or directory from an environment's snapshot.
    */
-  list(environment, path10, params, options) {
-    return unwrapAsAPIPromise(environmentsFilesList(this, environment, path10, params === null || params === void 0 ? void 0 : params.api_version, params === null || params === void 0 ? void 0 : params.page_size, params === null || params === void 0 ? void 0 : params.page_token, params === null || params === void 0 ? void 0 : params.recursive, options));
+  list(environment, path11, params, options) {
+    return unwrapAsAPIPromise(environmentsFilesList(this, environment, path11, params === null || params === void 0 ? void 0 : params.api_version, params === null || params === void 0 ? void 0 : params.page_size, params === null || params === void 0 ? void 0 : params.page_token, params === null || params === void 0 ? void 0 : params.recursive, options));
   }
 };
 var Environments = class extends ClientSDK {
@@ -238406,7 +238406,7 @@ async function $do$h(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/interactions/{id}/cancel")(pathParams);
+  const path11 = pathToFunc("/{api_version}/interactions/{id}/cancel")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -238436,7 +238436,7 @@ async function $do$h(client, id, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -238479,7 +238479,7 @@ async function $do$g(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path10 = pathToFunc("/{api_version}/interactions")(pathParams);
+  const path11 = pathToFunc("/{api_version}/interactions")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: ((_b = input2 === null || input2 === void 0 ? void 0 : input2.body) === null || _b === void 0 ? void 0 : _b.stream) ? "text/event-stream" : "application/json"
@@ -238510,7 +238510,7 @@ async function $do$g(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -238560,7 +238560,7 @@ async function $do$f(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/interactions/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/interactions/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -238590,7 +238590,7 @@ async function $do$f(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -238640,7 +238640,7 @@ async function $do$e(client, id, api_version, include_input, last_event_id, stre
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/interactions/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/interactions/{id}")(pathParams);
   const query = encodeFormQuery({
     "include_input": payload.include_input,
     "last_event_id": payload.last_event_id,
@@ -238675,7 +238675,7 @@ async function $do$e(client, id, api_version, include_input, last_event_id, stre
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     query,
     body,
@@ -238749,7 +238749,7 @@ async function $do$d(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path10 = pathToFunc("/{api_version}/triggers")(pathParams);
+  const path11 = pathToFunc("/{api_version}/triggers")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -238780,7 +238780,7 @@ async function $do$d(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -238824,7 +238824,7 @@ async function $do$c(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -238854,7 +238854,7 @@ async function $do$c(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -238898,7 +238898,7 @@ async function $do$b(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -238928,7 +238928,7 @@ async function $do$b(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -238974,7 +238974,7 @@ async function $do$a(client, trigger_id, api_version, page_size, page_token, opt
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/triggers/{trigger_id}/executions")(pathParams);
+  const path11 = pathToFunc("/{api_version}/triggers/{trigger_id}/executions")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload.page_size,
     "page_token": payload.page_token
@@ -239008,7 +239008,7 @@ async function $do$a(client, trigger_id, api_version, page_size, page_token, opt
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     query,
     body,
@@ -239051,7 +239051,7 @@ async function $do$9(client, api_version, filter, page_size, page_token, options
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path10 = pathToFunc("/{api_version}/triggers")(pathParams);
+  const path11 = pathToFunc("/{api_version}/triggers")(pathParams);
   const query = encodeFormQuery({
     "filter": payload === null || payload === void 0 ? void 0 : payload.filter,
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
@@ -239086,7 +239086,7 @@ async function $do$9(client, api_version, filter, page_size, page_token, options
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     query,
     body,
@@ -239131,7 +239131,7 @@ async function $do$8(client, trigger_id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/triggers/{trigger_id}/executions")(pathParams);
+  const path11 = pathToFunc("/{api_version}/triggers/{trigger_id}/executions")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -239161,7 +239161,7 @@ async function $do$8(client, trigger_id, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -239206,7 +239206,7 @@ async function $do$7(client, id, body, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -239237,7 +239237,7 @@ async function $do$7(client, id, body, api_version, options) {
     security: requestSecurity,
     method: "PATCH",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -239323,7 +239323,7 @@ async function $do$6(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path10 = pathToFunc("/{api_version}/webhooks")(pathParams);
+  const path11 = pathToFunc("/{api_version}/webhooks")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -239354,7 +239354,7 @@ async function $do$6(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -239398,7 +239398,7 @@ async function $do$5(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -239428,7 +239428,7 @@ async function $do$5(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -239472,7 +239472,7 @@ async function $do$4(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -239502,7 +239502,7 @@ async function $do$4(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -239543,7 +239543,7 @@ async function $do$3(client, api_version, page_size, page_token, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a4 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a4 !== void 0 ? _a4 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path10 = pathToFunc("/{api_version}/webhooks")(pathParams);
+  const path11 = pathToFunc("/{api_version}/webhooks")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token
@@ -239577,7 +239577,7 @@ async function $do$3(client, api_version, page_size, page_token, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     query,
     body,
@@ -239623,7 +239623,7 @@ async function $do$2(client, id, api_version, body, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/webhooks/{id}:ping")(pathParams);
+  const path11 = pathToFunc("/{api_version}/webhooks/{id}:ping")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -239654,7 +239654,7 @@ async function $do$2(client, id, api_version, body, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -239699,7 +239699,7 @@ async function $do$1(client, id, api_version, body, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/webhooks/{id}:rotateSigningSecret")(pathParams);
+  const path11 = pathToFunc("/{api_version}/webhooks/{id}:rotateSigningSecret")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -239730,7 +239730,7 @@ async function $do$1(client, id, api_version, body, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -239776,7 +239776,7 @@ async function $do(client, id, api_version, update_mask, body, options) {
       charEncoding: "percent"
     })
   };
-  const path10 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
+  const path11 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
   const query = encodeFormQuery({
     "update_mask": payload.update_mask
   });
@@ -239810,7 +239810,7 @@ async function $do(client, id, api_version, update_mask, body, options) {
     security: requestSecurity,
     method: "PATCH",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path10,
+    path: path11,
     headers,
     query,
     body: body$,
@@ -240301,8 +240301,8 @@ var GeminiNextGenEnvironmentFiles = class {
     this.resolveClient = resolveClient;
   }
   async list(params, options) {
-    const { environment, path: path10, page_size, page_token, recursive: recursive2, api_version } = params;
-    return unwrapWithSdkHttpResponse(environmentsFilesList(this.resolveClient(api_version), environment, path10, api_version, page_size, page_token, recursive2, toGoogleGenAIRequestOptions(options)));
+    const { environment, path: path11, page_size, page_token, recursive: recursive2, api_version } = params;
+    return unwrapWithSdkHttpResponse(environmentsFilesList(this.resolveClient(api_version), environment, path11, api_version, page_size, page_token, recursive2, toGoogleGenAIRequestOptions(options)));
   }
 };
 var GeminiNextGenEnvironments = class {
@@ -241913,16 +241913,16 @@ var Tunings = class extends BaseModule {
   async getInternal(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getTuningJobParametersToVertex(params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -241943,12 +241943,12 @@ var Tunings = class extends BaseModule {
       });
     } else {
       const body = getTuningJobParametersToMldev(params);
-      path10 = formatMap2("{name}", body["_url"]);
+      path11 = formatMap2("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -241972,16 +241972,16 @@ var Tunings = class extends BaseModule {
   async listInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listTuningJobsParametersToVertex(params);
-      path10 = formatMap2("tuningJobs", body["_url"]);
+      path11 = formatMap2("tuningJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -242020,16 +242020,16 @@ var Tunings = class extends BaseModule {
   async cancel(params) {
     var _a4, _b, _c, _d;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = cancelTuningJobParametersToVertex(params);
-      path10 = formatMap2("{name}:cancel", body["_url"]);
+      path11 = formatMap2("{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -242052,12 +242052,12 @@ var Tunings = class extends BaseModule {
       });
     } else {
       const body = cancelTuningJobParametersToMldev(params);
-      path10 = formatMap2("{name}:cancel", body["_url"]);
+      path11 = formatMap2("{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -242083,16 +242083,16 @@ var Tunings = class extends BaseModule {
   async tuneInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = createTuningJobParametersPrivateToVertex(params, params);
-      path10 = formatMap2("tuningJobs", body["_url"]);
+      path11 = formatMap2("tuningJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -242118,18 +242118,18 @@ var Tunings = class extends BaseModule {
   async tuneMldevInternal(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createTuningJobParametersPrivateToMldev(params);
-      path10 = formatMap2("tunedModels", body["_url"]);
+      path11 = formatMap2("tunedModels", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -242153,16 +242153,16 @@ var Tunings = class extends BaseModule {
   async validateReward(params) {
     var _a4, _b;
     let response;
-    let path10 = "";
+    let path11 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = validateRewardParametersToVertex(params);
-      path10 = formatMap2("{parent}/tuningJobs:validateReinforcementTuningReward", body["_url"]);
+      path11 = formatMap2("{parent}/tuningJobs:validateReinforcementTuningReward", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path10,
+        path: path11,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -242992,16 +242992,16 @@ async function extractVerifiedUidFromRequest(req) {
   }
   return null;
 }
-async function fetchVaultFromFirestoreRest(uid, bearerToken) {
-  if (!uid || !bearerToken) return null;
-  const ownerId = `uid:${uid}`;
+async function fetchVaultFromFirestoreRest(uid2, bearerToken) {
+  if (!uid2 || !bearerToken) return null;
+  const ownerId = `uid:${uid2}`;
   const projectId2 = getFirebaseProjectId();
   const databaseId2 = getFirebaseDatabaseId();
   const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
     projectId2
   )}/databases/${encodeURIComponent(
     databaseId2
-  )}/documents/users/${encodeURIComponent(uid)}/tasks/encrypted_key_vault`;
+  )}/documents/users/${encodeURIComponent(uid2)}/tasks/encrypted_key_vault`;
   try {
     const res = await fetch(docUrl, {
       method: "GET",
@@ -243025,8 +243025,8 @@ async function fetchVaultFromFirestoreRest(uid, bearerToken) {
   }
   return null;
 }
-async function saveVaultToFirestoreRest(uid, bearerToken, record2) {
-  if (!uid || !bearerToken) return;
+async function saveVaultToFirestoreRest(uid2, bearerToken, record2) {
+  if (!uid2 || !bearerToken) return;
   const sealed = sealVaultRecord(record2);
   const projectId2 = getFirebaseProjectId();
   const databaseId2 = getFirebaseDatabaseId();
@@ -243034,7 +243034,7 @@ async function saveVaultToFirestoreRest(uid, bearerToken, record2) {
     projectId2
   )}/databases/${encodeURIComponent(
     databaseId2
-  )}/documents/users/${encodeURIComponent(uid)}/tasks/encrypted_key_vault`;
+  )}/documents/users/${encodeURIComponent(uid2)}/tasks/encrypted_key_vault`;
   try {
     await fetch(docUrl, {
       method: "PATCH",
@@ -243088,12 +243088,12 @@ function writeHttpOnlyVaultBlobCookie(req, res, record2) {
   } catch {
   }
 }
-function hydrateVaultFromRequestEnvelope(req, uid, vaultSid) {
+function hydrateVaultFromRequestEnvelope(req, uid2, vaultSid) {
   const cookies = parseCookies(req.headers.cookie);
   const cookieBlob = cookies[VAULT_BLOB_COOKIE_NAME];
   const headerBlob = typeof req.headers["x-encrypted-account-vault"] === "string" ? req.headers["x-encrypted-account-vault"] : null;
-  if (uid) {
-    const uidOwner = `uid:${uid}`;
+  if (uid2) {
+    const uidOwner = `uid:${uid2}`;
     const existing = memoryVaultStore.get(uidOwner);
     const fromHeader = unsealVaultRecord(headerBlob, uidOwner);
     if (fromHeader && (!existing || fromHeader.updatedAt >= existing.updatedAt)) {
@@ -243124,7 +243124,7 @@ function hydrateVaultFromRequestEnvelope(req, uid, vaultSid) {
     }
   }
 }
-async function getVaultRecord(ownerId, uid, bearerToken) {
+async function getVaultRecord(ownerId, uid2, bearerToken) {
   if (!ownerId) return null;
   const local = memoryVaultStore.get(ownerId);
   if (local && local.providers && Object.keys(local.providers).length > 0) {
@@ -243133,8 +243133,8 @@ async function getVaultRecord(ownerId, uid, bearerToken) {
   if (isOwnerKnownEmpty(ownerId)) {
     return local || null;
   }
-  if (uid && ownerId === `uid:${uid}` && bearerToken) {
-    const restRecord = await fetchVaultFromFirestoreRest(uid, bearerToken);
+  if (uid2 && ownerId === `uid:${uid2}` && bearerToken) {
+    const restRecord = await fetchVaultFromFirestoreRest(uid2, bearerToken);
     if (restRecord) return restRecord;
   }
   if (isAdminDbAvailable()) {
@@ -243153,11 +243153,11 @@ async function getVaultRecord(ownerId, uid, bearerToken) {
   markOwnerVaultEmpty(ownerId);
   return local || null;
 }
-async function saveVaultRecord(record2, uid, bearerToken) {
+async function saveVaultRecord(record2, uid2, bearerToken) {
   setMemoryVaultRecord(record2.ownerId, record2);
   persistVaultToDisk();
-  if (uid && record2.ownerId === `uid:${uid}` && bearerToken) {
-    await saveVaultToFirestoreRest(uid, bearerToken, record2);
+  if (uid2 && record2.ownerId === `uid:${uid2}` && bearerToken) {
+    await saveVaultToFirestoreRest(uid2, bearerToken, record2);
   }
   if (isAdminDbAvailable()) {
     try {
@@ -243167,11 +243167,11 @@ async function saveVaultRecord(record2, uid, bearerToken) {
     }
   }
 }
-async function resolveUserKeysForRequest(uid, vaultSid, bearerToken) {
-  const uidOwner = uid ? `uid:${uid}` : null;
+async function resolveUserKeysForRequest(uid2, vaultSid, bearerToken) {
+  const uidOwner = uid2 ? `uid:${uid2}` : null;
   const sidOwner = vaultSid ? `sid:${vaultSid}` : null;
   const [uidRecord, sidRecord] = await Promise.all([
-    uidOwner ? getVaultRecord(uidOwner, uid, bearerToken) : Promise.resolve(null),
+    uidOwner ? getVaultRecord(uidOwner, uid2, bearerToken) : Promise.resolve(null),
     sidOwner ? getVaultRecord(sidOwner) : Promise.resolve(null)
   ]);
   let geminiKey = "";
@@ -243193,7 +243193,7 @@ async function resolveUserKeysForRequest(uid, vaultSid, bearerToken) {
   extractFrom(sidRecord);
   return {
     ownerId: uidOwner || sidOwner || null,
-    uid,
+    uid: uid2,
     vaultSid,
     geminiKey,
     openRouterKey,
@@ -243205,10 +243205,10 @@ async function attachUserKeyVaultContext(req, _res, next) {
   try {
     const cookies = parseCookies(req.headers.cookie);
     const vaultSid = verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
-    const uid = await extractVerifiedUidFromRequest(req);
+    const uid2 = await extractVerifiedUidFromRequest(req);
     const bearerToken = extractBearerToken(req);
-    hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
-    const resolved = await resolveUserKeysForRequest(uid, vaultSid, bearerToken);
+    hydrateVaultFromRequestEnvelope(req, uid2, vaultSid);
+    const resolved = await resolveUserKeysForRequest(uid2, vaultSid, bearerToken);
     requestKeyStorage.run(resolved, () => next());
   } catch {
     next();
@@ -243220,13 +243220,13 @@ function getActiveRequestUserKeys() {
 async function getUserKeyVaultStatus(req, overrideVaultSid, res) {
   const cookies = parseCookies(req.headers.cookie);
   const vaultSid = overrideVaultSid || verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
-  const uid = await extractVerifiedUidFromRequest(req);
+  const uid2 = await extractVerifiedUidFromRequest(req);
   const bearerToken = extractBearerToken(req);
-  hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
-  const uidOwner = uid ? `uid:${uid}` : null;
+  hydrateVaultFromRequestEnvelope(req, uid2, vaultSid);
+  const uidOwner = uid2 ? `uid:${uid2}` : null;
   const sidOwner = vaultSid ? `sid:${vaultSid}` : null;
   const [uidRecord, sidRecord] = await Promise.all([
-    uidOwner ? getVaultRecord(uidOwner, uid, bearerToken) : Promise.resolve(null),
+    uidOwner ? getVaultRecord(uidOwner, uid2, bearerToken) : Promise.resolve(null),
     sidOwner ? getVaultRecord(sidOwner) : Promise.resolve(null)
   ]);
   const providers = {
@@ -243394,19 +243394,19 @@ async function saveUserApiKeyToVault(req, res, params) {
     verifiedModel = check3.verifiedModel;
   }
   const vaultSid = ensureHttpOnlyVaultCookie(req, res);
-  const uid = await extractVerifiedUidFromRequest(req);
+  const uid2 = await extractVerifiedUidFromRequest(req);
   const bearerToken = extractBearerToken(req);
-  hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
+  hydrateVaultFromRequestEnvelope(req, uid2, vaultSid);
   const nowIso = (/* @__PURE__ */ new Date()).toISOString();
   const maskedHint = buildMaskedKeyHint(rawKey);
   const targetOwnerIds = [`sid:${vaultSid}`];
-  if (uid) {
-    targetOwnerIds.push(`uid:${uid}`);
+  if (uid2) {
+    targetOwnerIds.push(`uid:${uid2}`);
   }
   let savedUidRecord = null;
   let savedSidRecord = null;
   for (const ownerId of targetOwnerIds) {
-    const existing = await getVaultRecord(ownerId, uid, bearerToken) || {
+    const existing = await getVaultRecord(ownerId, uid2, bearerToken) || {
       ownerId,
       providers: {},
       updatedAt: nowIso
@@ -243418,8 +243418,8 @@ async function saveUserApiKeyToVault(req, res, params) {
       updatedAt: nowIso
     };
     existing.updatedAt = nowIso;
-    await saveVaultRecord(existing, uid, bearerToken);
-    if (uid && ownerId === `uid:${uid}`) {
+    await saveVaultRecord(existing, uid2, bearerToken);
+    if (uid2 && ownerId === `uid:${uid2}`) {
       savedUidRecord = existing;
     } else if (ownerId === `sid:${vaultSid}`) {
       savedSidRecord = existing;
@@ -243442,14 +243442,14 @@ async function saveUserApiKeyToVault(req, res, params) {
 async function deleteUserApiKeyFromVault(req, provider, res) {
   const cookies = parseCookies(req.headers.cookie);
   const vaultSid = verifySignedVaultSessionId(cookies[VAULT_COOKIE_NAME]);
-  const uid = await extractVerifiedUidFromRequest(req);
+  const uid2 = await extractVerifiedUidFromRequest(req);
   const bearerToken = extractBearerToken(req);
-  hydrateVaultFromRequestEnvelope(req, uid, vaultSid);
+  hydrateVaultFromRequestEnvelope(req, uid2, vaultSid);
   const targetOwnerIds = [];
   if (vaultSid) targetOwnerIds.push(`sid:${vaultSid}`);
-  if (uid) targetOwnerIds.push(`uid:${uid}`);
+  if (uid2) targetOwnerIds.push(`uid:${uid2}`);
   for (const ownerId of targetOwnerIds) {
-    const rec = await getVaultRecord(ownerId, uid, bearerToken);
+    const rec = await getVaultRecord(ownerId, uid2, bearerToken);
     if (!rec || !rec.providers) continue;
     if (!provider || provider === "all") {
       rec.providers = {};
@@ -243457,8 +243457,8 @@ async function deleteUserApiKeyFromVault(req, provider, res) {
       delete rec.providers[provider];
     }
     rec.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-    await saveVaultRecord(rec, uid, bearerToken);
-    if (res && uid && ownerId === `uid:${uid}`) {
+    await saveVaultRecord(rec, uid2, bearerToken);
+    if (res && uid2 && ownerId === `uid:${uid2}`) {
       writeHttpOnlyVaultBlobCookie(req, res, rec);
     }
   }
@@ -285236,12 +285236,12 @@ function backtrackingSubsetsSim(input2, slug = "subsets", dataset) {
       }
     });
   };
-  function dfs(i2, path10, parentId, decisionStr) {
+  function dfs(i2, path11, parentId, decisionStr) {
     const frameId = `f_${++callId}`;
     const node2 = {
       id: frameId,
       parentId,
-      label: path10.length === 0 ? "\u2205" : `[${path10.join(",")}]`,
+      label: path11.length === 0 ? "\u2205" : `[${path11.join(",")}]`,
       depth: i2,
       state: "running",
       decision: decisionStr
@@ -285251,24 +285251,24 @@ function backtrackingSubsetsSim(input2, slug = "subsets", dataset) {
       id: frameId,
       name: `backtrack(i=${i2})`,
       depth: i2,
-      args: { i: i2, path: `[${path10.join(", ")}]` },
+      args: { i: i2, path: `[${path11.join(", ")}]` },
       status: "active"
     };
     callStack.push(frame);
     record2(
       2,
-      `Push stack frame: backtrack(i=${i2}, path=[${path10.join(", ")}]) at recursion depth ${i2}.`,
+      `Push stack frame: backtrack(i=${i2}, path=[${path11.join(", ")}]) at recursion depth ${i2}.`,
       frameId,
       i2 < safeNums.length ? safeNums[i2] : null
     );
     if (i2 === safeNums.length) {
-      results.push([...path10]);
+      results.push([...path11]);
       node2.state = "success";
       frame.status = "base_case";
-      frame.returnValue = `[${path10.join(", ")}]`;
+      frame.returnValue = `[${path11.join(", ")}]`;
       record2(
         4,
-        `\u2713 Base Case Reached (i == ${safeNums.length}). Solved subset recorded: [${path10.join(", ")}]. Total collected = ${results.length}.`,
+        `\u2713 Base Case Reached (i == ${safeNums.length}). Solved subset recorded: [${path11.join(", ")}]. Total collected = ${results.length}.`,
         frameId,
         null
       );
@@ -285276,22 +285276,22 @@ function backtrackingSubsetsSim(input2, slug = "subsets", dataset) {
       return;
     }
     const val = safeNums[i2];
-    path10.push(val);
+    path11.push(val);
     record2(
       7,
-      `Decision 1 (Include): Pick nums[${i2}] = ${val}. Current path: [${path10.join(", ")}].`,
+      `Decision 1 (Include): Pick nums[${i2}] = ${val}. Current path: [${path11.join(", ")}].`,
       frameId,
       val
     );
-    dfs(i2 + 1, path10, frameId, `+${val}`);
-    path10.pop();
+    dfs(i2 + 1, path11, frameId, `+${val}`);
+    path11.pop();
     record2(
       9,
-      `Backtracked from include. Decision 2 (Exclude): Skip nums[${i2}] = ${val}. Path restored to [${path10.join(", ")}].`,
+      `Backtracked from include. Decision 2 (Exclude): Skip nums[${i2}] = ${val}. Path restored to [${path11.join(", ")}].`,
       frameId,
       val
     );
-    dfs(i2 + 1, path10, frameId, `skip ${val}`);
+    dfs(i2 + 1, path11, frameId, `skip ${val}`);
     node2.state = "backtracked";
     frame.status = "backtracking";
     callStack.pop();
@@ -285355,13 +285355,13 @@ function combinationSumBacktrackingSim(input2, slug = "combination-sum", dataset
       }
     });
   };
-  function backtrack(startIdx, remain, path10, parentId, decision) {
+  function backtrack(startIdx, remain, path11, parentId, decision) {
     const frameId = `f_${++callId}`;
     const node2 = {
       id: frameId,
       parentId,
-      label: path10.length === 0 ? "root" : `rem:${remain}`,
-      depth: path10.length,
+      label: path11.length === 0 ? "root" : `rem:${remain}`,
+      depth: path11.length,
       state: "running",
       decision
     };
@@ -285369,25 +285369,25 @@ function combinationSumBacktrackingSim(input2, slug = "combination-sum", dataset
     const frame = {
       id: frameId,
       name: `backtrack(rem=${remain})`,
-      depth: path10.length,
-      args: { start: startIdx, remain, path: `[${path10.join(",")}]` },
+      depth: path11.length,
+      args: { start: startIdx, remain, path: `[${path11.join(",")}]` },
       status: "active"
     };
     callStack.push(frame);
     record2(
       2,
-      `Enter backtrack: remaining target = ${remain}, current path = [${path10.join(", ")}].`,
+      `Enter backtrack: remaining target = ${remain}, current path = [${path11.join(", ")}].`,
       frameId,
       { currentVal: remain }
     );
     if (remain === 0) {
-      results.push([...path10]);
+      results.push([...path11]);
       node2.state = "success";
       frame.status = "base_case";
-      frame.returnValue = `[${path10.join(",")}]`;
+      frame.returnValue = `[${path11.join(",")}]`;
       record2(
         4,
-        `\u2713 Target Reached! Exact match sum == ${target}. Solution [${path10.join(", ")}] recorded. Total found = ${results.length}.`,
+        `\u2713 Target Reached! Exact match sum == ${target}. Solution [${path11.join(", ")}] recorded. Total found = ${results.length}.`,
         frameId,
         { currentVal: remain }
       );
@@ -285402,7 +285402,7 @@ function combinationSumBacktrackingSim(input2, slug = "combination-sum", dataset
           id: pruneNodeId,
           parentId: frameId,
           label: `+${c}`,
-          depth: path10.length + 1,
+          depth: path11.length + 1,
           state: "pruned",
           decision: `+${c} [FAIL]`,
           pruneReason: `${c} > rem(${remain})`
@@ -285416,18 +285416,18 @@ function combinationSumBacktrackingSim(input2, slug = "combination-sum", dataset
         );
         continue;
       }
-      path10.push(c);
+      path11.push(c);
       record2(
         11,
-        `Pick candidate ${c} (rem ${remain} - ${c} = ${remain - c}). Current path: [${path10.join(", ")}].`,
+        `Pick candidate ${c} (rem ${remain} - ${c} = ${remain - c}). Current path: [${path11.join(", ")}].`,
         frameId,
         { currentVal: c }
       );
-      backtrack(i2, remain - c, path10, frameId, `+${c}`);
-      path10.pop();
+      backtrack(i2, remain - c, path11, frameId, `+${c}`);
+      path11.pop();
       record2(
         13,
-        `Backtracked from branch +${c}. Un-choose ${c}, restore path to [${path10.join(", ")}].`,
+        `Backtracked from branch +${c}. Un-choose ${c}, restore path to [${path11.join(", ")}].`,
         frameId,
         { currentVal: c }
       );
@@ -295244,6 +295244,4825 @@ function escapeHtml(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
+// src/lib/master-patterns/router.server.ts
+var import_express = __toESM(require_express2(), 1);
+
+// src/data/patterns.ts
+var PATTERN_CATALOG = [
+  {
+    id: "two-pointers",
+    title: "Two Pointers",
+    subtitle: "Converging bounds, slow/fast write cursors & 3-way partitioning",
+    category: "Linear & Window",
+    interviewFrequency: "Very High",
+    whiteboardQuery: "Two Pointers convergence on sorted array",
+    linkedProblemSlugs: [
+      "two-sum-ii-input-array-is-sorted",
+      "3sum",
+      "container-with-most-water",
+      "trapping-rain-water"
+    ],
+    strands: [
+      {
+        id: "two-pointers:monotonic-elimination",
+        patternId: "two-pointers",
+        title: "Monotonic Search-Space Elimination",
+        unconditionalTruth: "In an ascending sequence, increasing index L can never decrease nums[L], and decreasing index R can never increase nums[R].",
+        coreInvariant: "All pairs outside [L..R] have already been proven strictly suboptimal or invalid.",
+        commonTrap: "Applying converging L/R pointers to an unsorted array without sorting or preserving index mapping.",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 3
+      },
+      {
+        id: "two-pointers:greedy-bottleneck-choice",
+        patternId: "two-pointers",
+        title: "Bottleneck Pointer Advancement",
+        unconditionalTruth: "An objective bounded by min(h[L], h[R]) cannot improve by moving the taller wall inward while width shrinks.",
+        coreInvariant: "Advancing the strictly smaller-height pointer preserves all potentially better candidate pairs.",
+        commonTrap: "Moving the taller pointer or failing to prove why the discarded row/column of pairs cannot hold the optimum.",
+        prerequisiteStrandIds: ["two-pointers:monotonic-elimination"],
+        fanoutWeight: 2
+      },
+      {
+        id: "two-pointers:same-direction-write",
+        patternId: "two-pointers",
+        title: "Same-Direction Read/Write In-Place Cursor",
+        unconditionalTruth: "When read pointer r >= write pointer w, overwriting index w never destroys unread elements ahead at r.",
+        coreInvariant: "Prefix [0..w-1] holds the exact valid compacted output; [w..r-1] is already-consumed scratch space.",
+        commonTrap: "Using O(n) auxiliary array when O(1) in-place compaction preserves relative order.",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 2
+      },
+      {
+        id: "two-pointers:duplicate-skipping",
+        patternId: "two-pointers",
+        title: "Deduplication Without HashSets (k-Sum)",
+        unconditionalTruth: "In a sorted array, identical values sit contiguously, so skipping nums[i] == nums[i - 1] eliminates duplicate tuples in O(1) space.",
+        coreInvariant: "Check duplicates against the previous processed value after accepting a match (or before fixing outer anchor), never skipping the first occurrence.",
+        commonTrap: "Skipping duplicates before evaluating the first match, or using a HashSet that degrades 3Sum space from O(1) to O(n^2).",
+        prerequisiteStrandIds: ["two-pointers:monotonic-elimination"],
+        fanoutWeight: 2
+      },
+      {
+        id: "two-pointers:termination-and-bounds",
+        patternId: "two-pointers",
+        title: "Strict vs Inclusive Termination (L < R vs L <= R)",
+        unconditionalTruth: "Distinct-index pair problems require L < R because L == R violates distinctness; self-pair or partition problems may require L <= R.",
+        coreInvariant: "Every loop iteration strictly decreases (R - L), guaranteeing O(n) termination.",
+        commonTrap: "Using L <= R on pair-sum problems (reusing element L) or missing mid-loop break checks.",
+        prerequisiteStrandIds: ["two-pointers:monotonic-elimination"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "sliding-window",
+        distinguishingCue: "Two Pointers evaluates a pair/extremum at (L, R) or partitions indices; Sliding Window aggregates a property over the entire contiguous subarray [L..R]."
+      },
+      {
+        twinPatternId: "prefix-sum-hashmap",
+        distinguishingCue: "Unsorted Two Sum uses a HashMap in O(n) time / O(n) space; Sorted Two Sum uses converging pointers in O(1) space."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "constraint-twist",
+        targetStrandId: "two-pointers:monotonic-elimination",
+        promptTemplate: "Your 3Sum solution relies on sorting first. Now the interviewer forbids modifying the input array AND requires returning original 0-based indices in O(n^2) time. What changes and what extra space is now unavoidable?",
+        whatItBreaks: "Breaks in-place O(1) sort assumption and tests index-preservation tradeoffs."
+      },
+      {
+        operator: "break-the-premise",
+        targetStrandId: "two-pointers:greedy-bottleneck-choice",
+        promptTemplate: "In Container With Most Water, someone moves the pointer whose neighbor has a taller bar (h[L+1] vs h[R-1]) instead of comparing h[L] vs h[R]. Construct a 4-element array where that greedy rule misses the optimal area.",
+        whatItBreaks: "Tests whether the learner truly holds the min-wall bottleneck proof vs guessing."
+      },
+      {
+        operator: "reverse-premise",
+        targetStrandId: "two-pointers:duplicate-skipping",
+        promptTemplate: "A 3Sum implementation skips duplicates by writing `while (L < R && nums[L] == nums[L+1]) L++;` BEFORE checking `nums[i] + nums[L] + nums[R] == 0`. Give a concrete sorted input where this silently returns [] instead of a valid triplet.",
+        whatItBreaks: "Exposes premature deduplication destroying valid repeated-element solutions like [-2, 1, 1]."
+      }
+    ],
+    proCaseStudy: {
+      title: "Trap Rainwater Variants & Space Bottleneck",
+      targetStrandId: "two-pointers:greedy-bottleneck-choice",
+      prompt: "Given non-negative elevation heights `height[]`, compute total trapped rainwater in O(n) time and **O(1) extra space** (not O(n) prefix/suffix arrays). State your loop invariant for `leftMax` and `rightMax` before coding.",
+      constraints: "1 <= n <= 2*10^5, 0 <= height[i] <= 10^5",
+      optimalTime: "O(n)",
+      optimalSpace: "O(1)",
+      optimizationTrap: "Using leftMax[] and rightMax[] O(n) arrays or an O(n) stack instead of O(1) converging pointers.",
+      starterCode: {
+        cpp: `int trap(vector<int>& height) {
+    // Write O(n) time, O(1) space solution
+}`,
+        python: `def trap(height: list[int]) -> int:
+    # Write O(n) time, O(1) space solution
+    pass`,
+        java: `public int trap(int[] height) {
+    // Write O(n) time, O(1) space solution
+    return 0;
+}`,
+        typescript: `function trap(height: number[]): number {
+  // Write O(n) time, O(1) space solution
+  return 0;
+}`
+      }
+    }
+  },
+  {
+    id: "sliding-window",
+    title: "Sliding Window",
+    subtitle: "Fixed & variable contiguous windows, monotonic shrinking & Exact-K decomposition",
+    category: "Linear & Window",
+    interviewFrequency: "Very High",
+    whiteboardQuery: "Sliding Window subarray expansion and shrinking",
+    linkedProblemSlugs: [
+      "longest-substring-without-repeating-characters",
+      "minimum-window-substring",
+      "sliding-window-maximum",
+      "subarrays-with-k-different-integers"
+    ],
+    strands: [
+      {
+        id: "sliding-window:monotonicity-condition",
+        patternId: "sliding-window",
+        title: "Monotonicity Requirement for Shrinking",
+        unconditionalTruth: "Variable sliding window works only when expanding R monotonically worsens/increases (or preserves) validity and shrinking L monotonically restores it.",
+        coreInvariant: "If window [L..R] is already invalid (e.g., sum > target with positive numbers), no further extension [L..R+k] can become valid.",
+        commonTrap: "Using sliding window on arrays containing negative numbers for target-sum subarrays.",
+        prerequisiteStrandIds: ["two-pointers:monotonic-elimination"],
+        fanoutWeight: 3
+      },
+      {
+        id: "sliding-window:while-vs-if-shrink",
+        patternId: "sliding-window",
+        title: "while(invalid) vs if(invalid) Window Mechanics",
+        unconditionalTruth: "Use `while (invalid)` when you must track the exact shortest/valid state at every R; `if (invalid)` only preserves max window length without resetting.",
+        coreInvariant: "After the shrink step for index R, [L..R] is the largest (or minimal) valid window ending at R.",
+        commonTrap: "Using `if` instead of `while` on Minimum Window Substring or Subarray Product Less Than K.",
+        prerequisiteStrandIds: ["sliding-window:monotonicity-condition"],
+        fanoutWeight: 2
+      },
+      {
+        id: "sliding-window:amortized-complexity",
+        patternId: "sliding-window",
+        title: "Amortized O(n) Pointer Accounting",
+        unconditionalTruth: "Both L and R only advance from 0 to n, so total inner `while` steps across the entire outer loop never exceed n.",
+        coreInvariant: "Total pointer moves <= 2n, making nested `for R` + `while L` strictly O(n) time.",
+        commonTrap: "Misjudging nested `while` inside `for` as O(n^2), or recounting the window frequency map inside the loop (which really IS O(n^2)).",
+        prerequisiteStrandIds: ["sliding-window:monotonicity-condition"],
+        fanoutWeight: 2
+      },
+      {
+        id: "sliding-window:exact-k-decomposition",
+        patternId: "sliding-window",
+        title: "atMost(K) - atMost(K - 1) Exact-K Trick",
+        unconditionalTruth: "Counting subarrays with *exact* property K is non-monotonic on shrink, whereas `atMost(K)` is monotonic.",
+        coreInvariant: "For every right endpoint R under `atMost(K)`, the number of valid subarrays ending at R is `(R - L + 1)`.",
+        commonTrap: "Trying a single two-pointer pass for Exact-K distinct elements and missing subarrays formed by moving L inside the valid region.",
+        prerequisiteStrandIds: ["sliding-window:while-vs-if-shrink"],
+        fanoutWeight: 3
+      },
+      {
+        id: "sliding-window:freq-satisfaction-counter",
+        patternId: "sliding-window",
+        title: "O(1) Window Validity Tracking (`have` vs `need`)",
+        unconditionalTruth: "Maintaining an incremental `formed == required` counter avoids O(|alphabet|) map scans per step.",
+        coreInvariant: "`formed` increments only when a required character count crosses its exact target threshold.",
+        commonTrap: "Comparing full HashMaps inside the loop (degrading O(n) to O(n * |sigma|)) or double-counting surplus characters.",
+        prerequisiteStrandIds: ["sliding-window:amortized-complexity"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "prefix-sum-hashmap",
+        distinguishingCue: "Subarray sum = K with negative numbers CANNOT use Sliding Window; it requires Prefix Sum + HashMap."
+      },
+      {
+        twinPatternId: "monotonic-stack",
+        distinguishingCue: "Sliding Window Maximum requires a monotonic *deque* (evicting out-of-window front indices), not just a stack."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "constraint-twist",
+        targetStrandId: "sliding-window:monotonicity-condition",
+        promptTemplate: "In 'Longest Subarray with Sum <= K', suppose we now allow negative integers in `nums`. Explain the exact failure mode of `while (sum > K) sum -= nums[L++]` with a minimal 3-element counterexample.",
+        whatItBreaks: "Exposes hidden assumption that nums[i] >= 0."
+      },
+      {
+        operator: "discrimination",
+        targetStrandId: "sliding-window:exact-k-decomposition",
+        promptTemplate: "Problem A asks for the *longest* substring with at most K distinct chars. Problem B asks for the *count* of subarrays with *exactly* K distinct integers. Why does a single [L..R] window fail on Problem B?",
+        whatItBreaks: "Tests discrimination between optimization over monotonic windows vs counting exact-K subarrays."
+      },
+      {
+        operator: "break-the-premise",
+        targetStrandId: "sliding-window:freq-satisfaction-counter",
+        promptTemplate: "In Minimum Window Substring (`t = 'AABC'`), a candidate increments `have++` every time `window[c] <= need[c]`. What happens if they instead write `if (need.count(c)) have++` without checking the cap?",
+        whatItBreaks: "Catches surplus-character inflation bug in O(1) validity counters."
+      }
+    ],
+    proCaseStudy: {
+      title: "Smallest Substring Covering All Required Frequencies",
+      targetStrandId: "sliding-window:freq-satisfaction-counter",
+      prompt: "Implement `minWindow(s, t)` returning the shortest substring of `s` containing every character of `t` with multiplicity. Must run in **O(|s| + |t|) time** and **O(|alphabet|) space** without scanning the map on each iteration.",
+      constraints: "1 <= |s|, |t| <= 10^5, ASCII letters",
+      optimalTime: "O(|s| + |t|)",
+      optimalSpace: "O(1) / O(|alphabet|)",
+      optimizationTrap: "Re-checking all 26/128 map entries on every step or slicing substrings inside the loop (O(n^2) memory/time).",
+      starterCode: {
+        cpp: `string minWindow(string s, string t) {
+    // O(|s| + |t|) time using have/need counters
+}`,
+        python: `def minWindow(s: str, t: str) -> str:
+    # O(|s| + |t|) time using have/need counters
+    pass`,
+        java: `public String minWindow(String s, String t) {
+    // O(|s| + |t|) time using have/need counters
+    return "";
+}`,
+        typescript: `function minWindow(s: string, t: string): string {
+  // O(|s| + |t|) time using have/need counters
+  return "";
+}`
+      }
+    }
+  },
+  {
+    id: "fast-slow-pointers",
+    title: "Fast & Slow Pointers",
+    subtitle: "Floyd's cycle detection, modular distance proof & implicit array cycles",
+    category: "Linear & Window",
+    interviewFrequency: "High",
+    whiteboardQuery: "Linked List fast and slow cycle detection",
+    linkedProblemSlugs: [
+      "linked-list-cycle",
+      "linked-list-cycle-ii",
+      "find-the-duplicate-number"
+    ],
+    strands: [
+      {
+        id: "fast-slow:relative-speed-meeting",
+        patternId: "fast-slow-pointers",
+        title: "Guaranteed Relative Closure (Speed 2 vs 1)",
+        unconditionalTruth: "Inside a cycle of length C, moving fast by 2 steps and slow by 1 closes the gap by exactly 1 node per iteration.",
+        coreInvariant: "Fast can never jump over slow without landing on it because step-size difference is gcd(1, C) = 1.",
+        commonTrap: "Checking `fast != null` without also guarding `fast.next != null` before `fast.next.next`.",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 2
+      },
+      {
+        id: "fast-slow:floyd-entry-proof",
+        patternId: "fast-slow-pointers",
+        title: "Floyd's Cycle Entry Equation (F = kC - a)",
+        unconditionalTruth: "When slow (distance F + a) and fast (distance 2(F + a)) collide, F + a is an integer multiple of cycle length C.",
+        coreInvariant: "Resetting one pointer to head and stepping both by 1 moves F steps\u2014bringing the cycle pointer from (a) to (a + F \u2261 0 mod C), the exact cycle entry.",
+        commonTrap: "Memorizing the reset-to-head trick without knowing why both pointers step by 1 (not 2) in phase 2.",
+        prerequisiteStrandIds: ["fast-slow:relative-speed-meeting"],
+        fanoutWeight: 3
+      },
+      {
+        id: "fast-slow:implicit-array-graph",
+        patternId: "fast-slow-pointers",
+        title: "Mapping Value-as-Index Implicit Cycles",
+        unconditionalTruth: "An array of n+1 integers in [1..n] defines a functional graph `i -> nums[i]` where any repeated value has in-degree >= 2, creating a cycle entry.",
+        coreInvariant: "Starting from index 0 (never in [1..n]), index 0 lies strictly outside the cycle, mirroring a linked-list tail.",
+        commonTrap: "Modifying the input array (negation/sorting) when read-only O(1) space is mandated.",
+        prerequisiteStrandIds: ["fast-slow:floyd-entry-proof"],
+        fanoutWeight: 3
+      },
+      {
+        id: "fast-slow:midpoint-parity",
+        patternId: "fast-slow-pointers",
+        title: "Even/Odd Midpoint & Palindrome Splitting",
+        unconditionalTruth: "Stopping at `fast.next && fast.next.next` vs `fast && fast.next` determines whether even-length lists land on the first or second middle node.",
+        coreInvariant: "For list reversal/split, slow must stop one node *before* the second half (or at first middle) so `slow.next = null` cleanly bisects the list.",
+        commonTrap: "Off-by-one middle selection causing infinite loops or dropped middle nodes during Merge Sort on Linked Lists.",
+        prerequisiteStrandIds: ["fast-slow:relative-speed-meeting"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "prefix-sum-hashmap",
+        distinguishingCue: "A visited Set finds cycles in O(n) space; Floyd's Fast/Slow achieves O(1) space."
+      },
+      {
+        twinPatternId: "binary-search",
+        distinguishingCue: "Find the Duplicate Number can also be solved via Binary Search on Value [1..n] in O(n log n) time / O(1) space, whereas Floyd solves it in O(n) / O(1)."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "reverse-premise",
+        targetStrandId: "fast-slow:floyd-entry-proof",
+        promptTemplate: "Suppose in Phase 2 of Floyd's algorithm, instead of moving both pointers by 1 step, you keep `fast` moving by 2 steps from the meeting point and `slow` by 1 from head. Do they still necessarily meet at the cycle entrance?",
+        whatItBreaks: "Tests whether the modular equation F + a = kC is genuinely understood."
+      },
+      {
+        operator: "constraint-twist",
+        targetStrandId: "fast-slow:implicit-array-graph",
+        promptTemplate: "In Find the Duplicate Number, suppose values are in [0..n-1] instead of [1..n]. Why can starting Floyd's algorithm at index 0 fail immediately?",
+        whatItBreaks: "Exposes the self-loop `nums[0] == 0` trap when 0 is in the value domain."
+      }
+    ],
+    proCaseStudy: {
+      title: "Read-Only Duplicate Finder in O(n) Time & O(1) Space",
+      targetStrandId: "fast-slow:implicit-array-graph",
+      prompt: "Given `nums` of length `n + 1` with values in `[1..n]`, find the duplicate without modifying `nums` and using only O(1) extra space, in O(n) time.",
+      constraints: "1 <= n <= 10^5, read-only input",
+      optimalTime: "O(n)",
+      optimalSpace: "O(1)",
+      optimizationTrap: "Sorting (mutates input + O(n log n)), HashSet (O(n) space), or Binary Search on answer (O(n log n) instead of O(n)).",
+      starterCode: {
+        cpp: `int findDuplicate(const vector<int>& nums) {
+    // O(n) time, O(1) space, read-only
+}`,
+        python: `def findDuplicate(nums: list[int]) -> int:
+    # O(n) time, O(1) space, read-only
+    pass`,
+        java: `public int findDuplicate(int[] nums) {
+    // O(n) time, O(1) space, read-only
+    return 0;
+}`,
+        typescript: `function findDuplicate(nums: number[]): number {
+  // O(n) time, O(1) space, read-only
+  return 0;
+}`
+      }
+    }
+  },
+  {
+    id: "binary-search",
+    title: "Binary Search & Search on Answer",
+    subtitle: "Boundary invariants, rotated arrays & monotonic predicate halving",
+    category: "Search & Partition",
+    interviewFrequency: "Very High",
+    whiteboardQuery: "Binary Search boundary invariant",
+    linkedProblemSlugs: [
+      "binary-search",
+      "search-in-rotated-sorted-array",
+      "koko-eating-bananas",
+      "median-of-two-sorted-arrays"
+    ],
+    strands: [
+      {
+        id: "binary-search:loop-invariant-bounds",
+        patternId: "binary-search",
+        title: "Closed [L, R] vs Half-Open [L, R) Invariant",
+        unconditionalTruth: "Every binary search bug comes from mixing the loop condition (`L <= R` vs `L < R`) with the update rule (`R = mid - 1` vs `R = mid`).",
+        coreInvariant: "At loop entry, any valid target (if present) strictly resides inside the active search interval.",
+        commonTrap: "Infinite loop when `L + 1 == R`, `mid = (L + R) / 2` (floor), and setting `L = mid`.",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 3
+      },
+      {
+        id: "binary-search:monotonic-predicate",
+        patternId: "binary-search",
+        title: "Binary Search on Answer Space (TTTTFFFF / FFFFTTTT)",
+        unconditionalTruth: "Binary search does not need a sorted array\u2014it only needs a monotonic boolean predicate `feasible(x)` over a bounded integer/real range.",
+        coreInvariant: "If `feasible(x)` is true, either all `y > x` (for min-feasible) or all `y < x` (for max-feasible) have known truth values.",
+        commonTrap: "Choosing wrong answer bounds `[lo, hi]` (e.g. `lo = 0` dividing by zero, or `hi` smaller than `max(piles)`).",
+        prerequisiteStrandIds: ["binary-search:loop-invariant-bounds"],
+        fanoutWeight: 3
+      },
+      {
+        id: "binary-search:rotated-sorted-halving",
+        patternId: "binary-search",
+        title: "Identifying the Guaranteed Sorted Half",
+        unconditionalTruth: "In a rotated sorted array with distinct elements, splitting at `mid` leaves at least one of `[L..mid]` or `[mid..R]` strictly sorted.",
+        coreInvariant: "Only check `target in [L..mid]` against the half confirmed sorted (`nums[L] <= nums[mid]`).",
+        commonTrap: "Failing when duplicates exist (`nums[L] == nums[mid] == nums[R]`) where neither half can be proven sorted without shrinking both ends.",
+        prerequisiteStrandIds: ["binary-search:loop-invariant-bounds"],
+        fanoutWeight: 2
+      },
+      {
+        id: "binary-search:partition-median",
+        patternId: "binary-search",
+        title: "Cross-Array Cut Partitioning",
+        unconditionalTruth: "Partitioning two sorted arrays at cuts `(i, j)` with `i + j = (m + n + 1) / 2` requires checking only `A[i-1] <= B[j]` and `B[j-1] <= A[i]`.",
+        coreInvariant: "Binary searching on the *shorter* array guarantees `j` never goes out of bounds and bounds runtime to O(log(min(m, n))).",
+        commonTrap: "Searching on the longer array (out-of-bounds `j`) or forgetting `-INF`/`+INF` sentinel edges.",
+        prerequisiteStrandIds: ["binary-search:monotonic-predicate"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "two-pointers",
+        distinguishingCue: "When you need an exact threshold/minimum feasible capacity over `[1..MAX]` with an O(n) check, use Binary Search on Answer O(n log M); when pairing elements, use Two Pointers."
+      },
+      {
+        twinPatternId: "dynamic-programming",
+        distinguishingCue: "'Split Array Largest Sum' looks like 2D DP O(n^2 * k), but monotonicity of max-subarray-sum lets Binary Search on Answer solve it in O(n log(sum))."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "break-the-premise",
+        targetStrandId: "binary-search:loop-invariant-bounds",
+        promptTemplate: "A developer searches for the *maximum* `x` satisfying `ok(x)` using `while (L < R) { int mid = L + (R - L) / 2; if (ok(mid)) L = mid; else R = mid - 1; }`. Give a 2-element range `[L, R]` where this hangs forever, and explain the exact 1-line fix.",
+        whatItBreaks: "Exposes floor-midpoint infinite loop when `L = mid` is used."
+      },
+      {
+        operator: "constraint-twist",
+        targetStrandId: "binary-search:rotated-sorted-halving",
+        promptTemplate: "Your rotated-array search uses `if (nums[L] <= nums[mid])` to detect a sorted left half. What happens on `[1, 0, 1, 1, 1]` searching for `0`, and why does worst-case complexity degrade?",
+        whatItBreaks: "Forces derivation of duplicate-ambiguity degradation from O(log n) to O(n)."
+      }
+    ],
+    proCaseStudy: {
+      title: "Minimum Feasible Speed via Monotonic Search",
+      targetStrandId: "binary-search:monotonic-predicate",
+      prompt: "Given `piles[]` and `h` hours (`h >= piles.length`), find the minimum integer eating speed `k` so all piles finish within `h` hours. Implement in **O(n log(max(piles)))** time and **O(1)** space without integer overflow.",
+      constraints: "1 <= piles.length <= 10^4, 1 <= piles[i] <= 10^9",
+      optimalTime: "O(n log(max(piles)))",
+      optimalSpace: "O(1)",
+      optimizationTrap: "Linear scan over k (TLE), `lo = 0` divide-by-zero, or `int` overflow in total hours sum.",
+      starterCode: {
+        cpp: `int minEatingSpeed(vector<int>& piles, int h) {
+    // O(n log M) time, O(1) space, overflow-safe
+}`,
+        python: `def minEatingSpeed(piles: list[int], h: int) -> int:
+    # O(n log M) time, O(1) space
+    pass`,
+        java: `public int minEatingSpeed(int[] piles, int h) {
+    // O(n log M) time, O(1) space, overflow-safe
+    return 0;
+}`,
+        typescript: `function minEatingSpeed(piles: number[], h: number): number {
+  // O(n log M) time, O(1) space
+  return 0;
+}`
+      }
+    }
+  },
+  {
+    id: "prefix-sum-hashmap",
+    title: "Prefix Sum & HashMap",
+    subtitle: "Algebraic subarray differences, first-occurrence indexing & modulo equivalence",
+    category: "Linear & Window",
+    interviewFrequency: "Very High",
+    whiteboardQuery: "Prefix Sum and HashMap subarray counting",
+    linkedProblemSlugs: [
+      "subarray-sum-equals-k",
+      "contiguous-array"
+    ],
+    strands: [
+      {
+        id: "prefix-sum:algebraic-complement",
+        patternId: "prefix-sum-hashmap",
+        title: "Subarray Sum as Prefix Difference (P[r] - P[l-1] = k)",
+        unconditionalTruth: "Every contiguous subarray sum[l..r] equals `prefix[r] - prefix[l - 1]`.",
+        coreInvariant: "Before inserting `prefix` at index r, `map[prefix - k]` holds the exact count (or earliest index) of prior prefixes yielding sum k.",
+        commonTrap: "Forgetting to seed `map[0] = 1` (for counts) or `map[0] = -1` (for longest length) before iterating.",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 3
+      },
+      {
+        id: "prefix-sum:count-vs-longest-update",
+        patternId: "prefix-sum-hashmap",
+        title: "Frequency Accumulation vs First-Index Preservation",
+        unconditionalTruth: "Counting subarrays updates `map[prefix]++` on every visit; maximizing length only stores `map[prefix]` if absent.",
+        coreInvariant: "Overwriting `map[prefix]` on repeat visits shrinks candidate subarray lengths and loses the longest match.",
+        commonTrap: "Overwriting earliest index when maximizing subarray length (e.g., Contiguous Array 0/1 balance).",
+        prerequisiteStrandIds: ["prefix-sum:algebraic-complement"],
+        fanoutWeight: 2
+      },
+      {
+        id: "prefix-sum:modulo-and-negative-norm",
+        patternId: "prefix-sum-hashmap",
+        title: "Negative Modulo Normalization & State Encoding",
+        unconditionalTruth: "Two prefixes share the same remainder mod M iff their difference is divisible by M.",
+        coreInvariant: "In C++/Java, negative remainders must be normalized via `((sum % M) + M) % M` so `-1 mod 5` matches `+4 mod 5`.",
+        commonTrap: "Sign mismatch in `%` across C++/Java vs Python on negative prefix sums.",
+        prerequisiteStrandIds: ["prefix-sum:algebraic-complement"],
+        fanoutWeight: 2
+      },
+      {
+        id: "prefix-sum:difference-array",
+        patternId: "prefix-sum-hashmap",
+        title: "Offline Range Updates via Difference Arrays",
+        unconditionalTruth: "Adding +v to [L..R] equals `+v` at `diff[L]` and `-v` at `diff[R + 1]`, reconstructed in one O(n) sweep.",
+        coreInvariant: "Running prefix sum over `diff[]` yields exact point values for Q range updates in O(Q + n).",
+        commonTrap: "Off-by-one at `R + 1 >= n` boundary or using O(Q * n) per-update loops.",
+        prerequisiteStrandIds: ["prefix-sum:algebraic-complement"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "sliding-window",
+        distinguishingCue: "Negatives/zeros break sliding-window monotonicity; Prefix Sum + HashMap handles arbitrary positive/negative values in O(n) time / O(n) space."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "break-the-premise",
+        targetStrandId: "prefix-sum:algebraic-complement",
+        promptTemplate: "Suppose in `subarraySum(nums, k)` you insert `freq[prefix]++` BEFORE looking up `freq[prefix - k]`. For which value of `k` does this silently overcount every element by 1?",
+        whatItBreaks: "Exposes the `k = 0` self-pairing bug when order of lookup/insert is flipped."
+      },
+      {
+        operator: "constraint-twist",
+        targetStrandId: "prefix-sum:count-vs-longest-update",
+        promptTemplate: "You solved 'Longest Subarray with Equal 0s and 1s' by transforming 0 -> -1 and storing `firstIdx[sum]`. Now we want the longest subarray where `#1s - #0s >= 1` (at least one more 1 than 0). Why does `firstIdx[sum - 1]` fail?",
+        whatItBreaks: "Demonstrates exact equality vs inequality boundary requiring monotonic stack / prefix minimum."
+      }
+    ],
+    proCaseStudy: {
+      title: "Subarrays Summing to K With Arbitrary Negatives",
+      targetStrandId: "prefix-sum:algebraic-complement",
+      prompt: "Return the total number of contiguous subarrays summing to `k` where elements may be negative, zero, or positive. Must run in **O(n) time**.",
+      constraints: "1 <= nums.length <= 2*10^4, -1000 <= nums[i] <= 1000, -10^7 <= k <= 10^7",
+      optimalTime: "O(n)",
+      optimalSpace: "O(n)",
+      optimizationTrap: "O(n^2) nested prefix loop or attempting Sliding Window (fails on negatives).",
+      starterCode: {
+        cpp: `int subarraySum(vector<int>& nums, int k) {
+    // O(n) prefix sum + frequency map
+}`,
+        python: `def subarraySum(nums: list[int], k: int) -> int:
+    # O(n) prefix sum + frequency map
+    pass`,
+        java: `public int subarraySum(int[] nums, int k) {
+    // O(n) prefix sum + frequency map
+    return 0;
+}`,
+        typescript: `function subarraySum(nums: number[], k: number): number {
+  // O(n) prefix sum + frequency map
+  return 0;
+}`
+      }
+    }
+  },
+  {
+    id: "monotonic-stack",
+    title: "Monotonic Stack & Queue",
+    subtitle: "Next greater/smaller boundaries, span popping & O(n) histogram area",
+    category: "Stacks, Heaps & Intervals",
+    interviewFrequency: "High",
+    whiteboardQuery: "Monotonic Stack next greater element",
+    linkedProblemSlugs: [
+      "daily-temperatures",
+      "largest-rectangle-in-histogram",
+      "trapping-rain-water",
+      "sliding-window-maximum"
+    ],
+    strands: [
+      {
+        id: "monotonic-stack:dominance-popping",
+        patternId: "monotonic-stack",
+        title: "Dominance & Single-Push/Single-Pop Amortization",
+        unconditionalTruth: "Each element is pushed onto and popped from the monotonic stack at most once, guaranteeing O(n) total work.",
+        coreInvariant: "Elements remaining on the stack have not yet encountered a dominating element that resolves their boundary.",
+        commonTrap: "Storing values instead of indices (losing distance/width calculation) or using `<` vs `<=` inconsistently on duplicates.",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 3
+      },
+      {
+        id: "monotonic-stack:span-width-boundaries",
+        patternId: "monotonic-stack",
+        title: "Both-Sides Boundary Extraction on Pop",
+        unconditionalTruth: "When index `i` pops `top` from an increasing stack, `i` is the right boundary and the *new* stack top is the left boundary.",
+        coreInvariant: "Rectangle width for popped bar `top` is `i - stack.peek() - 1` (or `i` when stack becomes empty).",
+        commonTrap: "Forgetting to flush remaining bars with a trailing sentinel `0` height at the end of Histogram.",
+        prerequisiteStrandIds: ["monotonic-stack:dominance-popping"],
+        fanoutWeight: 3
+      },
+      {
+        id: "monotonic-stack:deque-window-eviction",
+        patternId: "monotonic-stack",
+        title: "Monotonic Deque Front-Eviction for Window Extrema",
+        unconditionalTruth: "A monotonic deque evicts stale out-of-window indices from the front and dominated candidates from the back.",
+        coreInvariant: "The front of the deque is always the exact extremum within `[i - k + 1 .. i]`.",
+        commonTrap: "Using a heap (O(n log k)) when a monotonic deque achieves O(n) time and O(k) space.",
+        prerequisiteStrandIds: ["monotonic-stack:dominance-popping"],
+        fanoutWeight: 2
+      },
+      {
+        id: "monotonic-stack:circular-double-pass",
+        patternId: "monotonic-stack",
+        title: "Circular Array Wrap via `2n` Modulo Indexing",
+        unconditionalTruth: "Simulating `i` from `0` to `2n - 1` with `i % n` resolves wrap-around Next Greater Elements without duplicating the array.",
+        coreInvariant: "Only push indices during the first pass (`i < n`); use the second pass strictly to pop unresolved elements.",
+        commonTrap: "Allocating a 2n copy or pushing indices twice in the second pass.",
+        prerequisiteStrandIds: ["monotonic-stack:dominance-popping"],
+        fanoutWeight: 1
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "heap-top-k",
+        distinguishingCue: "Heaps give O(n log k) for window max or top-K; Monotonic Deque gives O(n) when only the extremum of a sliding window is needed."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "break-the-premise",
+        targetStrandId: "monotonic-stack:span-width-boundaries",
+        promptTemplate: "In Largest Rectangle in Histogram `[2, 1, 5, 6, 2, 3]`, suppose your stack stores `[1, 2]` and you process the final sentinel. What happens if you omit the sentinel `0` at index `n`?",
+        whatItBreaks: "Exposes unresolved ascending bars left on stack at loop end."
+      },
+      {
+        operator: "constraint-twist",
+        targetStrandId: "monotonic-stack:dominance-popping",
+        promptTemplate: "In 'Sum of Subarray Minimums', elements can repeat (e.g., `[3, 1, 2, 1]`). Why MUST one side use strict `<` and the other side non-strict `<=` when computing left/right spans?",
+        whatItBreaks: "Tests duplicate-span double-counting invariant."
+      }
+    ],
+    proCaseStudy: {
+      title: "Largest Rectangle in Histogram in Single Pass",
+      targetStrandId: "monotonic-stack:span-width-boundaries",
+      prompt: "Compute the largest rectangular area in `heights[]` in **O(n) time** and **O(n) space** using a single monotonic increasing stack pass (no separate `leftLess[]` + `rightLess[]` 3-pass arrays).",
+      constraints: "1 <= heights.length <= 10^5, 0 <= heights[i] <= 10^4",
+      optimalTime: "O(n)",
+      optimalSpace: "O(n)",
+      optimizationTrap: "O(n^2) expand-from-center or 3 separate array passes inflating space 3x.",
+      starterCode: {
+        cpp: `int largestRectangleArea(vector<int>& heights) {
+    // Single-pass monotonic stack with sentinel
+}`,
+        python: `def largestRectangleArea(heights: list[int]) -> int:
+    # Single-pass monotonic stack with sentinel
+    pass`,
+        java: `public int largestRectangleArea(int[] heights) {
+    // Single-pass monotonic stack with sentinel
+    return 0;
+}`,
+        typescript: `function largestRectangleArea(heights: number[]): number {
+  // Single-pass monotonic stack with sentinel
+  return 0;
+}`
+      }
+    }
+  },
+  {
+    id: "intervals-sweep",
+    title: "Intervals & Sweep Line",
+    subtitle: "Start-vs-end sorting, greedy overlap elimination & event sweep counters",
+    category: "Stacks, Heaps & Intervals",
+    interviewFrequency: "High",
+    whiteboardQuery: "Merge Intervals and Sweep Line sorting",
+    linkedProblemSlugs: [
+      "merge-intervals",
+      "non-overlapping-intervals"
+    ],
+    strands: [
+      {
+        id: "intervals:sort-by-start-vs-end",
+        patternId: "intervals-sweep",
+        title: "Why Sort by Start (Merge) vs End (Greedy Removal)",
+        unconditionalTruth: "Merging/inserting requires sorting by `start`; maximizing non-overlapping intervals requires sorting by earliest `end`.",
+        coreInvariant: "An interval ending earliest leaves the largest remaining suffix for future intervals.",
+        commonTrap: "Sorting by `start` on Activity Selection / Non-Overlapping Intervals (fails when a long interval starts early).",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 3
+      },
+      {
+        id: "intervals:boundary-touching-rule",
+        patternId: "intervals-sweep",
+        title: "Inclusive vs Half-Open Touching (`[1,2]` & `[2,3]`)",
+        unconditionalTruth: "Whether `a.end == b.start` counts as overlap depends on the problem spec (Merge Intervals: yes; Non-Overlapping / Meeting Rooms: no).",
+        coreInvariant: "Sweep-line event ordering must process `-1` end events before `+1` start events at equal timestamps when touching does not conflict.",
+        commonTrap: "Wrong tie-breaker at equal timestamps causing off-by-one room counts.",
+        prerequisiteStrandIds: ["intervals:sort-by-start-vs-end"],
+        fanoutWeight: 2
+      },
+      {
+        id: "intervals:sweep-line-events",
+        patternId: "intervals-sweep",
+        title: "Sweep Line / Min-Heap Concurrent Peak Tracking",
+        unconditionalTruth: "Maximum simultaneous intervals equals the peak running sum of `+1` start and `-1` end events sorted chronologically.",
+        coreInvariant: "Two sorted arrays (`starts[]`, `ends[]`) track peak concurrency in O(n log n) time without allocating event objects.",
+        commonTrap: "Using O(N^2) pairwise overlap checks instead of O(n log n) sweep or min-heap.",
+        prerequisiteStrandIds: ["intervals:boundary-touching-rule"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "heap-top-k",
+        distinguishingCue: "When you need *which* room/worker is assigned (or earliest finish time dynamically), use a Min-Heap; when you only need peak count or merged ranges, a Sweep Line suffices."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "reverse-premise",
+        targetStrandId: "intervals:sort-by-start-vs-end",
+        promptTemplate: "In Non-Overlapping Intervals, a candidate sorts by `start` ascending and greedily keeps whichever interval ends earlier on collision. Is that equivalent to sorting by `end` ascending, or can it fail?",
+        whatItBreaks: "Tests deeper understanding of the greedy exchange argument vs pure sorting key."
+      }
+    ],
+    proCaseStudy: {
+      title: "Minimum Interval Removals Without Overlap",
+      targetStrandId: "intervals:sort-by-start-vs-end",
+      prompt: "Given `intervals[i] = [start, end]`, return the minimum number of intervals to remove so the rest are non-overlapping (`[1,2]` and `[2,3]` are non-overlapping). Optimize for O(n log n) time and O(1) extra auxiliary structure beyond sorting.",
+      constraints: "1 <= intervals.length <= 10^5",
+      optimalTime: "O(n log n)",
+      optimalSpace: "O(1) / O(log n) sort stack",
+      optimizationTrap: "O(n^2) LIS-style DP on intervals or sorting by start without greedy min-end replacement.",
+      starterCode: {
+        cpp: `int eraseOverlapIntervals(vector<vector<int>>& intervals) {
+    // O(n log n) greedy
+}`,
+        python: `def eraseOverlapIntervals(intervals: list[list[int]]) -> int:
+    # O(n log n) greedy
+    pass`,
+        java: `public int eraseOverlapIntervals(int[][] intervals) {
+    // O(n log n) greedy
+    return 0;
+}`,
+        typescript: `function eraseOverlapIntervals(intervals: number[][]): number {
+  // O(n log n) greedy
+  return 0;
+}`
+      }
+    }
+  },
+  {
+    id: "heap-top-k",
+    title: "Heap / Priority Queue & Top-K",
+    subtitle: "Bounded K-heap inversion, K-way merge & two-heap streaming median",
+    category: "Stacks, Heaps & Intervals",
+    interviewFrequency: "High",
+    whiteboardQuery: "Heap Priority Queue Top-K",
+    linkedProblemSlugs: [
+      "kth-largest-element-in-an-array",
+      "find-median-from-data-stream",
+      "merge-k-sorted-lists"
+    ],
+    strands: [
+      {
+        id: "heap:min-vs-max-inversion",
+        patternId: "heap-top-k",
+        title: "Size-K Inversion (Min-Heap for Top-K Largest)",
+        unconditionalTruth: "Keeping the K largest items seen so far requires evicting the smallest among them\u2014so the root must be the minimum (Min-Heap of size K).",
+        coreInvariant: "After each insertion, capping heap size at K keeps complexity O(n log K) instead of O(n log n).",
+        commonTrap: "Pushing all n elements into a Max-Heap (degrading space to O(n) and time to O(n log n)).",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 3
+      },
+      {
+        id: "heap:two-heap-balance",
+        patternId: "heap-top-k",
+        title: "Two-Heap Partition Invariant (Streaming Median)",
+        unconditionalTruth: "Splitting a stream into lower-half Max-Heap and upper-half Min-Heap exposes the median at the two roots in O(1) time.",
+        coreInvariant: "Order invariant `maxHeap.top() <= minHeap.top()` and size invariant `0 <= maxHeap.size() - minHeap.size() <= 1`.",
+        commonTrap: "Inserting directly into `maxHeap` without bouncing through `minHeap` (violating ordering invariant).",
+        prerequisiteStrandIds: ["heap:min-vs-max-inversion"],
+        fanoutWeight: 2
+      },
+      {
+        id: "heap:k-way-merge",
+        patternId: "heap-top-k",
+        title: "K-Way Merge Frontier Heap",
+        unconditionalTruth: "Merging K sorted streams requires holding only 1 active head element per stream in a Min-Heap of size <= K.",
+        coreInvariant: "Each pop yields the global next element in O(log K), totaling O(N log K) time and O(K) heap space.",
+        commonTrap: "Concatenating and sorting (O(N log N)) or sequential 2-list merging (O(N * K)).",
+        prerequisiteStrandIds: ["heap:min-vs-max-inversion"],
+        fanoutWeight: 2
+      },
+      {
+        id: "heap:lazy-deletion",
+        patternId: "heap-top-k",
+        title: "Lazy Deletion for Out-of-Window / Updated Keys",
+        unconditionalTruth: "Standard binary heaps do not support O(log n) arbitrary removal; instead, track invalidated counts in a HashMap and pop stale roots lazily.",
+        coreInvariant: "A heap's `top()` is trustworthy only after popping any element whose invalidation count > 0.",
+        commonTrap: "Calling O(n) linear `remove(val)` on a PriorityQueue inside a loop, turning O(n log n) into O(n^2).",
+        prerequisiteStrandIds: ["heap:two-heap-balance"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "binary-search",
+        distinguishingCue: "Static Kth-largest in an array can use Quickselect O(n) average or Binary Search on Value; streaming Top-K requires a Min-Heap of size K."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "constraint-twist",
+        targetStrandId: "heap:lazy-deletion",
+        promptTemplate: "You solved Streaming Median with two heaps. Now the problem asks for Sliding Window Median over a window of size `k`. Why can't you simply maintain the two heaps without extra bookkeeping, and how do you avoid O(k) heap removal?",
+        whatItBreaks: "Forces derivation of lazy deletion + balance-debt tracking."
+      }
+    ],
+    proCaseStudy: {
+      title: "Streaming Median With Strict Balance & Ordering",
+      targetStrandId: "heap:two-heap-balance",
+      prompt: "Design `addNum(num)` in **O(log n)** and `findMedian()` in **O(1)** using two heaps, ensuring the ordering invariant `low.top() <= high.top()` is never violated.",
+      constraints: "Up to 5*10^4 calls, values in [-10^5, 10^5]",
+      optimalTime: "O(log n) add / O(1) median",
+      optimalSpace: "O(n)",
+      optimizationTrap: "Re-sorting an array on every `findMedian()` or omitting the cross-heap bounce step on `addNum`.",
+      starterCode: {
+        cpp: `class MedianFinder {
+public:
+    void addNum(int num) {}
+    double findMedian() { return 0.0; }
+};`,
+        python: `class MedianFinder:
+    def addNum(self, num: int) -> None:
+        pass
+    def findMedian(self) -> float:
+        return 0.0`,
+        java: `class MedianFinder {
+    public void addNum(int num) {}
+    public double findMedian() { return 0.0; }
+}`,
+        typescript: `class MedianFinder {
+  addNum(num: number): void {}
+  findMedian(): number { return 0; }
+}`
+      }
+    }
+  },
+  {
+    id: "trees-dfs-bfs",
+    title: "Trees & Recursive DFS / BFS",
+    subtitle: "Post-order return contracts, top-down state vs global max & level boundaries",
+    category: "Graphs & Trees",
+    interviewFrequency: "Very High",
+    whiteboardQuery: "Binary Tree DFS and BFS traversal",
+    linkedProblemSlugs: [
+      "lowest-common-ancestor-of-a-binary-tree",
+      "binary-tree-level-order-traversal",
+      "diameter-of-binary-tree"
+    ],
+    strands: [
+      {
+        id: "trees:bottom-up-vs-top-down",
+        patternId: "trees-dfs-bfs",
+        title: "Bottom-Up Return Contract vs Top-Down State",
+        unconditionalTruth: "A recursive tree function can return one value to its parent while simultaneously updating a global answer across left+right subtrees.",
+        coreInvariant: "In Diameter/Max-Path-Sum, the return value is a *single-branch* path (extendable upward), while the global update combines *both* branches.",
+        commonTrap: "Returning the bent (left + right) path to the parent, corrupting ancestor path validity.",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 3
+      },
+      {
+        id: "trees:lca-postorder-propagation",
+        patternId: "trees-dfs-bfs",
+        title: "Post-Order LCA Signal Propagation",
+        unconditionalTruth: "If a node is `p` or `q`, or receives non-null signals from both left and right subtrees, it is the Lowest Common Ancestor.",
+        coreInvariant: "Null means neither p nor q exists in that subtree; non-null propagates either the found target or the already-resolved LCA.",
+        commonTrap: "Assuming both p and q always exist when a follow-up allows one target to be missing from the tree.",
+        prerequisiteStrandIds: ["trees:bottom-up-vs-top-down"],
+        fanoutWeight: 2
+      },
+      {
+        id: "trees:bfs-level-snapshot",
+        patternId: "trees-dfs-bfs",
+        title: "Queue Snapshot (`size = queue.length`) Level Separation",
+        unconditionalTruth: "Freezing `levelSize = queue.size()` before dequeuing separates depth `d` from depth `d + 1` in O(n) without sentinel nodes.",
+        coreInvariant: "All `levelSize` nodes processed in the inner loop share the exact same depth from root.",
+        commonTrap: "Reading `queue.size()` dynamically inside the inner `for` condition instead of caching it first.",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 2
+      },
+      {
+        id: "trees:bst-range-invariant",
+        patternId: "trees-dfs-bfs",
+        title: "Global `(min, max)` Bounds in BST Validation",
+        unconditionalTruth: "Checking only `left.val < root.val < right.val` is local and insufficient; every node in `root.left` must be `< root.val` and > ancestor lower bound.",
+        coreInvariant: "Pass `(low, high)` bounds strictly downward so deep right-children of a left subtree cannot exceed the root.",
+        commonTrap: "Local-only child comparison or integer overflow with `INT_MIN`/`INT_MAX` instead of `long`/nullable bounds.",
+        prerequisiteStrandIds: ["trees:bottom-up-vs-top-down"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "graphs-topo-union-find",
+        distinguishingCue: "Trees are connected DAGs with unique parent-child paths (no `visited` set needed unless parent pointers exist); general graphs require a `visited` set to prevent cycles."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "constraint-twist",
+        targetStrandId: "trees:lca-postorder-propagation",
+        promptTemplate: "Standard LCA assumes both `p` and `q` are guaranteed to be in the tree. If `q` might NOT exist in the tree, why does returning `root` immediately upon seeing `root == p` break, and how do you fix it in one pass?",
+        whatItBreaks: "Breaks early-return shortcut when target existence isn't guaranteed."
+      }
+    ],
+    proCaseStudy: {
+      title: "Lowest Common Ancestor With Single-Pass O(h) Stack",
+      targetStrandId: "trees:lca-postorder-propagation",
+      prompt: "Implement `lowestCommonAncestor(root, p, q)` in **O(n) time** and **O(h) recursion space** (do not store parent-pointer maps or root-to-node path arrays).",
+      constraints: "2 <= nodes <= 10^5, unique values, p != q",
+      optimalTime: "O(n)",
+      optimalSpace: "O(h)",
+      optimizationTrap: "Building parent HashMap + ancestor Set (O(n) extra map space) or O(n^2) repeated subtree searches.",
+      starterCode: {
+        cpp: `TreeNode* lowestCommonAncestor(TreeNode* root, TreeNode* p, TreeNode* q) {
+    // O(n) time, O(h) recursion stack only
+}`,
+        python: `def lowestCommonAncestor(root, p, q):
+    # O(n) time, O(h) recursion stack only
+    pass`,
+        java: `public TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
+    // O(n) time, O(h) recursion stack only
+    return null;
+}`,
+        typescript: `function lowestCommonAncestor(root: TreeNode | null, p: TreeNode | null, q: TreeNode | null): TreeNode | null {
+  // O(n) time, O(h) recursion stack only
+  return null;
+}`
+      }
+    }
+  },
+  {
+    id: "graphs-topo-union-find",
+    title: "Graphs, Topological Sort & Union-Find",
+    subtitle: "BFS shortest paths, Kahn's in-degree DAG ordering, Dijkstra & DSU",
+    category: "Graphs & Trees",
+    interviewFrequency: "Very High",
+    whiteboardQuery: "Graph shortest path and topological sort",
+    linkedProblemSlugs: [
+      "course-schedule",
+      "number-of-islands",
+      "network-delay-time"
+    ],
+    strands: [
+      {
+        id: "graphs:mark-visited-on-enqueue",
+        patternId: "graphs-topo-union-find",
+        title: "Mark Visited at Enqueue Time (Not Pop Time)",
+        unconditionalTruth: "Marking nodes visited when popping from a BFS queue allows multiple neighbors to enqueue the same node before it pops, causing exponential queue bloat.",
+        coreInvariant: "Mark `visited[next] = true` immediately before `queue.push(next)`.",
+        commonTrap: "Marking `visited` on pop in grid BFS, causing MLE/TLE on dense grids.",
+        prerequisiteStrandIds: ["trees:bfs-level-snapshot"],
+        fanoutWeight: 3
+      },
+      {
+        id: "graphs:directed-3-color-vs-kahn",
+        patternId: "graphs-topo-union-find",
+        title: "Directed Cycle Detection (3-State DFS vs Kahn's BFS)",
+        unconditionalTruth: "A boolean `visited[]` cannot detect cycles in a *directed* graph because cross-edges hit already-finished nodes safely.",
+        coreInvariant: "Cycle exists iff DFS hits a `VISITING` (active recursion stack) node, OR Kahn's algorithm processes `< V` total nodes.",
+        commonTrap: "Using Union-Find or 2-state DFS on directed graphs (Union-Find is undirected only).",
+        prerequisiteStrandIds: ["graphs:mark-visited-on-enqueue"],
+        fanoutWeight: 3
+      },
+      {
+        id: "graphs:dijkstra-nonnegative-invariant",
+        patternId: "graphs-topo-union-find",
+        title: "Dijkstra Greedy Lock & Stale Heap Skipping",
+        unconditionalTruth: "With non-negative edge weights, the minimum unfinalized heap entry can never be improved via any other unfinalized path.",
+        coreInvariant: "Skip stale heap entries with `if (d > dist[u]) continue;` and never run Dijkstra with negative edges.",
+        commonTrap: "Omitting stale-entry check or using `visited[]` on push instead of pop (which breaks relaxation).",
+        prerequisiteStrandIds: ["heap:lazy-deletion", "graphs:mark-visited-on-enqueue"],
+        fanoutWeight: 2
+      },
+      {
+        id: "graphs:dsu-path-compression-rank",
+        patternId: "graphs-topo-union-find",
+        title: "Union-Find Path Compression + Union by Rank",
+        unconditionalTruth: "Combining path compression in `find()` with union by rank/size yields amortized `O(alpha(N))` (~O(1)) per operation.",
+        coreInvariant: "`union(u, v)` returns `false` iff `find(u) == find(v)` (meaning `(u, v)` closes an undirected cycle).",
+        commonTrap: "Applying Union-Find to directed dependency cycles without recognizing orientation loss.",
+        prerequisiteStrandIds: [],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "trees-dfs-bfs",
+        distinguishingCue: "Unweighted shortest path uses plain BFS O(V + E); weighted non-negative shortest path requires Dijkstra O(E log V)."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "break-the-premise",
+        targetStrandId: "graphs:dijkstra-nonnegative-invariant",
+        promptTemplate: "Someone optimizes Dijkstra by marking `visited[v] = true` when *pushing* `(dist[u] + w, v)` onto the Min-Heap (just like BFS). Give a 3-node weighted triangle where this returns a wrong shortest path.",
+        whatItBreaks: "Exposes critical difference between unweighted BFS push-visited and Dijkstra pop-finalization."
+      },
+      {
+        operator: "discrimination",
+        targetStrandId: "graphs:directed-3-color-vs-kahn",
+        promptTemplate: "Why does Union-Find correctly detect cycles in Redundant Connection (undirected), yet fail silently on Course Schedule (`0 -> 1`, `2 -> 1`)?",
+        whatItBreaks: "Prevents misapplying undirected DSU to directed DAG diamond patterns."
+      }
+    ],
+    proCaseStudy: {
+      title: "DAG Cycle & Ordering via Kahn's Topological Sort",
+      targetStrandId: "graphs:directed-3-color-vs-kahn",
+      prompt: "Given `numCourses` and directed `prerequisites`, return true iff all courses can be finished using Kahn's BFS (`inDegree[]` + queue) in **O(V + E) time and space** without recursion stack overflow.",
+      constraints: "1 <= numCourses <= 10^5, 0 <= prerequisites.length <= 10^5",
+      optimalTime: "O(V + E)",
+      optimalSpace: "O(V + E)",
+      optimizationTrap: "O(V^2) repeated scan for zero-indegree nodes or forgetting disconnected components.",
+      starterCode: {
+        cpp: `bool canFinish(int numCourses, vector<vector<int>>& prerequisites) {
+    // O(V + E) Kahn's BFS
+}`,
+        python: `def canFinish(numCourses: int, prerequisites: list[list[int]]) -> bool:
+    # O(V + E) Kahn's BFS
+    pass`,
+        java: `public boolean canFinish(int numCourses, int[][] prerequisites) {
+    // O(V + E) Kahn's BFS
+    return false;
+}`,
+        typescript: `function canFinish(numCourses: number, prerequisites: number[][]): boolean {
+  // O(V + E) Kahn's BFS
+  return false;
+}`
+      }
+    }
+  },
+  {
+    id: "backtracking",
+    title: "Backtracking & Decision Trees",
+    subtitle: "Subsets vs permutations branching, duplicate pruning & undo invariants",
+    category: "Recursion & DP",
+    interviewFrequency: "High",
+    whiteboardQuery: "Backtracking recursion decision tree",
+    linkedProblemSlugs: [
+      "subsets",
+      "combination-sum",
+      "n-queens"
+    ],
+    strands: [
+      {
+        id: "backtracking:choose-explore-unchoose",
+        patternId: "backtracking",
+        title: "State Symmetry: Choose \u2192 Explore \u2192 Unchoose",
+        unconditionalTruth: "Sharing one mutable `path` buffer across branches requires undoing every mutation before returning so sibling branches see an uncorrupted state.",
+        coreInvariant: "On returning from `dfs(i + 1)`, `path` and auxiliary sets (`cols`, `diag1`, `diag2`) are identical to before the call.",
+        commonTrap: "Mutating shared lists without `pop()` or forgetting to copy `path` when pushing into `results` (pushing live reference).",
+        prerequisiteStrandIds: ["trees:bottom-up-vs-top-down"],
+        fanoutWeight: 3
+      },
+      {
+        id: "backtracking:start-index-vs-used-array",
+        patternId: "backtracking",
+        title: "Combinations (`start` Index) vs Permutations (`used[]`)",
+        unconditionalTruth: "Combinations enforce index order (`j >= start`) to avoid order-duplicates; Permutations allow any unused index via `used[j]`.",
+        coreInvariant: "`dfs(j + 1)` consumes each element once; `dfs(j)` allows unlimited reuse (Combination Sum).",
+        commonTrap: "Passing `start + 1` instead of `j + 1` inside the loop, creating duplicate combinations.",
+        prerequisiteStrandIds: ["backtracking:choose-explore-unchoose"],
+        fanoutWeight: 2
+      },
+      {
+        id: "backtracking:duplicate-level-pruning",
+        patternId: "backtracking",
+        title: "Same-Level Duplicate Skip (`j > start && nums[j] == nums[j-1]`)",
+        unconditionalTruth: "After sorting, skipping `nums[j] == nums[j-1]` at the *same* decision depth prunes duplicate branches while still allowing identical values down *deeper* depths.",
+        coreInvariant: "Never check `nums[j] == nums[j-1]` without `j > start` (for combinations) or `!used[j-1]` (for permutations).",
+        commonTrap: "Using a `Set` of serialized lists at the end instead of sorting + O(1) branch pruning.",
+        prerequisiteStrandIds: ["backtracking:start-index-vs-used-array"],
+        fanoutWeight: 2
+      },
+      {
+        id: "backtracking:constraint-bitmask-pruning",
+        patternId: "backtracking",
+        title: "O(1) Conflict Checks & Early Pruning",
+        unconditionalTruth: "Checking queen attacks (`col`, `r - c`, `r + c`) or remaining target `< 0` in O(1) prevents exploring dead exponential subtrees.",
+        coreInvariant: "Sorting candidates lets `if (candidates[j] > remain) break;` terminate the entire remaining sibling loop.",
+        commonTrap: "Scanning the entire board (O(N)) per cell in N-Queens instead of O(1) diagonal sets/bitmasks.",
+        prerequisiteStrandIds: ["backtracking:choose-explore-unchoose"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "dynamic-programming",
+        distinguishingCue: "Backtracking enumerates all actual configurations (exponential output); DP counts or optimizes across overlapping subproblems without enumerating every path."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "reverse-premise",
+        targetStrandId: "backtracking:duplicate-level-pruning",
+        promptTemplate: "In Permutations II (`[1, 1, 2]`), someone writes `if (i > 0 && nums[i] == nums[i-1] && used[i-1]) continue;` instead of `!used[i-1]`. Does it still produce unique permutations, and what changes in efficiency?",
+        whatItBreaks: "Tests deep understanding of same-level vs deeper-level pruning symmetry."
+      }
+    ],
+    proCaseStudy: {
+      title: "Combination Sum II With Early Sort-Break Pruning",
+      targetStrandId: "backtracking:duplicate-level-pruning",
+      prompt: "Given `candidates` (may contain duplicates) and `target`, return all unique combinations summing to `target` (each element used at most once). Prune duplicates and oversized branches *during* search (no post-hoc Set deduplication).",
+      constraints: "1 <= candidates.length <= 100, 1 <= candidates[i] <= 50",
+      optimalTime: "O(2^n) worst-case pruned",
+      optimalSpace: "O(n) recursion depth",
+      optimizationTrap: "Allowing `continue` without `break` on sorted oversize elements, or deduplicating strings in a HashSet at leaf.",
+      starterCode: {
+        cpp: `vector<vector<int>> combinationSum2(vector<int>& candidates, int target) {
+    // Sort + branch-level pruning
+}`,
+        python: `def combinationSum2(candidates: list[int], target: int) -> list[list[int]]:
+    # Sort + branch-level pruning
+    pass`,
+        java: `public List<List<Integer>> combinationSum2(int[] candidates, int target) {
+    // Sort + branch-level pruning
+    return new ArrayList<>();
+}`,
+        typescript: `function combinationSum2(candidates: number[], target: number): number[][] {
+  // Sort + branch-level pruning
+  return [];
+}`
+      }
+    }
+  },
+  {
+    id: "dynamic-programming",
+    title: "Dynamic Programming",
+    subtitle: "State formulation, transition DAG, 0/1 vs unbounded loops & space rolling",
+    category: "Recursion & DP",
+    interviewFrequency: "Very High",
+    whiteboardQuery: "Dynamic Programming 2D table transition",
+    linkedProblemSlugs: [
+      "house-robber",
+      "coin-change",
+      "longest-common-subsequence",
+      "edit-distance"
+    ],
+    strands: [
+      {
+        id: "dp:minimal-state-definition",
+        patternId: "dynamic-programming",
+        title: "Minimal Markov State Definition",
+        unconditionalTruth: "A valid DP state contains the *exact* minimal parameters needed so the future transition is independent of how we reached that state.",
+        coreInvariant: "Every subproblem `(i, j, ...)` answers a single unambiguous sentence (e.g., 'min coins for amount `a`').",
+        commonTrap: "Including extra history in the state (exponential blowup) or omitting a constraining variable like `holdingStock` / `prevChoice`.",
+        prerequisiteStrandIds: ["backtracking:choose-explore-unchoose"],
+        fanoutWeight: 3
+      },
+      {
+        id: "dp:01-vs-unbounded-iteration-order",
+        patternId: "dynamic-programming",
+        title: "1D Rolling Iteration Direction (0/1 Backward vs Unbounded Forward)",
+        unconditionalTruth: "In 1D space-compressed knapsack, iterating capacity *backward* reads row `i - 1` (0/1 use); iterating *forward* reads updated row `i` (unbounded reuse).",
+        coreInvariant: "Update direction must strictly respect the dependency DAG so no cell overwrites a prerequisite before it is read.",
+        commonTrap: "Iterating forward on 0/1 Knapsack / Partition Equal Subset Sum (silently reusing the same item multiple times).",
+        prerequisiteStrandIds: ["dp:minimal-state-definition"],
+        fanoutWeight: 3
+      },
+      {
+        id: "dp:2d-grid-and-string-transitions",
+        patternId: "dynamic-programming",
+        title: "2D Sequence Alignment & Base-Case Borders",
+        unconditionalTruth: "For two sequences of lengths `m` and `n`, row `0` and column `0` represent the empty-prefix base cases, requiring `(m + 1) x (n + 1)` dimensions.",
+        coreInvariant: "In Edit Distance, `dp[0][j] = j` and `dp[i][0] = i` (transforming empty string costs j insertions / i deletions).",
+        commonTrap: "Initializing `dp[0][j] = 0` in Edit Distance (confusing it with LCS) or forgetting `diag` snapshot when rolling 2D to 1D.",
+        prerequisiteStrandIds: ["dp:minimal-state-definition"],
+        fanoutWeight: 2
+      },
+      {
+        id: "dp:space-rolling-compression",
+        patternId: "dynamic-programming",
+        title: "O(m*n) -> O(min(m, n)) Rolling Array Optimization",
+        unconditionalTruth: "Whenever `dp[i][...]` depends only on `dp[i - 1][...]` (or `dp[i - 2]`), memory collapses from O(n^2) or O(n) to O(min(m, n)) or O(1).",
+        coreInvariant: "Preserve `prevDiag = dp[j]` before overwriting `dp[j]` when a transition reads `dp[i-1][j-1]`.",
+        commonTrap: "Leaving O(n) or O(m*n) DP tables in Pro interviews when O(1) or O(min(m, n)) space is straightforward.",
+        prerequisiteStrandIds: ["dp:01-vs-unbounded-iteration-order", "dp:2d-grid-and-string-transitions"],
+        fanoutWeight: 2
+      }
+    ],
+    confusableTwins: [
+      {
+        twinPatternId: "intervals-sweep",
+        distinguishingCue: "Greedy works when local optimal choice provably dominates (exchange argument); DP is required when choices interact across subproblems (e.g., weighted job scheduling)."
+      }
+    ],
+    twistTemplates: [
+      {
+        operator: "break-the-premise",
+        targetStrandId: "dp:01-vs-unbounded-iteration-order",
+        promptTemplate: "In Partition Equal Subset Sum (0/1 knapsack), a developer optimizes space to 1D `dp[target+1]` and loops `for (int s = num; s <= target; s++) dp[s] |= dp[s - num]`. Give a 2-element input where this wrongly returns `true`.",
+        whatItBreaks: "Exposes forward-loop reuse bug on 0/1 subset sum (e.g. nums = [2, 3], target = 4 -> 2+2)."
+      },
+      {
+        operator: "constraint-twist",
+        targetStrandId: "dp:space-rolling-compression",
+        promptTemplate: "Your Edit Distance runs in O(n) space using a 1D array. Now the interviewer asks you to also reconstruct and print the exact sequence of Insert/Delete/Replace operations. Why can't you do that directly from the 1D array alone?",
+        whatItBreaks: "Forces tradeoff analysis between O(min(m,n)) space vs parent-pointer reconstruction (or Hirschberg's algorithm)."
+      }
+    ],
+    proCaseStudy: {
+      title: "Edit Distance With O(min(m, n)) Space Compression",
+      targetStrandId: "dp:space-rolling-compression",
+      prompt: "Compute the minimum Levenshtein Edit Distance between `word1` (len m) and `word2` (len n) in **O(m * n) time** and **O(min(m, n)) space** (rolling 1D array with diagonal preservation, not a full m x n table).",
+      constraints: "0 <= m, n <= 500",
+      optimalTime: "O(m * n)",
+      optimalSpace: "O(min(m, n))",
+      optimizationTrap: "Allocating full O(m * n) 2D table when only previous row + prev diagonal is needed.",
+      starterCode: {
+        cpp: `int minDistance(string word1, string word2) {
+    // O(m * n) time, O(min(m, n)) space
+}`,
+        python: `def minDistance(word1: str, word2: str) -> int:
+    # O(m * n) time, O(min(m, n)) space
+    pass`,
+        java: `public int minDistance(String word1, String word2) {
+    // O(m * n) time, O(min(m, n)) space
+    return 0;
+}`,
+        typescript: `function minDistance(word1: string, word2: string): number {
+  // O(m * n) time, O(min(m, n)) space
+  return 0;
+}`
+      }
+    }
+  }
+];
+var PATTERN_MAP = new Map(
+  PATTERN_CATALOG.map((p) => [p.id, p])
+);
+var ALL_STRANDS = PATTERN_CATALOG.flatMap(
+  (p) => p.strands
+);
+var STRAND_MAP = new Map(
+  ALL_STRANDS.map((s2) => [s2.id, s2])
+);
+var PATTERN_EDGES = ALL_STRANDS.flatMap(
+  (s2) => s2.prerequisiteStrandIds.map((prereqId) => {
+    const prereq = STRAND_MAP.get(prereqId);
+    const kind = prereq && prereq.patternId === s2.patternId ? "internal" : "cross-pattern";
+    return {
+      from: prereqId,
+      to: s2.id,
+      kind
+    };
+  })
+);
+var DOWNSTREAM_STRANDS = (() => {
+  const map3 = /* @__PURE__ */ new Map();
+  for (const s2 of ALL_STRANDS) {
+    map3.set(s2.id, []);
+  }
+  for (const edge of PATTERN_EDGES) {
+    const list = map3.get(edge.from);
+    if (list) list.push(edge.to);
+  }
+  return map3;
+})();
+function getPatternDefinition(patternId) {
+  return PATTERN_MAP.get(patternId);
+}
+function getStrandDefinition(strandId) {
+  return STRAND_MAP.get(strandId);
+}
+
+// src/db/pattern-mastery.ts
+var import_node_fs5 = __toESM(require("node:fs"), 1);
+var import_node_path4 = __toESM(require("node:path"), 1);
+
+// src/lib/master-patterns/types.ts
+var PATTERN_IDS = [
+  "two-pointers",
+  "sliding-window",
+  "fast-slow-pointers",
+  "binary-search",
+  "prefix-sum-hashmap",
+  "monotonic-stack",
+  "intervals-sweep",
+  "heap-top-k",
+  "trees-dfs-bfs",
+  "graphs-topo-union-find",
+  "backtracking",
+  "dynamic-programming"
+];
+var PatternIdSchema = external_exports.enum(PATTERN_IDS);
+var TRACK_MODES = ["intermediate", "pro"];
+var TrackModeSchema = external_exports.enum(TRACK_MODES);
+var QUESTION_MODALITIES = [
+  "mcq",
+  "verbal_text",
+  "code_snippet",
+  "twisted_followup"
+];
+var QuestionModalitySchema = external_exports.enum(QUESTION_MODALITIES);
+var TWIST_OPERATORS = [
+  "constraint-twist",
+  "reverse-premise",
+  "break-the-premise",
+  "discrimination"
+];
+var TwistOperatorSchema = external_exports.enum(TWIST_OPERATORS);
+var MISS_CLASSES = [
+  "cue",
+  "discrimination",
+  "invariant-break",
+  "execution",
+  "complexity-suboptimal",
+  "careless",
+  "structural"
+];
+var MissClassSchema = external_exports.enum(MISS_CLASSES);
+var HINT_RUNGS = ["R0", "R1", "R2", "R3", "R4", "R5"];
+var HintRungSchema = external_exports.enum(HINT_RUNGS);
+var SUPPORTED_CODE_LANGUAGES = [
+  "cpp",
+  "python",
+  "java",
+  "typescript",
+  "javascript"
+];
+var PatternCodeLanguageSchema = external_exports.enum(SUPPORTED_CODE_LANGUAGES);
+var MAX_ERROR_SIGNATURES = 20;
+var MAX_RECENT_SESSIONS = 10;
+var MAX_GAP_NOTE_CHARS = 240;
+var STRAND_STATUSES = [
+  "untouched",
+  "gap",
+  "remediated",
+  "mastered"
+];
+var StrandStatusSchema = external_exports.enum(STRAND_STATUSES);
+var StrandStateSchema = external_exports.object({
+  strandId: external_exports.string().min(1).max(100),
+  patternId: PatternIdSchema,
+  mastery: external_exports.number().min(0).max(100),
+  /** FSRS-lite memory stability in days (grows on clean/twisted passes, shrinks on miss). */
+  stabilityDays: external_exports.number().min(0.25).max(365),
+  attempts: external_exports.number().int().min(0),
+  streak: external_exports.number().int().min(0),
+  status: StrandStatusSchema,
+  /** Positive = overconfident (right option/code, weak verbal reasoning); Negative = hesitant. */
+  calibrationBias: external_exports.number().min(-100).max(100),
+  lastMissClass: MissClassSchema.nullable(),
+  lastHintRung: HintRungSchema.nullable(),
+  /** Short bounded diagnostic summary (never an unbounded transcript). */
+  gapNote: external_exports.string().max(MAX_GAP_NOTE_CHARS).nullable(),
+  lastPracticedAt: external_exports.string().nullable(),
+  nextReviewAt: external_exports.string().nullable()
+});
+var ErrorSignatureSchema = external_exports.object({
+  /** Canonical normalized key, e.g. "sliding-window::if-instead-of-while". */
+  signatureKey: external_exports.string().min(1).max(120),
+  patternId: PatternIdSchema,
+  strandId: external_exports.string().min(1).max(100),
+  missClass: MissClassSchema,
+  summary: external_exports.string().min(1).max(MAX_GAP_NOTE_CHARS),
+  recurrenceCount: external_exports.number().int().min(1),
+  status: external_exports.enum(["active", "repaired"]),
+  lastSeenAt: external_exports.string(),
+  repairedAt: external_exports.string().nullable()
+});
+var CognitiveProfileSchema = external_exports.object({
+  preferredLanguage: PatternCodeLanguageSchema,
+  dominantMissClass: MissClassSchema.nullable(),
+  /** Running count of each MissClass across sessions for personalized coaching. */
+  missHistogram: external_exports.record(MissClassSchema, external_exports.number().int().min(0)),
+  /** Tracks divergence between verbal approach quality and code correctness (-100..100). */
+  verbalToCodeGap: external_exports.number().min(-100).max(100),
+  /** Success rate (0..100) on twisted indirect follow-up questions per operator. */
+  twistResilience: external_exports.record(TwistOperatorSchema, external_exports.number().min(0).max(100)),
+  totalTwistsAttempted: external_exports.number().int().min(0),
+  totalTwistsPassed: external_exports.number().int().min(0)
+});
+var PatternSummaryRecordSchema = external_exports.object({
+  patternId: PatternIdSchema,
+  lastTrack: TrackModeSchema.nullable(),
+  completenessScore: external_exports.number().min(0).max(100),
+  optimizationScore: external_exports.number().min(0).max(100),
+  sessionsCompleted: external_exports.number().int().min(0),
+  lastPracticedAt: external_exports.string().nullable()
+});
+var RecentSessionDigestSchema = external_exports.object({
+  sessionId: external_exports.string().min(1).max(80),
+  patternId: PatternIdSchema,
+  track: TrackModeSchema,
+  overallScore: external_exports.number().min(0).max(100),
+  resolvedGaps: external_exports.number().int().min(0),
+  remainingGaps: external_exports.number().int().min(0),
+  completedAt: external_exports.string()
+});
+var UserPatternProfileSchema = external_exports.object({
+  userId: external_exports.string().min(1).max(128),
+  version: external_exports.number().int().min(1),
+  cognitiveProfile: CognitiveProfileSchema,
+  patternSummaries: external_exports.record(external_exports.string(), PatternSummaryRecordSchema),
+  strands: external_exports.record(external_exports.string(), StrandStateSchema),
+  errorSignatures: external_exports.array(ErrorSignatureSchema).max(MAX_ERROR_SIGNATURES),
+  recentSessions: external_exports.array(RecentSessionDigestSchema).max(MAX_RECENT_SESSIONS),
+  updatedAt: external_exports.string()
+});
+var StructuredPatternNotesSchema = external_exports.object({
+  patternId: PatternIdSchema,
+  title: external_exports.string(),
+  prunedStrandIds: external_exports.array(external_exports.string()),
+  highlightedTrapNotes: external_exports.array(external_exports.string()),
+  unconditionalTruths: external_exports.array(
+    external_exports.object({
+      title: external_exports.string(),
+      statement: external_exports.string()
+    })
+  ),
+  motivatedDiscovery: external_exports.object({
+    bruteForceBottleneck: external_exports.string(),
+    keyInsight: external_exports.string(),
+    whyItWorks: external_exports.string()
+  }),
+  canonicalTemplate: external_exports.object({
+    language: PatternCodeLanguageSchema,
+    code: external_exports.string(),
+    invariantAnnotation: external_exports.string()
+  }),
+  pitfalls: external_exports.array(
+    external_exports.object({
+      trap: external_exports.string(),
+      counterexample: external_exports.string(),
+      fix: external_exports.string()
+    })
+  )
+});
+var QuizOptionItemSchema = external_exports.object({
+  value: external_exports.string().min(1),
+  label: external_exports.string().min(1)
+});
+var PreCommittedRubricSchema = external_exports.object({
+  correctOptionValues: external_exports.array(external_exports.string()).optional(),
+  expectedReasoning: external_exports.string(),
+  expectedComplexity: external_exports.object({
+    time: external_exports.string(),
+    space: external_exports.string()
+  }).optional(),
+  keyInvariantsRequired: external_exports.array(external_exports.string()),
+  /** Maps wrong option value -> probable wrong mental model. */
+  distractorMentalModels: external_exports.record(external_exports.string(), external_exports.string()).optional()
+});
+var PatternQuestionCardSchema = external_exports.object({
+  id: external_exports.string(),
+  patternId: PatternIdSchema,
+  strandId: external_exports.string(),
+  modality: QuestionModalitySchema,
+  phase: external_exports.enum([
+    "calibration",
+    "probe",
+    "guided",
+    "gauntlet",
+    "case_study",
+    "twisted_remediation"
+  ]),
+  /** Mirrors LearnHarness predict/check cycle + applied twist role. */
+  questionRole: external_exports.enum(["predict", "check", "apply"]).optional(),
+  twistOperator: TwistOperatorSchema.optional(),
+  prompt: external_exports.string(),
+  contextSnippet: external_exports.string().optional(),
+  options: external_exports.array(QuizOptionItemSchema).optional(),
+  multiSelect: external_exports.boolean().optional(),
+  allowIdk: external_exports.boolean().default(true),
+  requireVerbalApproach: external_exports.boolean().default(true),
+  codeStarter: external_exports.object({
+    language: PatternCodeLanguageSchema,
+    starter: external_exports.string(),
+    constraints: external_exports.string().optional(),
+    sampleInput: external_exports.string().optional(),
+    expectedBehavior: external_exports.string().optional()
+  }).optional(),
+  /** Server-only commitment; omitted when serialized to the browser before submission. */
+  rubric: PreCommittedRubricSchema.optional()
+});
+var SubmissionPayloadSchema = external_exports.object({
+  sessionId: external_exports.string().min(1),
+  questionId: external_exports.string().min(1),
+  attemptId: external_exports.string().min(1),
+  selectedOptions: external_exports.array(external_exports.string()).optional(),
+  choseIdk: external_exports.boolean().optional(),
+  verbalAnswer: external_exports.string().max(6e3).optional(),
+  code: external_exports.string().max(15e3).optional(),
+  language: PatternCodeLanguageSchema.optional(),
+  claimedTimeComplexity: external_exports.string().max(120).optional(),
+  claimedSpaceComplexity: external_exports.string().max(120).optional(),
+  runSandbox: external_exports.boolean().optional()
+});
+var CodeOptimizationAuditSchema = external_exports.object({
+  tier: external_exports.enum(["Incomplete", "Brute Force", "Better", "Optimal"]),
+  detectedTime: external_exports.string(),
+  detectedSpace: external_exports.string(),
+  optimalTime: external_exports.string(),
+  optimalSpace: external_exports.string(),
+  timeScore: external_exports.number().min(0).max(100),
+  spaceScore: external_exports.number().min(0).max(100),
+  optimizationFeedback: external_exports.string(),
+  sandboxOutcome: external_exports.object({
+    ran: external_exports.boolean(),
+    passed: external_exports.boolean(),
+    testsPassed: external_exports.number().int().min(0).optional(),
+    testsTotal: external_exports.number().int().min(0).optional(),
+    stdout: external_exports.string(),
+    stderr: external_exports.string()
+  }).optional()
+});
+var SubmissionEvaluationSchema = external_exports.object({
+  questionId: external_exports.string(),
+  strandId: external_exports.string(),
+  isCorrect: external_exports.boolean(),
+  /** True when user picked right option or passed tests, yet verbal reasoning/complexity showed a flaw. */
+  hiddenGapDetected: external_exports.boolean(),
+  score: external_exports.number().min(0).max(100),
+  missClass: MissClassSchema.nullable(),
+  hintRung: HintRungSchema.nullable(),
+  errorSignatureKey: external_exports.string().nullable(),
+  verdictSummary: external_exports.string(),
+  /** Surgical targeted micro-lesson when a gap/miss is found. */
+  surgicalTeaching: external_exports.string().nullable(),
+  /** Revealed committed answer/reasoning after submission. */
+  committedAnswerReveal: external_exports.string(),
+  codeAudit: CodeOptimizationAuditSchema.optional(),
+  /** Instant twisted indirect question generated when a gap needs repair. */
+  twistedFollowUp: PatternQuestionCardSchema.nullable(),
+  /** Next regular question if no remediation twist is pending. */
+  nextQuestion: PatternQuestionCardSchema.nullable(),
+  readyForScorecard: external_exports.boolean()
+});
+var MasteryScorecardSchema = external_exports.object({
+  sessionId: external_exports.string(),
+  patternId: PatternIdSchema,
+  track: TrackModeSchema,
+  overallScore: external_exports.number().min(0).max(100),
+  completenessScore: external_exports.number().min(0).max(100),
+  optimizationScore: external_exports.number().min(0).max(100).nullable(),
+  verbalClarityScore: external_exports.number().min(0).max(100),
+  strandBreakdown: external_exports.array(
+    external_exports.object({
+      strandId: external_exports.string(),
+      title: external_exports.string(),
+      score: external_exports.number().min(0).max(100),
+      status: StrandStatusSchema
+    })
+  ),
+  strengths: external_exports.array(external_exports.string()),
+  gapsToReinforce: external_exports.array(
+    external_exports.object({
+      strandId: external_exports.string(),
+      summary: external_exports.string(),
+      missClass: MissClassSchema
+    })
+  ),
+  recommendedProblemSlugs: external_exports.array(external_exports.string()),
+  completedAt: external_exports.string()
+});
+
+// src/lib/master-patterns/scheduler.ts
+var MS_PER_DAY = 864e5;
+function clamp(val, min, max) {
+  return Math.max(min, Math.min(max, val));
+}
+function truncateNote(note) {
+  if (!note) return null;
+  const trimmed = note.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, MAX_GAP_NOTE_CHARS);
+}
+function emptyMissHistogram() {
+  return {
+    cue: 0,
+    discrimination: 0,
+    "invariant-break": 0,
+    execution: 0,
+    "complexity-suboptimal": 0,
+    careless: 0,
+    structural: 0
+  };
+}
+function defaultTwistResilience() {
+  return {
+    "constraint-twist": 50,
+    "reverse-premise": 50,
+    "break-the-premise": 50,
+    discrimination: 50
+  };
+}
+function createEmptyCognitiveProfile() {
+  return {
+    preferredLanguage: "cpp",
+    dominantMissClass: null,
+    missHistogram: emptyMissHistogram(),
+    verbalToCodeGap: 0,
+    twistResilience: defaultTwistResilience(),
+    totalTwistsAttempted: 0,
+    totalTwistsPassed: 0
+  };
+}
+function createInitialStrandState(strandId, patternId) {
+  return {
+    strandId,
+    patternId,
+    mastery: 0,
+    stabilityDays: 1,
+    attempts: 0,
+    streak: 0,
+    status: "untouched",
+    calibrationBias: 0,
+    lastMissClass: null,
+    lastHintRung: null,
+    gapNote: null,
+    lastPracticedAt: null,
+    nextReviewAt: null
+  };
+}
+function createEmptyUserPatternProfile(userId, nowIso = (/* @__PURE__ */ new Date()).toISOString()) {
+  return {
+    userId,
+    version: 1,
+    cognitiveProfile: createEmptyCognitiveProfile(),
+    patternSummaries: {},
+    strands: {},
+    errorSignatures: [],
+    recentSessions: [],
+    updatedAt: nowIso
+  };
+}
+function computeEffectiveStrandMastery(strand, nowMs = Date.now()) {
+  if (!strand || strand.attempts === 0) return 0;
+  if (!strand.nextReviewAt) return strand.mastery;
+  const dueMs = Date.parse(strand.nextReviewAt);
+  if (!Number.isFinite(dueMs) || nowMs <= dueMs) {
+    return strand.mastery;
+  }
+  const overdueDays = (nowMs - dueMs) / MS_PER_DAY;
+  const stability = Math.max(0.5, strand.stabilityDays);
+  const retention = Math.exp(-overdueDays / (stability * 3));
+  const floor = strand.mastery * 0.65;
+  return Math.round(clamp(floor + (strand.mastery - floor) * retention, 0, 100));
+}
+function isStrandDueForReview(strand, nowMs = Date.now()) {
+  if (!strand || strand.attempts === 0) return false;
+  if (strand.status === "gap") return true;
+  if (!strand.nextReviewAt) return false;
+  const dueMs = Date.parse(strand.nextReviewAt);
+  return Number.isFinite(dueMs) && nowMs > dueMs;
+}
+function recordErrorSignature(profile, input2, nowIso = (/* @__PURE__ */ new Date()).toISOString()) {
+  const key = input2.signatureKey.trim().slice(0, 120);
+  const summary = truncateNote(input2.summary) ?? "Misconception detected";
+  const existingIdx = profile.errorSignatures.findIndex(
+    (s2) => s2.signatureKey === key
+  );
+  const nextSignatures = [...profile.errorSignatures];
+  if (existingIdx >= 0) {
+    const prev = nextSignatures[existingIdx];
+    nextSignatures[existingIdx] = {
+      ...prev,
+      missClass: input2.missClass,
+      summary,
+      recurrenceCount: prev.recurrenceCount + 1,
+      status: "active",
+      lastSeenAt: nowIso,
+      repairedAt: null
+    };
+  } else {
+    nextSignatures.push({
+      signatureKey: key,
+      patternId: input2.patternId,
+      strandId: input2.strandId,
+      missClass: input2.missClass,
+      summary,
+      recurrenceCount: 1,
+      status: "active",
+      lastSeenAt: nowIso,
+      repairedAt: null
+    });
+  }
+  return {
+    ...profile,
+    errorSignatures: pruneErrorSignatures(nextSignatures),
+    updatedAt: nowIso
+  };
+}
+function markErrorSignatureRepaired(profile, signatureKey, nowIso = (/* @__PURE__ */ new Date()).toISOString()) {
+  const next = profile.errorSignatures.map(
+    (sig2) => sig2.signatureKey === signatureKey ? { ...sig2, status: "repaired", repairedAt: nowIso } : sig2
+  );
+  return {
+    ...profile,
+    errorSignatures: next,
+    updatedAt: nowIso
+  };
+}
+function pruneErrorSignatures(signatures) {
+  if (signatures.length <= MAX_ERROR_SIGNATURES) return signatures;
+  const sorted = [...signatures].sort((a, b) => {
+    if (a.status !== b.status) return a.status === "active" ? -1 : 1;
+    if (a.recurrenceCount !== b.recurrenceCount) {
+      return b.recurrenceCount - a.recurrenceCount;
+    }
+    return Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt);
+  });
+  return sorted.slice(0, MAX_ERROR_SIGNATURES);
+}
+function hintPenaltyFactor(rung) {
+  if (!rung) return 1;
+  const idx = HINT_RUNGS.indexOf(rung);
+  const table2 = [0.96, 0.9, 0.8, 0.65, 0.5, 0.35];
+  return table2[idx] ?? 1;
+}
+function computeDominantMissClass(histogram) {
+  let best = null;
+  let bestCount = 0;
+  for (const cls of MISS_CLASSES) {
+    const count = histogram[cls] ?? 0;
+    if (count > bestCount) {
+      bestCount = count;
+      best = cls;
+    }
+  }
+  return best;
+}
+function applyStrandReviewUpdate(profile, update, nowIso = (/* @__PURE__ */ new Date()).toISOString()) {
+  const nowMs = Date.parse(nowIso) || Date.now();
+  const strandDef = getStrandDefinition(update.strandId);
+  const patternId = strandDef?.patternId ?? update.patternId;
+  const prevStrand = profile.strands[update.strandId] ?? createInitialStrandState(update.strandId, patternId);
+  const effectivePrev = computeEffectiveStrandMastery(prevStrand, nowMs);
+  const adjustedScore = clamp(
+    Math.round(update.score * hintPenaltyFactor(update.hintRung)),
+    0,
+    100
+  );
+  const cleanSuccess = update.isCorrect && !update.hiddenGapDetected && (!update.hintRung || update.hintRung === "R0" || update.hintRung === "R1") && adjustedScore >= 75;
+  const blendWeight = prevStrand.attempts === 0 ? 1 : 0.45;
+  let nextMastery = Math.round(
+    clamp(
+      effectivePrev * (1 - blendWeight) + adjustedScore * blendWeight,
+      0,
+      100
+    )
+  );
+  if (!cleanSuccess && update.hiddenGapDetected) {
+    nextMastery = Math.min(nextMastery, 68);
+  }
+  const nextStreak = cleanSuccess ? prevStrand.streak + 1 : 0;
+  let nextStability = prevStrand.stabilityDays;
+  if (cleanSuccess) {
+    const twistBoost = update.twistOperator ? 1.45 : 1.15;
+    nextStability = clamp(
+      prevStrand.stabilityDays * (1.6 + Math.min(nextStreak, 4) * 0.25) * twistBoost,
+      1,
+      365
+    );
+  } else {
+    nextStability = clamp(prevStrand.stabilityDays * 0.45, 0.5, 30);
+  }
+  let nextStatus = prevStrand.status;
+  if (!cleanSuccess || update.missClass !== null) {
+    nextStatus = "gap";
+  } else if (prevStrand.status === "gap" && update.twistOperator) {
+    nextStatus = nextMastery >= 82 ? "mastered" : "remediated";
+  } else if (nextMastery >= 80 && nextStreak >= 1) {
+    nextStatus = "mastered";
+  } else if (prevStrand.status === "untouched") {
+    nextStatus = nextMastery >= 70 ? "remediated" : "gap";
+  }
+  let nextCalibration = prevStrand.calibrationBias;
+  if (update.hiddenGapDetected) {
+    nextCalibration = clamp(nextCalibration + 25, -100, 100);
+  } else if (cleanSuccess) {
+    nextCalibration = Math.round(nextCalibration * 0.65);
+  } else if (update.score < 50 && !update.hiddenGapDetected) {
+    nextCalibration = clamp(nextCalibration - 10, -100, 100);
+  }
+  const nextReviewMs = nowMs + nextStability * MS_PER_DAY;
+  const nextStrands = {
+    ...profile.strands,
+    [update.strandId]: {
+      strandId: update.strandId,
+      patternId,
+      mastery: nextMastery,
+      stabilityDays: Number(nextStability.toFixed(2)),
+      attempts: prevStrand.attempts + 1,
+      streak: nextStreak,
+      status: nextStatus,
+      calibrationBias: nextCalibration,
+      lastMissClass: update.missClass ?? (cleanSuccess ? null : prevStrand.lastMissClass),
+      lastHintRung: update.hintRung,
+      gapNote: cleanSuccess ? null : truncateNote(update.gapNote) ?? prevStrand.gapNote,
+      lastPracticedAt: nowIso,
+      nextReviewAt: new Date(nextReviewMs).toISOString()
+    }
+  };
+  if (!cleanSuccess && strandDef) {
+    for (const prereqId of strandDef.prerequisiteStrandIds) {
+      const prereqDef = STRAND_MAP.get(prereqId);
+      if (!prereqDef) continue;
+      const existingPrereq = nextStrands[prereqId];
+      if (existingPrereq && existingPrereq.mastery < 75) {
+        nextStrands[prereqId] = {
+          ...existingPrereq,
+          nextReviewAt: nowIso
+        };
+      }
+    }
+  }
+  const nextHist = { ...profile.cognitiveProfile.missHistogram };
+  if (update.missClass) {
+    nextHist[update.missClass] = (nextHist[update.missClass] ?? 0) + 1;
+  }
+  let nextVerbalToCodeGap = profile.cognitiveProfile.verbalToCodeGap;
+  if (typeof update.verbalScore === "number" && typeof update.codeScore === "number") {
+    const sampleGap = clamp(update.verbalScore - update.codeScore, -100, 100);
+    nextVerbalToCodeGap = Math.round(nextVerbalToCodeGap * 0.6 + sampleGap * 0.4);
+  }
+  const nextTwistResilience = { ...profile.cognitiveProfile.twistResilience };
+  let totalTwistsAttempted = profile.cognitiveProfile.totalTwistsAttempted;
+  let totalTwistsPassed = profile.cognitiveProfile.totalTwistsPassed;
+  if (update.twistOperator) {
+    totalTwistsAttempted += 1;
+    if (cleanSuccess) totalTwistsPassed += 1;
+    const prevOpScore = nextTwistResilience[update.twistOperator] ?? 50;
+    const outcomeVal = cleanSuccess ? 100 : update.score;
+    nextTwistResilience[update.twistOperator] = Math.round(
+      prevOpScore * 0.65 + outcomeVal * 0.35
+    );
+  }
+  let updatedProfile = {
+    ...profile,
+    strands: nextStrands,
+    cognitiveProfile: {
+      ...profile.cognitiveProfile,
+      missHistogram: nextHist,
+      dominantMissClass: computeDominantMissClass(nextHist),
+      verbalToCodeGap: nextVerbalToCodeGap,
+      twistResilience: nextTwistResilience,
+      totalTwistsAttempted,
+      totalTwistsPassed
+    },
+    updatedAt: nowIso
+  };
+  if (!cleanSuccess && update.missClass) {
+    const sigKey = update.errorSignatureKey || `${patternId}::${update.strandId.split(":")[1] ?? update.strandId}::${update.missClass}`;
+    updatedProfile = recordErrorSignature(
+      updatedProfile,
+      {
+        signatureKey: sigKey,
+        patternId,
+        strandId: update.strandId,
+        missClass: update.missClass,
+        summary: update.gapNote || `${strandDef?.title ?? update.strandId}: ${update.missClass}`
+      },
+      nowIso
+    );
+  } else if (cleanSuccess && update.twistOperator) {
+    const activeOnStrand = updatedProfile.errorSignatures.filter(
+      (s2) => s2.strandId === update.strandId && s2.status === "active"
+    );
+    for (const sig2 of activeOnStrand) {
+      updatedProfile = markErrorSignatureRepaired(
+        updatedProfile,
+        sig2.signatureKey,
+        nowIso
+      );
+    }
+  }
+  return enforceProfileBounds(updatedProfile);
+}
+function rankStrandsForPattern(patternId, profile, options = {}) {
+  const pattern = getPatternDefinition(patternId);
+  if (!pattern) return [];
+  const nowMs = options.nowMs ?? Date.now();
+  const excluded = new Set(options.excludeStrandIds ?? []);
+  const activeSigCounts = /* @__PURE__ */ new Map();
+  for (const sig2 of profile.errorSignatures) {
+    if (sig2.status === "active") {
+      activeSigCounts.set(
+        sig2.strandId,
+        (activeSigCounts.get(sig2.strandId) ?? 0) + sig2.recurrenceCount
+      );
+    }
+  }
+  const ranked = [];
+  for (const strandDef of pattern.strands) {
+    if (excluded.has(strandDef.id)) continue;
+    const state = profile.strands[strandDef.id];
+    const effective = computeEffectiveStrandMastery(state, nowMs);
+    const reasons = [];
+    let priority = (100 - effective) * 0.6;
+    priority += strandDef.fanoutWeight * 10;
+    if (!state || state.attempts === 0) {
+      priority += 18;
+      reasons.push("untested");
+    }
+    if (state?.status === "gap") {
+      priority += 32;
+      reasons.push("active_gap");
+    }
+    if (isStrandDueForReview(state, nowMs)) {
+      priority += 20;
+      reasons.push("due_for_review");
+    }
+    if ((state?.calibrationBias ?? 0) >= 20) {
+      priority += 15;
+      reasons.push("overconfident_calibration");
+    }
+    const activeRecurrence = activeSigCounts.get(strandDef.id) ?? 0;
+    if (activeRecurrence > 0) {
+      priority += Math.min(30, activeRecurrence * 12);
+      reasons.push("recurring_misconception");
+    }
+    const downstreamCount = DOWNSTREAM_STRANDS.get(strandDef.id)?.length ?? 0;
+    if (downstreamCount > 0 && effective < 75) {
+      priority += downstreamCount * 6;
+      reasons.push("blocks_downstream");
+    }
+    if (options.lastAskedStrandId === strandDef.id) {
+      priority -= 40;
+    }
+    ranked.push({
+      strandId: strandDef.id,
+      priority: Number(priority.toFixed(2)),
+      effectiveMastery: effective,
+      reasons
+    });
+  }
+  return ranked.sort((a, b) => b.priority - a.priority);
+}
+function pruneKnownPrereqStrands(patternId, profile, nowMs = Date.now()) {
+  const pattern = getPatternDefinition(patternId);
+  if (!pattern) return [];
+  const pruned = [];
+  for (const strand of pattern.strands) {
+    for (const prereqId of strand.prerequisiteStrandIds) {
+      const st = profile.strands[prereqId];
+      if (computeEffectiveStrandMastery(st, nowMs) >= 80 && st?.status === "mastered") {
+        if (!pruned.includes(prereqId)) pruned.push(prereqId);
+      }
+    }
+    const selfState = profile.strands[strand.id];
+    if (computeEffectiveStrandMastery(selfState, nowMs) >= 85 && selfState?.status === "mastered") {
+      if (!pruned.includes(strand.id)) pruned.push(strand.id);
+    }
+  }
+  return pruned;
+}
+function getDueReviewStrands(profile, nowMs = Date.now()) {
+  const due = [];
+  for (const strandDef of ALL_STRANDS) {
+    const state = profile.strands[strandDef.id];
+    if (isStrandDueForReview(state, nowMs)) {
+      due.push({
+        patternId: strandDef.patternId,
+        strandId: strandDef.id,
+        effectiveMastery: computeEffectiveStrandMastery(state, nowMs)
+      });
+    }
+  }
+  return due.sort((a, b) => a.effectiveMastery - b.effectiveMastery);
+}
+function computePatternAggregateMetrics(patternId, profile, nowMs = Date.now()) {
+  const pattern = getPatternDefinition(patternId);
+  if (!pattern) {
+    return {
+      masteryPercent: 0,
+      masteredStrands: 0,
+      totalStrands: 0,
+      activeGaps: 0,
+      dueStrands: 0
+    };
+  }
+  let sum = 0;
+  let masteredStrands = 0;
+  let activeGaps = 0;
+  let dueStrands = 0;
+  for (const s2 of pattern.strands) {
+    const st = profile.strands[s2.id];
+    const eff = computeEffectiveStrandMastery(st, nowMs);
+    sum += eff;
+    if (st?.status === "mastered" && eff >= 80) masteredStrands++;
+    if (st?.status === "gap") activeGaps++;
+    if (isStrandDueForReview(st, nowMs)) dueStrands++;
+  }
+  return {
+    masteryPercent: pattern.strands.length > 0 ? Math.round(sum / pattern.strands.length) : 0,
+    masteredStrands,
+    totalStrands: pattern.strands.length,
+    activeGaps,
+    dueStrands
+  };
+}
+function recordCompletedSessionDigest(profile, digest2, optimizationScore) {
+  const prevSummary = profile.patternSummaries[digest2.patternId] ?? {
+    patternId: digest2.patternId,
+    lastTrack: null,
+    completenessScore: 0,
+    optimizationScore: 0,
+    sessionsCompleted: 0,
+    lastPracticedAt: null
+  };
+  const nextSummary = {
+    patternId: digest2.patternId,
+    lastTrack: digest2.track,
+    completenessScore: digest2.track === "intermediate" ? digest2.overallScore : Math.max(prevSummary.completenessScore, digest2.overallScore),
+    optimizationScore: optimizationScore !== null ? optimizationScore : prevSummary.optimizationScore,
+    sessionsCompleted: prevSummary.sessionsCompleted + 1,
+    lastPracticedAt: digest2.completedAt
+  };
+  const filteredSessions = profile.recentSessions.filter(
+    (s2) => s2.sessionId !== digest2.sessionId
+  );
+  const nextRecent = [digest2, ...filteredSessions].slice(0, MAX_RECENT_SESSIONS);
+  return enforceProfileBounds({
+    ...profile,
+    patternSummaries: {
+      ...profile.patternSummaries,
+      [digest2.patternId]: nextSummary
+    },
+    recentSessions: nextRecent,
+    updatedAt: digest2.completedAt
+  });
+}
+function enforceProfileBounds(profile) {
+  const validStrands = {};
+  for (const [strandId, st] of Object.entries(profile.strands)) {
+    if (!STRAND_MAP.has(strandId)) continue;
+    validStrands[strandId] = {
+      ...st,
+      mastery: clamp(Math.round(st.mastery), 0, 100),
+      stabilityDays: clamp(st.stabilityDays, 0.25, 365),
+      calibrationBias: clamp(Math.round(st.calibrationBias), -100, 100),
+      gapNote: truncateNote(st.gapNote)
+    };
+  }
+  const validSummaries = {};
+  for (const p of PATTERN_CATALOG) {
+    const rec = profile.patternSummaries[p.id];
+    if (rec) {
+      validSummaries[p.id] = {
+        ...rec,
+        completenessScore: clamp(Math.round(rec.completenessScore), 0, 100),
+        optimizationScore: clamp(Math.round(rec.optimizationScore), 0, 100)
+      };
+    }
+  }
+  const boundedSigs = pruneErrorSignatures(
+    profile.errorSignatures.filter((s2) => STRAND_MAP.has(s2.strandId)).map((s2) => ({
+      ...s2,
+      signatureKey: s2.signatureKey.slice(0, 120),
+      summary: truncateNote(s2.summary) ?? "Misconception"
+    }))
+  );
+  const boundedResilience = { ...defaultTwistResilience() };
+  for (const op of TWIST_OPERATORS) {
+    const v = profile.cognitiveProfile.twistResilience[op];
+    if (typeof v === "number") {
+      boundedResilience[op] = clamp(Math.round(v), 0, 100);
+    }
+  }
+  return {
+    ...profile,
+    cognitiveProfile: {
+      ...profile.cognitiveProfile,
+      verbalToCodeGap: clamp(
+        Math.round(profile.cognitiveProfile.verbalToCodeGap),
+        -100,
+        100
+      ),
+      twistResilience: boundedResilience
+    },
+    patternSummaries: validSummaries,
+    strands: validStrands,
+    errorSignatures: boundedSigs,
+    recentSessions: profile.recentSessions.slice(0, MAX_RECENT_SESSIONS)
+  };
+}
+
+// src/db/pattern-mastery.ts
+var DATA_DIR6 = process.env.VERCEL ? import_node_path4.default.join("/tmp", ".data") : import_node_path4.default.join(process.cwd(), ".data");
+var PROFILES_FILE2 = import_node_path4.default.join(DATA_DIR6, "pattern-mastery-profiles.json");
+var MAX_PROFILES_IN_MEMORY2 = 2e3;
+var MAX_SESSIONS_IN_MEMORY = 1500;
+var SESSION_TTL_SECONDS = 60 * 60 * 4;
+var memoryProfiles = /* @__PURE__ */ new Map();
+var memorySessions = /* @__PURE__ */ new Map();
+function setBoundedProfile(uid2, profile) {
+  if (!memoryProfiles.has(uid2) && memoryProfiles.size >= MAX_PROFILES_IN_MEMORY2) {
+    const oldest = memoryProfiles.keys().next().value;
+    if (oldest) memoryProfiles.delete(oldest);
+  }
+  memoryProfiles.set(uid2, profile);
+}
+function setBoundedSession(sessionId, state) {
+  if (!memorySessions.has(sessionId) && memorySessions.size >= MAX_SESSIONS_IN_MEMORY) {
+    const oldest = memorySessions.keys().next().value;
+    if (oldest) memorySessions.delete(oldest);
+  }
+  memorySessions.set(sessionId, {
+    state,
+    expiresAt: Date.now() + SESSION_TTL_SECONDS * 1e3
+  });
+}
+try {
+  if (import_node_fs5.default.existsSync(PROFILES_FILE2)) {
+    const raw = import_node_fs5.default.readFileSync(PROFILES_FILE2, "utf-8");
+    const parsed = JSON.parse(raw);
+    for (const [uid2, val] of Object.entries(parsed)) {
+      const checked = UserPatternProfileSchema.safeParse(val);
+      if (checked.success) {
+        setBoundedProfile(uid2, enforceProfileBounds(checked.data));
+      }
+    }
+  }
+} catch {
+}
+var persistTimer2 = null;
+var isPersisting2 = false;
+function scheduleLocalProfileFlush() {
+  if (persistTimer2) return;
+  persistTimer2 = setTimeout(async () => {
+    persistTimer2 = null;
+    if (isPersisting2) return;
+    isPersisting2 = true;
+    try {
+      const dir = import_node_path4.default.dirname(PROFILES_FILE2);
+      if (!import_node_fs5.default.existsSync(dir)) {
+        await import_node_fs5.default.promises.mkdir(dir, { recursive: true });
+      }
+      const snapshot = {};
+      for (const [uid2, prof] of memoryProfiles.entries()) {
+        snapshot[uid2] = prof;
+      }
+      await import_node_fs5.default.promises.writeFile(
+        PROFILES_FILE2,
+        JSON.stringify(snapshot, null, 2),
+        "utf-8"
+      );
+    } catch {
+    } finally {
+      isPersisting2 = false;
+    }
+  }, 400);
+  if (typeof persistTimer2.unref === "function") {
+    persistTimer2.unref();
+  }
+}
+function normalizeLoadedProfile(uid2, candidate) {
+  const parsed = UserPatternProfileSchema.safeParse(candidate);
+  if (!parsed.success) return null;
+  return enforceProfileBounds({ ...parsed.data, userId: uid2 });
+}
+async function getUserPatternProfile(uid2) {
+  if (!uid2) return createEmptyUserPatternProfile("anonymous");
+  const mem = memoryProfiles.get(uid2);
+  if (mem) return mem;
+  try {
+    const cached3 = await getCache(`pattern_profile:${uid2}`);
+    const normalized = normalizeLoadedProfile(uid2, cached3);
+    if (normalized) {
+      setBoundedProfile(uid2, normalized);
+      return normalized;
+    }
+  } catch {
+  }
+  if (isAdminDbAvailable()) {
+    try {
+      const docRef = adminDb.collection("users").doc(uid2).collection("pattern_mastery").doc("profile");
+      const snap = await docRef.get();
+      if (snap && snap.exists) {
+        const normalized = normalizeLoadedProfile(uid2, snap.data());
+        if (normalized) {
+          setBoundedProfile(uid2, normalized);
+          await setCache(`pattern_profile:${uid2}`, normalized, 1800).catch(
+            () => {
+            }
+          );
+          return normalized;
+        }
+      }
+    } catch {
+      markAdminDbUnavailable();
+    }
+  }
+  const fresh = createEmptyUserPatternProfile(uid2);
+  setBoundedProfile(uid2, fresh);
+  return fresh;
+}
+async function saveUserPatternProfile(uid2, profile) {
+  const bounded = enforceProfileBounds({ ...profile, userId: uid2 });
+  setBoundedProfile(uid2, bounded);
+  scheduleLocalProfileFlush();
+  await setCache(`pattern_profile:${uid2}`, bounded, 1800).catch(() => {
+  });
+  if (isAdminDbAvailable()) {
+    try {
+      await adminDb.collection("users").doc(uid2).collection("pattern_mastery").doc("profile").set(bounded);
+    } catch {
+      markAdminDbUnavailable();
+    }
+  }
+  return bounded;
+}
+async function getPatternSession(sessionId) {
+  if (!sessionId) return null;
+  const entry = memorySessions.get(sessionId);
+  if (entry) {
+    if (entry.expiresAt > Date.now()) {
+      return entry.state;
+    }
+    memorySessions.delete(sessionId);
+  }
+  try {
+    const cached3 = await getCache(
+      `pattern_session:${sessionId}`
+    );
+    if (cached3 && cached3.sessionId === sessionId) {
+      setBoundedSession(sessionId, cached3);
+      return cached3;
+    }
+  } catch {
+  }
+  return null;
+}
+async function savePatternSession(session) {
+  const updated = {
+    ...session,
+    processedAttemptIds: session.processedAttemptIds.slice(-60),
+    questionHistory: session.questionHistory.slice(-40),
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  setBoundedSession(updated.sessionId, updated);
+  await setCache(
+    `pattern_session:${updated.sessionId}`,
+    updated,
+    SESSION_TTL_SECONDS
+  ).catch(() => {
+  });
+  return updated;
+}
+function stripRubricFromCard(card) {
+  if (!card) return null;
+  const { rubric: _rubric, ...publicCard } = card;
+  return publicCard;
+}
+
+// src/lib/master-patterns/engine.server.ts
+var import_node_crypto3 = __toESM(require("node:crypto"), 1);
+
+// src/lib/master-patterns/test-drivers.ts
+var EXPECTED_SYMBOLS = {
+  "two-pointers": "trap",
+  "sliding-window": "minWindow",
+  "fast-slow-pointers": "findDuplicate",
+  "binary-search": "minEatingSpeed",
+  "prefix-sum-hashmap": "subarraySum",
+  "monotonic-stack": "largestRectangleArea",
+  "intervals-sweep": "eraseOverlapIntervals",
+  "heap-top-k": "MedianFinder",
+  "trees-dfs-bfs": "lowestCommonAncestor",
+  "graphs-topo-union-find": "canFinish",
+  backtracking: "combinationSum2",
+  "dynamic-programming": "minDistance"
+};
+function hasExpectedSymbol(code, patternId) {
+  const sym = EXPECTED_SYMBOLS[patternId];
+  return new RegExp(`\\b${sym}\\b`).test(code);
+}
+function cppPrelude(userCode, extraDefs = "") {
+  const includes = userCode.includes("#include") ? "" : `#include <iostream>
+#include <vector>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <stack>
+#include <queue>
+#include <algorithm>
+#include <climits>
+#include <cmath>
+using namespace std;
+`;
+  return `${includes}${extraDefs}
+${userCode}
+`;
+}
+function pyPrelude(userCode, extraDefs = "") {
+  return `from collections import defaultdict, deque, Counter
+import heapq, math
+${extraDefs}
+${userCode}
+`;
+}
+function javaPrelude(userCode, extraDefs = "") {
+  const imports = `import java.util.*;
+`;
+  const wrappedClass = /\bclass\s+Solution\b|\bclass\s+MedianFinder\b/.test(userCode) ? userCode : `class Solution {
+${userCode}
+}`;
+  return `${imports}${extraDefs}
+${wrappedClass}
+`;
+}
+var CPP_DRIVERS = {
+  "two-pointers": `
+int main() {
+  int pass = 0, total = 3;
+  vector<int> a1{0,1,0,2,1,0,1,3,2,1,2,1};
+  if (trap(a1) == 6) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  vector<int> a2{4,2,0,3,2,5};
+  if (trap(a2) == 9) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  vector<int> a3{1,2,3};
+  if (trap(a3) == 0) { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "sliding-window": `
+int main() {
+  int pass = 0, total = 3;
+  if (minWindow("ADOBECODEBANC", "ABC") == "BANC") { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  if (minWindow("a", "aa") == "") { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  if (minWindow("ab", "b") == "b") { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "fast-slow-pointers": `
+int main() {
+  int pass = 0, total = 3;
+  vector<int> a1{1,3,4,2,2};
+  if (findDuplicate(a1) == 2) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  vector<int> a2{3,1,3,4,2};
+  if (findDuplicate(a2) == 3) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  vector<int> a3{1,1};
+  if (findDuplicate(a3) == 1) { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "binary-search": `
+int main() {
+  int pass = 0, total = 3;
+  vector<int> p1{3,6,7,11};
+  if (minEatingSpeed(p1, 8) == 4) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  vector<int> p2{30,11,23,4,20};
+  if (minEatingSpeed(p2, 5) == 30) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  vector<int> p3{30,11,23,4,20};
+  if (minEatingSpeed(p3, 6) == 23) { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "prefix-sum-hashmap": `
+int main() {
+  int pass = 0, total = 3;
+  vector<int> a1{1,1,1};
+  if (subarraySum(a1, 2) == 2) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  vector<int> a2{1,2,3};
+  if (subarraySum(a2, 3) == 2) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  vector<int> a3{1,-1,0};
+  if (subarraySum(a3, 0) == 3) { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "monotonic-stack": `
+int main() {
+  int pass = 0, total = 3;
+  vector<int> h1{2,1,5,6,2,3};
+  if (largestRectangleArea(h1) == 10) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  vector<int> h2{2,4};
+  if (largestRectangleArea(h2) == 4) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  vector<int> h3{1,1,1};
+  if (largestRectangleArea(h3) == 3) { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "intervals-sweep": `
+int main() {
+  int pass = 0, total = 3;
+  vector<vector<int>> i1{{1,2},{2,3},{3,4},{1,3}};
+  if (eraseOverlapIntervals(i1) == 1) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  vector<vector<int>> i2{{1,2},{1,2},{1,2}};
+  if (eraseOverlapIntervals(i2) == 2) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  vector<vector<int>> i3{{1,2},{2,3}};
+  if (eraseOverlapIntervals(i3) == 0) { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "heap-top-k": `
+int main() {
+  int pass = 0, total = 3;
+  MedianFinder mf;
+  mf.addNum(1); mf.addNum(2);
+  if (abs(mf.findMedian() - 1.5) < 1e-5) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  mf.addNum(3);
+  if (abs(mf.findMedian() - 2.0) < 1e-5) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  MedianFinder mf2; mf2.addNum(-1); mf2.addNum(-2); mf2.addNum(-3);
+  if (abs(mf2.findMedian() - (-2.0)) < 1e-5) { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "trees-dfs-bfs": `
+int main() {
+  int pass = 0, total = 2;
+  TreeNode* n3 = new TreeNode(3);
+  TreeNode* n5 = new TreeNode(5);
+  TreeNode* n1 = new TreeNode(1);
+  TreeNode* n6 = new TreeNode(6);
+  TreeNode* n2 = new TreeNode(2);
+  TreeNode* n7 = new TreeNode(7);
+  TreeNode* n4 = new TreeNode(4);
+  n3->left = n5; n3->right = n1;
+  n5->left = n6; n5->right = n2;
+  n2->left = n7; n2->right = n4;
+  if (lowestCommonAncestor(n3, n5, n1) == n3) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  if (lowestCommonAncestor(n3, n5, n4) == n5) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "graphs-topo-union-find": `
+int main() {
+  int pass = 0, total = 3;
+  vector<vector<int>> p1{{1,0}};
+  if (canFinish(2, p1) == true) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  vector<vector<int>> p2{{1,0},{0,1}};
+  if (canFinish(2, p2) == false) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  vector<vector<int>> p3{{1,0},{2,1},{3,2}};
+  if (canFinish(4, p3) == true) { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  backtracking: `
+int main() {
+  int pass = 0, total = 2;
+  vector<int> c1{10,1,2,7,6,1,5};
+  auto r1 = combinationSum2(c1, 8);
+  for (auto& v : r1) sort(v.begin(), v.end());
+  sort(r1.begin(), r1.end());
+  vector<vector<int>> e1{{1,1,6},{1,2,5},{1,7},{2,6}};
+  if (r1 == e1) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  vector<int> c2{2,5,2,1,2};
+  auto r2 = combinationSum2(c2, 5);
+  for (auto& v : r2) sort(v.begin(), v.end());
+  sort(r2.begin(), r2.end());
+  vector<vector<int>> e2{{1,2,2},{5}};
+  if (r2 == e2) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`,
+  "dynamic-programming": `
+int main() {
+  int pass = 0, total = 3;
+  if (minDistance("horse", "ros") == 3) { cout << "CASE 1 PASS\\n"; pass++; } else cout << "CASE 1 FAIL\\n";
+  if (minDistance("intention", "execution") == 5) { cout << "CASE 2 PASS\\n"; pass++; } else cout << "CASE 2 FAIL\\n";
+  if (minDistance("", "abc") == 3) { cout << "CASE 3 PASS\\n"; pass++; } else cout << "CASE 3 FAIL\\n";
+  cout << "SUMMARY:" << pass << "/" << total << "\\n";
+  return pass == total ? 0 : 1;
+}`
+};
+var PY_DRIVERS = {
+  "two-pointers": `
+_cases = [([0,1,0,2,1,0,1,3,2,1,2,1], 6), ([4,2,0,3,2,5], 9), ([1,2,3], 0)]
+_p = 0
+for _i, (_inp, _exp) in enumerate(_cases, 1):
+    _got = trap(list(_inp))
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`,
+  "sliding-window": `
+_cases = [("ADOBECODEBANC","ABC","BANC"), ("a","aa",""), ("ab","b","b")]
+_p = 0
+for _i, (_s, _t, _exp) in enumerate(_cases, 1):
+    _got = minWindow(_s, _t)
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`,
+  "fast-slow-pointers": `
+_cases = [([1,3,4,2,2], 2), ([3,1,3,4,2], 3), ([1,1], 1)]
+_p = 0
+for _i, (_inp, _exp) in enumerate(_cases, 1):
+    _got = findDuplicate(list(_inp))
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`,
+  "binary-search": `
+_cases = [([3,6,7,11], 8, 4), ([30,11,23,4,20], 5, 30), ([30,11,23,4,20], 6, 23)]
+_p = 0
+for _i, (_piles, _h, _exp) in enumerate(_cases, 1):
+    _got = minEatingSpeed(list(_piles), _h)
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`,
+  "prefix-sum-hashmap": `
+_cases = [([1,1,1], 2, 2), ([1,2,3], 3, 2), ([1,-1,0], 0, 3)]
+_p = 0
+for _i, (_nums, _k, _exp) in enumerate(_cases, 1):
+    _got = subarraySum(list(_nums), _k)
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`,
+  "monotonic-stack": `
+_cases = [([2,1,5,6,2,3], 10), ([2,4], 4), ([1,1,1], 3)]
+_p = 0
+for _i, (_h, _exp) in enumerate(_cases, 1):
+    _got = largestRectangleArea(list(_h))
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`,
+  "intervals-sweep": `
+_cases = [([[1,2],[2,3],[3,4],[1,3]], 1), ([[1,2],[1,2],[1,2]], 2), ([[1,2],[2,3]], 0)]
+_p = 0
+for _i, (_iv, _exp) in enumerate(_cases, 1):
+    _got = eraseOverlapIntervals([list(x) for x in _iv])
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`,
+  "heap-top-k": `
+_p = 0
+mf = MedianFinder()
+mf.addNum(1); mf.addNum(2)
+_c1 = abs(mf.findMedian() - 1.5) < 1e-5
+print("CASE 1 PASS" if _c1 else "CASE 1 FAIL")
+_p += int(_c1)
+mf.addNum(3)
+_c2 = abs(mf.findMedian() - 2.0) < 1e-5
+print("CASE 2 PASS" if _c2 else "CASE 2 FAIL")
+_p += int(_c2)
+mf2 = MedianFinder(); mf2.addNum(-1); mf2.addNum(-2); mf2.addNum(-3)
+_c3 = abs(mf2.findMedian() - (-2.0)) < 1e-5
+print("CASE 3 PASS" if _c3 else "CASE 3 FAIL")
+_p += int(_c3)
+print(f"SUMMARY:{_p}/3")
+raise SystemExit(0 if _p == 3 else 1)`,
+  "trees-dfs-bfs": `
+_n3 = TreeNode(3); _n5 = TreeNode(5); _n1 = TreeNode(1); _n6 = TreeNode(6); _n2 = TreeNode(2); _n7 = TreeNode(7); _n4 = TreeNode(4)
+_n3.left = _n5; _n3.right = _n1; _n5.left = _n6; _n5.right = _n2; _n2.left = _n7; _n2.right = _n4
+_p = 0
+_c1 = lowestCommonAncestor(_n3, _n5, _n1) is _n3
+print("CASE 1 PASS" if _c1 else "CASE 1 FAIL")
+_p += int(_c1)
+_c2 = lowestCommonAncestor(_n3, _n5, _n4) is _n5
+print("CASE 2 PASS" if _c2 else "CASE 2 FAIL")
+_p += int(_c2)
+print(f"SUMMARY:{_p}/2")
+raise SystemExit(0 if _p == 2 else 1)`,
+  "graphs-topo-union-find": `
+_cases = [(2, [[1,0]], True), (2, [[1,0],[0,1]], False), (4, [[1,0],[2,1],[3,2]], True)]
+_p = 0
+for _i, (_n, _pre, _exp) in enumerate(_cases, 1):
+    _got = canFinish(_n, [list(x) for x in _pre])
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`,
+  backtracking: `
+_norm = lambda arr: sorted([sorted(x) for x in arr])
+_cases = [([10,1,2,7,6,1,5], 8, [[1,1,6],[1,2,5],[1,7],[2,6]]), ([2,5,2,1,2], 5, [[1,2,2],[5]])]
+_p = 0
+for _i, (_c, _t, _exp) in enumerate(_cases, 1):
+    _got = _norm(combinationSum2(list(_c), _t))
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`,
+  "dynamic-programming": `
+_cases = [("horse","ros",3), ("intention","execution",5), ("","abc",3)]
+_p = 0
+for _i, (_w1, _w2, _exp) in enumerate(_cases, 1):
+    _got = minDistance(_w1, _w2)
+    print(f"CASE {_i} {'PASS' if _got == _exp else f'FAIL (got {_got}, exp {_exp})'}")
+    _p += int(_got == _exp)
+print(f"SUMMARY:{_p}/{len(_cases)}")
+raise SystemExit(0 if _p == len(_cases) else 1)`
+};
+function buildCaseStudyTestProgram(patternId, language, userCode) {
+  const expectedFunctionName = EXPECTED_SYMBOLS[patternId];
+  const alreadyHasMain = /\bint\s+main\s*\(|\bpublic\s+static\s+void\s+main\b|__name__\s*==\s*['"]__main__['"]/.test(
+    userCode
+  );
+  if (alreadyHasMain || !hasExpectedSymbol(userCode, patternId)) {
+    return {
+      wrappedCode: userCode,
+      usedTestHarness: false,
+      expectedFunctionName
+    };
+  }
+  if (language === "cpp") {
+    const hasSolutionClass = /\bclass\s+Solution\b/.test(userCode);
+    const cppBind = expectedFunctionName !== "MedianFinder" && hasSolutionClass ? `${userCode.includes("<utility>") ? "" : "#include <utility>\n"}static Solution __dsaviz_sol;
+template <typename... Args>
+decltype(auto) ${expectedFunctionName}(Args&&... args) { return __dsaviz_sol.${expectedFunctionName}(std::forward<Args>(args)...); }
+` : "";
+    const extra = patternId === "trees-dfs-bfs" && !/\bstruct\s+TreeNode\b|\bclass\s+TreeNode\b/.test(userCode) ? `struct TreeNode { int val; TreeNode *left; TreeNode *right; TreeNode(int x): val(x), left(nullptr), right(nullptr) {} };
+` : "";
+    return {
+      wrappedCode: `${cppPrelude(userCode, extra)}${cppBind}
+${CPP_DRIVERS[patternId]}`,
+      usedTestHarness: true,
+      expectedFunctionName
+    };
+  }
+  if (language === "python") {
+    const extra = patternId === "trees-dfs-bfs" && !/\bclass\s+TreeNode\b/.test(userCode) ? `class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val; self.left = left; self.right = right
+` : "";
+    const pyBind = expectedFunctionName !== "MedianFinder" ? `if "${expectedFunctionName}" not in globals() and "Solution" in globals() and hasattr(Solution, "${expectedFunctionName}"):
+    ${expectedFunctionName} = getattr(Solution(), "${expectedFunctionName}")
+` : "";
+    return {
+      wrappedCode: `${pyPrelude(userCode, extra)}
+${pyBind}${PY_DRIVERS[patternId]}`,
+      usedTestHarness: true,
+      expectedFunctionName
+    };
+  }
+  if (language === "java") {
+    const extra = patternId === "trees-dfs-bfs" && !/\bclass\s+TreeNode\b/.test(userCode) ? `class TreeNode { int val; TreeNode left; TreeNode right; TreeNode(int x){ val = x; } }
+` : "";
+    const hasCustomDriver = patternId === "two-pointers" || patternId === "sliding-window" || patternId === "binary-search";
+    if (hasCustomDriver) {
+      const driver = patternId === "two-pointers" ? `class Main { public static void main(String[] args){ Solution s = new Solution(); int p = 0; if(s.trap(new int[]{0,1,0,2,1,0,1,3,2,1,2,1})==6){System.out.println("CASE 1 PASS");p++;} if(s.trap(new int[]{4,2,0,3,2,5})==9){System.out.println("CASE 2 PASS");p++;} System.out.println("SUMMARY:"+p+"/2"); if(p!=2) System.exit(1); } }` : patternId === "sliding-window" ? `class Main { public static void main(String[] args){ Solution s = new Solution(); int p = 0; if("BANC".equals(s.minWindow("ADOBECODEBANC","ABC"))){System.out.println("CASE 1 PASS");p++;} if("".equals(s.minWindow("a","aa"))){System.out.println("CASE 2 PASS");p++;} System.out.println("SUMMARY:"+p+"/2"); if(p!=2) System.exit(1); } }` : `class Main { public static void main(String[] args){ Solution s = new Solution(); int p = 0; if(s.minEatingSpeed(new int[]{3,6,7,11},8)==4){System.out.println("CASE 1 PASS");p++;} if(s.minEatingSpeed(new int[]{30,11,23,4,20},5)==30){System.out.println("CASE 2 PASS");p++;} System.out.println("SUMMARY:"+p+"/2"); if(p!=2) System.exit(1); } }`;
+      return {
+        wrappedCode: `${javaPrelude(userCode, extra)}
+${driver}`,
+        usedTestHarness: true,
+        expectedFunctionName
+      };
+    }
+  }
+  return {
+    wrappedCode: userCode,
+    usedTestHarness: false,
+    expectedFunctionName
+  };
+}
+function parseDriverTestSummary(stdout, exitCode, usedTestHarness) {
+  if (!usedTestHarness) {
+    return { passed: exitCode === 0 };
+  }
+  const match2 = stdout.match(/SUMMARY:(\d+)\/(\d+)/);
+  if (match2 && match2[1] && match2[2]) {
+    const testsPassed = Number.parseInt(match2[1], 10);
+    const testsTotal = Number.parseInt(match2[2], 10);
+    return {
+      passed: exitCode === 0 && testsPassed === testsTotal,
+      testsPassed,
+      testsTotal
+    };
+  }
+  return { passed: exitCode === 0 };
+}
+
+// src/lib/master-patterns/healer.ts
+function stripModelValueDebris(raw) {
+  if (typeof raw !== "string") return "";
+  let s2 = raw.trim();
+  for (let i2 = 0; i2 < 4; i2++) {
+    const prev = s2;
+    s2 = s2.replace(/^\\+["']|["']\\+$/g, "").trim();
+    if (s2.length >= 2 && s2.startsWith('"') && s2.endsWith('"') || s2.length >= 2 && s2.startsWith("'") && s2.endsWith("'") || s2.length >= 2 && s2.startsWith("`") && s2.endsWith("`")) {
+      s2 = s2.slice(1, -1).trim();
+    }
+    if (s2.startsWith(":")) s2 = s2.slice(1).trim();
+    if (s2 === prev) break;
+  }
+  return s2;
+}
+function healStringifiedArray(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== "string") return raw;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("[")) return raw;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : raw;
+  } catch {
+    return raw;
+  }
+}
+function healMissClass(raw) {
+  if (raw === null || raw === void 0) return null;
+  const cleaned = stripModelValueDebris(raw).toLowerCase();
+  if (!cleaned || cleaned === "null" || cleaned === "none") return null;
+  if (MISS_CLASSES.includes(cleaned)) {
+    return cleaned;
+  }
+  if (cleaned.includes("complex") || cleaned.includes("optimi")) {
+    return "complexity-suboptimal";
+  }
+  if (cleaned.includes("discriminat") || cleaned.includes("confus")) {
+    return "discrimination";
+  }
+  if (cleaned.includes("invariant") || cleaned.includes("bound")) {
+    return "invariant-break";
+  }
+  if (cleaned.includes("cue")) return "cue";
+  if (cleaned.includes("execut") || cleaned.includes("syntax")) return "execution";
+  if (cleaned.includes("careless") || cleaned.includes("typo")) return "careless";
+  return "structural";
+}
+function validateAndHealQuestionCard(candidate, fallback) {
+  const healed = { ...candidate };
+  if (healed.modality === "mcq") {
+    const rawOpts = healStringifiedArray(healed.options);
+    if (!Array.isArray(rawOpts) || rawOpts.length < 2) {
+      return fallback;
+    }
+    const normalizedOpts = [];
+    const seenKeys = /* @__PURE__ */ new Set();
+    const labelToValue = /* @__PURE__ */ new Map();
+    rawOpts.forEach((opt, idx) => {
+      if (typeof opt === "string") {
+        const label = opt.trim();
+        if (!label) return;
+        const val = `opt_${idx + 1}`;
+        if (!seenKeys.has(val)) {
+          seenKeys.add(val);
+          normalizedOpts.push({ value: val, label });
+          labelToValue.set(label.toLowerCase(), val);
+        }
+        return;
+      }
+      if (opt && typeof opt === "object") {
+        const o = opt;
+        const label = typeof o.label === "string" ? o.label.trim() : "";
+        if (!label) return;
+        let val = stripModelValueDebris(o.value) || `opt_${idx + 1}`;
+        while (seenKeys.has(val)) {
+          val = `${val}_${idx + 1}`;
+        }
+        seenKeys.add(val);
+        normalizedOpts.push({ value: val, label });
+        labelToValue.set(label.toLowerCase(), val);
+      }
+    });
+    if (normalizedOpts.length < 2) {
+      return fallback;
+    }
+    const rawRubric = healed.rubric && typeof healed.rubric === "object" ? { ...healed.rubric } : {};
+    const rawCorrect = healStringifiedArray(rawRubric.correctOptionValues);
+    const correctList = Array.isArray(rawCorrect) ? rawCorrect.map((c) => stripModelValueDebris(c)).map((c) => {
+      if (seenKeys.has(c)) return c;
+      const byLabel = labelToValue.get(c.toLowerCase());
+      return byLabel ?? "";
+    }).filter(Boolean) : [];
+    const uniqueCorrect = Array.from(new Set(correctList));
+    if (uniqueCorrect.length === 0) {
+      return fallback;
+    }
+    healed.options = normalizedOpts;
+    healed.multiSelect = uniqueCorrect.length > 1;
+    rawRubric.correctOptionValues = uniqueCorrect;
+    healed.rubric = rawRubric;
+  }
+  const parsed = PatternQuestionCardSchema.safeParse(healed);
+  return parsed.success ? parsed.data : fallback;
+}
+
+// src/lib/master-patterns/engine.server.ts
+var MAX_QUESTIONS_INTERMEDIATE = 4;
+var MAX_QUESTIONS_PRO = 3;
+var MAX_TWISTS_PER_SESSION = 3;
+var MAX_RETESTS_PER_SESSION = 2;
+var DIGEST_MAX_CHARS = 1200;
+var HINT_RUNG_ORDER = {
+  R0: 1,
+  R1: 2,
+  R2: 3,
+  R3: 4,
+  R4: 5,
+  R5: 6
+};
+var HINT_LADDER_LEVELS = [
+  {
+    rung: "R0",
+    label: "Structural Framing Cue",
+    guidance: "Point the learner toward the underlying invariant family or constraint condition without revealing any rule or option."
+  },
+  {
+    rung: "R1",
+    label: "Targeted Boundary Check",
+    guidance: "Name the critical boundary variable or failure scenario they should stress-test, without explaining the fix completely."
+  },
+  {
+    rung: "R2",
+    label: "Concrete Counterexample Trace",
+    guidance: "Show a tiny 3-4 element example where the naive assumption breaks vs holds, stopping before the final conclusion."
+  },
+  {
+    rung: "R3",
+    label: "Deep Structural Scaffold",
+    guidance: "Lay out the invariant equation or structural step except for the final decision the learner must justify."
+  }
+];
+function maxHintRung(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return HINT_RUNG_ORDER[a] >= HINT_RUNG_ORDER[b] ? a : b;
+}
+function buildSessionDigest(session) {
+  if (!session) return "No prior in-session turns.";
+  const parts = [];
+  const observed = session.probeState?.strandsObserved;
+  if (observed && observed.length > 0) {
+    const probeSummary = observed.slice(-4).map(
+      (o) => `${o.strandId.split(":")[1] ?? o.strandId}[floor=${o.floor}, ceiling=${o.ceiling}]: ${o.evidence}`
+    ).join(" | ");
+    parts.push(`Probe: ${probeSummary}`);
+  }
+  if (session.questionHistory.length > 0) {
+    const recent = session.questionHistory.slice(-6).map((h2, idx) => {
+      const shortStrand = h2.strandId.split(":")[1] ?? h2.strandId;
+      const missTag = h2.missClass ? `, miss=${h2.missClass}` : "";
+      const hintTag = h2.highestHintRung ? `, hint=${h2.highestHintRung}` : "";
+      const verbalTag = h2.verbalSummary ? `, note="${h2.verbalSummary}"` : "";
+      return `T${idx + 1}(${shortStrand}, ${h2.modality}, ${h2.score}%${missTag}${hintTag}${verbalTag})`;
+    });
+    parts.push(`RecentTurns: ${recent.join("; ")}`);
+  }
+  if (session.retestQueue && session.retestQueue.length > 0) {
+    parts.push(
+      `RetestQueue: ${session.retestQueue.map((s2) => s2.split(":")[1] ?? s2).join(", ")}`
+    );
+  }
+  if (session.resolvedStrandsInSession.length > 0) {
+    parts.push(
+      `Resolved: ${session.resolvedStrandsInSession.map((s2) => s2.split(":")[1] ?? s2).join(", ")}`
+    );
+  }
+  const joined = parts.join("\n").trim();
+  if (!joined) return "No prior in-session turns.";
+  return joined.length <= DIGEST_MAX_CHARS ? joined : `${joined.slice(0, DIGEST_MAX_CHARS - 3)}...`;
+}
+function isConfiguredKey(key) {
+  if (!key) return false;
+  const c = key.trim().replace(/^["']|["']$/g, "").trim();
+  if (c.length < 15) return false;
+  if (c.startsWith("your_") || c.includes("api_key_here") || c.includes("placeholder")) {
+    return false;
+  }
+  return true;
+}
+function getPreferredGeminiCandidates() {
+  const base = [
+    "gemini-3-flash-preview",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite"
+  ];
+  const g = globalThis;
+  const cached3 = g.__dsavizPatternWorkingGeminiModel;
+  if (cached3 && Date.now() - cached3.cachedAt < 30 * 6e4) {
+    return [cached3.model, ...base.filter((m2) => m2 !== cached3.model)];
+  }
+  return base;
+}
+function rememberWorkingGeminiModel(model) {
+  const g = globalThis;
+  g.__dsavizPatternWorkingGeminiModel = { model, cachedAt: Date.now() };
+}
+var defaultPatternAiCaller = async (systemPrompt, userPrompt) => {
+  const geminiKey = getGeminiKey();
+  if (isConfiguredKey(geminiKey)) {
+    const ai = new GoogleGenAI2({
+      apiKey: geminiKey,
+      httpOptions: { headers: { "User-Agent": "aistudio-build" } }
+    });
+    const candidates = getPreferredGeminiCandidates();
+    for (const model of candidates) {
+      try {
+        const resp = await Promise.race([
+          ai.models.generateContent({
+            model,
+            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            config: {
+              systemInstruction: systemPrompt,
+              responseMimeType: "application/json",
+              temperature: 0.35
+            }
+          }),
+          new Promise(
+            (_, rej) => setTimeout(() => rej(new Error("Gemini model timeout")), 18e3)
+          )
+        ]);
+        const parsed = extractJson(resp.text || "");
+        if (parsed && typeof parsed === "object") {
+          rememberWorkingGeminiModel(model);
+          return parsed;
+        }
+      } catch {
+      }
+    }
+  }
+  const openAIKey = getOpenAIKey();
+  if (isConfiguredKey(openAIKey)) {
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openAIKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.35,
+          max_tokens: 4096
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = extractJson(data?.choices?.[0]?.message?.content || "");
+        if (parsed && typeof parsed === "object") {
+          return parsed;
+        }
+      }
+    } catch {
+    }
+  }
+  const openRouterKey = getOpenRouterKey();
+  if (isConfiguredKey(openRouterKey)) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openRouterKey}`,
+          "Content-Type": "application/json",
+          "X-Title": "DSA.viz Master Patterns"
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.35,
+          max_tokens: 4096
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = extractJson(data?.choices?.[0]?.message?.content || "");
+        if (parsed && typeof parsed === "object") {
+          return parsed;
+        }
+      }
+    } catch {
+    }
+  }
+  return null;
+};
+function uid(prefix) {
+  return `${prefix}_${import_node_crypto3.default.randomBytes(5).toString("hex")}`;
+}
+function buildCalibrationView(patternId, profile) {
+  const pattern = getPatternDefinition(patternId);
+  if (!pattern) {
+    throw new Error(`Unknown pattern: ${patternId}`);
+  }
+  const activeSigs = profile.errorSignatures.filter(
+    (s2) => s2.patternId === patternId && s2.status === "active"
+  );
+  let sum = 0;
+  let due = 0;
+  const now = Date.now();
+  for (const s2 of pattern.strands) {
+    const st = profile.strands[s2.id];
+    sum += computeEffectiveStrandMastery(st, now);
+    if (st?.nextReviewAt && Date.parse(st.nextReviewAt) < now) due++;
+  }
+  const priorMasteryPercent = Math.round(sum / pattern.strands.length);
+  const personalizedWarnings = activeSigs.map(
+    (s2) => `Recurring gap (${s2.recurrenceCount}x): ${s2.summary}`
+  );
+  const aiPrompt = priorMasteryPercent >= 55 ? `You have ${priorMasteryPercent}% familiarity on ${pattern.title}${activeSigs.length > 0 ? ` with ${activeSigs.length} active misconception(s) to repair` : ""}. Are you looking for structured notes + guided checks (Intermediate), or direct edge-case questions + a timed optimization snippet (Pro)?` : `You selected ${pattern.title}. Before we start: do you have a basic idea and want structured invariant notes followed by guided mastery checks (Intermediate), or are you ready for direct questions and a case-study coding optimization audit (Pro)?`;
+  return {
+    patternId,
+    title: pattern.title,
+    aiPrompt,
+    priorMasteryPercent,
+    activeGapsCount: activeSigs.length,
+    dueReviewCount: due,
+    personalizedWarnings,
+    options: [
+      {
+        track: "intermediate",
+        label: "Intermediate (Structured Notes + Guided Checks)",
+        description: "Study first-principles notes tailored to your gaps, answer predict/check questions with verbal reasoning, and get rated on completeness & mastery."
+      },
+      {
+        track: "pro",
+        label: "Pro (Direct Gauntlet + Case-Study Code Audit)",
+        description: "Skip notes. Face indirect invariant questions + write a short case-study snippet rated on Time/Space complexity and optimization."
+      }
+    ]
+  };
+}
+function createNewPatternSession(userId, patternId) {
+  const pattern = getPatternDefinition(patternId);
+  if (!pattern) {
+    throw new Error(`Unknown pattern: ${patternId}`);
+  }
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  return {
+    sessionId: uid("mp"),
+    userId,
+    patternId,
+    track: null,
+    stage: "calibration",
+    notes: null,
+    currentQuestion: null,
+    currentQuestionHints: [],
+    questionHistory: [],
+    pendingRemediationStrands: [],
+    retestQueue: [],
+    resolvedStrandsInSession: [],
+    processedAttemptIds: [],
+    lastEvaluation: null,
+    scorecard: null,
+    createdAt: now,
+    updatedAt: now
+  };
+}
+function buildDeterministicNotes(pattern, profile, prunedStrandIds, session) {
+  const activeSigs = profile.errorSignatures.filter(
+    (s2) => s2.patternId === pattern.id && s2.status === "active"
+  );
+  const probeObservedNotes = (session?.probeState?.strandsObserved ?? []).filter((o) => o.floor === "Needs invariant review").map((o) => `Probe gap (${o.strandId.split(":")[1] ?? o.strandId}): ${o.evidence}`);
+  const highlightedTrapNotes = [
+    ...probeObservedNotes,
+    ...activeSigs.map((s2) => `Your prior gap: ${s2.summary}`),
+    ...profile.cognitiveProfile.dominantMissClass ? [
+      `Watch your dominant pattern miss (${profile.cognitiveProfile.dominantMissClass}): verify the invariant verbally before locking an answer.`
+    ] : []
+  ].slice(0, 4);
+  const lang = profile.cognitiveProfile.preferredLanguage;
+  const starterLang = lang === "python" || lang === "java" || lang === "typescript" ? lang : "cpp";
+  return {
+    patternId: pattern.id,
+    title: `${pattern.title} \u2014 First-Principles Dossier`,
+    prunedStrandIds,
+    highlightedTrapNotes,
+    unconditionalTruths: pattern.strands.slice(0, 3).map((s2) => ({
+      title: s2.title,
+      statement: s2.unconditionalTruth
+    })),
+    motivatedDiscovery: {
+      bruteForceBottleneck: `Naive enumeration re-evaluates overlapping states/ranges in O(n^2) or higher because it ignores monotonic structure across adjacent states.`,
+      keyInsight: pattern.strands[0]?.coreInvariant ?? "Maintain a single verifiable loop invariant that eliminates invalid candidates permanently.",
+      whyItWorks: `By proving why discarded choices cannot improve the answer, ${pattern.title} achieves ${pattern.proCaseStudy.optimalTime} time and ${pattern.proCaseStudy.optimalSpace} space.`
+    },
+    canonicalTemplate: {
+      language: starterLang,
+      code: pattern.proCaseStudy.starterCode[starterLang],
+      invariantAnnotation: pattern.strands.map((s2) => `\u2022 ${s2.title}: ${s2.coreInvariant}`).join("\n")
+    },
+    pitfalls: pattern.strands.slice(0, 3).map((s2) => ({
+      trap: s2.commonTrap,
+      counterexample: pattern.twistTemplates.find((t2) => t2.targetStrandId === s2.id)?.whatItBreaks ?? `Violates invariant: ${s2.coreInvariant}`,
+      fix: s2.coreInvariant
+    }))
+  };
+}
+async function generateTailoredNotes(patternId, profile, deps = {}, session) {
+  const pattern = getPatternDefinition(patternId);
+  if (!pattern) throw new Error(`Unknown pattern: ${patternId}`);
+  const prunedStrandIds = pruneKnownPrereqStrands(patternId, profile);
+  const fallback = buildDeterministicNotes(
+    pattern,
+    profile,
+    prunedStrandIds,
+    session
+  );
+  const aiCaller = deps.aiCaller ?? defaultPatternAiCaller;
+  const activeUserSigs = profile.errorSignatures.filter((s2) => s2.patternId === patternId && s2.status === "active").map((s2) => s2.summary);
+  const systemPrompt = `You are an elite DSA mentor implementing LearnHarness teaching methodology (Principle i: Unconditional Truths First; Principle ii: Motivated Discovery).
+Return STRICT JSON matching this exact shape:
+{
+  "unconditionalTruths": [{"title": string, "statement": string}],
+  "motivatedDiscovery": {"bruteForceBottleneck": string, "keyInsight": string, "whyItWorks": string},
+  "canonicalTemplate": {"language": "cpp"|"python"|"java"|"typescript", "code": string, "invariantAnnotation": string},
+  "pitfalls": [{"trap": string, "counterexample": string, "fix": string}],
+  "highlightedTrapNotes": [string]
+}`;
+  const userPrompt = `Pattern: ${pattern.title} (${pattern.subtitle})
+Strands to cover: ${pattern.strands.map((s2) => `${s2.title} -> Truth: ${s2.unconditionalTruth} | Invariant: ${s2.coreInvariant} | Trap: ${s2.commonTrap}`).join("\n")}
+Already mastered/pruned prerequisites (compress these): ${prunedStrandIds.join(", ") || "none"}
+User's preferred language: ${profile.cognitiveProfile.preferredLanguage}
+User's dominant miss class: ${profile.cognitiveProfile.dominantMissClass ?? "none yet"}
+User's active error signatures on this pattern: ${activeUserSigs.join(" | ") || "none"}
+Session Cognitive Digest (calibration/probe context):
+${buildSessionDigest(session)}
+Confusable twins: ${pattern.confusableTwins.map((c) => `${c.twinPatternId}: ${c.distinguishingCue}`).join("; ")}
+Keep notes crisp, concrete, and high-signal.`;
+  const aiJson = await aiCaller(systemPrompt, userPrompt);
+  if (!aiJson) return fallback;
+  const merged = StructuredPatternNotesSchema.safeParse({
+    patternId: pattern.id,
+    title: `${pattern.title} \u2014 Personalized Pattern Dossier`,
+    prunedStrandIds,
+    highlightedTrapNotes: Array.isArray(aiJson.highlightedTrapNotes) ? aiJson.highlightedTrapNotes.slice(0, 4) : fallback.highlightedTrapNotes,
+    unconditionalTruths: aiJson.unconditionalTruths ?? fallback.unconditionalTruths,
+    motivatedDiscovery: aiJson.motivatedDiscovery ?? fallback.motivatedDiscovery,
+    canonicalTemplate: aiJson.canonicalTemplate ?? fallback.canonicalTemplate,
+    pitfalls: aiJson.pitfalls ?? fallback.pitfalls
+  });
+  return merged.success ? merged.data : fallback;
+}
+function buildFallbackQuestionForStrand(pattern, strand, track, questionIndex, profile, opts) {
+  const isCaseStudy = opts?.forceCaseStudy ?? (track === "pro" && questionIndex >= MAX_QUESTIONS_PRO - 1);
+  if (isCaseStudy) {
+    const lang = profile.cognitiveProfile.preferredLanguage;
+    const starterLang = lang === "python" || lang === "java" || lang === "typescript" ? lang : "cpp";
+    return {
+      id: uid("q"),
+      patternId: pattern.id,
+      strandId: pattern.proCaseStudy.targetStrandId,
+      modality: "code_snippet",
+      phase: "case_study",
+      questionRole: "apply",
+      prompt: `**Case Study \u2014 ${pattern.proCaseStudy.title}**
+
+${pattern.proCaseStudy.prompt}`,
+      contextSnippet: `Constraints: ${pattern.proCaseStudy.constraints}`,
+      allowIdk: false,
+      requireVerbalApproach: true,
+      codeStarter: {
+        language: starterLang,
+        starter: pattern.proCaseStudy.starterCode[starterLang],
+        constraints: pattern.proCaseStudy.constraints
+      },
+      rubric: {
+        expectedReasoning: `Must achieve ${pattern.proCaseStudy.optimalTime} time and ${pattern.proCaseStudy.optimalSpace} space while avoiding: ${pattern.proCaseStudy.optimizationTrap}`,
+        expectedComplexity: {
+          time: pattern.proCaseStudy.optimalTime,
+          space: pattern.proCaseStudy.optimalSpace
+        },
+        keyInvariantsRequired: [strand.coreInvariant]
+      }
+    };
+  }
+  const useMcq = opts?.preferredModality ? opts.preferredModality === "mcq" : questionIndex % 2 === 0;
+  const questionRole = opts?.isRetest ? "check" : useMcq && questionIndex === 0 ? "predict" : "check";
+  if (useMcq) {
+    const twin = pattern.confusableTwins[0];
+    const options = [
+      { value: "invariant", label: strand.coreInvariant },
+      { value: "trap", label: strand.commonTrap },
+      {
+        value: "twin",
+        label: twin ? `Switch unconditionally to ${twin.twinPatternId} regardless of input constraints.` : "Re-scan the entire remaining range on every iteration."
+      },
+      {
+        value: "always_valid",
+        label: "The invariant holds automatically for arbitrary unsorted/negative inputs."
+      }
+    ];
+    return {
+      id: uid("q"),
+      patternId: pattern.id,
+      strandId: strand.id,
+      modality: "mcq",
+      phase: track === "pro" ? "gauntlet" : "guided",
+      questionRole,
+      prompt: opts?.isRetest ? `[Fresh-Surface Retest] Re-verify **${strand.title}** on a clean framing: which statement strictly preserves correctness and optimal asymptotic complexity? Explain *why* in your own words.` : track === "pro" ? `[Pro Gauntlet] For **${strand.title}** in ${pattern.title}, which statement strictly preserves correctness and optimal asymptotic complexity? Explain *why* in your verbal approach.` : `Check your grasp of **${strand.title}**: which statement accurately captures the invariant (and explain why in your own words)?`,
+      options,
+      multiSelect: false,
+      allowIdk: true,
+      requireVerbalApproach: true,
+      rubric: {
+        correctOptionValues: ["invariant"],
+        expectedReasoning: `${strand.unconditionalTruth} ${strand.coreInvariant}`,
+        keyInvariantsRequired: [strand.coreInvariant],
+        distractorMentalModels: {
+          trap: `Held the common pitfall: ${strand.commonTrap}`,
+          twin: `Confused ${pattern.title} with ${twin?.twinPatternId ?? "another pattern"}`,
+          always_valid: "Assumed invariant holds unconditionally without checking constraints."
+        }
+      }
+    };
+  }
+  return {
+    id: uid("q"),
+    patternId: pattern.id,
+    strandId: strand.id,
+    modality: "verbal_text",
+    phase: track === "pro" ? "gauntlet" : "guided",
+    questionRole,
+    prompt: opts?.isRetest ? `[Fresh-Surface Retest] Explain **${strand.title}** from scratch on an unseen edge-case constraint without relying on memorization \u2014 why does "${strand.commonTrap}" break the invariant?` : track === "pro" ? `[Pro Invariant Proof] Suppose someone hits this pitfall on **${strand.title}**: "${strand.commonTrap}". Construct a minimal failing scenario and state the exact invariant that prevents it.` : `In your own words, explain why **${strand.title}** works without missing valid candidates, and what breaks it: "${strand.commonTrap}"`,
+    allowIdk: true,
+    requireVerbalApproach: true,
+    rubric: {
+      expectedReasoning: `${strand.unconditionalTruth} Invariant: ${strand.coreInvariant}`,
+      keyInvariantsRequired: [strand.coreInvariant, strand.unconditionalTruth]
+    }
+  };
+}
+async function generateNextPatternQuestion(session, profile, deps = {}) {
+  const pattern = getPatternDefinition(session.patternId);
+  if (!pattern) throw new Error(`Unknown pattern: ${session.patternId}`);
+  const track = session.track ?? "intermediate";
+  const lastAsked = session.questionHistory[session.questionHistory.length - 1]?.strandId ?? null;
+  const targetCount = track === "pro" ? MAX_QUESTIONS_PRO : MAX_QUESTIONS_INTERMEDIATE;
+  const regularAsked = session.questionHistory.filter(
+    (q) => q.modality !== "twisted_followup"
+  ).length;
+  const hasDoneCaseStudy = session.questionHistory.some(
+    (q) => q.modality === "code_snippet"
+  );
+  const retestCandidateId = (session.retestQueue ?? []).find((id) => id !== lastAsked) ?? session.retestQueue?.[0];
+  const isRetestTurn = Boolean(retestCandidateId) && regularAsked >= targetCount;
+  const isCaseStudy = track === "pro" && !isRetestTurn && !hasDoneCaseStudy && regularAsked >= MAX_QUESTIONS_PRO - 1;
+  const ranked = rankStrandsForPattern(pattern.id, profile, {
+    excludeStrandIds: session.resolvedStrandsInSession,
+    lastAskedStrandId: lastAsked
+  });
+  const chosenStrandId = isRetestTurn && retestCandidateId ? retestCandidateId : isCaseStudy ? pattern.proCaseStudy.targetStrandId : ranked[0]?.strandId ?? pattern.strands[0].id;
+  const strand = getStrandDefinition(chosenStrandId) ?? pattern.strands[0];
+  const qIndex = session.questionHistory.length;
+  let preferredModality;
+  if (isRetestTurn) {
+    const priorForStrand = [...session.questionHistory].reverse().find((h2) => h2.strandId === strand.id);
+    preferredModality = priorForStrand?.modality === "mcq" ? "verbal_text" : "mcq";
+  }
+  const fallback = buildFallbackQuestionForStrand(
+    pattern,
+    strand,
+    track,
+    qIndex,
+    profile,
+    {
+      isRetest: isRetestTurn,
+      preferredModality,
+      forceCaseStudy: isCaseStudy
+    }
+  );
+  const aiCaller = deps.aiCaller ?? defaultPatternAiCaller;
+  const modalityTarget = isCaseStudy ? "code_snippet" : preferredModality ?? (qIndex % 2 === 0 ? "mcq" : "verbal_text");
+  const questionRole = fallback.questionRole ?? "check";
+  const digest2 = buildSessionDigest(session);
+  const systemPrompt = `You are a Socratic DSA interviewer generating ONE targeted assessment question (LearnHarness Commitment Rule: generate expectedReasoning & distractorMentalModels BEFORE the learner answers).
+Return STRICT JSON:
+{
+  "modality": "${modalityTarget}",
+  "questionRole": "${questionRole}",
+  "prompt": string,
+  "contextSnippet": string | null,
+  "options": [{"value": string, "label": string}] | null,
+  "correctOptionValues": [string] | null,
+  "expectedReasoning": string,
+  "expectedComplexity": {"time": string, "space": string} | null,
+  "keyInvariantsRequired": [string],
+  "distractorMentalModels": Record<string, string> | null
+}
+Rules:
+- Never leak correctness in option labels. Options must be bare, plausible claims (3-4 options for mcq).
+- Never include an "I don't know" option (UI renders that automatically).
+- If modality is "code_snippet", pose a tight case-study requiring optimal Time/Space complexity.
+- If Fresh-Surface Retest is YES, craft a completely new scenario/framing to verify genuine transfer without repeating earlier wording.`;
+  const userPrompt = `Pattern: ${pattern.title}
+Track: ${track}
+Target Strand: ${strand.title}
+Question Role: ${questionRole}
+Fresh-Surface Retest: ${isRetestTurn ? "YES (must use a distinct surface from earlier turn)" : "no"}
+Unconditional Truth: ${strand.unconditionalTruth}
+Core Invariant: ${strand.coreInvariant}
+Common Trap: ${strand.commonTrap}
+User Dominant Miss: ${profile.cognitiveProfile.dominantMissClass ?? "none"}
+User Calibration Bias on Strand: ${profile.strands[strand.id]?.calibrationBias ?? 0}
+Session Cognitive Digest:
+${digest2}
+${isCaseStudy ? `Seed Case Study: ${pattern.proCaseStudy.title} \u2014 ${pattern.proCaseStudy.prompt} (Optimal: ${pattern.proCaseStudy.optimalTime}, ${pattern.proCaseStudy.optimalSpace})` : ""}`;
+  const aiJson = await aiCaller(systemPrompt, userPrompt);
+  if (!aiJson || typeof aiJson.prompt !== "string") return fallback;
+  const candidate = {
+    id: fallback.id,
+    patternId: pattern.id,
+    strandId: strand.id,
+    modality: modalityTarget,
+    phase: fallback.phase,
+    questionRole,
+    prompt: aiJson.prompt,
+    contextSnippet: typeof aiJson.contextSnippet === "string" ? aiJson.contextSnippet : fallback.contextSnippet,
+    allowIdk: !isCaseStudy,
+    requireVerbalApproach: true,
+    codeStarter: isCaseStudy ? fallback.codeStarter : void 0,
+    rubric: {
+      correctOptionValues: aiJson.correctOptionValues !== void 0 ? aiJson.correctOptionValues : fallback.rubric?.correctOptionValues,
+      expectedReasoning: typeof aiJson.expectedReasoning === "string" ? aiJson.expectedReasoning : fallback.rubric.expectedReasoning,
+      expectedComplexity: aiJson.expectedComplexity && typeof aiJson.expectedComplexity === "object" ? aiJson.expectedComplexity : fallback.rubric?.expectedComplexity,
+      keyInvariantsRequired: Array.isArray(aiJson.keyInvariantsRequired) ? aiJson.keyInvariantsRequired : fallback.rubric.keyInvariantsRequired,
+      distractorMentalModels: aiJson.distractorMentalModels && typeof aiJson.distractorMentalModels === "object" ? aiJson.distractorMentalModels : fallback.rubric?.distractorMentalModels
+    }
+  };
+  if (modalityTarget === "mcq") {
+    candidate.options = aiJson.options;
+  }
+  return validateAndHealQuestionCard(candidate, fallback);
+}
+function selectBestTwistOperator(pattern, strandId, profile) {
+  const matching = pattern.twistTemplates.filter(
+    (t2) => t2.targetStrandId === strandId
+  );
+  const pool = matching.length > 0 ? matching : pattern.twistTemplates;
+  if (pool.length > 0) {
+    const sorted = [...pool].sort((a, b) => {
+      const ra = profile.cognitiveProfile.twistResilience[a.operator] ?? 50;
+      const rb = profile.cognitiveProfile.twistResilience[b.operator] ?? 50;
+      return ra - rb;
+    });
+    const pick2 = sorted[0];
+    return {
+      operator: pick2.operator,
+      prompt: pick2.promptTemplate,
+      whatItBreaks: pick2.whatItBreaks
+    };
+  }
+  const lowestOp = [...TWIST_OPERATORS].sort((a, b) => {
+    const ra = profile.cognitiveProfile.twistResilience[a] ?? 50;
+    const rb = profile.cognitiveProfile.twistResilience[b] ?? 50;
+    return ra - rb;
+  })[0];
+  const strand = getStrandDefinition(strandId);
+  return {
+    operator: lowestOp,
+    prompt: `Twist (${lowestOp}): Suppose the input violates the usual constraint for **${strand?.title ?? pattern.title}** (${strand?.commonTrap ?? "edge case"}). Construct a minimal 4-element counterexample showing what breaks and state how the invariant must adapt.`,
+    whatItBreaks: strand?.commonTrap ?? "Unchecked assumption"
+  };
+}
+function heuristicCodeAudit(code, pattern, claimedTime, claimedSpace) {
+  const trimmed = code.trim();
+  const optimalTime = pattern.proCaseStudy.optimalTime;
+  const optimalSpace = pattern.proCaseStudy.optimalSpace;
+  if (trimmed.length < 25 || /pass\s*$|return\s+(0|""|null|\[\]|false);?\s*$/m.test(trimmed)) {
+    return {
+      tier: "Incomplete",
+      detectedTime: "N/A",
+      detectedSpace: "N/A",
+      optimalTime,
+      optimalSpace,
+      timeScore: 15,
+      spaceScore: 15,
+      optimizationFeedback: "Snippet is incomplete or still contains stub return values. Implement the full state transition and boundary conditions."
+    };
+  }
+  const loopMatches = trimmed.match(/\b(for|while)\s*\(/g) ?? [];
+  const pythonLoops = trimmed.match(/^\s*(for|while)\s+/gm) ?? [];
+  const totalLoops = loopMatches.length + pythonLoops.length;
+  const nestedIndentLoop = /\b(?:for|while)\b[\s\S]{0,180}\n\s{4,}\b(?:for|while)\b/.test(
+    trimmed
+  );
+  const expectsLinear = optimalTime.includes("O(n)") || optimalTime.includes("O(|s|") || optimalTime.includes("O(V + E)");
+  const expectsO1Space = optimalSpace.includes("O(1)");
+  const braceIdx = trimmed.indexOf("{");
+  const colonIdx = trimmed.indexOf(":\n");
+  const body = braceIdx >= 0 ? trimmed.slice(braceIdx + 1) : colonIdx >= 0 ? trimmed.slice(colonIdx + 2) : trimmed;
+  const allocatesAuxArrayOrMap = /\b(?:vector\s*<[^>]+>(?!\s*&)|new\s+Array\b|unordered_map\b|HashMap\b|dict\s*\(|set\s*\(|new\s+Set\b|new\s+Map\b|\[[^\]]*\]\s*\*\s*n\b)/.test(
+    body
+  );
+  if (expectsLinear && nestedIndentLoop && pattern.id !== "sliding-window") {
+    return {
+      tier: "Brute Force",
+      detectedTime: "O(n^2)",
+      detectedSpace: allocatesAuxArrayOrMap ? "O(n)" : "O(1)",
+      optimalTime,
+      optimalSpace,
+      timeScore: 40,
+      spaceScore: expectsO1Space && allocatesAuxArrayOrMap ? 45 : 75,
+      optimizationFeedback: `Detected nested iteration resembling O(n^2) brute force. Target ${optimalTime} by eliminating redundant scans using the core invariant.`
+    };
+  }
+  if (expectsO1Space && allocatesAuxArrayOrMap) {
+    return {
+      tier: "Better",
+      detectedTime: optimalTime,
+      detectedSpace: "O(n)",
+      optimalTime,
+      optimalSpace,
+      timeScore: 85,
+      spaceScore: 48,
+      optimizationFeedback: `Time looks near-optimal, but auxiliary allocation uses O(n) space instead of ${optimalSpace}. Watch for: ${pattern.proCaseStudy.optimizationTrap}`
+    };
+  }
+  const timeClaimPenalty = claimedTime && !claimedTime.toLowerCase().replace(/\s+/g, "").includes(
+    optimalTime.toLowerCase().replace(/\s+/g, "").slice(0, 4)
+  ) ? 15 : 0;
+  const spaceClaimPenalty = claimedSpace && expectsO1Space && !claimedSpace.toLowerCase().replace(/\s+/g, "").includes("o(1)") ? 15 : 0;
+  return {
+    tier: totalLoops > 0 || trimmed.includes("return") ? "Optimal" : "Better",
+    detectedTime: optimalTime,
+    detectedSpace: optimalSpace,
+    optimalTime,
+    optimalSpace,
+    timeScore: Math.max(60, 92 - timeClaimPenalty),
+    spaceScore: Math.max(60, 92 - spaceClaimPenalty),
+    optimizationFeedback: timeClaimPenalty > 0 || spaceClaimPenalty > 0 ? `Implementation structure matches ${optimalTime} / ${optimalSpace}, though your claimed Big-O (${claimedTime || "?"} / ${claimedSpace || "?"}) needs tightening.` : `Clean structure matching ${optimalTime} time and ${optimalSpace} space.`
+  };
+}
+function heuristicVerbalQuality(verbal, rubricReasoning) {
+  const cleaned = verbal.trim();
+  if (cleaned.length < 12) return 20;
+  const words = cleaned.toLowerCase().split(/[^a-z0-9_]+/).filter((w) => w.length >= 3);
+  const rubricWords = new Set(
+    rubricReasoning.toLowerCase().split(/[^a-z0-9_]+/).filter((w) => w.length >= 4)
+  );
+  let overlap = 0;
+  for (const w of words) {
+    if (rubricWords.has(w)) overlap++;
+  }
+  const lengthBonus = Math.min(35, Math.floor(cleaned.length / 4));
+  const overlapBonus = Math.min(55, overlap * 11);
+  return Math.min(95, 20 + lengthBonus + overlapBonus);
+}
+function mapLanguageForSandbox(lang) {
+  if (lang === "cpp" || lang === "python" || lang === "java") return lang;
+  return null;
+}
+async function evaluateSubmissionAndBuildFollowUp(session, profile, payload, deps = {}) {
+  if (session.processedAttemptIds.includes(payload.attemptId) && session.lastEvaluation && session.lastEvaluation.questionId === payload.questionId) {
+    return {
+      evaluation: session.lastEvaluation,
+      updatedSession: session,
+      updatedProfile: profile
+    };
+  }
+  const card = session.currentQuestion;
+  if (!card || card.id !== payload.questionId) {
+    throw new Error("Question mismatch or no active question in session.");
+  }
+  const pattern = getPatternDefinition(session.patternId);
+  const strand = getStrandDefinition(card.strandId);
+  if (!pattern || !strand) {
+    throw new Error("Invalid pattern or strand state.");
+  }
+  const rubric = card.rubric ?? {
+    expectedReasoning: strand.coreInvariant,
+    keyInvariantsRequired: [strand.coreInvariant]
+  };
+  let sandboxOutcome;
+  if (payload.code && payload.runSandbox) {
+    const rawLang = payload.language ?? card.codeStarter?.language ?? "cpp";
+    const sandboxLang = mapLanguageForSandbox(rawLang);
+    if (sandboxLang) {
+      const runner = deps.codeRunner ?? runSecureCode;
+      const driver = buildCaseStudyTestProgram(
+        pattern.id,
+        rawLang,
+        payload.code
+      );
+      try {
+        const res = await runner(driver.wrappedCode, "", sandboxLang);
+        const summary = parseDriverTestSummary(
+          res.stdout || "",
+          res.exitCode,
+          driver.usedTestHarness
+        );
+        sandboxOutcome = {
+          ran: true,
+          passed: summary.passed && res.status !== "error",
+          ...typeof summary.testsPassed === "number" ? { testsPassed: summary.testsPassed } : {},
+          ...typeof summary.testsTotal === "number" ? { testsTotal: summary.testsTotal } : {},
+          stdout: (res.stdout || "").slice(0, 1200),
+          stderr: (res.stderr || "").slice(0, 1200)
+        };
+      } catch (err) {
+        sandboxOutcome = {
+          ran: true,
+          passed: false,
+          stdout: "",
+          stderr: String(err?.message || "Sandbox failed").slice(0, 400)
+        };
+      }
+    }
+  }
+  const verbalText = (payload.verbalAnswer ?? "").trim();
+  const choseIdk = payload.choseIdk === true;
+  let selectionCorrect = true;
+  if (card.modality === "mcq" || card.options && card.options.length > 0) {
+    const expected = new Set(rubric.correctOptionValues ?? []);
+    const chosen = new Set(payload.selectedOptions ?? []);
+    selectionCorrect = !choseIdk && expected.size > 0 && expected.size === chosen.size && [...expected].every((v) => chosen.has(v));
+  } else if (choseIdk) {
+    selectionCorrect = false;
+  }
+  let verbalScore = heuristicVerbalQuality(verbalText, rubric.expectedReasoning);
+  let codeAudit;
+  let codeScore;
+  if (card.modality === "code_snippet") {
+    codeAudit = heuristicCodeAudit(
+      payload.code ?? "",
+      pattern,
+      payload.claimedTimeComplexity,
+      payload.claimedSpaceComplexity
+    );
+    if (sandboxOutcome) {
+      codeAudit.sandboxOutcome = sandboxOutcome;
+      if (sandboxOutcome.ran && !sandboxOutcome.passed) {
+        codeAudit.tier = "Incomplete";
+        codeAudit.timeScore = Math.min(codeAudit.timeScore, 40);
+      }
+    }
+    codeScore = Math.round((codeAudit.timeScore + codeAudit.spaceScore) / 2);
+  }
+  const hintsUsed = session.currentQuestionHints ?? [];
+  const highestLadderHint = hintsUsed.length > 0 ? hintsUsed[hintsUsed.length - 1].rung : null;
+  const sessionDigest = buildSessionDigest(session);
+  const aiCaller = deps.aiCaller ?? defaultPatternAiCaller;
+  let aiEval = null;
+  if (!choseIdk) {
+    const systemPrompt = `You are a strict DSA mentor & complexity auditor. Evaluate the learner's response across BOTH their choice/code AND their verbal reasoning.
+Return STRICT JSON:
+{
+  "isCorrect": boolean,
+  "hiddenGapDetected": boolean,
+  "score": number (0..100),
+  "verbalScore": number (0..100),
+  "missClass": "cue"|"discrimination"|"invariant-break"|"execution"|"complexity-suboptimal"|"careless"|"structural"|null,
+  "hintRung": "R0"|"R1"|"R2"|"R3"|"R4"|"R5"|null,
+  "errorSignatureKey": string | null (short canonical slug e.g. "sliding-window::if-instead-of-while"),
+  "gapSummary": string | null (max 200 chars),
+  "verdictSummary": string,
+  "surgicalTeaching": string | null (if gap/miss, 2-4 crisp sentences repairing ONLY the broken assumption, never a generic textbook lecture),
+  "twistedFollowUp": {
+    "operator": "constraint-twist"|"reverse-premise"|"break-the-premise"|"discrimination",
+    "prompt": string,
+    "expectedReasoning": string
+  } | null,
+  "codeAudit": {
+    "tier": "Incomplete"|"Brute Force"|"Better"|"Optimal",
+    "detectedTime": string,
+    "detectedSpace": string,
+    "timeScore": number,
+    "spaceScore": number,
+    "optimizationFeedback": string
+  } | null
+}
+Crucial rule: If the learner picked the right MCQ or wrote working code, BUT their verbal reasoning has a flawed invariant or suboptimal complexity, set hiddenGapDetected=true and provide surgicalTeaching + twistedFollowUp.`;
+    const userPrompt = `Pattern: ${pattern.title} | Track: ${session.track} | Strand: ${strand.title}
+Question (${card.modality}${card.questionRole ? `, role=${card.questionRole}` : ""}${card.twistOperator ? `, twist=${card.twistOperator}` : ""}): ${card.prompt}
+Committed Rubric Reasoning: ${rubric.expectedReasoning}
+Key Invariants: ${rubric.keyInvariantsRequired.join(" | ")}
+Hints Requested Before Submitting: ${hintsUsed.map((h2) => h2.rung).join(", ") || "none"}
+Session Cognitive Digest:
+${sessionDigest}
+Learner Selected Options: ${JSON.stringify(payload.selectedOptions ?? [])} (selectionCorrect=${selectionCorrect})
+Learner Verbal Approach: "${verbalText || "(empty)"}"
+${payload.code ? `Learner Code (${payload.language ?? "cpp"}):
+${payload.code}
+Claimed Time: ${payload.claimedTimeComplexity || "?"} | Claimed Space: ${payload.claimedSpaceComplexity || "?"}` : ""}
+${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandboxOutcome.stderr}` : ""}`;
+    aiEval = await aiCaller(systemPrompt, userPrompt);
+  }
+  let isCorrect = choseIdk ? false : card.modality === "code_snippet" ? (codeAudit?.tier === "Optimal" || codeAudit?.tier === "Better") && verbalScore >= 45 : card.modality === "mcq" ? selectionCorrect : verbalScore >= 60;
+  let hiddenGapDetected = false;
+  if (!choseIdk && card.modality === "mcq" && selectionCorrect && verbalScore < 45 && verbalText.length > 0) {
+    hiddenGapDetected = true;
+  }
+  if (!choseIdk && card.modality === "mcq" && selectionCorrect && verbalText.length === 0 && card.requireVerbalApproach) {
+    hiddenGapDetected = true;
+  }
+  if (card.modality === "code_snippet" && codeAudit && (codeAudit.tier === "Brute Force" || codeAudit.tier === "Better")) {
+    hiddenGapDetected = true;
+  }
+  let score = choseIdk ? 10 : card.modality === "code_snippet" ? Math.round((codeScore ?? 50) * 0.65 + verbalScore * 0.35) : card.modality === "mcq" ? Math.round((selectionCorrect ? 70 : 15) + verbalScore * 0.3) : verbalScore;
+  let missClass = isCorrect && !hiddenGapDetected ? null : card.modality === "code_snippet" && codeAudit && codeAudit.tier !== "Optimal" ? "complexity-suboptimal" : choseIdk ? "cue" : "invariant-break";
+  let hintRung = choseIdk ? "R2" : isCorrect && !hiddenGapDetected ? null : "R1";
+  let errorSignatureKey = missClass ? `${pattern.id}::${strand.id.split(":")[1] ?? strand.id}::${missClass}` : null;
+  let gapSummary = missClass ? `${strand.title}: ${strand.commonTrap}`.slice(0, 220) : null;
+  let verdictSummary = choseIdk ? `You flagged an honest gap on **${strand.title}**. Let's lock in the invariant and test it with a twist.` : isCorrect && !hiddenGapDetected ? `Solid grasp of **${strand.title}**. Your reasoning aligns with the invariant.` : hiddenGapDetected ? `Your surface answer was close, but your verbal/complexity justification exposed a gap on **${strand.title}**.` : `Not quite on **${strand.title}** \u2014 let's repair the exact broken assumption.`;
+  let surgicalTeaching = null;
+  let aiTwistedPayload = null;
+  if (aiEval) {
+    if (typeof aiEval.isCorrect === "boolean") isCorrect = aiEval.isCorrect;
+    if (typeof aiEval.hiddenGapDetected === "boolean") {
+      hiddenGapDetected = aiEval.hiddenGapDetected;
+    }
+    if (typeof aiEval.score === "number") {
+      score = Math.max(0, Math.min(100, Math.round(aiEval.score)));
+    }
+    if (typeof aiEval.verbalScore === "number") {
+      verbalScore = Math.max(0, Math.min(100, Math.round(aiEval.verbalScore)));
+    }
+    if (typeof aiEval.verdictSummary === "string") {
+      verdictSummary = aiEval.verdictSummary;
+    }
+    if (typeof aiEval.surgicalTeaching === "string") {
+      surgicalTeaching = aiEval.surgicalTeaching;
+    }
+    if (aiEval.missClass !== void 0) {
+      const healedMiss = healMissClass(aiEval.missClass);
+      missClass = healedMiss ?? (isCorrect && !hiddenGapDetected ? null : missClass);
+    }
+    if (typeof aiEval.hintRung === "string") {
+      const parsedRung = HintRungSchema.safeParse(
+        stripModelValueDebris(aiEval.hintRung).toUpperCase()
+      );
+      if (parsedRung.success) hintRung = parsedRung.data;
+    } else if (aiEval.hintRung === null && isCorrect && !hiddenGapDetected) {
+      hintRung = null;
+    }
+    if (typeof aiEval.errorSignatureKey === "string") {
+      const cleanedSig = stripModelValueDebris(aiEval.errorSignatureKey);
+      if (cleanedSig) errorSignatureKey = cleanedSig.slice(0, 120);
+    }
+    if (typeof aiEval.gapSummary === "string") {
+      gapSummary = aiEval.gapSummary.slice(0, 220);
+    }
+    if (aiEval.codeAudit && typeof aiEval.codeAudit === "object" && card.modality === "code_snippet") {
+      const mergedAudit = CodeOptimizationAuditSchema.safeParse({
+        ...codeAudit,
+        ...aiEval.codeAudit,
+        optimalTime: pattern.proCaseStudy.optimalTime,
+        optimalSpace: pattern.proCaseStudy.optimalSpace,
+        sandboxOutcome
+      });
+      if (mergedAudit.success) {
+        codeAudit = mergedAudit.data;
+        codeScore = Math.round((codeAudit.timeScore + codeAudit.spaceScore) / 2);
+      }
+    }
+    if (aiEval.twistedFollowUp && typeof aiEval.twistedFollowUp === "object") {
+      const tw = aiEval.twistedFollowUp;
+      if (typeof tw.prompt === "string" && typeof tw.expectedReasoning === "string") {
+        const cleanedOp = stripModelValueDebris(tw.operator);
+        aiTwistedPayload = {
+          operator: TWIST_OPERATORS.includes(cleanedOp) ? cleanedOp : "constraint-twist",
+          prompt: tw.prompt,
+          expectedReasoning: tw.expectedReasoning
+        };
+      }
+    }
+  }
+  hintRung = maxHintRung(hintRung, highestLadderHint);
+  const usedHeavyHint = highestLadderHint === "R2" || highestLadderHint === "R3" || highestLadderHint === "R4" || highestLadderHint === "R5";
+  if (isCorrect && !hiddenGapDetected && usedHeavyHint && highestLadderHint) {
+    verdictSummary = `${verdictSummary} (Queued for an unassisted fresh-surface check after ${highestLadderHint} hint.)`;
+  }
+  const updatedProfile = applyStrandReviewUpdate(profile, {
+    patternId: pattern.id,
+    strandId: strand.id,
+    score,
+    isCorrect,
+    hiddenGapDetected,
+    missClass,
+    hintRung,
+    gapNote: gapSummary,
+    errorSignatureKey,
+    twistOperator: card.twistOperator,
+    verbalScore,
+    codeScore,
+    track: session.track ?? "intermediate"
+  });
+  const twistsSoFar = session.questionHistory.filter(
+    (q) => q.modality === "twisted_followup"
+  ).length;
+  const needsTwist = (!isCorrect || hiddenGapDetected) && card.modality !== "twisted_followup" && twistsSoFar < MAX_TWISTS_PER_SESSION;
+  if (needsTwist && !surgicalTeaching) {
+    surgicalTeaching = `**Invariant Repair (${strand.title}):**
+1. Ground truth: ${strand.unconditionalTruth}
+2. Exact rule: ${strand.coreInvariant}
+3. Why your step missed: watch out for *${strand.commonTrap}*.`;
+  }
+  let twistedFollowUp = null;
+  if (needsTwist) {
+    const selectedTwist = aiTwistedPayload ?? (() => {
+      const t2 = selectBestTwistOperator(pattern, strand.id, updatedProfile);
+      return {
+        operator: t2.operator,
+        prompt: t2.prompt,
+        expectedReasoning: `${t2.whatItBreaks}. Repair via: ${strand.coreInvariant}`
+      };
+    })();
+    twistedFollowUp = {
+      id: uid("q"),
+      patternId: pattern.id,
+      strandId: strand.id,
+      modality: "twisted_followup",
+      phase: "twisted_remediation",
+      questionRole: "apply",
+      twistOperator: selectedTwist.operator,
+      prompt: selectedTwist.prompt,
+      allowIdk: true,
+      requireVerbalApproach: true,
+      rubric: {
+        expectedReasoning: selectedTwist.expectedReasoning,
+        keyInvariantsRequired: [strand.coreInvariant]
+      }
+    };
+  }
+  let nextRetestQueue = [...session.retestQueue ?? []];
+  if (isCorrect && !hiddenGapDetected && !usedHeavyHint) {
+    if (card.modality !== "twisted_followup") {
+      nextRetestQueue = nextRetestQueue.filter((id) => id !== strand.id);
+    }
+  } else if (!nextRetestQueue.includes(strand.id)) {
+    nextRetestQueue.push(strand.id);
+  }
+  const verbalSummary = verbalText ? verbalText.length > 140 ? `${verbalText.slice(0, 137)}...` : verbalText : void 0;
+  const updatedHistory = [
+    ...session.questionHistory,
+    {
+      questionId: card.id,
+      strandId: strand.id,
+      modality: card.modality,
+      score,
+      missClass,
+      ...hintRung ? { highestHintRung: hintRung } : {},
+      ...verbalSummary ? { verbalSummary } : {}
+    }
+  ];
+  const nextResolved = isCorrect && !hiddenGapDetected && !usedHeavyHint && !session.resolvedStrandsInSession.includes(strand.id) ? [...session.resolvedStrandsInSession, strand.id] : session.resolvedStrandsInSession;
+  const targetCount = session.track === "pro" ? MAX_QUESTIONS_PRO : MAX_QUESTIONS_INTERMEDIATE;
+  const regularAsked = updatedHistory.filter(
+    (q) => q.modality !== "twisted_followup"
+  ).length;
+  const maxAllowedWithRetests = targetCount + MAX_RETESTS_PER_SESSION;
+  let nextQuestion = null;
+  let readyForScorecard = false;
+  if (!twistedFollowUp) {
+    if (regularAsked < targetCount) {
+      const tempSession = {
+        ...session,
+        questionHistory: updatedHistory,
+        resolvedStrandsInSession: nextResolved,
+        retestQueue: nextRetestQueue
+      };
+      nextQuestion = await generateNextPatternQuestion(
+        tempSession,
+        updatedProfile,
+        deps
+      );
+    } else if (nextRetestQueue.length > 0 && regularAsked < maxAllowedWithRetests) {
+      const tempSession = {
+        ...session,
+        questionHistory: updatedHistory,
+        resolvedStrandsInSession: nextResolved,
+        retestQueue: nextRetestQueue
+      };
+      nextQuestion = await generateNextPatternQuestion(
+        tempSession,
+        updatedProfile,
+        deps
+      );
+    } else {
+      readyForScorecard = true;
+    }
+  }
+  const evaluation = {
+    questionId: card.id,
+    strandId: strand.id,
+    isCorrect,
+    hiddenGapDetected,
+    score,
+    missClass,
+    hintRung,
+    errorSignatureKey,
+    verdictSummary,
+    surgicalTeaching,
+    committedAnswerReveal: rubric.expectedReasoning,
+    codeAudit,
+    twistedFollowUp,
+    nextQuestion,
+    readyForScorecard
+  };
+  const updatedSession = {
+    ...session,
+    stage: twistedFollowUp ? "remediating" : readyForScorecard ? "completed" : "questioning",
+    currentQuestion: twistedFollowUp ?? nextQuestion,
+    currentQuestionHints: [],
+    questionHistory: updatedHistory,
+    pendingRemediationStrands: needsTwist ? Array.from(/* @__PURE__ */ new Set([...session.pendingRemediationStrands, strand.id])) : session.pendingRemediationStrands.filter((s2) => s2 !== strand.id),
+    retestQueue: nextRetestQueue,
+    resolvedStrandsInSession: nextResolved,
+    processedAttemptIds: [...session.processedAttemptIds, payload.attemptId],
+    lastEvaluation: evaluation,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  return { evaluation, updatedSession, updatedProfile };
+}
+function buildMasteryScorecard(session, profile) {
+  const pattern = getPatternDefinition(session.patternId);
+  if (!pattern) throw new Error(`Unknown pattern: ${session.patternId}`);
+  const track = session.track ?? "intermediate";
+  const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+  const nowMs = Date.parse(nowIso);
+  const strandBreakdown = pattern.strands.map((s2) => {
+    const st = profile.strands[s2.id];
+    const score = computeEffectiveStrandMastery(st, nowMs);
+    return {
+      strandId: s2.id,
+      title: s2.title,
+      score,
+      status: st?.status ?? "untouched"
+    };
+  });
+  const historyScores = session.questionHistory.map((h2) => h2.score);
+  const avgSessionScore = historyScores.length > 0 ? Math.round(
+    historyScores.reduce((a, b) => a + b, 0) / historyScores.length
+  ) : 0;
+  const touchedStrands = strandBreakdown.filter((s2) => s2.status !== "untouched");
+  const completenessScore = Math.round(
+    touchedStrands.length / Math.max(1, pattern.strands.length) * 45 + avgSessionScore * 0.55
+  );
+  const codeAudit = session.lastEvaluation?.codeAudit;
+  const optimizationScore = track === "pro" ? codeAudit ? Math.round((codeAudit.timeScore + codeAudit.spaceScore) / 2) : avgSessionScore : null;
+  const verbalClarityScore = Math.max(
+    0,
+    Math.min(100, Math.round(avgSessionScore + profile.cognitiveProfile.verbalToCodeGap * 0.25))
+  );
+  const overallScore = optimizationScore !== null ? Math.round(avgSessionScore * 0.45 + optimizationScore * 0.55) : completenessScore;
+  const strengths = strandBreakdown.filter((s2) => s2.score >= 75).map((s2) => `${s2.title} (${s2.score}%)`);
+  const gapsToReinforce = profile.errorSignatures.filter((sig2) => sig2.patternId === pattern.id && sig2.status === "active").map((sig2) => ({
+    strandId: sig2.strandId,
+    summary: sig2.summary,
+    missClass: sig2.missClass
+  }));
+  const completedAt = nowIso;
+  const scorecard = {
+    sessionId: session.sessionId,
+    patternId: pattern.id,
+    track,
+    overallScore,
+    completenessScore,
+    optimizationScore,
+    verbalClarityScore,
+    strandBreakdown,
+    strengths,
+    gapsToReinforce,
+    recommendedProblemSlugs: pattern.linkedProblemSlugs.slice(0, 3),
+    completedAt
+  };
+  const resolvedGaps = profile.errorSignatures.filter(
+    (sig2) => sig2.patternId === pattern.id && sig2.status === "repaired"
+  ).length;
+  const updatedProfile = recordCompletedSessionDigest(
+    profile,
+    {
+      sessionId: session.sessionId,
+      patternId: pattern.id,
+      track,
+      overallScore,
+      resolvedGaps,
+      remainingGaps: gapsToReinforce.length,
+      completedAt
+    },
+    optimizationScore
+  );
+  return { scorecard, updatedProfile };
+}
+async function startCalibrationProbe(session, profile, deps = {}) {
+  const pattern = getPatternDefinition(session.patternId);
+  if (!pattern) throw new Error(`Unknown pattern: ${session.patternId}`);
+  const sortedByFanout = [...pattern.strands].sort(
+    (a, b) => b.fanoutWeight - a.fanoutWeight
+  );
+  const strand = sortedByFanout[0] ?? pattern.strands[0];
+  const twin = pattern.confusableTwins[0];
+  const fallbackProbe = {
+    id: uid("probe"),
+    patternId: pattern.id,
+    strandId: strand.id,
+    modality: "mcq",
+    phase: "probe",
+    questionRole: "predict",
+    prompt: `[Calibration Probe 1/2] Before picking notes vs Pro gauntlet on **${pattern.title}**, which reasoning rule holds without breaking on edge cases?`,
+    options: [
+      { value: "invariant", label: strand.coreInvariant },
+      { value: "trap", label: strand.commonTrap },
+      {
+        value: "twin",
+        label: twin ? `Always default to ${twin.twinPatternId} even when ${pattern.title} applies.` : "Sort or copy the full array inside the inner loop."
+      }
+    ],
+    multiSelect: false,
+    allowIdk: true,
+    requireVerbalApproach: true,
+    rubric: {
+      correctOptionValues: ["invariant"],
+      expectedReasoning: `${strand.unconditionalTruth} ${strand.coreInvariant}`,
+      keyInvariantsRequired: [strand.coreInvariant]
+    }
+  };
+  const aiCaller = deps.aiCaller ?? defaultPatternAiCaller;
+  const aiJson = await aiCaller(
+    `You are a LearnHarness Diagnostic Prober calibrated for DSA. Generate ONE crisp high-signal diagnostic MCQ (with verbal reasoning) to bracket whether the learner belongs in Intermediate or Pro for ${pattern.title}. Return JSON: { "prompt": string, "options": [{"value": string, "label": string}], "correctOptionValues": [string], "expectedReasoning": string }.`,
+    `Pattern: ${pattern.title}
+Target Strand: ${strand.title}
+Core Invariant: ${strand.coreInvariant}
+Common Trap: ${strand.commonTrap}`
+  );
+  let probeCard = fallbackProbe;
+  if (aiJson && typeof aiJson.prompt === "string") {
+    probeCard = validateAndHealQuestionCard(
+      {
+        ...fallbackProbe,
+        prompt: aiJson.prompt,
+        options: aiJson.options,
+        rubric: {
+          correctOptionValues: aiJson.correctOptionValues !== void 0 ? aiJson.correctOptionValues : fallbackProbe.rubric?.correctOptionValues,
+          expectedReasoning: typeof aiJson.expectedReasoning === "string" ? aiJson.expectedReasoning : fallbackProbe.rubric.expectedReasoning,
+          keyInvariantsRequired: [strand.coreInvariant]
+        }
+      },
+      fallbackProbe
+    );
+  }
+  return {
+    ...session,
+    stage: "probing",
+    probeState: {
+      questionsAsked: 1,
+      answers: [],
+      strandsObserved: [],
+      recommendedTrack: null,
+      recommendationRationale: null
+    },
+    currentQuestion: probeCard,
+    currentQuestionHints: [],
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+async function evaluateProbeSubmission(session, profile, payload, deps = {}) {
+  if (session.processedAttemptIds.includes(payload.attemptId) && session.lastEvaluation && session.lastEvaluation.questionId === payload.questionId) {
+    return {
+      evaluation: session.lastEvaluation,
+      updatedSession: session,
+      updatedProfile: profile
+    };
+  }
+  const card = session.currentQuestion;
+  if (!card || card.id !== payload.questionId) {
+    throw new Error("Question mismatch or no active probe question.");
+  }
+  const pattern = getPatternDefinition(session.patternId);
+  const strand = getStrandDefinition(card.strandId);
+  if (!pattern || !strand) throw new Error("Invalid pattern or strand.");
+  const rubric = card.rubric ?? {
+    expectedReasoning: strand.coreInvariant,
+    keyInvariantsRequired: [strand.coreInvariant]
+  };
+  const hintsUsed = session.currentQuestionHints ?? [];
+  const highestLadderHint = hintsUsed.length > 0 ? hintsUsed[hintsUsed.length - 1].rung : null;
+  const verbalText = (payload.verbalAnswer ?? "").trim();
+  const choseIdk = payload.choseIdk === true;
+  const expected = new Set(rubric.correctOptionValues ?? []);
+  const chosen = new Set(payload.selectedOptions ?? []);
+  const selectionCorrect = card.modality === "mcq" ? !choseIdk && expected.size > 0 && expected.size === chosen.size && [...expected].every((v) => chosen.has(v)) : !choseIdk;
+  const verbalScore = heuristicVerbalQuality(
+    verbalText,
+    rubric.expectedReasoning
+  );
+  const hiddenGap = card.modality === "mcq" && selectionCorrect && verbalScore < 45;
+  const isCorrect = !choseIdk && selectionCorrect && verbalScore >= 45;
+  const score = choseIdk ? 10 : card.modality === "mcq" ? Math.round((selectionCorrect ? 65 : 15) + verbalScore * 0.35) : verbalScore;
+  const probeHintRung = maxHintRung(
+    choseIdk ? "R2" : null,
+    highestLadderHint
+  );
+  const updatedProfile = applyStrandReviewUpdate(profile, {
+    patternId: pattern.id,
+    strandId: strand.id,
+    score,
+    isCorrect,
+    hiddenGapDetected: hiddenGap,
+    missClass: isCorrect ? null : choseIdk ? "cue" : "invariant-break",
+    hintRung: probeHintRung,
+    verbalScore
+  });
+  const prevProbe = session.probeState ?? {
+    questionsAsked: 1,
+    answers: [],
+    strandsObserved: [],
+    recommendedTrack: null,
+    recommendationRationale: null
+  };
+  const nextAnswers = [
+    ...prevProbe.answers,
+    { strandId: strand.id, isCorrect, score }
+  ];
+  const observation = {
+    strandId: strand.id,
+    floor: isCorrect ? strand.title : "Needs invariant review",
+    ceiling: isCorrect && !hiddenGap ? "Verified boundary judgment" : strand.title,
+    evidence: choseIdk ? "Flagged uncertainty on probe check." : `${selectionCorrect ? "Right" : "Missed"} probe choice (verbal ${verbalScore}%${probeHintRung ? `, hint=${probeHintRung}` : ""}).`
+  };
+  const nextObserved = [
+    ...prevProbe.strandsObserved ?? [],
+    observation
+  ];
+  if (nextAnswers.length < 2) {
+    const nextStrand = pattern.strands.find((s2) => s2.id !== strand.id) ?? pattern.strands[0];
+    const twist = pattern.twistTemplates[0];
+    const probeQ2 = {
+      id: uid("probe"),
+      patternId: pattern.id,
+      strandId: nextStrand.id,
+      modality: "verbal_text",
+      phase: "probe",
+      questionRole: "check",
+      prompt: isCorrect ? `[Calibration Probe 2/2 \u2014 Upper Bound] Nice! Stepping up difficulty on **${nextStrand.title}**: ${twist?.promptTemplate ?? `Explain what constraint change breaks ${nextStrand.title} and how to maintain optimal Time/Space.`}` : `[Calibration Probe 2/2 \u2014 Ground Check] Let's check your foundation on **${nextStrand.title}**: in your own words, why does "${nextStrand.commonTrap}" cause an incorrect answer?`,
+      allowIdk: true,
+      requireVerbalApproach: true,
+      rubric: {
+        expectedReasoning: `${nextStrand.unconditionalTruth} ${nextStrand.coreInvariant}`,
+        keyInvariantsRequired: [nextStrand.coreInvariant]
+      }
+    };
+    const evaluation2 = {
+      questionId: card.id,
+      strandId: strand.id,
+      isCorrect,
+      hiddenGapDetected: hiddenGap,
+      score,
+      missClass: isCorrect ? null : choseIdk ? "cue" : "invariant-break",
+      hintRung: probeHintRung,
+      errorSignatureKey: null,
+      verdictSummary: isCorrect ? "Probe 1/2 strong \u2014 testing a harder boundary next." : "Probe 1/2 surfaced uncertainty \u2014 checking your baseline foundation next.",
+      surgicalTeaching: null,
+      committedAnswerReveal: rubric.expectedReasoning,
+      twistedFollowUp: null,
+      nextQuestion: probeQ2,
+      readyForScorecard: false
+    };
+    return {
+      evaluation: evaluation2,
+      updatedProfile,
+      updatedSession: {
+        ...session,
+        stage: "probing",
+        probeState: {
+          ...prevProbe,
+          questionsAsked: 2,
+          answers: nextAnswers,
+          strandsObserved: nextObserved
+        },
+        currentQuestion: probeQ2,
+        currentQuestionHints: [],
+        processedAttemptIds: [...session.processedAttemptIds, payload.attemptId],
+        lastEvaluation: evaluation2,
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    };
+  }
+  const avgProbeScore = Math.round(
+    nextAnswers.reduce((acc, a) => acc + a.score, 0) / nextAnswers.length
+  );
+  const bothPassed = nextAnswers.every((a) => a.isCorrect);
+  const recommendedTrack = bothPassed || avgProbeScore >= 75 ? "pro" : "intermediate";
+  const rationale = recommendedTrack === "pro" ? `Diagnostic Probe complete (${avgProbeScore}% average across 2 probes): your invariant intuition is solid. Routing you directly to the **Pro** gauntlet & case-study complexity audit.` : `Diagnostic Probe complete (${avgProbeScore}% average across 2 probes): let's solidify key invariants first with **Intermediate** tailored notes before tackling twisted cases.`;
+  let transitionedSession = {
+    ...session,
+    track: recommendedTrack,
+    probeState: {
+      questionsAsked: nextAnswers.length,
+      answers: nextAnswers,
+      strandsObserved: nextObserved,
+      recommendedTrack,
+      recommendationRationale: rationale
+    },
+    currentQuestionHints: [],
+    processedAttemptIds: [...session.processedAttemptIds, payload.attemptId],
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  let nextQuestion = null;
+  if (recommendedTrack === "intermediate") {
+    const notes = await generateTailoredNotes(
+      pattern.id,
+      updatedProfile,
+      deps,
+      transitionedSession
+    );
+    transitionedSession = {
+      ...transitionedSession,
+      stage: "studying_notes",
+      notes,
+      currentQuestion: null
+    };
+  } else {
+    nextQuestion = await generateNextPatternQuestion(
+      transitionedSession,
+      updatedProfile,
+      deps
+    );
+    transitionedSession = {
+      ...transitionedSession,
+      stage: "questioning",
+      notes: null,
+      currentQuestion: nextQuestion
+    };
+  }
+  const evaluation = {
+    questionId: card.id,
+    strandId: strand.id,
+    isCorrect,
+    hiddenGapDetected: hiddenGap,
+    score,
+    missClass: isCorrect ? null : choseIdk ? "cue" : "invariant-break",
+    hintRung: probeHintRung,
+    errorSignatureKey: null,
+    verdictSummary: rationale,
+    surgicalTeaching: null,
+    committedAnswerReveal: rubric.expectedReasoning,
+    twistedFollowUp: null,
+    nextQuestion,
+    readyForScorecard: false
+  };
+  transitionedSession.lastEvaluation = evaluation;
+  return {
+    evaluation,
+    updatedSession: transitionedSession,
+    updatedProfile
+  };
+}
+async function requestProgressiveHint(session, _profile, deps = {}) {
+  const card = session.currentQuestion;
+  if (!card) {
+    throw new Error("No active question to generate a hint for.");
+  }
+  const pattern = getPatternDefinition(session.patternId);
+  const strand = getStrandDefinition(card.strandId);
+  if (!pattern || !strand) {
+    throw new Error("Invalid pattern or strand state.");
+  }
+  const existingHints = session.currentQuestionHints ?? [];
+  if (existingHints.length >= HINT_LADDER_LEVELS.length) {
+    return {
+      hint: existingHints[existingHints.length - 1],
+      updatedSession: session,
+      alreadyAtMax: true
+    };
+  }
+  const tier = HINT_LADDER_LEVELS[existingHints.length];
+  const twistBreak = pattern.twistTemplates.find((t2) => t2.targetStrandId === strand.id)?.whatItBreaks ?? strand.coreInvariant;
+  const fallbackHints = {
+    R0: `Focus on the unconditional property for ${strand.title}: ${strand.unconditionalTruth}`,
+    R1: `Stress-test your assumption against this exact failure mode: "${strand.commonTrap}".`,
+    R2: `Walk a tiny 3-4 element example where ${twistBreak.slice(0, 140)} \u2014 notice how the pointer/state invariant reacts.`,
+    R3: `Core invariant scaffold: ${strand.coreInvariant}${card.codeStarter ? ` Aim for ${pattern.proCaseStudy.optimalTime} time and ${pattern.proCaseStudy.optimalSpace} space.` : ""}`
+  };
+  const aiCaller = deps.aiCaller ?? defaultPatternAiCaller;
+  const systemPrompt = `You are a Socratic DSA mentor issuing ONE progressive hint at rung ${tier.rung} (${tier.label}).
+Return STRICT JSON:
+{
+  "hintText": string
+}
+Rules:
+- Pedagogical tier: ${tier.guidance}
+- NEVER reveal the exact correct MCQ option label/value or full copy-pasteable solution code.
+- Keep the hint crisp (1-3 sentences).`;
+  const userPrompt = `Pattern: ${pattern.title} | Strand: ${strand.title}
+Question (${card.modality}): ${card.prompt}
+Target Rung: ${tier.rung} (${tier.label})
+Core Invariant: ${strand.coreInvariant}
+Common Trap: ${strand.commonTrap}
+Previously Issued Hints: ${existingHints.map((h2) => `[${h2.rung}] ${h2.hintText}`).join(" | ") || "none"}
+Session Cognitive Digest:
+${buildSessionDigest(session)}`;
+  const aiJson = await aiCaller(systemPrompt, userPrompt);
+  const rawText = aiJson && typeof aiJson.hintText === "string" ? aiJson.hintText.trim() : "";
+  const hintText = rawText.length >= 12 ? rawText.slice(0, 500) : fallbackHints[tier.rung];
+  const hint = {
+    rung: tier.rung,
+    label: tier.label,
+    hintText
+  };
+  const nextHints = [...existingHints, hint];
+  const updatedSession = {
+    ...session,
+    currentQuestionHints: nextHints,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  return {
+    hint,
+    updatedSession,
+    alreadyAtMax: nextHints.length >= HINT_LADDER_LEVELS.length
+  };
+}
+
+// src/lib/master-patterns/turn-liveness.ts
+var MAX_PATTERN_TURN_MS = 12e4;
+function getRegistry() {
+  const g = globalThis;
+  return g.__dsavizPatternTurnRegistry ??= /* @__PURE__ */ new Map();
+}
+function getOwners() {
+  const g = globalThis;
+  return g.__dsavizPatternTurnOwners ??= /* @__PURE__ */ new Map();
+}
+function isPatternTurnRunning(sessionId) {
+  const registry2 = getRegistry();
+  const owners = getOwners();
+  const startedAt = registry2.get(sessionId);
+  if (startedAt === void 0) return false;
+  if (Date.now() - startedAt > MAX_PATTERN_TURN_MS) {
+    registry2.delete(sessionId);
+    owners.delete(sessionId);
+    return false;
+  }
+  return true;
+}
+function beginPatternTurn(sessionId, ownerToken) {
+  if (isPatternTurnRunning(sessionId)) return false;
+  getOwners().set(sessionId, ownerToken);
+  getRegistry().set(sessionId, Date.now());
+  return true;
+}
+function endPatternTurn(sessionId, ownerToken) {
+  const owners = getOwners();
+  if (owners.get(sessionId) !== ownerToken) return;
+  owners.delete(sessionId);
+  getRegistry().delete(sessionId);
+}
+
+// src/lib/master-patterns/router.server.ts
+var StartSessionBodySchema = external_exports.object({
+  patternId: PatternIdSchema
+});
+var SelectLevelBodySchema = external_exports.object({
+  sessionId: external_exports.string().min(1).max(128),
+  track: TrackModeSchema
+});
+var ReadyQuestionsBodySchema = external_exports.object({
+  sessionId: external_exports.string().min(1).max(128)
+});
+var RequestHintBodySchema = external_exports.object({
+  sessionId: external_exports.string().min(1).max(128),
+  questionId: external_exports.string().min(1).max(128)
+});
+var FinishSessionBodySchema = external_exports.object({
+  sessionId: external_exports.string().min(1).max(128)
+});
+var RehydrateSessionBodySchema = external_exports.object({
+  sessionId: external_exports.string().min(1).max(128),
+  patternId: PatternIdSchema,
+  track: TrackModeSchema.nullable(),
+  stage: external_exports.enum([
+    "calibration",
+    "probing",
+    "studying_notes",
+    "questioning",
+    "remediating",
+    "completed"
+  ]),
+  questionHistory: external_exports.array(
+    external_exports.object({
+      questionId: external_exports.string().min(1).max(128),
+      strandId: external_exports.string().min(1).max(128),
+      modality: QuestionModalitySchema,
+      score: external_exports.number().min(0).max(100),
+      missClass: MissClassSchema.nullable(),
+      highestHintRung: HintRungSchema.nullable().optional(),
+      verbalSummary: external_exports.string().max(200).optional()
+    })
+  ).max(40).optional(),
+  resolvedStrandsInSession: external_exports.array(external_exports.string().max(128)).max(20).optional(),
+  pendingRemediationStrands: external_exports.array(external_exports.string().max(128)).max(20).optional(),
+  retestQueue: external_exports.array(external_exports.string().max(128)).max(20).optional()
+});
+var noopMiddleware = (_req, _res, next) => next();
+function serializePublicSessionState(session) {
+  return {
+    ...session,
+    currentQuestion: stripRubricFromCard(session.currentQuestion),
+    lastEvaluation: session.lastEvaluation ? sanitizeEvaluation(session.lastEvaluation) : null
+  };
+}
+function sanitizeEvaluation(evaluation) {
+  return {
+    ...evaluation,
+    twistedFollowUp: stripRubricFromCard(evaluation.twistedFollowUp),
+    nextQuestion: stripRubricFromCard(evaluation.nextQuestion)
+  };
+}
+function getAuthenticatedUid(req) {
+  const uid2 = req.user?.uid;
+  return typeof uid2 === "string" && uid2.trim().length > 0 ? uid2.trim() : null;
+}
+function buildProfileResponse(profile) {
+  const nowMs = Date.now();
+  const patterns = PATTERN_CATALOG.map((p) => ({
+    id: p.id,
+    title: p.title,
+    subtitle: p.subtitle,
+    category: p.category,
+    interviewFrequency: p.interviewFrequency,
+    whiteboardQuery: p.whiteboardQuery,
+    linkedProblemSlugs: p.linkedProblemSlugs,
+    strands: p.strands.map((s2) => ({
+      id: s2.id,
+      title: s2.title,
+      prerequisiteStrandIds: s2.prerequisiteStrandIds,
+      state: profile.strands[s2.id] ?? null
+    })),
+    summary: profile.patternSummaries[p.id] ?? null,
+    metrics: computePatternAggregateMetrics(p.id, profile, nowMs)
+  }));
+  return {
+    userId: profile.userId,
+    cognitiveProfile: profile.cognitiveProfile,
+    errorSignatures: profile.errorSignatures,
+    recentSessions: profile.recentSessions,
+    dueReviewStrands: getDueReviewStrands(profile, nowMs),
+    patterns,
+    updatedAt: profile.updatedAt
+  };
+}
+function createMasterPatternsRouter(deps) {
+  const router = (0, import_express.Router)();
+  const auth = deps.authMiddleware;
+  const aiLimit = deps.aiRateLimiter ?? noopMiddleware;
+  const loadProfile = deps.getProfile ?? getUserPatternProfile;
+  const persistProfile = deps.saveProfile ?? saveUserPatternProfile;
+  const loadSession = deps.getSession ?? getPatternSession;
+  const persistSession = deps.saveSession ?? savePatternSession;
+  const engineDeps = deps.engineDeps ?? {};
+  router.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    next();
+  });
+  router.get("/profile", auth, async (req, res) => {
+    const uid2 = getAuthenticatedUid(req);
+    if (!uid2) return res.status(401).json({ error: "Authentication required." });
+    try {
+      const profile = await loadProfile(uid2);
+      return res.json(buildProfileResponse(profile));
+    } catch (err) {
+      return res.status(500).json({ error: err?.message || "Failed to load pattern profile." });
+    }
+  });
+  router.post(
+    "/session/start",
+    auth,
+    aiLimit,
+    async (req, res) => {
+      const uid2 = getAuthenticatedUid(req);
+      if (!uid2) return res.status(401).json({ error: "Authentication required." });
+      const parsed = StartSessionBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid pattern selection.",
+          details: parsed.error.issues
+        });
+      }
+      try {
+        const profile = await loadProfile(uid2);
+        const session = createNewPatternSession(uid2, parsed.data.patternId);
+        await persistSession(session);
+        const calibration = buildCalibrationView(parsed.data.patternId, profile);
+        return res.json({
+          session: serializePublicSessionState(session),
+          calibration
+        });
+      } catch (err) {
+        return res.status(500).json({ error: err?.message || "Failed to start pattern session." });
+      }
+    }
+  );
+  router.post(
+    "/session/select-level",
+    auth,
+    aiLimit,
+    async (req, res) => {
+      const uid2 = getAuthenticatedUid(req);
+      if (!uid2) return res.status(401).json({ error: "Authentication required." });
+      const parsed = SelectLevelBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid level selection payload.",
+          details: parsed.error.issues
+        });
+      }
+      const { sessionId, track } = parsed.data;
+      const existing = await loadSession(sessionId);
+      if (!existing) {
+        return res.status(404).json({ error: "Pattern session not found or expired." });
+      }
+      if (existing.userId !== uid2) {
+        return res.status(403).json({ error: "Forbidden: session belongs to another user." });
+      }
+      if (existing.track === track && existing.stage !== "calibration") {
+        return res.json({ session: serializePublicSessionState(existing) });
+      }
+      if (existing.stage !== "calibration" && existing.stage !== "probing" && existing.stage !== "studying_notes") {
+        return res.status(409).json({
+          error: "Session track is already locked past calibration."
+        });
+      }
+      const ownerToken = {};
+      if (!beginPatternTurn(sessionId, ownerToken)) {
+        return res.status(409).json({
+          error: "A turn is already in flight for this session.",
+          retryAfterMs: 1500
+        });
+      }
+      try {
+        const profile = await loadProfile(uid2);
+        let nextSession = {
+          ...existing,
+          track,
+          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        if (track === "intermediate") {
+          const notes = await generateTailoredNotes(
+            existing.patternId,
+            profile,
+            engineDeps,
+            existing
+          );
+          nextSession = {
+            ...nextSession,
+            stage: "studying_notes",
+            notes,
+            currentQuestion: null,
+            currentQuestionHints: []
+          };
+        } else {
+          const firstQuestion = await generateNextPatternQuestion(
+            nextSession,
+            profile,
+            engineDeps
+          );
+          nextSession = {
+            ...nextSession,
+            stage: "questioning",
+            notes: null,
+            currentQuestion: firstQuestion,
+            currentQuestionHints: []
+          };
+        }
+        const saved = await persistSession(nextSession);
+        return res.json({ session: serializePublicSessionState(saved) });
+      } catch (err) {
+        return res.status(500).json({ error: err?.message || "Failed to initialize track." });
+      } finally {
+        endPatternTurn(sessionId, ownerToken);
+      }
+    }
+  );
+  router.post(
+    "/session/start-probe",
+    auth,
+    aiLimit,
+    async (req, res) => {
+      const uid2 = getAuthenticatedUid(req);
+      if (!uid2) return res.status(401).json({ error: "Authentication required." });
+      const parsed = ReadyQuestionsBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid sessionId." });
+      }
+      const { sessionId } = parsed.data;
+      const existing = await loadSession(sessionId);
+      if (!existing) {
+        return res.status(404).json({ error: "Pattern session not found or expired." });
+      }
+      if (existing.userId !== uid2) {
+        return res.status(403).json({ error: "Forbidden." });
+      }
+      if (existing.stage === "probing" && existing.currentQuestion) {
+        return res.json({ session: serializePublicSessionState(existing) });
+      }
+      if (existing.stage !== "calibration") {
+        return res.status(409).json({
+          error: "Calibration probe is only available from the calibration stage."
+        });
+      }
+      const ownerToken = {};
+      if (!beginPatternTurn(sessionId, ownerToken)) {
+        return res.status(409).json({
+          error: "A turn is already in flight for this session.",
+          retryAfterMs: 1500
+        });
+      }
+      try {
+        const profile = await loadProfile(uid2);
+        const probed = await startCalibrationProbe(existing, profile, engineDeps);
+        const saved = await persistSession(probed);
+        return res.json({ session: serializePublicSessionState(saved) });
+      } catch (err) {
+        return res.status(500).json({ error: err?.message || "Failed to start calibration probe." });
+      } finally {
+        endPatternTurn(sessionId, ownerToken);
+      }
+    }
+  );
+  router.post(
+    "/session/ready-questions",
+    auth,
+    aiLimit,
+    async (req, res) => {
+      const uid2 = getAuthenticatedUid(req);
+      if (!uid2) return res.status(401).json({ error: "Authentication required." });
+      const parsed = ReadyQuestionsBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid sessionId." });
+      }
+      const { sessionId } = parsed.data;
+      const existing = await loadSession(sessionId);
+      if (!existing) {
+        return res.status(404).json({ error: "Pattern session not found or expired." });
+      }
+      if (existing.userId !== uid2) {
+        return res.status(403).json({ error: "Forbidden." });
+      }
+      if (existing.currentQuestion && existing.stage === "questioning") {
+        return res.json({ session: serializePublicSessionState(existing) });
+      }
+      const ownerToken = {};
+      if (!beginPatternTurn(sessionId, ownerToken)) {
+        return res.status(409).json({
+          error: "A turn is already in flight for this session.",
+          retryAfterMs: 1500
+        });
+      }
+      try {
+        const profile = await loadProfile(uid2);
+        const q = await generateNextPatternQuestion(existing, profile, engineDeps);
+        const saved = await persistSession({
+          ...existing,
+          stage: "questioning",
+          currentQuestion: q,
+          currentQuestionHints: []
+        });
+        return res.json({ session: serializePublicSessionState(saved) });
+      } catch (err) {
+        return res.status(500).json({ error: err?.message || "Failed to prepare first question." });
+      } finally {
+        endPatternTurn(sessionId, ownerToken);
+      }
+    }
+  );
+  router.post(
+    "/session/hint",
+    auth,
+    aiLimit,
+    async (req, res) => {
+      const uid2 = getAuthenticatedUid(req);
+      if (!uid2) return res.status(401).json({ error: "Authentication required." });
+      const parsed = RequestHintBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid hint request payload." });
+      }
+      const { sessionId, questionId } = parsed.data;
+      const existing = await loadSession(sessionId);
+      if (!existing) {
+        return res.status(404).json({ error: "Pattern session not found or expired." });
+      }
+      if (existing.userId !== uid2) {
+        return res.status(403).json({ error: "Forbidden." });
+      }
+      if (!existing.currentQuestion || existing.currentQuestion.id !== questionId) {
+        return res.status(409).json({
+          error: "Question is no longer active.",
+          activeQuestionId: existing.currentQuestion?.id ?? null
+        });
+      }
+      const ownerToken = {};
+      if (!beginPatternTurn(sessionId, ownerToken)) {
+        return res.status(409).json({
+          error: "A turn is already in flight for this session.",
+          retryAfterMs: 1500
+        });
+      }
+      try {
+        const profile = await loadProfile(uid2);
+        const { hint, updatedSession, alreadyAtMax } = await requestProgressiveHint(
+          existing,
+          profile,
+          engineDeps
+        );
+        const saved = await persistSession(updatedSession);
+        return res.json({
+          hint,
+          alreadyAtMax,
+          session: serializePublicSessionState(saved)
+        });
+      } catch (err) {
+        return res.status(500).json({ error: err?.message || "Failed to generate hint." });
+      } finally {
+        endPatternTurn(sessionId, ownerToken);
+      }
+    }
+  );
+  router.post(
+    "/session/submit",
+    auth,
+    aiLimit,
+    async (req, res) => {
+      const uid2 = getAuthenticatedUid(req);
+      if (!uid2) return res.status(401).json({ error: "Authentication required." });
+      const parsed = SubmissionPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid submission payload.",
+          details: parsed.error.issues
+        });
+      }
+      const payload = parsed.data;
+      const existing = await loadSession(payload.sessionId);
+      if (!existing) {
+        return res.status(404).json({ error: "Pattern session not found or expired." });
+      }
+      if (existing.userId !== uid2) {
+        return res.status(403).json({ error: "Forbidden." });
+      }
+      if (existing.processedAttemptIds.includes(payload.attemptId) && existing.lastEvaluation && existing.lastEvaluation.questionId === payload.questionId) {
+        const profile = await loadProfile(uid2);
+        return res.json({
+          evaluation: sanitizeEvaluation(existing.lastEvaluation),
+          session: serializePublicSessionState(existing),
+          profile: buildProfileResponse(profile),
+          idempotentReplay: true
+        });
+      }
+      if (!existing.currentQuestion || existing.currentQuestion.id !== payload.questionId) {
+        return res.status(409).json({
+          error: "Question is no longer active or already resolved.",
+          activeQuestionId: existing.currentQuestion?.id ?? null
+        });
+      }
+      const ownerToken = {};
+      if (!beginPatternTurn(payload.sessionId, ownerToken)) {
+        return res.status(409).json({
+          error: "Turn already in progress for this session.",
+          retryAfterMs: 1500
+        });
+      }
+      try {
+        const profile = await loadProfile(uid2);
+        const { evaluation, updatedSession, updatedProfile } = existing.stage === "probing" ? await evaluateProbeSubmission(
+          existing,
+          profile,
+          payload,
+          engineDeps
+        ) : await evaluateSubmissionAndBuildFollowUp(
+          existing,
+          profile,
+          payload,
+          engineDeps
+        );
+        const savedProfile = await persistProfile(uid2, updatedProfile);
+        const savedSession = await persistSession(updatedSession);
+        return res.json({
+          evaluation: sanitizeEvaluation(evaluation),
+          session: serializePublicSessionState(savedSession),
+          profile: buildProfileResponse(savedProfile)
+        });
+      } catch (err) {
+        return res.status(500).json({ error: err?.message || "Evaluation failed." });
+      } finally {
+        endPatternTurn(payload.sessionId, ownerToken);
+      }
+    }
+  );
+  router.post(
+    "/session/finish",
+    auth,
+    async (req, res) => {
+      const uid2 = getAuthenticatedUid(req);
+      if (!uid2) return res.status(401).json({ error: "Authentication required." });
+      const parsed = FinishSessionBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid sessionId." });
+      }
+      const { sessionId } = parsed.data;
+      const existing = await loadSession(sessionId);
+      if (!existing) {
+        return res.status(404).json({ error: "Pattern session not found or expired." });
+      }
+      if (existing.userId !== uid2) {
+        return res.status(403).json({ error: "Forbidden." });
+      }
+      if (existing.stage === "completed" && existing.scorecard) {
+        const profile = await loadProfile(uid2);
+        return res.json({
+          scorecard: existing.scorecard,
+          session: serializePublicSessionState(existing),
+          profile: buildProfileResponse(profile)
+        });
+      }
+      const ownerToken = {};
+      if (!beginPatternTurn(sessionId, ownerToken)) {
+        return res.status(409).json({
+          error: "A turn is already in flight for this session.",
+          retryAfterMs: 1500
+        });
+      }
+      try {
+        const profile = await loadProfile(uid2);
+        const { scorecard, updatedProfile } = buildMasteryScorecard(
+          existing,
+          profile
+        );
+        const savedProfile = await persistProfile(uid2, updatedProfile);
+        const savedSession = await persistSession({
+          ...existing,
+          stage: "completed",
+          currentQuestion: null,
+          scorecard
+        });
+        return res.json({
+          scorecard,
+          session: serializePublicSessionState(savedSession),
+          profile: buildProfileResponse(savedProfile)
+        });
+      } catch (err) {
+        return res.status(500).json({ error: err?.message || "Failed to finalize session." });
+      } finally {
+        endPatternTurn(sessionId, ownerToken);
+      }
+    }
+  );
+  router.get("/session/:id", auth, async (req, res) => {
+    const uid2 = getAuthenticatedUid(req);
+    if (!uid2) return res.status(401).json({ error: "Authentication required." });
+    const sessionId = String(req.params.id || "").trim();
+    if (!sessionId) return res.status(400).json({ error: "Session id required." });
+    const existing = await loadSession(sessionId);
+    if (!existing) {
+      return res.status(404).json({ error: "Pattern session not found or expired." });
+    }
+    if (existing.userId !== uid2) {
+      return res.status(403).json({ error: "Forbidden." });
+    }
+    return res.json({ session: serializePublicSessionState(existing) });
+  });
+  router.post(
+    "/session/rehydrate",
+    auth,
+    aiLimit,
+    async (req, res) => {
+      const uid2 = getAuthenticatedUid(req);
+      if (!uid2) return res.status(401).json({ error: "Authentication required." });
+      const parsed = RehydrateSessionBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid rehydrate payload.",
+          details: parsed.error.issues
+        });
+      }
+      const data = parsed.data;
+      const existing = await loadSession(data.sessionId);
+      if (existing) {
+        if (existing.userId !== uid2) {
+          return res.status(403).json({ error: "Forbidden." });
+        }
+        return res.json({ session: serializePublicSessionState(existing) });
+      }
+      const pattern = getPatternDefinition(data.patternId);
+      if (!pattern) {
+        return res.status(400).json({ error: "Unknown patternId." });
+      }
+      const ownerToken = {};
+      if (!beginPatternTurn(data.sessionId, ownerToken)) {
+        return res.status(409).json({
+          error: "A turn is already in flight for this session.",
+          retryAfterMs: 1500
+        });
+      }
+      try {
+        const profile = await loadProfile(uid2);
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        let rebuilt = {
+          sessionId: data.sessionId,
+          userId: uid2,
+          patternId: data.patternId,
+          track: data.track,
+          stage: data.stage,
+          notes: null,
+          currentQuestion: null,
+          currentQuestionHints: [],
+          questionHistory: data.questionHistory ?? [],
+          pendingRemediationStrands: data.pendingRemediationStrands ?? [],
+          retestQueue: data.retestQueue ?? [],
+          resolvedStrandsInSession: data.resolvedStrandsInSession ?? [],
+          processedAttemptIds: [],
+          lastEvaluation: null,
+          scorecard: null,
+          createdAt: now,
+          updatedAt: now
+        };
+        if (data.track === "intermediate" && data.stage === "studying_notes") {
+          rebuilt.notes = await generateTailoredNotes(
+            data.patternId,
+            profile,
+            engineDeps,
+            rebuilt
+          );
+        } else if (data.track !== null && (data.stage === "questioning" || data.stage === "remediating")) {
+          rebuilt.currentQuestion = await generateNextPatternQuestion(
+            rebuilt,
+            profile,
+            engineDeps
+          );
+        }
+        const saved = await persistSession(rebuilt);
+        return res.json({
+          session: serializePublicSessionState(saved),
+          calibration: data.stage === "calibration" ? buildCalibrationView(data.patternId, profile) : void 0
+        });
+      } catch (err) {
+        return res.status(500).json({ error: err?.message || "Failed to rehydrate session." });
+      } finally {
+        endPatternTurn(data.sessionId, ownerToken);
+      }
+    }
+  );
+  return router;
+}
+
 // server.ts
 var import_path6 = __toESM(require("path"), 1);
 var import_fs7 = __toESM(require("fs"), 1);
@@ -295254,7 +300073,7 @@ var import_ip_address = __toESM(require_ip_address(), 1);
 var import_node_net3 = require("node:net");
 var import_debug = __toESM(require_src(), 1);
 var import_node_buffer3 = require("node:buffer");
-var import_node_crypto3 = require("node:crypto");
+var import_node_crypto4 = require("node:crypto");
 var import_node_net4 = require("node:net");
 var ipv4CompatibleSubnet = new import_ip_address.Address6("::/96");
 function ipKeyGenerator(ip, ipv6Subnet = 56) {
@@ -295436,7 +300255,7 @@ var getResetSeconds = (windowMs, resetTime) => {
   return resetSeconds;
 };
 var getPartitionKey = (key) => {
-  const hash2 = (0, import_node_crypto3.createHash)("sha256");
+  const hash2 = (0, import_node_crypto4.createHash)("sha256");
   hash2.update(key);
   const partitionKey = hash2.digest("hex").slice(0, 12);
   return import_node_buffer3.Buffer.from(partitionKey).toString("base64");
@@ -296459,12 +301278,12 @@ function fromFirestoreRestFields(fields) {
   }
   return out;
 }
-async function fetchUserProfileFromFirestoreRest(uid, bearerToken) {
-  if (!uid || !bearerToken) return null;
+async function fetchUserProfileFromFirestoreRest(uid2, bearerToken) {
+  if (!uid2 || !bearerToken) return null;
   const { projectId: projectId2, databaseId: databaseId2 } = getFirestoreProjectAndDb();
   const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
     projectId2
-  )}/databases/${encodeURIComponent(databaseId2)}/documents/users/${encodeURIComponent(uid)}`;
+  )}/databases/${encodeURIComponent(databaseId2)}/documents/users/${encodeURIComponent(uid2)}`;
   try {
     const res = await fetch(docUrl, {
       method: "GET",
@@ -296476,20 +301295,20 @@ async function fetchUserProfileFromFirestoreRest(uid, bearerToken) {
     if (!data?.fields) return null;
     const parsed = fromFirestoreRestFields(data.fields);
     return {
-      id: uid,
+      id: uid2,
       ...parsed
     };
   } catch {
     return null;
   }
 }
-async function fetchUserCollectionFromFirestoreRest(uid, subcollection, bearerToken, pageSize = 200) {
-  if (!uid || !bearerToken) return null;
+async function fetchUserCollectionFromFirestoreRest(uid2, subcollection, bearerToken, pageSize = 200) {
+  if (!uid2 || !bearerToken) return null;
   const { projectId: projectId2, databaseId: databaseId2 } = getFirestoreProjectAndDb();
   const colUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
     projectId2
   )}/databases/${encodeURIComponent(databaseId2)}/documents/users/${encodeURIComponent(
-    uid
+    uid2
   )}/${encodeURIComponent(subcollection)}?pageSize=${pageSize}`;
   try {
     const res = await fetch(colUrl, {
@@ -296513,8 +301332,8 @@ async function fetchUserCollectionFromFirestoreRest(uid, subcollection, bearerTo
     return null;
   }
 }
-async function fetchGithubProfileFromFirestoreRest(uid, bearerToken) {
-  const fullProfile = await fetchUserProfileFromFirestoreRest(uid, bearerToken);
+async function fetchGithubProfileFromFirestoreRest(uid2, bearerToken) {
+  const fullProfile = await fetchUserProfileFromFirestoreRest(uid2, bearerToken);
   if (!fullProfile) return null;
   const githubToken = fullProfile.githubToken || null;
   const githubUsername = fullProfile.githubUsername || fullProfile.github_username || null;
@@ -296531,8 +301350,8 @@ async function fetchGithubProfileFromFirestoreRest(uid, bearerToken) {
     githubUrl
   };
 }
-async function saveGithubProfileToFirestoreRest(uid, bearerToken, data) {
-  if (!uid || !bearerToken) return;
+async function saveGithubProfileToFirestoreRest(uid2, bearerToken, data) {
+  if (!uid2 || !bearerToken) return;
   const { projectId: projectId2, databaseId: databaseId2 } = getFirestoreProjectAndDb();
   const maskFields = [
     "githubToken",
@@ -296549,7 +301368,7 @@ async function saveGithubProfileToFirestoreRest(uid, bearerToken, data) {
   const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
     projectId2
   )}/databases/${encodeURIComponent(databaseId2)}/documents/users/${encodeURIComponent(
-    uid
+    uid2
   )}?${maskQuery}`;
   const toFirestoreStrOrNull = (val) => val ? { stringValue: val } : { nullValue: null };
   try {
@@ -296577,7 +301396,7 @@ async function saveGithubProfileToFirestoreRest(uid, bearerToken, data) {
   } catch {
   }
 }
-var app = (0, import_express.default)();
+var app = (0, import_express2.default)();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 var PORT = 3e3;
@@ -296620,7 +301439,8 @@ var API_ENDPOINTS = [
   "/telemetry",
   "/collab",
   "/ag-ui",
-  "/notes"
+  "/notes",
+  "/patterns"
 ];
 app.use((req, _res, next) => {
   const pathname = req.url.split("?")[0];
@@ -296629,8 +301449,8 @@ app.use((req, _res, next) => {
   }
   next();
 });
-app.use(import_express.default.json({ limit: "512kb" }));
-app.use(import_express.default.urlencoded({ extended: true, limit: "512kb" }));
+app.use(import_express2.default.json({ limit: "512kb" }));
+app.use(import_express2.default.urlencoded({ extended: true, limit: "512kb" }));
 app.use(prototypePollutionGuardMiddleware);
 function rateLimitKeyGenerator(req) {
   const anyReq = req;
@@ -297127,17 +301947,17 @@ app.get("/api/statement", async (req, res) => {
   }
 });
 var REDIS_RETENTION_TTL = 60 * 60 * 24 * 7;
-var PROFILE_CACHE_KEY = (uid) => `profile_v3:${uid}`;
-var SNAPSHOT_CACHE_KEY = (uid) => `profile_snapshot_v3:${uid}`;
-var SUBMISSIONS_CACHE_KEY = (uid) => `submissions_v3:${uid}`;
-var REPORTS_CACHE_KEY = (uid) => `reports_v3:${uid}`;
+var PROFILE_CACHE_KEY = (uid2) => `profile_v3:${uid2}`;
+var SNAPSHOT_CACHE_KEY = (uid2) => `profile_snapshot_v3:${uid2}`;
+var SUBMISSIONS_CACHE_KEY = (uid2) => `submissions_v3:${uid2}`;
+var REPORTS_CACHE_KEY = (uid2) => `reports_v3:${uid2}`;
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
-    const uid = req.user.uid;
+    const uid2 = req.user.uid;
     const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
     const bearerToken = extractRequestBearerToken(req);
-    const ghCookie = getGithubSessionCookie(req, uid);
-    const cacheKey = PROFILE_CACHE_KEY(uid);
+    const ghCookie = getGithubSessionCookie(req, uid2);
+    const cacheKey = PROFILE_CACHE_KEY(uid2);
     if (!forceRefresh) {
       const cached3 = await getCache(cacheKey);
       if (cached3 && cached3.isVerifiedSync && (cached3.githubToken || !ghCookie?.githubToken)) {
@@ -297145,19 +301965,19 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       }
     }
     const [user, profile, fsProfile, legacyUserCache, legacyProfileCache, legacySnapshotCache] = await Promise.all([
-      getOrCreateUser(uid, req.user.email || null).catch(() => null),
-      getProfile(uid).catch(() => null),
-      fetchUserProfileFromFirestoreRest(uid, bearerToken).catch(() => null),
-      getCache(`user:${uid}`).catch(() => null),
-      getCache(`profile:${uid}`).catch(() => null),
-      getCache(`profile_snapshot:${uid}`).catch(() => null)
+      getOrCreateUser(uid2, req.user.email || null).catch(() => null),
+      getProfile(uid2).catch(() => null),
+      fetchUserProfileFromFirestoreRest(uid2, bearerToken).catch(() => null),
+      getCache(`user:${uid2}`).catch(() => null),
+      getCache(`profile:${uid2}`).catch(() => null),
+      getCache(`profile_snapshot:${uid2}`).catch(() => null)
     ]);
     const { githubToken: memoryToken, ...safeProfile } = profile || {};
     const legacySnapProf = legacySnapshotCache?.profile || null;
     const resolvedEncryptedToken = fsProfile?.githubToken || memoryToken || ghCookie?.githubToken || legacyProfileCache?.githubToken || legacySnapProf?.githubToken || null;
     if (resolvedEncryptedToken && !ghCookie?.githubToken) {
       setGithubSessionCookie(req, res, {
-        uid,
+        uid: uid2,
         githubToken: resolvedEncryptedToken,
         githubUsername: fsProfile?.githubUsername || fsProfile?.github_username || safeProfile?.githubUsername || ghCookie?.githubUsername || legacyProfileCache?.githubUsername || legacySnapProf?.githubUsername || null,
         githubAvatar: fsProfile?.githubAvatar || fsProfile?.github_avatar || safeProfile?.githubAvatar || ghCookie?.githubAvatar || legacyProfileCache?.githubAvatar || legacySnapProf?.githubAvatar || null,
@@ -297194,7 +302014,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       fsProfile || cleanLcUsername || cleanLcStats || cleanGithubConnected || safeProfile?.leetcodeUsername || safeProfile?.githubUsername
     );
     const payload = {
-      uid,
+      uid: uid2,
       email: req.user.email,
       ...user || {},
       ...safeProfile,
@@ -297240,13 +302060,13 @@ app.get("/api/profile", requireAuth, async (req, res) => {
 });
 app.get("/api/profile/snapshot", requireAuth, async (req, res) => {
   try {
-    const uid = req.user.uid;
+    const uid2 = req.user.uid;
     const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
-    const snapshotKey = SNAPSHOT_CACHE_KEY(uid);
+    const snapshotKey = SNAPSHOT_CACHE_KEY(uid2);
     if (!forceRefresh) {
       const cachedSnapshot = await getCache(snapshotKey);
       if (cachedSnapshot && cachedSnapshot.profile && cachedSnapshot.isVerifiedSync && cachedSnapshot.source !== "instant") {
-        const ghCookie = getGithubSessionCookie(req, uid);
+        const ghCookie = getGithubSessionCookie(req, uid2);
         if (ghCookie?.githubToken && !cachedSnapshot.profile.githubToken) {
           cachedSnapshot.profile = {
             ...cachedSnapshot.profile,
@@ -297267,7 +302087,7 @@ app.get("/api/profile/snapshot", requireAuth, async (req, res) => {
 });
 app.post("/api/profile/snapshot", requireAuth, async (req, res) => {
   try {
-    const uid = req.user.uid;
+    const uid2 = req.user.uid;
     const rawBody = req.body;
     const snapshot = rawBody?.snapshot && typeof rawBody.snapshot === "object" && rawBody.snapshot.profile ? rawBody.snapshot : rawBody && typeof rawBody === "object" && rawBody.profile ? rawBody : null;
     if (!snapshot || !snapshot.profile || snapshot.source === "instant") {
@@ -297287,15 +302107,15 @@ app.post("/api/profile/snapshot", requireAuth, async (req, res) => {
       cachedAt: snapshot.cachedAt || (/* @__PURE__ */ new Date()).toISOString()
     };
     await Promise.all([
-      setCache(SNAPSHOT_CACHE_KEY(uid), enrichedSnapshot, REDIS_RETENTION_TTL).catch(() => {
+      setCache(SNAPSHOT_CACHE_KEY(uid2), enrichedSnapshot, REDIS_RETENTION_TTL).catch(() => {
       }),
-      setCache(PROFILE_CACHE_KEY(uid), enrichedSnapshot.profile, REDIS_RETENTION_TTL).catch(
+      setCache(PROFILE_CACHE_KEY(uid2), enrichedSnapshot.profile, REDIS_RETENTION_TTL).catch(
         () => {
         }
       ),
       ...Array.isArray(boundedSubmissions) ? [
         setCache(
-          SUBMISSIONS_CACHE_KEY(uid),
+          SUBMISSIONS_CACHE_KEY(uid2),
           boundedSubmissions,
           REDIS_RETENTION_TTL
         ).catch(() => {
@@ -297303,7 +302123,7 @@ app.post("/api/profile/snapshot", requireAuth, async (req, res) => {
       ] : [],
       ...Array.isArray(boundedReports) ? [
         setCache(
-          REPORTS_CACHE_KEY(uid),
+          REPORTS_CACHE_KEY(uid2),
           boundedReports,
           REDIS_RETENTION_TTL
         ).catch(() => {
@@ -297328,26 +302148,26 @@ app.post("/api/profile/update", requireAuth, async (req, res) => {
     if (!/^[a-zA-Z0-9_.-]+$/.test(clean3)) {
       return res.status(400).json({ error: "Username can only contain letters, numbers, underscores, dashes, and periods." });
     }
-    const uid = req.user.uid;
-    const updated = await updateProfile(uid, { displayName: clean3, display_name: clean3 }).catch(() => null);
-    await updateUser(uid, { displayName: clean3, display_name: clean3 }).catch(() => null);
-    const existingProfile = await getCache(PROFILE_CACHE_KEY(uid)) || {};
+    const uid2 = req.user.uid;
+    const updated = await updateProfile(uid2, { displayName: clean3, display_name: clean3 }).catch(() => null);
+    await updateUser(uid2, { displayName: clean3, display_name: clean3 }).catch(() => null);
+    const existingProfile = await getCache(PROFILE_CACHE_KEY(uid2)) || {};
     const responsePayload = {
       ...existingProfile,
-      uid,
+      uid: uid2,
       ...updated || {},
       displayName: clean3,
       display_name: clean3,
       isVerifiedSync: true
     };
-    await setCache(PROFILE_CACHE_KEY(uid), responsePayload, REDIS_RETENTION_TTL).catch(() => {
+    await setCache(PROFILE_CACHE_KEY(uid2), responsePayload, REDIS_RETENTION_TTL).catch(() => {
     });
-    await setCache(`user:${uid}`, responsePayload, REDIS_RETENTION_TTL).catch(() => {
+    await setCache(`user:${uid2}`, responsePayload, REDIS_RETENTION_TTL).catch(() => {
     });
-    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid));
+    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid2));
     if (existingSnapshot?.profile) {
       await setCache(
-        SNAPSHOT_CACHE_KEY(uid),
+        SNAPSHOT_CACHE_KEY(uid2),
         {
           ...existingSnapshot,
           profile: {
@@ -297373,15 +302193,15 @@ app.post("/api/profile/update", requireAuth, async (req, res) => {
 });
 app.delete("/api/profile", requireAuth, async (req, res) => {
   try {
-    const uid = req.user.uid;
-    const userSubs = await getSubmissions(uid).catch(() => []);
+    const uid2 = req.user.uid;
+    const userSubs = await getSubmissions(uid2).catch(() => []);
     for (const sub of userSubs) {
-      await deleteSubmission(uid, sub.id).catch(() => {
+      await deleteSubmission(uid2, sub.id).catch(() => {
       });
     }
     try {
       if (isAdminDbAvailable()) {
-        const userRef = adminDb.collection("users").doc(uid);
+        const userRef = adminDb.collection("users").doc(uid2);
         const subCollections = ["chat_sessions", "ai_reports", "activity", "bookmarks", "tasks"];
         for (const colName of subCollections) {
           const snapshot = await userRef.collection(colName).get().catch(() => null);
@@ -297399,17 +302219,17 @@ app.delete("/api/profile", requireAuth, async (req, res) => {
       markAdminDbUnavailable(dbErr);
       console.warn("Firestore subcollections purge notice:", dbErr);
     }
-    await deleteCache(SNAPSHOT_CACHE_KEY(uid)).catch(() => {
+    await deleteCache(SNAPSHOT_CACHE_KEY(uid2)).catch(() => {
     });
-    await deleteCache(PROFILE_CACHE_KEY(uid)).catch(() => {
+    await deleteCache(PROFILE_CACHE_KEY(uid2)).catch(() => {
     });
-    await deleteCache(`user:${uid}`).catch(() => {
+    await deleteCache(`user:${uid2}`).catch(() => {
     });
-    await deleteCache(SUBMISSIONS_CACHE_KEY(uid)).catch(() => {
+    await deleteCache(SUBMISSIONS_CACHE_KEY(uid2)).catch(() => {
     });
-    await deleteCache(REPORTS_CACHE_KEY(uid)).catch(() => {
+    await deleteCache(REPORTS_CACHE_KEY(uid2)).catch(() => {
     });
-    await updateProfile(uid, {
+    await updateProfile(uid2, {
       displayName: "Deleted User",
       display_name: "Deleted User",
       githubToken: null,
@@ -297452,16 +302272,16 @@ app.post("/api/sync-leetcode", requireAuth, async (req, res) => {
     }
     try {
       if (req.user?.uid) {
-        const uid = req.user.uid;
-        await updateProfile(uid, {
+        const uid2 = req.user.uid;
+        await updateProfile(uid2, {
           leetcodeUsername: cleanUsername,
           leetcode_username: cleanUsername,
           leetcodeStats: fetchedStats,
           leetcode_stats: fetchedStats
         }).catch(() => null);
-        const existingProfile = await getCache(PROFILE_CACHE_KEY(uid)) || {};
+        const existingProfile = await getCache(PROFILE_CACHE_KEY(uid2)) || {};
         await setCache(
-          PROFILE_CACHE_KEY(uid),
+          PROFILE_CACHE_KEY(uid2),
           {
             ...existingProfile,
             leetcodeUsername: cleanUsername,
@@ -297473,10 +302293,10 @@ app.post("/api/sync-leetcode", requireAuth, async (req, res) => {
           REDIS_RETENTION_TTL
         ).catch(() => {
         });
-        const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid));
+        const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid2));
         if (existingSnapshot?.profile) {
           await setCache(
-            SNAPSHOT_CACHE_KEY(uid),
+            SNAPSHOT_CACHE_KEY(uid2),
             {
               ...existingSnapshot,
               profile: {
@@ -297505,10 +302325,10 @@ app.post("/api/sync-leetcode", requireAuth, async (req, res) => {
 });
 app.get("/api/submissions", requireAuth, async (req, res) => {
   try {
-    const uid = req.user.uid;
+    const uid2 = req.user.uid;
     const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
     const bearerToken = extractRequestBearerToken(req);
-    const cacheKey = SUBMISSIONS_CACHE_KEY(uid);
+    const cacheKey = SUBMISSIONS_CACHE_KEY(uid2);
     if (!forceRefresh) {
       const cached3 = await getCache(cacheKey);
       if (Array.isArray(cached3) && cached3.length > 0) {
@@ -297516,15 +302336,15 @@ app.get("/api/submissions", requireAuth, async (req, res) => {
       }
     }
     const [dbSubs, restSubs] = await Promise.all([
-      getSubmissions(uid).catch(() => []),
-      fetchUserCollectionFromFirestoreRest(uid, "submissions", bearerToken, 200).catch(() => null)
+      getSubmissions(uid2).catch(() => []),
+      fetchUserCollectionFromFirestoreRest(uid2, "submissions", bearerToken, 200).catch(() => null)
     ]);
     const subMap = /* @__PURE__ */ new Map();
     for (const s2 of [...Array.isArray(restSubs) ? restSubs : [], ...Array.isArray(dbSubs) ? dbSubs : []]) {
       if (!s2 || !s2.slug) continue;
       const normalized = {
         ...s2,
-        userId: uid,
+        userId: uid2,
         title: s2.title || s2.slug,
         pseudocode: s2.pseudocode || s2.code,
         lang: s2.lang || s2.language || "pseudocode",
@@ -297564,26 +302384,26 @@ app.get("/api/submissions", requireAuth, async (req, res) => {
 });
 app.post("/api/submissions", requireAuth, async (req, res) => {
   try {
-    const uid = req.user.uid;
+    const uid2 = req.user.uid;
     const rawBody = req.body && typeof req.body === "object" ? req.body : {};
     if (typeof rawBody.slug !== "string" || !rawBody.slug.trim()) {
       return res.status(400).json({ error: "Submission slug is required." });
     }
-    const sub = await addSubmission(uid, rawBody).catch(() => ({
+    const sub = await addSubmission(uid2, rawBody).catch(() => ({
       id: "sub-" + Date.now(),
       ...rawBody,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     }));
-    const existingSubs = await getCache(SUBMISSIONS_CACHE_KEY(uid));
+    const existingSubs = await getCache(SUBMISSIONS_CACHE_KEY(uid2));
     if (Array.isArray(existingSubs)) {
       await setCache(
-        SUBMISSIONS_CACHE_KEY(uid),
+        SUBMISSIONS_CACHE_KEY(uid2),
         [sub, ...existingSubs].slice(0, 200),
         REDIS_RETENTION_TTL
       ).catch(() => {
       });
     }
-    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid));
+    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid2));
     if (existingSnapshot && Array.isArray(existingSnapshot.submissions)) {
       const nextSubs = [sub, ...existingSnapshot.submissions].slice(0, 200);
       const completeRows = nextSubs.filter(
@@ -297594,7 +302414,7 @@ app.post("/api/submissions", requireAuth, async (req, res) => {
         completeRows.filter((r2) => r2.classification === "Optimal").map((r2) => r2.slug)
       ).size;
       await setCache(
-        SNAPSHOT_CACHE_KEY(uid),
+        SNAPSHOT_CACHE_KEY(uid2),
         {
           ...existingSnapshot,
           submissions: nextSubs,
@@ -297616,20 +302436,20 @@ app.post("/api/submissions", requireAuth, async (req, res) => {
 });
 app.delete("/api/submissions/:id", requireAuth, async (req, res) => {
   try {
-    const uid = req.user.uid;
+    const uid2 = req.user.uid;
     const targetId = String(req.params.id);
-    await deleteSubmission(uid, targetId).catch(() => {
+    await deleteSubmission(uid2, targetId).catch(() => {
     });
-    const existingSubs = await getCache(SUBMISSIONS_CACHE_KEY(uid));
+    const existingSubs = await getCache(SUBMISSIONS_CACHE_KEY(uid2));
     if (Array.isArray(existingSubs)) {
       await setCache(
-        SUBMISSIONS_CACHE_KEY(uid),
+        SUBMISSIONS_CACHE_KEY(uid2),
         existingSubs.filter((s2) => String(s2?.id) !== targetId),
         REDIS_RETENTION_TTL
       ).catch(() => {
       });
     }
-    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid));
+    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid2));
     if (existingSnapshot && Array.isArray(existingSnapshot.submissions)) {
       const nextSubs = existingSnapshot.submissions.filter(
         (s2) => String(s2?.id) !== targetId
@@ -297642,7 +302462,7 @@ app.delete("/api/submissions/:id", requireAuth, async (req, res) => {
         completeRows.filter((r2) => r2.classification === "Optimal").map((r2) => r2.slug)
       ).size;
       await setCache(
-        SNAPSHOT_CACHE_KEY(uid),
+        SNAPSHOT_CACHE_KEY(uid2),
         {
           ...existingSnapshot,
           submissions: nextSubs,
@@ -297662,6 +302482,13 @@ app.delete("/api/submissions/:id", requireAuth, async (req, res) => {
     res.json({ success: true });
   }
 });
+app.use(
+  "/api/patterns",
+  createMasterPatternsRouter({
+    authMiddleware: requireAuth,
+    aiRateLimiter: aiLimiter
+  })
+);
 app.get("/api/ag-ui/health", (_req, res) => {
   res.json({
     status: "ok",
@@ -298578,10 +303405,10 @@ Return a strictly valid JSON object matching this schema:
 });
 app.get("/api/user-reports", requireAuth, async (req, res) => {
   try {
-    const uid = req.user.uid;
+    const uid2 = req.user.uid;
     const forceRefresh = req.query.refresh === "1" || req.query.force === "1";
     const bearerToken = extractRequestBearerToken(req);
-    const cacheKey = REPORTS_CACHE_KEY(uid);
+    const cacheKey = REPORTS_CACHE_KEY(uid2);
     if (!forceRefresh) {
       const cached3 = await getCache(cacheKey);
       if (Array.isArray(cached3) && cached3.length > 0) {
@@ -298589,8 +303416,8 @@ app.get("/api/user-reports", requireAuth, async (req, res) => {
       }
     }
     const [dbReports, fsReports] = await Promise.all([
-      getUserAiReports(uid).catch(() => []),
-      fetchUserCollectionFromFirestoreRest(uid, "ai_reports", bearerToken, 30).catch(() => [])
+      getUserAiReports(uid2).catch(() => []),
+      fetchUserCollectionFromFirestoreRest(uid2, "ai_reports", bearerToken, 30).catch(() => [])
     ]);
     const reportMap = /* @__PURE__ */ new Map();
     for (const r2 of [...Array.isArray(fsReports) ? fsReports : [], ...Array.isArray(dbReports) ? dbReports : []]) {
@@ -298987,7 +303814,7 @@ function safeJsonForScript(value) {
   return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 }
 app.get("/api/github/url", requireAuth, vaultAndOAuthLimiter, (req, res) => {
-  const uid = req.user.uid;
+  const uid2 = req.user.uid;
   const clientId = cleanSecretEnv(process.env.GITHUB_CLIENT_ID);
   const secret = cleanSecretEnv(process.env.GITHUB_CLIENT_SECRET);
   if (!clientId || !secret) {
@@ -299019,7 +303846,7 @@ app.get("/api/github/url", requireAuth, vaultAndOAuthLimiter, (req, res) => {
   const issuedAt = Date.now();
   const expiresAt = issuedAt + 10 * 60 * 1e3;
   const payload = JSON.stringify({
-    uid,
+    uid: uid2,
     redirectUri,
     returnTo,
     nonce,
@@ -299049,7 +303876,7 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
   if (!secret) {
     return res.status(500).type("text/plain").send("Server configuration error: GITHUB_CLIENT_SECRET missing");
   }
-  let uid;
+  let uid2;
   let nonce;
   let expiresAt;
   let redirectUri;
@@ -299069,7 +303896,7 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
       return res.status(403).type("text/plain").send("State signature mismatch - possible CSRF attack");
     }
     const decoded = JSON.parse(payload);
-    uid = decoded.uid;
+    uid2 = decoded.uid;
     nonce = decoded.nonce;
     expiresAt = decoded.expiresAt;
     redirectUri = decoded.redirectUri;
@@ -299134,7 +303961,7 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
       console.warn("Could not fetch GitHub user info:", ghErr);
     }
     const encryptedToken = encryptToken(accessToken);
-    await updateProfile(uid, {
+    await updateProfile(uid2, {
       githubToken: encryptedToken,
       githubConnected: true,
       githubUsername: ghUsername,
@@ -299142,7 +303969,7 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
       githubUrl: ghUrl
     });
     setGithubSessionCookie(req, res, {
-      uid,
+      uid: uid2,
       githubToken: encryptedToken,
       githubUsername: ghUsername,
       githubAvatar: ghAvatar,
@@ -299150,7 +303977,7 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
     });
     const oauthBearer = getGithubOAuthBearerCookie(req);
     if (oauthBearer) {
-      await saveGithubProfileToFirestoreRest(uid, oauthBearer, {
+      await saveGithubProfileToFirestoreRest(uid2, oauthBearer, {
         githubToken: encryptedToken,
         githubConnected: true,
         githubUsername: ghUsername,
@@ -299158,9 +303985,9 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
         githubUrl: ghUrl
       });
     }
-    const existingProfile = await getCache(PROFILE_CACHE_KEY(uid)) || {};
+    const existingProfile = await getCache(PROFILE_CACHE_KEY(uid2)) || {};
     await setCache(
-      PROFILE_CACHE_KEY(uid),
+      PROFILE_CACHE_KEY(uid2),
       {
         ...existingProfile,
         githubToken: encryptedToken,
@@ -299173,10 +304000,10 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
       REDIS_RETENTION_TTL
     ).catch(() => {
     });
-    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid));
+    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid2));
     if (existingSnapshot?.profile) {
       await setCache(
-        SNAPSHOT_CACHE_KEY(uid),
+        SNAPSHOT_CACHE_KEY(uid2),
         {
           ...existingSnapshot,
           profile: {
@@ -299199,7 +304026,7 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
     }
     const syncPayloadBase64 = Buffer.from(
       JSON.stringify({
-        uid,
+        uid: uid2,
         githubConnected: true,
         githubToken: encryptedToken,
         githubUsername: ghUsername,
@@ -299227,7 +304054,7 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
           </div>
           <script>
             try {
-              var uid = ${safeJsonForScript(uid)};
+              var uid = ${safeJsonForScript(uid2)};
               var encryptedToken = ${safeJsonForScript(encryptedToken)};
               var ghUsername = ${safeJsonForScript(ghUsername)};
               var ghAvatar = ${safeJsonForScript(ghAvatar)};
@@ -299272,10 +304099,10 @@ app.get("/api/github/callback", vaultAndOAuthLimiter, async (req, res) => {
 });
 app.post("/api/github/disconnect", requireAuth, vaultAndOAuthLimiter, async (req, res) => {
   try {
-    const uid = req.user.uid;
+    const uid2 = req.user.uid;
     const bearerToken = extractRequestBearerToken(req);
     clearGithubSessionCookie(req, res);
-    await updateProfile(uid, {
+    await updateProfile(uid2, {
       githubToken: null,
       githubConnected: false,
       githubUsername: null,
@@ -299283,7 +304110,7 @@ app.post("/api/github/disconnect", requireAuth, vaultAndOAuthLimiter, async (req
       githubUrl: null
     });
     if (bearerToken) {
-      await saveGithubProfileToFirestoreRest(uid, bearerToken, {
+      await saveGithubProfileToFirestoreRest(uid2, bearerToken, {
         githubToken: null,
         githubConnected: false,
         githubUsername: null,
@@ -299291,9 +304118,9 @@ app.post("/api/github/disconnect", requireAuth, vaultAndOAuthLimiter, async (req
         githubUrl: null
       });
     }
-    const existingProfile = await getCache(PROFILE_CACHE_KEY(uid)) || {};
+    const existingProfile = await getCache(PROFILE_CACHE_KEY(uid2)) || {};
     await setCache(
-      PROFILE_CACHE_KEY(uid),
+      PROFILE_CACHE_KEY(uid2),
       {
         ...existingProfile,
         githubToken: null,
@@ -299305,10 +304132,10 @@ app.post("/api/github/disconnect", requireAuth, vaultAndOAuthLimiter, async (req
       REDIS_RETENTION_TTL
     ).catch(() => {
     });
-    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid));
+    const existingSnapshot = await getCache(SNAPSHOT_CACHE_KEY(uid2));
     if (existingSnapshot?.profile) {
       await setCache(
-        SNAPSHOT_CACHE_KEY(uid),
+        SNAPSHOT_CACHE_KEY(uid2),
         {
           ...existingSnapshot,
           profile: {
@@ -299346,10 +304173,10 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Invalid payload", details: parsed.error.format() });
     }
     const { code, titleSlug, lang, githubToken: clientToken } = parsed.data;
-    const uid = req.user.uid;
+    const uid2 = req.user.uid;
     const bearerToken = extractRequestBearerToken(req);
-    const ghCookie = getGithubSessionCookie(req, uid);
-    const profile = await getProfile(uid).catch(() => null);
+    const ghCookie = getGithubSessionCookie(req, uid2);
+    const profile = await getProfile(uid2).catch(() => null);
     const candidateTokens = [];
     if (clientToken && typeof clientToken === "string" && clientToken.trim()) {
       candidateTokens.push(clientToken.trim());
@@ -299381,7 +304208,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
       }
     }
     if (!githubToken && bearerToken) {
-      const fsGithub = await fetchGithubProfileFromFirestoreRest(uid, bearerToken);
+      const fsGithub = await fetchGithubProfileFromFirestoreRest(uid2, bearerToken);
       if (fsGithub?.githubToken) {
         const resolved = tryResolveRawToken(fsGithub.githubToken);
         if (resolved) {
@@ -299411,7 +304238,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
     const ext = extMap[normalizedLang] || "txt";
     const cleanSlug = String(titleSlug || "solution").trim().toLowerCase().replace(/[^a-z0-9-_]+/g, "-").replace(/^-+|-+$/g, "") || "solution";
     const repoName = "LeetCode-Solutions";
-    const path10 = `${cleanSlug}/${cleanSlug}.${ext}`;
+    const path11 = `${cleanSlug}/${cleanSlug}.${ext}`;
     const message2 = `Add ${normalizedLang.toUpperCase()} solution for ${cleanSlug} via DSA.viz.co`;
     const githubHeaders = {
       Authorization: `Bearer ${githubToken}`,
@@ -299441,13 +304268,13 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
     const ownerAvatar = userData.avatar_url || null;
     const ownerUrl = userData.html_url || `https://github.com/${owner}`;
     setGithubSessionCookie(req, res, {
-      uid,
+      uid: uid2,
       githubToken: encryptedGithubToken,
       githubUsername: owner,
       githubAvatar: ownerAvatar,
       githubUrl: ownerUrl
     });
-    await updateProfile(uid, {
+    await updateProfile(uid2, {
       githubToken: encryptedGithubToken,
       githubConnected: true,
       githubUsername: owner,
@@ -299456,7 +304283,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
     }).catch(() => {
     });
     if (bearerToken) {
-      saveGithubProfileToFirestoreRest(uid, bearerToken, {
+      saveGithubProfileToFirestoreRest(uid2, bearerToken, {
         githubToken: encryptedGithubToken,
         githubConnected: true,
         githubUsername: owner,
@@ -299505,7 +304332,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
     const fetchExistingFileSha = async (branchName) => {
       const query = branchName ? `?ref=${encodeURIComponent(branchName)}` : "";
       const fileRes = await fetch(
-        `https://api.github.com/repos/${owner}/${repoName}/contents/${path10}${query}`,
+        `https://api.github.com/repos/${owner}/${repoName}/contents/${path11}${query}`,
         { headers: githubHeaders, signal: AbortSignal.timeout(1e4) }
       );
       if (fileRes.ok) {
@@ -299517,7 +304344,7 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
     let sha = await fetchExistingFileSha(defaultBranch);
     const content = Buffer.from(code, "utf8").toString("base64");
     const putFile = async (targetSha, includeBranch = true) => {
-      return fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path10}`, {
+      return fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${path11}`, {
         method: "PUT",
         headers: { ...githubHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -299542,14 +304369,14 @@ app.post("/api/github/push", requireAuth, async (req, res) => {
       });
     }
     const pushData = await pushRes.json().catch(() => ({}));
-    const htmlUrl = pushData?.content?.html_url || `https://github.com/${owner}/${repoName}/blob/${defaultBranch}/${path10}`;
+    const htmlUrl = pushData?.content?.html_url || `https://github.com/${owner}/${repoName}/blob/${defaultBranch}/${path11}`;
     res.json({
       success: true,
       url: htmlUrl,
       repoUrl: `https://github.com/${owner}/${repoName}`,
       owner,
       repoName,
-      path: path10,
+      path: path11,
       encryptedGithubToken
     });
   } catch (error61) {
@@ -300450,7 +305277,7 @@ async function startServer() {
   } else {
     const distPath = import_path6.default.join(process.cwd(), "dist");
     app.use(
-      import_express.default.static(distPath, {
+      import_express2.default.static(distPath, {
         maxAge: "1d",
         setHeaders: (res, filePath) => {
           if (filePath.includes(import_path6.default.sep + "assets" + import_path6.default.sep)) {

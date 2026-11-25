@@ -177,6 +177,16 @@ export function SiteHeader({
               </Link>
 
               <Link
+                to={"/master-patterns" as any}
+                activeProps={{
+                  className: "!bg-primary !text-primary-foreground !border-primary font-semibold",
+                }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-none border border-[#625B52] bg-transparent px-3.5 lg:px-4 py-2 font-mono text-[11px] lg:text-xs font-medium uppercase tracking-[0.18em] text-[#EAE6DF] transition-colors hover:border-primary hover:text-white whitespace-nowrap"
+              >
+                <span>MASTER PATTERNS</span>
+              </Link>
+
+              <Link
                 to={"/ai-notes" as any}
                 activeProps={{
                   className: "!bg-primary !text-primary-foreground !border-primary font-semibold",
@@ -557,6 +567,30 @@ export function SiteHeader({
                             </div>
                           </div>
                           <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-amber-400 transition-colors" />
+                        </Link>
+
+                        <Link
+                          to={"/master-patterns" as any}
+                          onClick={() => setNavDrawerOpen(false)}
+                          activeProps={{
+                            className: "border-primary/50 bg-primary/10",
+                          }}
+                          className="group flex items-center justify-between rounded-xl border border-border/60 bg-card/60 p-2.5 hover:border-primary/40 hover:bg-secondary transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                              <AiWord className="size-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+                                Master Patterns Studio
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                Adaptive notes, verbal checks, complexity audits &amp; twists
+                              </div>
+                            </div>
+                          </div>
+                          <ChevronRight className="size-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
                         </Link>
 
                         <Link

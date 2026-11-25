@@ -19,6 +19,7 @@ import { Route as SheetsRouteImport } from './routes/sheets'
 import { Route as LiveInterviewRouteImport } from './routes/live-interview'
 import { Route as AiLearningRouteImport } from './routes/ai-learning'
 import { Route as AiNotesRouteImport } from './routes/ai-notes'
+import { Route as MasterPatternsRouteImport } from './routes/master-patterns'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as CookiesRouteImport } from './routes/cookies'
@@ -70,6 +71,11 @@ const AiLearningRoute = AiLearningRouteImport.update({
   path: '/ai-learning',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MasterPatternsRoute = MasterPatternsRouteImport.update({
+  id: '/master-patterns',
+  path: '/master-patterns',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/live-interview': typeof LiveInterviewRoute
   '/ai-learning': typeof AiLearningRoute
   '/ai-notes': typeof AiNotesRoute
+  '/master-patterns': typeof MasterPatternsRoute
   '/terms': typeof TermsRoute
   '/privacy': typeof PrivacyRoute
   '/cookies': typeof CookiesRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/live-interview': typeof LiveInterviewRoute
   '/ai-learning': typeof AiLearningRoute
   '/ai-notes': typeof AiNotesRoute
+  '/master-patterns': typeof MasterPatternsRoute
   '/terms': typeof TermsRoute
   '/privacy': typeof PrivacyRoute
   '/cookies': typeof CookiesRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/live-interview': typeof LiveInterviewRoute
   '/ai-learning': typeof AiLearningRoute
   '/ai-notes': typeof AiNotesRoute
+  '/master-patterns': typeof MasterPatternsRoute
   '/terms': typeof TermsRoute
   '/privacy': typeof PrivacyRoute
   '/cookies': typeof CookiesRoute
@@ -226,6 +235,7 @@ export interface RootRouteChildren {
   LiveInterviewRoute: typeof LiveInterviewRoute
   AiLearningRoute: typeof AiLearningRoute
   AiNotesRoute: typeof AiNotesRoute
+  MasterPatternsRoute: typeof MasterPatternsRoute
   TermsRoute: typeof TermsRoute
   PrivacyRoute: typeof PrivacyRoute
   CookiesRoute: typeof CookiesRoute
@@ -295,6 +305,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-learning'
       fullPath: '/ai-learning'
       preLoaderRoute: typeof AiLearningRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/master-patterns': {
+      id: '/master-patterns'
+      path: '/master-patterns'
+      fullPath: '/master-patterns'
+      preLoaderRoute: typeof MasterPatternsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -373,6 +390,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveInterviewRoute: LiveInterviewRoute,
   AiLearningRoute: AiLearningRoute,
   AiNotesRoute: AiNotesRoute,
+  MasterPatternsRoute: MasterPatternsRoute,
   TermsRoute: TermsRoute,
   PrivacyRoute: PrivacyRoute,
   CookiesRoute: CookiesRoute,

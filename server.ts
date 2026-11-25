@@ -89,6 +89,7 @@ import { AgUiAgentBridge } from './src/lib/ag-ui/agent-bridge.server';
 import { AgUiRunAgentInput, AgUiEventType } from './src/lib/ag-ui/types';
 import { compileHandwrittenNotesHtml } from './src/lib/notes/pdf-compiler';
 import { NotesBagItem, PdfCompilationConfig } from './src/lib/notes/types';
+import { createMasterPatternsRouter } from './src/lib/master-patterns/router.server';
 
 import path from "path";
 import fs from "fs";
@@ -525,7 +526,7 @@ const API_ENDPOINTS = [
   "/livekit-token", "/generate-plan", "/verify-trace", "/visualize-dataset", "/playground-review",
   "/code-diff-nudge", "/rate-submission", "/generate-mistakes-report",
   "/user-reports", "/compiler", "/health", "/debug", "/user-keys",
-  "/activity", "/telemetry", "/collab", "/ag-ui", "/notes"
+  "/activity", "/telemetry", "/collab", "/ag-ui", "/notes", "/patterns"
 ];
 app.use((req, _res, next) => {
   const pathname = req.url.split("?")[0];
@@ -1819,6 +1820,17 @@ app.delete("/api/submissions/:id", requireAuth, async (req: any, res) => {
   }
 });
 // ---------------------
+
+// ==============================================================================
+// MASTER PATTERNS ADAPTIVE LEARNING & COGNITIVE ENGINE API
+// ==============================================================================
+app.use(
+  "/api/patterns",
+  createMasterPatternsRouter({
+    authMiddleware: requireAuth,
+    aiRateLimiter: aiLimiter,
+  }),
+);
 
 // ==============================================================================
 // ⚡ AG-UI PROTOCOL MIDDLEWARE (Agent-User Interaction Protocol Specification)

@@ -6,26 +6,37 @@ import {
   CheckCircle2,
   Code2,
   Lightbulb,
+  MessageCircleQuestion,
   ShieldAlert,
 } from "lucide-react";
 import { AddToNotesButton } from "@/components/notes/AddToNotesButton";
 import { PatternVisualDiagram } from "@/components/patterns/PatternVisualDiagram";
-import type { StructuredPatternNotes } from "@/lib/master-patterns/types";
+import type {
+  SideChatAnchor,
+  StructuredPatternNotes,
+} from "@/lib/master-patterns/types";
 
 interface StructuredNotesPanelProps {
   notes: StructuredPatternNotes;
   loadingQuestions: boolean;
   onStartQuestions: () => void;
+  onOpenSideQuestion?: (anchor: SideChatAnchor) => void;
 }
 
 export const StructuredNotesPanel: React.FC<StructuredNotesPanelProps> = ({
   notes,
   loadingQuestions,
   onStartQuestions,
+  onOpenSideQuestion,
 }) => {
   return (
     <div className="space-y-6">
-      <div className="border-2 border-border bg-card p-6 space-y-6">
+      <div
+        data-side-segment-id={`notes:${notes.patternId}`}
+        data-side-segment-kind="notes"
+        data-side-segment-title={notes.title}
+        className="border-2 border-border bg-card p-6 space-y-6"
+      >
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-primary font-bold">
@@ -36,7 +47,25 @@ export const StructuredNotesPanel: React.FC<StructuredNotesPanelProps> = ({
             </h2>
           </div>
 
-          <AddToNotesButton
+          <div className="flex flex-wrap items-center gap-2">
+            {onOpenSideQuestion && (
+              <button
+                type="button"
+                onClick={() =>
+                  onOpenSideQuestion({
+                    segmentId: `notes:${notes.patternId}`,
+                    kind: "notes",
+                    title: notes.title,
+                    excerpt: notes.motivatedDiscovery.keyInsight,
+                  })
+                }
+                className="inline-flex items-center gap-1.5 border border-primary/40 bg-primary/5 px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase text-primary hover:bg-primary/15 cursor-pointer"
+              >
+                <MessageCircleQuestion className="size-3.5" />
+                Ask Side Q
+              </button>
+            )}
+            <AddToNotesButton
             sourceType="AI_LEARNING_MODULE"
             title={notes.title}
             variant="compact"
@@ -54,6 +83,7 @@ export const StructuredNotesPanel: React.FC<StructuredNotesPanelProps> = ({
               explanation: notes.motivatedDiscovery.whyItWorks,
             }}
           />
+          </div>
         </div>
 
         {/* Minimal Tree Pruning Notice */}

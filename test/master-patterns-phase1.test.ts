@@ -38,7 +38,7 @@ test("Scheduler: clean pass boosts mastery & stability, miss triggers gap and er
   const t0 = "2026-11-01T10:00:00.000Z";
   let profile = createEmptyUserPatternProfile("user_1", t0);
 
-  // Clean pass on two-pointers:monotonic-elimination
+  // Single clean pass advances strictly & incrementally (no 1-shot mastery)
   profile = applyStrandReviewUpdate(
     profile,
     {
@@ -51,19 +51,48 @@ test("Scheduler: clean pass boosts mastery & stability, miss triggers gap and er
       hintRung: null,
       verbalScore: 95,
       codeScore: 90,
+      confidence: 88,
       track: "pro",
     },
     t0,
   );
 
+  const firstPass = profile.strands["two-pointers:monotonic-elimination"];
+  assert.ok(firstPass);
+  assert.strictEqual(firstPass.status, "remediated");
+  assert.ok(firstPass.mastery >= 15 && firstPass.mastery < 35);
+  assert.ok(firstPass.stabilityDays > 1);
+
+  // Sustained multi-session spaced perfectioning earns mastery (>= 80) & cross-pattern pruning
+  let ts = Date.parse(t0);
+  for (let i = 0; i < 9; i++) {
+    ts += 24 * 3_600_000;
+    profile = applyStrandReviewUpdate(
+      profile,
+      {
+        patternId: "two-pointers",
+        strandId: "two-pointers:monotonic-elimination",
+        score: 95,
+        isCorrect: true,
+        hiddenGapDetected: false,
+        missClass: null,
+        hintRung: null,
+        verbalScore: 94,
+        codeScore: 92,
+        confidence: 90,
+        track: "pro",
+      },
+      new Date(ts).toISOString(),
+    );
+  }
+
   const tpStrand = profile.strands["two-pointers:monotonic-elimination"];
   assert.ok(tpStrand);
   assert.strictEqual(tpStrand.status, "mastered");
   assert.ok(tpStrand.mastery >= 80);
-  assert.ok(tpStrand.stabilityDays > 1);
 
   // Cross-pattern pruning should recognize mastered prerequisite in sliding-window
-  const pruned = pruneKnownPrereqStrands("sliding-window", profile, Date.parse(t0));
+  const pruned = pruneKnownPrereqStrands("sliding-window", profile, ts);
   assert.ok(pruned.includes("two-pointers:monotonic-elimination"));
 
   // Miss on sliding-window:while-vs-if-shrink should create active gap + error signature

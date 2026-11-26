@@ -35,8 +35,13 @@ export const StrandMasterySidebar: React.FC<StrandMasterySidebarProps> = ({
       {/* Dependency Strand Map (LearnHarness PlanTree inspiration) */}
       <div className="border-2 border-border bg-card p-4 space-y-3">
         <div className="flex items-center justify-between border-b border-border pb-2.5">
-          <div className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
-            PATTERN STRAND MAP
+          <div>
+            <div className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
+              STRICT TOPIC COMPLETION
+            </div>
+            <div className="font-mono text-[9px] text-muted-foreground">
+              Gated by confidence, valid reasoning, hints &amp; active gaps
+            </div>
           </div>
           <span className="font-mono text-[11px] font-bold">
             {patternItem.metrics.masteryPercent}%
@@ -78,6 +83,19 @@ export const StrandMasterySidebar: React.FC<StrandMasterySidebarProps> = ({
                     {mastery}%
                   </span>
                 </div>
+
+                {(st?.attempts ?? 0) > 0 && (
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-1 font-mono text-[9px] text-muted-foreground">
+                    <span>
+                      Clean streak: {st?.cleanPasses ?? st?.streak ?? 0}/3+
+                    </span>
+                    {st && st.calibrationBias >= 20 && (
+                      <span className="text-rose-500 font-bold">
+                        Bias +{st.calibrationBias}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-2 h-1.5 w-full bg-muted overflow-hidden">
                   <div

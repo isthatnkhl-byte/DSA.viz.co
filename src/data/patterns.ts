@@ -1342,6 +1342,152 @@ export const DOWNSTREAM_STRANDS: ReadonlyMap<string, readonly string[]> = (() =>
   return map;
 })();
 
+/** Deterministic Kahn topological order & longest-path DAG depth per strand. */
+export const TOPOLOGICAL_STRAND_ORDER: readonly string[] = (() => {
+  const inDegree = new Map<string, number>();
+  for (const s of ALL_STRANDS) inDegree.set(s.id, 0);
+  for (const e of PATTERN_EDGES) {
+    inDegree.set(e.to, (inDegree.get(e.to) ?? 0) + 1);
+  }
+  const queue: string[] = [];
+  for (const s of ALL_STRANDS) {
+    if ((inDegree.get(s.id) ?? 0) === 0) queue.push(s.id);
+  }
+  const order: string[] = [];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    order.push(cur);
+    for (const nxt of DOWNSTREAM_STRANDS.get(cur) ?? []) {
+      const d = (inDegree.get(nxt) ?? 0) - 1;
+      inDegree.set(nxt, d);
+      if (d === 0) queue.push(nxt);
+    }
+  }
+  return order;
+})();
+
+/** Longest dependency chain depth from root (0 = root strand with no prerequisites). */
+export const STRAND_DEPTH_MAP: ReadonlyMap<string, number> = (() => {
+  const depth = new Map<string, number>();
+  for (const id of TOPOLOGICAL_STRAND_ORDER) {
+    const s = STRAND_MAP.get(id);
+    if (!s || s.prerequisiteStrandIds.length === 0) {
+      depth.set(id, 0);
+      continue;
+    }
+    let maxParent = 0;
+    for (const p of s.prerequisiteStrandIds) {
+      maxParent = Math.max(maxParent, (depth.get(p) ?? 0) + 1);
+    }
+    depth.set(id, maxParent);
+  }
+  return depth;
+})();
+
+/** Transitive upstream prerequisites per strand (nearest-first BFS order). */
+export const ANCESTOR_STRANDS: ReadonlyMap<string, readonly string[]> = (() => {
+  const map = new Map<string, readonly string[]>();
+  for (const s of ALL_STRANDS) {
+    const seen = new Set<string>();
+    const order: string[] = [];
+    const queue = [...s.prerequisiteStrandIds];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      if (seen.has(cur) || cur === s.id) continue;
+      seen.add(cur);
+      order.push(cur);
+      const def = STRAND_MAP.get(cur);
+      if (def) queue.push(...def.prerequisiteStrandIds);
+    }
+    map.set(s.id, order);
+  }
+  return map;
+})();
+
+/** Transitive downstream dependent strands per strand (nearest-first BFS order). */
+export const TRANSITIVE_DOWNSTREAM_STRANDS: ReadonlyMap<
+  string,
+  readonly string[]
+> = (() => {
+  const map = new Map<string, readonly string[]>();
+  for (const s of ALL_STRANDS) {
+    const seen = new Set<string>();
+    const order: string[] = [];
+    const queue = [...(DOWNSTREAM_STRANDS.get(s.id) ?? [])];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      if (seen.has(cur) || cur === s.id) continue;
+      seen.add(cur);
+      order.push(cur);
+      queue.push(...(DOWNSTREAM_STRANDS.get(cur) ?? []));
+    }
+    map.set(s.id, order);
+  }
+  return map;
+})();
+
+export interface PatternDagAnalysis {
+  ok: boolean;
+  errors: string[];
+  nodeCount: number;
+  edgeCount: number;
+  internalEdges: number;
+  crossPatternEdges: number;
+  maxDepth: number;
+  rootStrandIds: string[];
+  sinkStrandIds: string[];
+  topologicalOrder: string[];
+  patternBridges: Array<{
+    fromPattern: PatternId;
+    toPattern: PatternId;
+    fromStrand: string;
+    toStrand: string;
+  }>;
+  depths: Record<string, number>;
+}
+
+/** Computes complete structural telemetry and cross-pattern topology over the DAG. */
+export function analyzePatternDag(): PatternDagAnalysis {
+  const check = validatePatternGraph();
+  const rootStrandIds = ALL_STRANDS.filter(
+    (s) => s.prerequisiteStrandIds.length === 0,
+  ).map((s) => s.id);
+  const sinkStrandIds = ALL_STRANDS.filter(
+    (s) => (DOWNSTREAM_STRANDS.get(s.id)?.length ?? 0) === 0,
+  ).map((s) => s.id);
+
+  let maxDepth = 0;
+  const depths: Record<string, number> = {};
+  for (const [id, d] of STRAND_DEPTH_MAP.entries()) {
+    depths[id] = d;
+    if (d > maxDepth) maxDepth = d;
+  }
+
+  const patternBridges = PATTERN_EDGES.filter((e) => e.kind === "cross-pattern").map(
+    (e) => ({
+      fromPattern: STRAND_MAP.get(e.from)?.patternId ?? ("two-pointers" as PatternId),
+      toPattern: STRAND_MAP.get(e.to)?.patternId ?? ("sliding-window" as PatternId),
+      fromStrand: e.from,
+      toStrand: e.to,
+    }),
+  );
+
+  return {
+    ok: check.ok,
+    errors: check.errors,
+    nodeCount: ALL_STRANDS.length,
+    edgeCount: PATTERN_EDGES.length,
+    internalEdges: PATTERN_EDGES.filter((e) => e.kind === "internal").length,
+    crossPatternEdges: patternBridges.length,
+    maxDepth,
+    rootStrandIds,
+    sinkStrandIds,
+    topologicalOrder: [...TOPOLOGICAL_STRAND_ORDER],
+    patternBridges,
+    depths,
+  };
+}
+
 export function getPatternDefinition(patternId: PatternId): PatternDefinition | undefined {
   return PATTERN_MAP.get(patternId);
 }

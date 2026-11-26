@@ -5,21 +5,30 @@ import {
   Cpu,
   Flame,
   Gauge,
+  MessageCircleQuestion,
   Wrench,
 } from "lucide-react";
-import type { SubmissionEvaluation } from "@/lib/master-patterns/types";
+import type {
+  SideChatAnchor,
+  SubmissionEvaluation,
+} from "@/lib/master-patterns/types";
 
 interface RemediationAndTwistCardProps {
   evaluation: SubmissionEvaluation;
+  onOpenSideQuestion?: (anchor: SideChatAnchor) => void;
 }
 
 export const RemediationAndTwistCard: React.FC<RemediationAndTwistCardProps> = ({
   evaluation,
+  onOpenSideQuestion,
 }) => {
   const passedCleanly = evaluation.isCorrect && !evaluation.hiddenGapDetected;
 
   return (
     <div
+      data-side-segment-id={`eval:${evaluation.questionId}`}
+      data-side-segment-kind="remediation"
+      data-side-segment-title={`Feedback (${evaluation.strandId.split(":")[1] ?? evaluation.strandId})`}
       className={`border-2 p-5 space-y-4 ${
         passedCleanly
           ? "border-emerald-500/60 bg-emerald-500/5"
@@ -51,6 +60,24 @@ export const RemediationAndTwistCard: React.FC<RemediationAndTwistCardProps> = (
           <span className="border border-border bg-card px-2 py-0.5 font-bold">
             Score: {evaluation.score}%
           </span>
+          {evaluation.confidenceDiagnostic && (
+            <span
+              className={`border px-2 py-0.5 font-bold uppercase ${
+                evaluation.confidenceDiagnostic === "overconfident"
+                  ? "border-rose-500/40 bg-rose-500/10 text-rose-500"
+                  : evaluation.confidenceDiagnostic === "underconfident"
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+                    : evaluation.confidenceDiagnostic === "honest_gap"
+                      ? "border-sky-500/40 bg-sky-500/10 text-sky-400"
+                      : "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+              }`}
+            >
+              {evaluation.confidenceSubmitted != null
+                ? `${evaluation.confidenceSubmitted}% · `
+                : ""}
+              {evaluation.confidenceDiagnostic.replace(/_/g, " ")}
+            </span>
+          )}
           {evaluation.missClass && (
             <span className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-2 py-0.5 uppercase">
               Miss: {evaluation.missClass}
@@ -60,6 +87,23 @@ export const RemediationAndTwistCard: React.FC<RemediationAndTwistCardProps> = (
             <span className="border border-amber-500/40 bg-amber-500/10 text-amber-500 px-2 py-0.5 uppercase">
               Rung: {evaluation.hintRung}
             </span>
+          )}
+          {onOpenSideQuestion && (
+            <button
+              type="button"
+              onClick={() =>
+                onOpenSideQuestion({
+                  segmentId: `eval:${evaluation.questionId}`,
+                  kind: "remediation",
+                  title: `Feedback (${evaluation.strandId.split(":")[1] ?? evaluation.strandId})`,
+                  excerpt: evaluation.surgicalTeaching || evaluation.verdictSummary,
+                })
+              }
+              className="inline-flex items-center gap-1 border border-primary/40 bg-primary/5 px-2 py-0.5 text-primary hover:bg-primary/15 cursor-pointer"
+            >
+              <MessageCircleQuestion className="size-3" />
+              Clarify
+            </button>
           )}
         </div>
       </div>

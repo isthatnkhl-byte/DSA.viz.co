@@ -1,29 +1,42 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Award,
   Brain,
   History,
+  LayoutGrid,
   Loader2,
+  MessageCircleQuestion,
+  Network,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  apiAbortPatternTurn,
+  apiAskSideChat,
+  apiFetchPatternDag,
   apiFetchPatternProfile,
-  apiFinishPatternSession,
+  apiGeneratePatternVisual,
   apiGetPatternSession,
-  apiReadyPatternQuestions,
+  apiListSideChats,
+  apiPatchSideChat,
+  apiReattachPatternStream,
   apiRehydratePatternSession,
-  apiRequestPatternHint,
-  apiSelectPatternLevel,
-  apiStartCalibrationProbe,
   apiStartPatternSession,
-  apiSubmitPatternAnswer,
+  apiSteerPatternTurn,
+  apiStopSideChat,
+  apiStreamPatternTurn,
   type CalibrationPromptData,
+  type PatternDagFrontierResponse,
   type PatternProfileResponse,
 } from "@/lib/master-patterns/client";
+import {
+  serializeCitation,
+  type PatternCitation,
+} from "@/lib/master-patterns/citations";
+import { deriveActiveSegmentAnchor } from "@/lib/master-patterns/side-chat";
 import {
   clearActiveLocalArchiveForPattern,
   getActiveLocalArchiveForPattern,
@@ -33,11 +46,27 @@ import {
 import type {
   PatternId,
   PatternSessionState,
+  PatternTurnStreamEvent,
+  SideChatAnchor,
+  SideChatThread,
   SubmissionEvaluation,
   SubmissionPayload,
   TrackMode,
 } from "@/lib/master-patterns/types";
+import {
+  AgentRuntimeBar,
+  type LiveTurnUiState,
+} from "@/components/patterns/AgentRuntimeBar";
+import {
+  SelectionToolbar,
+  type CapturedSegmentSelection,
+} from "@/components/patterns/SelectionToolbar";
+import { SideThreadDrawer } from "@/components/patterns/SideThreadDrawer";
+import { DictationRmsControl } from "@/components/patterns/DictationRmsControl";
+import { VerifiedVisualCanvas } from "@/components/patterns/VerifiedVisualCanvas";
+import { usePatternDictation } from "@/hooks/usePatternDictation";
 import { PatternCatalogGrid } from "@/components/patterns/PatternCatalogGrid";
+import { DagFrontierExplorer } from "@/components/patterns/DagFrontierExplorer";
 import { LevelCalibrationCard } from "@/components/patterns/LevelCalibrationCard";
 import { StructuredNotesPanel } from "@/components/patterns/StructuredNotesPanel";
 import { AdaptiveQuestionStage } from "@/components/patterns/AdaptiveQuestionStage";
@@ -70,11 +99,161 @@ export default function MasterPatternsPage() {
     null,
   );
   const [loadingTrack, setLoadingTrack] = useState<TrackMode | null>(null);
+  const [overviewTab, setOverviewTab] = useState<"catalog" | "dag">("catalog");
+  const [dagData, setDagData] = useState<PatternDagFrontierResponse | null>(null);
+  const [loadingDag, setLoadingDag] = useState(false);
+  const [dagError, setDagError] = useState<string | null>(null);
+
   const [loadingProbe, setLoadingProbe] = useState(false);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [requestingHint, setRequestingHint] = useState(false);
+  const [generatingVisual, setGeneratingVisual] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [finishing, setFinishing] = useState(false);
+
+  const activeQuestionIdRef = useRef<string | null>(null);
+  activeQuestionIdRef.current = session?.currentQuestion?.id ?? null;
+
+  const handleDictationAppend = useCallback((targetId: string, chunk: string) => {
+    const clean = chunk.trim();
+    if (!clean) return;
+    if (targetId === "verbal") {
+      const qid = activeQuestionIdRef.current;
+      if (!qid) return;
+      setVerbalDrafts((prev) => ({
+        ...prev,
+        [qid]: prev[qid] ? `${prev[qid].trimEnd()} ${clean}` : clean,
+      }));
+      return;
+    }
+    if (targetId.startsWith("side:")) {
+      const draftKey = targetId.slice("side:".length);
+      setSideDrafts((prev) => ({
+        ...prev,
+        [draftKey]: prev[draftKey] ? `${prev[draftKey].trimEnd()} ${clean}` : clean,
+      }));
+    }
+  }, []);
+
+  const dictation = usePatternDictation(handleDictationAppend);
+
+  // Side Companion & Selection Citations state (Wave 2)
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [sideOpen, setSideOpen] = useState(false);
+  const [sideDocked, setSideDocked] = useState(false);
+  const [sideThreads, setSideThreads] = useState<SideChatThread[]>([]);
+  const [activeSideThreadId, setActiveSideThreadId] = useState<string | null>(
+    null,
+  );
+  const [pendingSideAnchor, setPendingSideAnchor] =
+    useState<SideChatAnchor | null>(null);
+  const [pendingSideQuotes, setPendingSideQuotes] = useState<
+    Array<{ text: string; citation?: string }>
+  >([]);
+  const [sideDrafts, setSideDrafts] = useState<Record<string, string>>({});
+  const [sideAnswering, setSideAnswering] = useState(false);
+  const [sideStreamText, setSideStreamText] = useState("");
+  const [pendingVerbalCitations, setPendingVerbalCitations] = useState<
+    PatternCitation[]
+  >([]);
+
+  const IDLE_LIVE_TURN: LiveTurnUiState = {
+    active: false,
+    turnId: null,
+    role: null,
+    action: null,
+    step: 0,
+    reasoningText: "",
+    toolCalls: [],
+    steers: [],
+  };
+  const [liveTurn, setLiveTurn] = useState<LiveTurnUiState>(IDLE_LIVE_TURN);
+
+  const applyStreamEvent = useCallback((ev: PatternTurnStreamEvent) => {
+    setLiveTurn((prev) => {
+      switch (ev.type) {
+        case "turn_started":
+          return {
+            active: true,
+            turnId: ev.turnId,
+            role: ev.role,
+            action: ev.action,
+            step: 1,
+            reasoningText: "",
+            toolCalls: [],
+            steers: [],
+          };
+        case "step_started":
+          return { ...prev, active: true, step: ev.step, role: ev.role };
+        case "reasoning_update":
+          return { ...prev, reasoningText: ev.text };
+        case "tool_call_start": {
+          const exists = prev.toolCalls.some((t) => t.callId === ev.callId);
+          return {
+            ...prev,
+            toolCalls: exists
+              ? prev.toolCalls
+              : [
+                  ...prev.toolCalls,
+                  {
+                    callId: ev.callId,
+                    toolName: ev.toolName,
+                    argsPreview: ev.argsPreview,
+                    status: "running",
+                  },
+                ],
+          };
+        }
+        case "tool_call_end":
+          return {
+            ...prev,
+            toolCalls: prev.toolCalls.map((tc) =>
+              tc.callId === ev.callId
+                ? {
+                    ...tc,
+                    status: ev.isError ? "error" : "completed",
+                    healed: ev.healed,
+                    resultPreview: ev.resultPreview,
+                    durationMs: ev.durationMs,
+                  }
+                : tc,
+            ),
+          };
+        case "steer_applied":
+          return {
+            ...prev,
+            steers: prev.steers.some((s) => s.id === ev.steerId)
+              ? prev.steers
+              : [
+                  ...prev.steers,
+                  {
+                    id: ev.steerId,
+                    text: ev.text,
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+          };
+        case "turn_settled":
+        case "turn_error":
+          return { ...prev, active: false };
+        default:
+          return prev;
+      }
+    });
+  }, []);
+
+  const loadDagFrontier = useCallback(async () => {
+    setLoadingDag(true);
+    setDagError(null);
+    try {
+      const res = await apiFetchPatternDag();
+      setDagData(res);
+    } catch (err) {
+      setDagError((err as Error)?.message || "Failed to load DAG frontier.");
+    } finally {
+      setLoadingDag(false);
+    }
+  }, []);
 
   const loadCatalogAndResumables = useCallback(async () => {
     setLoadingProfile(true);
@@ -105,6 +284,12 @@ export default function MasterPatternsPage() {
     void loadCatalogAndResumables();
   }, [loadCatalogAndResumables]);
 
+  useEffect(() => {
+    if (overviewTab === "dag" && !dagData && !loadingDag) {
+      void loadDagFrontier();
+    }
+  }, [overviewTab, dagData, loadingDag, loadDagFrontier]);
+
   const syncArchiveToLocal = useCallback(
     async (
       nextSession: PatternSessionState,
@@ -121,12 +306,193 @@ export default function MasterPatternsPage() {
         transcript: nextTranscript,
         codeDrafts: nextCodeDrafts,
         verbalDrafts: nextVerbalDrafts,
+        sideDrafts,
         scorecard: nextSession.scorecard,
         updatedAt: new Date().toISOString(),
       });
     },
-    [uid],
+    [uid, sideDrafts],
   );
+
+  // Sync side threads smoothly whenever sessionId changes or remote updates restore
+  useEffect(() => {
+    if (!session?.sessionId) {
+      setSideThreads([]);
+      return;
+    }
+    if (session.sideChats && session.sideChats.length > 0) {
+      setSideThreads(session.sideChats);
+      return;
+    }
+    void apiListSideChats(session.sessionId)
+      .then((res) => {
+        if (res.threads.length > 0) setSideThreads(res.threads);
+      })
+      .catch(() => {});
+  }, [session?.sessionId, session?.sideChats]);
+
+  const activeSegment = useMemo(() => {
+    if (!session) return null;
+    return deriveActiveSegmentAnchor(session);
+  }, [session]);
+
+  const currentSideThread = useMemo(() => {
+    if (activeSideThreadId) {
+      return sideThreads.find((t) => t.id === activeSideThreadId) ?? null;
+    }
+    if (pendingSideAnchor) {
+      return (
+        sideThreads.find(
+          (t) => t.anchor.segmentId === pendingSideAnchor.segmentId,
+        ) ?? null
+      );
+    }
+    return null;
+  }, [activeSideThreadId, pendingSideAnchor, sideThreads]);
+
+  const currentSideDraftKey =
+    currentSideThread?.id ??
+    pendingSideAnchor?.segmentId ??
+    activeSegment?.segmentId ??
+    "default";
+
+  const handleOpenSideForAnchor = useCallback(
+    (anchor: SideChatAnchor) => {
+      const existing = sideThreads.find(
+        (t) => t.anchor.segmentId === anchor.segmentId,
+      );
+      setPendingSideAnchor(anchor);
+      setActiveSideThreadId(existing?.id ?? null);
+      setSideOpen(true);
+    },
+    [sideThreads],
+  );
+
+  const handleSelectionAsk = useCallback(
+    (capture: CapturedSegmentSelection) => {
+      const citStr = serializeCitation(capture.citation);
+      setPendingSideQuotes((prev) => [
+        ...prev.slice(-3),
+        { text: capture.citation.text, citation: citStr },
+      ]);
+      handleOpenSideForAnchor(capture.anchor);
+    },
+    [handleOpenSideForAnchor],
+  );
+
+  const handleSelectionCite = useCallback(
+    (capture: CapturedSegmentSelection) => {
+      setPendingVerbalCitations((prev) => [...prev.slice(-3), capture.citation]);
+      toast.success("Citation added to Verbal Reasoning box.");
+    },
+    [],
+  );
+
+  const handleAskSideQuestion = async (text: string, retry = false) => {
+    if (!session || sideAnswering) return;
+    const flushedSide = dictation
+      .flushAndStop(`side:${currentSideDraftKey}`)
+      .trim();
+    const composedSideText = retry
+      ? text
+      : [text.trim(), flushedSide].filter(Boolean).join(" ").trim();
+    if (!retry && !composedSideText) return;
+
+    const targetAnchor =
+      currentSideThread?.anchor ??
+      pendingSideAnchor ??
+      deriveActiveSegmentAnchor(session);
+    const activeQid = session.currentQuestion?.id;
+    const workingDraft = activeQid
+      ? [verbalDrafts[activeQid], codeDrafts[activeQid]].filter(Boolean).join("\n")
+      : undefined;
+
+    setSideAnswering(true);
+    setSideStreamText("");
+
+    try {
+      const updated = await apiAskSideChat(
+        session.sessionId,
+        {
+          ...(currentSideThread
+            ? { threadId: currentSideThread.id }
+            : { anchor: targetAnchor }),
+          text: composedSideText,
+          quotes: pendingSideQuotes.map((q) => q.text),
+          ...(pendingSideQuotes.some((q) => q.citation)
+            ? {
+                quoteCitations: pendingSideQuotes
+                  .map((q) => q.citation)
+                  .filter((c): c is string => Boolean(c)),
+              }
+            : {}),
+          retry,
+          requestId: `sr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          ...(workingDraft ? { workingDraft } : {}),
+        },
+        (ev) => {
+          if (ev.type === "thread") {
+            setActiveSideThreadId(ev.thread.id);
+            setSideThreads((prev) =>
+              prev.some((t) => t.id === ev.thread.id)
+                ? prev.map((t) => (t.id === ev.thread.id ? ev.thread : t))
+                : [...prev, ev.thread],
+            );
+          } else if (ev.type === "text") {
+            setSideStreamText(ev.text);
+          } else if (ev.type === "done") {
+            setSideThreads((prev) =>
+              prev.some((t) => t.id === ev.thread.id)
+                ? prev.map((t) => (t.id === ev.thread.id ? ev.thread : t))
+                : [...prev, ev.thread],
+            );
+          }
+        },
+      );
+
+      setActiveSideThreadId(updated.id);
+      if (!retry) {
+        setSideDrafts((prev) => ({ ...prev, [currentSideDraftKey]: "" }));
+        setPendingSideQuotes([]);
+      }
+      setSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              sideChats: sideThreads.some((t) => t.id === updated.id)
+                ? sideThreads.map((t) => (t.id === updated.id ? updated : t))
+                : [...sideThreads, updated],
+            }
+          : prev,
+      );
+    } catch (err) {
+      toast.error(
+        (err as Error)?.message || "Failed to ask side companion.",
+      );
+    } finally {
+      setSideAnswering(false);
+      setSideStreamText("");
+    }
+  };
+
+  const handleStopSideChat = async () => {
+    if (!session || !currentSideThread) return;
+    try {
+      await apiStopSideChat(session.sessionId, currentSideThread.id);
+    } catch {
+      // Ignore stop errors
+    }
+  };
+
+  const handleToggleSideDock = () => {
+    const nextDocked = !sideDocked;
+    setSideDocked(nextDocked);
+    if (session && currentSideThread) {
+      void apiPatchSideChat(session.sessionId, currentSideThread.id, {
+        docked: nextDocked,
+      }).catch(() => {});
+    }
+  };
 
   const handleSelectPattern = async (
     patternId: PatternId,
@@ -148,8 +514,35 @@ export default function MasterPatternsPage() {
             setTranscript(local.transcript);
             setCodeDrafts(local.codeDrafts);
             setVerbalDrafts(local.verbalDrafts);
+            if (local.sideDrafts) setSideDrafts(local.sideDrafts);
+            if (restored.sideChats) setSideThreads(restored.sideChats);
             setLatestEval(restored.lastEvaluation);
-            toast.success("Resumed your pattern session.");
+            if (restored.turnInFlight) {
+              toast.info("Reattaching to in-flight AI turn...");
+              try {
+                const settled = await apiReattachPatternStream(
+                  restored.sessionId,
+                  { onEvent: applyStreamEvent },
+                );
+                setSession(settled.session);
+                if (settled.profile) {
+                  setProfile(settled.profile as unknown as PatternProfileResponse);
+                }
+                if (settled.evaluation) setLatestEval(settled.evaluation);
+                await syncArchiveToLocal(
+                  settled.session,
+                  local.transcript,
+                  local.codeDrafts,
+                  local.verbalDrafts,
+                );
+              } catch {
+                // Keep snapshot restored cleanly
+              } finally {
+                setLiveTurn(IDLE_LIVE_TURN);
+              }
+            } else {
+              toast.success("Resumed your pattern session.");
+            }
             return;
           } catch {
             // Server cold-start or expired cache: rehydrate safely
@@ -191,12 +584,25 @@ export default function MasterPatternsPage() {
     if (!session) return;
     setLoadingTrack(track);
     try {
-      const res = await apiSelectPatternLevel(session.sessionId, track);
-      setSession(res.session);
-      await syncArchiveToLocal(res.session, transcript, codeDrafts, verbalDrafts);
+      const settled = await apiStreamPatternTurn(
+        session.sessionId,
+        { kind: "select_level", track },
+        { onEvent: applyStreamEvent },
+      );
+      if (settled.aborted) {
+        toast.info("Track initialization stopped.");
+      }
+      setSession(settled.session);
+      await syncArchiveToLocal(
+        settled.session,
+        transcript,
+        codeDrafts,
+        verbalDrafts,
+      );
     } catch (err) {
       toast.error((err as Error)?.message || "Failed to initialize track.");
     } finally {
+      setLiveTurn(IDLE_LIVE_TURN);
       setLoadingTrack(null);
     }
   };
@@ -205,12 +611,22 @@ export default function MasterPatternsPage() {
     if (!session) return;
     setLoadingProbe(true);
     try {
-      const res = await apiStartCalibrationProbe(session.sessionId);
-      setSession(res.session);
-      await syncArchiveToLocal(res.session, transcript, codeDrafts, verbalDrafts);
+      const settled = await apiStreamPatternTurn(
+        session.sessionId,
+        { kind: "start_probe" },
+        { onEvent: applyStreamEvent },
+      );
+      setSession(settled.session);
+      await syncArchiveToLocal(
+        settled.session,
+        transcript,
+        codeDrafts,
+        verbalDrafts,
+      );
     } catch (err) {
       toast.error((err as Error)?.message || "Failed to start calibration probe.");
     } finally {
+      setLiveTurn(IDLE_LIVE_TURN);
       setLoadingProbe(false);
     }
   };
@@ -219,12 +635,22 @@ export default function MasterPatternsPage() {
     if (!session) return;
     setLoadingQuestions(true);
     try {
-      const res = await apiReadyPatternQuestions(session.sessionId);
-      setSession(res.session);
-      await syncArchiveToLocal(res.session, transcript, codeDrafts, verbalDrafts);
+      const settled = await apiStreamPatternTurn(
+        session.sessionId,
+        { kind: "ready_questions" },
+        { onEvent: applyStreamEvent },
+      );
+      setSession(settled.session);
+      await syncArchiveToLocal(
+        settled.session,
+        transcript,
+        codeDrafts,
+        verbalDrafts,
+      );
     } catch (err) {
       toast.error((err as Error)?.message || "Failed to load questions.");
     } finally {
+      setLiveTurn(IDLE_LIVE_TURN);
       setLoadingQuestions(false);
     }
   };
@@ -233,15 +659,22 @@ export default function MasterPatternsPage() {
     if (!session || !session.currentQuestion || requestingHint) return;
     setRequestingHint(true);
     try {
-      const res = await apiRequestPatternHint(
+      const settled = await apiStreamPatternTurn(
         session.sessionId,
-        session.currentQuestion.id,
+        { kind: "request_hint", questionId: session.currentQuestion.id },
+        { onEvent: applyStreamEvent },
       );
-      setSession(res.session);
-      await syncArchiveToLocal(res.session, transcript, codeDrafts, verbalDrafts);
+      setSession(settled.session);
+      await syncArchiveToLocal(
+        settled.session,
+        transcript,
+        codeDrafts,
+        verbalDrafts,
+      );
     } catch (err) {
       toast.error((err as Error)?.message || "Failed to generate progressive hint.");
     } finally {
+      setLiveTurn(IDLE_LIVE_TURN);
       setRequestingHint(false);
     }
   };
@@ -252,34 +685,61 @@ export default function MasterPatternsPage() {
     setSubmitting(true);
 
     try {
-      const res = await apiSubmitPatternAnswer(payload);
-      setProfile(res.profile);
-      setLatestEval(res.evaluation);
+      const settled = await apiStreamPatternTurn(
+        session.sessionId,
+        { kind: "submit", payload },
+        { onEvent: applyStreamEvent },
+      );
 
-      const entry: LocalTranscriptEntry = {
-        id: payload.attemptId,
-        timestamp: new Date().toISOString(),
-        strandId: askedQuestion.strandId,
-        question: askedQuestion,
-        submittedAnswer: {
-          selectedOptions: payload.selectedOptions,
-          choseIdk: payload.choseIdk,
-          verbalAnswer: payload.verbalAnswer,
-          code: payload.code,
-          language: payload.language,
-          claimedTimeComplexity: payload.claimedTimeComplexity,
-          claimedSpaceComplexity: payload.claimedSpaceComplexity,
-        },
-        evaluation: res.evaluation,
-      };
-      const nextTranscript = [...transcript, entry];
+      if (settled.aborted) {
+        toast.info("Turn stopped cleanly. Your draft is preserved.");
+        setSession(settled.session);
+        return;
+      }
+
+      if (settled.profile) {
+        setProfile(settled.profile as unknown as PatternProfileResponse);
+      }
+      if (settled.evaluation) {
+        setLatestEval(settled.evaluation);
+      }
+      setPendingVerbalCitations([]);
+
+      const nextTranscript = settled.evaluation
+        ? [
+            ...transcript,
+            {
+              id: payload.attemptId,
+              timestamp: new Date().toISOString(),
+              strandId: askedQuestion.strandId,
+              question: askedQuestion,
+              submittedAnswer: {
+                selectedOptions: payload.selectedOptions,
+                choseIdk: payload.choseIdk,
+                verbalAnswer: payload.verbalAnswer,
+                code: payload.code,
+                language: payload.language,
+                claimedTimeComplexity: payload.claimedTimeComplexity,
+                claimedSpaceComplexity: payload.claimedSpaceComplexity,
+              },
+              evaluation: settled.evaluation,
+            },
+          ]
+        : transcript;
       setTranscript(nextTranscript);
 
-      let nextSession = res.session;
-      if (res.evaluation.readyForScorecard && nextSession.stage !== "completed") {
-        const fin = await apiFinishPatternSession(nextSession.sessionId);
+      let nextSession = settled.session;
+      if (
+        settled.evaluation?.readyForScorecard &&
+        nextSession.stage !== "completed"
+      ) {
+        const fin = await apiStreamPatternTurn(nextSession.sessionId, {
+          kind: "finish",
+        });
         nextSession = fin.session;
-        setProfile(fin.profile);
+        if (fin.profile) {
+          setProfile(fin.profile as unknown as PatternProfileResponse);
+        }
         await clearActiveLocalArchiveForPattern(uid, nextSession.patternId);
       }
 
@@ -304,6 +764,7 @@ export default function MasterPatternsPage() {
         toast.error((err as Error)?.message || "Submission failed.");
       }
     } finally {
+      setLiveTurn(IDLE_LIVE_TURN);
       setSubmitting(false);
     }
   };
@@ -312,15 +773,48 @@ export default function MasterPatternsPage() {
     if (!session) return;
     setFinishing(true);
     try {
-      const fin = await apiFinishPatternSession(session.sessionId);
+      const fin = await apiStreamPatternTurn(
+        session.sessionId,
+        { kind: "finish" },
+        { onEvent: applyStreamEvent },
+      );
       setSession(fin.session);
-      setProfile(fin.profile);
+      if (fin.profile) {
+        setProfile(fin.profile as unknown as PatternProfileResponse);
+      }
       await clearActiveLocalArchiveForPattern(uid, fin.session.patternId);
       await syncArchiveToLocal(fin.session, transcript, codeDrafts, verbalDrafts);
     } catch (err) {
       toast.error((err as Error)?.message || "Failed to generate scorecard.");
     } finally {
+      setLiveTurn(IDLE_LIVE_TURN);
       setFinishing(false);
+    }
+  };
+
+  const handleSteerTurn = async (text: string) => {
+    if (!session) return;
+    try {
+      const res = await apiSteerPatternTurn(session.sessionId, text);
+      if (res.accepted) {
+        setLiveTurn((prev) => ({
+          ...prev,
+          steers: prev.steers.some((s) => s.id === res.steer.id)
+            ? prev.steers
+            : [...prev.steers, res.steer],
+        }));
+      }
+    } catch (err) {
+      toast.error((err as Error)?.message || "Could not steer running turn.");
+    }
+  };
+
+  const handleAbortTurn = async () => {
+    if (!session) return;
+    try {
+      await apiAbortPatternTurn(session.sessionId);
+    } catch (err) {
+      toast.error((err as Error)?.message || "Failed to stop turn.");
     }
   };
 
@@ -343,18 +837,112 @@ export default function MasterPatternsPage() {
     [session?.currentQuestion],
   );
 
+  const handleRequestVisualDiagram = async () => {
+    if (!session || generatingVisual) return;
+    setGeneratingVisual(true);
+    try {
+      const res = await apiGeneratePatternVisual(session.sessionId, {
+        strandId: session.currentQuestion?.strandId,
+      });
+      setSession(res.session);
+      toast.success(
+        res.visual.verifiedByAuditor
+          ? "Generated verified geometry diagram."
+          : "Attached fallback trace diagram.",
+      );
+    } catch (err) {
+      toast.error(
+        (err as Error)?.message || "Failed to generate visual diagram.",
+      );
+    } finally {
+      setGeneratingVisual(false);
+    }
+  };
+
   const handleBackToCatalog = () => {
+    dictation.flushAndStop();
+    setLiveTurn(IDLE_LIVE_TURN);
+    setSideOpen(false);
+    setActiveSideThreadId(null);
+    setPendingSideAnchor(null);
+    setPendingSideQuotes([]);
+    setPendingVerbalCitations([]);
     setSession(null);
     setCalibration(null);
     setLatestEval(null);
+    setDagData(null);
     void loadCatalogAndResumables();
+    if (overviewTab === "dag") {
+      void loadDagFrontier();
+    }
   };
+
+  const renderSideDrawer = (dockedMode: boolean) => {
+    if (!session || !activeSegment || !sideOpen) return null;
+    return (
+      <SideThreadDrawer
+        open={sideOpen}
+        docked={dockedMode}
+        thread={currentSideThread}
+        pendingAnchor={pendingSideAnchor ?? activeSegment}
+        pendingQuotes={pendingSideQuotes}
+        activeSegmentId={activeSegment.segmentId}
+        streamingText={sideStreamText}
+        answering={sideAnswering}
+        draft={sideDrafts[currentSideDraftKey] ?? ""}
+        onDraftChange={(txt) =>
+          setSideDrafts((prev) => ({
+            ...prev,
+            [currentSideDraftKey]: txt,
+          }))
+        }
+        onRemoveQuote={(idx) =>
+          setPendingSideQuotes((prev) => prev.filter((_, i) => i !== idx))
+        }
+        onAsk={handleAskSideQuestion}
+        onStop={handleStopSideChat}
+        onToggleDock={handleToggleSideDock}
+        onClose={() => setSideOpen(false)}
+        onJumpToCurrentStep={() => {
+          if (activeSegment) handleOpenSideForAnchor(activeSegment);
+        }}
+        onSwitchThread={(tid) => setActiveSideThreadId(tid)}
+        allThreads={sideThreads}
+        dictationSlot={
+          <DictationRmsControl
+            compact
+            targetId={`side:${currentSideDraftKey}`}
+            activeTarget={dictation.activeTarget}
+            error={dictation.error}
+            disabled={sideAnswering}
+            onToggle={(id) => void dictation.toggleTarget(id)}
+            subscribeVolume={dictation.subscribeVolume}
+          />
+        }
+      />
+    );
+  };
+
+  const renderQuestionDictation = () => (
+    <DictationRmsControl
+      targetId="verbal"
+      activeTarget={dictation.activeTarget}
+      interimText={dictation.interimFor("verbal")}
+      error={dictation.error}
+      disabled={submitting}
+      onToggle={(id) => void dictation.toggleTarget(id)}
+      subscribeVolume={dictation.subscribeVolume}
+    />
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <SiteHeader />
 
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main
+        ref={workspaceRef}
+        className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8"
+      >
         {/* Page Masthead */}
         <div className="border-b-2 border-border pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -372,8 +960,55 @@ export default function MasterPatternsPage() {
             </p>
           </div>
 
+          {!session && profile && (
+            <div className="inline-flex border-2 border-border bg-card p-1 gap-1 self-start md:self-auto">
+              <button
+                type="button"
+                onClick={() => setOverviewTab("catalog")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.1em] transition-colors cursor-pointer ${
+                  overviewTab === "catalog"
+                    ? "bg-primary text-primary-foreground font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LayoutGrid className="size-3.5" />
+                Catalog ({profile.patterns.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setOverviewTab("dag")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.1em] transition-colors cursor-pointer ${
+                  overviewTab === "dag"
+                    ? "bg-primary text-primary-foreground font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Network className="size-3.5" />
+                DAG &amp; Frontier (49)
+              </button>
+            </div>
+          )}
+
           {session && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!sideOpen && activeSegment) {
+                    handleOpenSideForAnchor(activeSegment);
+                  } else {
+                    setSideOpen((prev) => !prev);
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 border px-3.5 py-2 font-mono text-xs uppercase tracking-[0.12em] cursor-pointer ${
+                  sideOpen
+                    ? "border-primary bg-primary/15 text-primary font-bold"
+                    : "border-border bg-card hover:border-primary"
+                }`}
+              >
+                <MessageCircleQuestion className="size-3.5 text-primary" />
+                Side Q&amp;A{sideThreads.length > 0 ? ` (${sideThreads.length})` : ""}
+              </button>
               {session.questionHistory.length > 0 &&
                 session.stage !== "completed" && (
                   <button
@@ -408,13 +1043,34 @@ export default function MasterPatternsPage() {
           </div>
         )}
 
-        {/* Stage 0: Pattern Catalog */}
-        {profile && !session && (
+        {/* Stage 0: Pattern Catalog or Global 49-Node DAG Explorer */}
+        {profile && !session && overviewTab === "catalog" && (
           <PatternCatalogGrid
             profile={profile}
             resumablePatterns={resumablePatterns}
             loadingPatternId={loadingPatternId}
             onSelectPattern={handleSelectPattern}
+          />
+        )}
+
+        {profile && !session && overviewTab === "dag" && (
+          <DagFrontierExplorer
+            data={dagData}
+            loading={loadingDag}
+            error={dagError}
+            loadingPatternId={loadingPatternId}
+            onRefresh={() => void loadDagFrontier()}
+            onSelectPattern={handleSelectPattern}
+          />
+        )}
+
+        {/* Live Agent Runtime, Tool Execution & Steer Telemetry */}
+        {session && (
+          <AgentRuntimeBar
+            liveState={liveTurn}
+            lastTrace={session.lastTurnTrace}
+            onSteer={handleSteerTurn}
+            onAbort={handleAbortTurn}
           />
         )}
 
@@ -448,7 +1104,20 @@ export default function MasterPatternsPage() {
               </span>
             </div>
 
-            {latestEval && <RemediationAndTwistCard evaluation={latestEval} />}
+            {latestEval && (
+              <>
+                <RemediationAndTwistCard
+                  evaluation={latestEval}
+                  onOpenSideQuestion={handleOpenSideForAnchor}
+                />
+                {latestEval.visualArtifact && (
+                  <VerifiedVisualCanvas
+                    artifact={latestEval.visualArtifact}
+                    compact
+                  />
+                )}
+              </>
+            )}
 
             <AdaptiveQuestionStage
               sessionId={session.sessionId}
@@ -457,11 +1126,22 @@ export default function MasterPatternsPage() {
               hints={session.currentQuestionHints}
               requestingHint={requestingHint}
               onRequestHint={handleRequestHint}
+              onOpenSideQuestion={handleOpenSideForAnchor}
+              pendingCitations={pendingVerbalCitations}
+              onRemoveCitation={(idx) =>
+                setPendingVerbalCitations((prev) =>
+                  prev.filter((_, i) => i !== idx),
+                )
+              }
               initialVerbalDraft={
                 verbalDrafts[session.currentQuestion.id] ?? ""
               }
               initialCodeDraft={codeDrafts[session.currentQuestion.id]}
               onDraftChange={handleDraftChange}
+              dictationControl={renderQuestionDictation()}
+              onFlushDictation={() => dictation.flushAndStop("verbal")}
+              generatingVisual={generatingVisual}
+              onRequestVisualDiagram={handleRequestVisualDiagram}
               onSubmit={handleSubmitAnswer}
             />
           </div>
@@ -506,12 +1186,24 @@ export default function MasterPatternsPage() {
                     notes={session.notes}
                     loadingQuestions={loadingQuestions}
                     onStartQuestions={handleReadyQuestions}
+                    onOpenSideQuestion={handleOpenSideForAnchor}
                   />
                 )}
 
                 {/* Latest Evaluation / Surgical Remediation */}
                 {latestEval && session.stage !== "completed" && (
-                  <RemediationAndTwistCard evaluation={latestEval} />
+                  <>
+                    <RemediationAndTwistCard
+                      evaluation={latestEval}
+                      onOpenSideQuestion={handleOpenSideForAnchor}
+                    />
+                    {latestEval.visualArtifact && (
+                      <VerifiedVisualCanvas
+                        artifact={latestEval.visualArtifact}
+                        compact
+                      />
+                    )}
+                  </>
                 )}
 
                 {/* Active Adaptive Question Stage */}
@@ -525,11 +1217,22 @@ export default function MasterPatternsPage() {
                       hints={session.currentQuestionHints}
                       requestingHint={requestingHint}
                       onRequestHint={handleRequestHint}
+                      onOpenSideQuestion={handleOpenSideForAnchor}
+                      pendingCitations={pendingVerbalCitations}
+                      onRemoveCitation={(idx) =>
+                        setPendingVerbalCitations((prev) =>
+                          prev.filter((_, i) => i !== idx),
+                        )
+                      }
                       initialVerbalDraft={
                         verbalDrafts[session.currentQuestion.id] ?? ""
                       }
                       initialCodeDraft={codeDrafts[session.currentQuestion.id]}
                       onDraftChange={handleDraftChange}
+                      dictationControl={renderQuestionDictation()}
+                      onFlushDictation={() => dictation.flushAndStop("verbal")}
+                      generatingVisual={generatingVisual}
+                      onRequestVisualDiagram={handleRequestVisualDiagram}
                       onSubmit={handleSubmitAnswer}
                     />
                   )}
@@ -567,7 +1270,8 @@ export default function MasterPatternsPage() {
                 )}
               </div>
 
-              <div className="lg:col-span-4">
+              <div className="lg:col-span-4 space-y-4">
+                {sideDocked && renderSideDrawer(true)}
                 <StrandMasterySidebar
                   patternItem={activePatternItem}
                   profile={profile}
@@ -577,6 +1281,18 @@ export default function MasterPatternsPage() {
             </div>
           )}
       </main>
+
+      {session && activeSegment && (
+        <>
+          <SelectionToolbar
+            containerRef={workspaceRef}
+            sessionId={session.sessionId}
+            onAsk={handleSelectionAsk}
+            onCite={handleSelectionCite}
+          />
+          {!sideDocked && renderSideDrawer(false)}
+        </>
+      )}
     </div>
   );
 }

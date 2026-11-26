@@ -1,11 +1,14 @@
 import {
   ALL_STRANDS,
-  DOWNSTREAM_STRANDS,
+  ANCESTOR_STRANDS,
   PATTERN_CATALOG,
   STRAND_MAP,
+  TOPOLOGICAL_STRAND_ORDER,
+  TRANSITIVE_DOWNSTREAM_STRANDS,
   getPatternDefinition,
   getStrandDefinition,
 } from "../../data/patterns";
+import { tokenJaccardSimilarity } from "./matcher";
 import {
   HINT_RUNGS,
   MAX_ERROR_SIGNATURES,
@@ -14,6 +17,7 @@ import {
   MISS_CLASSES,
   TWIST_OPERATORS,
   type CognitiveProfile,
+  type ConfidenceCalibrationVerdict,
   type ErrorSignature,
   type HintRung,
   type MissClass,
@@ -153,8 +157,9 @@ export interface RecordErrorSignatureInput {
 }
 
 /**
- * Deduplicates recurring misconception signatures and enforces an LRU cap
- * (`MAX_ERROR_SIGNATURES`) so per-user cloud memory stays O(1) bounded.
+ * Deduplicates recurring misconception signatures — both exact key matches and
+ * semantic paraphrases on the same (strandId, missClass) — and enforces an LRU
+ * cap (`MAX_ERROR_SIGNATURES`) so per-user cloud memory stays O(1) bounded.
  */
 export function recordErrorSignature(
   profile: UserPatternProfile,
@@ -163,9 +168,37 @@ export function recordErrorSignature(
 ): UserPatternProfile {
   const key = input.signatureKey.trim().slice(0, 120);
   const summary = truncateNote(input.summary) ?? "Misconception detected";
-  const existingIdx = profile.errorSignatures.findIndex(
+  let existingIdx = profile.errorSignatures.findIndex(
     (s) => s.signatureKey === key,
   );
+  if (existingIdx < 0) {
+    // Coalesce paraphrased active signatures only when BOTH keys share >= 2 domain
+    // tokens (with matching numeric qualifiers, so sig_0 != sig_1) AND summaries align.
+    const rawKeyNums = key.match(/\d+/g)?.join(",") ?? "";
+    const keyTokens = key
+      .toLowerCase()
+      .split(/[:\-_/.\s]+/)
+      .filter((w) => w.length >= 3);
+    existingIdx = profile.errorSignatures.findIndex((s) => {
+      if (s.status !== "active" || s.strandId !== input.strandId || s.missClass !== input.missClass) {
+        return false;
+      }
+      const existingNums = s.signatureKey.match(/\d+/g)?.join(",") ?? "";
+      if (rawKeyNums !== existingNums) return false;
+      const existingKeyTokens = new Set(
+        s.signatureKey.toLowerCase().split(/[:\-_/.\s]+/).filter((w) => w.length >= 3),
+      );
+      let sharedKeyTokens = 0;
+      for (const t of keyTokens) {
+        if (existingKeyTokens.has(t)) sharedKeyTokens++;
+      }
+      return (
+        sharedKeyTokens >= 2 &&
+        tokenJaccardSimilarity(s.signatureKey.replace(/[:\-_]+/g, " "), key.replace(/[:\-_]+/g, " ")) >= 0.45 &&
+        tokenJaccardSimilarity(s.summary, summary) >= 0.4
+      );
+    });
+  }
 
   const nextSignatures = [...profile.errorSignatures];
   if (existingIdx >= 0) {
@@ -173,7 +206,7 @@ export function recordErrorSignature(
     nextSignatures[existingIdx] = {
       ...prev,
       missClass: input.missClass,
-      summary,
+      summary: summary.length > prev.summary.length ? summary : prev.summary,
       recurrenceCount: prev.recurrenceCount + 1,
       status: "active",
       lastSeenAt: nowIso,
@@ -244,14 +277,72 @@ export interface StrandReviewUpdate {
   verbalScore?: number; // 0..100
   codeScore?: number; // 0..100
   track?: TrackMode;
+  confidence?: number | null;
+  choseIdk?: boolean;
+}
+
+/**
+ * Classifies learner self-confidence against accuracy & reasoning (LearnHarness
+ * `25-confidence.md` doctrine): `choseIdk` carries no confidence ("honest_gap").
+ */
+export function classifyConfidenceCalibration(opts: {
+  confidence?: number | null;
+  choseIdk?: boolean;
+  isCorrect: boolean;
+  hiddenGapDetected: boolean;
+  score: number;
+}): ConfidenceCalibrationVerdict | undefined {
+  if (opts.choseIdk) return "honest_gap";
+  if (typeof opts.confidence !== "number" || !Number.isFinite(opts.confidence)) {
+    return opts.hiddenGapDetected ? "overconfident" : undefined;
+  }
+  const conf = clamp(opts.confidence, 0, 100);
+  if (opts.hiddenGapDetected) return "overconfident";
+  if (conf >= 75 && (!opts.isCorrect || opts.score < 65)) {
+    return "overconfident";
+  }
+  if (conf <= 35 && opts.isCorrect && opts.score >= 70) {
+    return "underconfident";
+  }
+  return "well_calibrated";
 }
 
 function hintPenaltyFactor(rung: HintRung | null): number {
   if (!rung) return 1;
   const idx = HINT_RUNGS.indexOf(rung);
-  // R0-R1 minimal penalty; R3-R5 means retrieval failed and needed scaffolding
-  const table = [0.96, 0.9, 0.8, 0.65, 0.5, 0.35];
+  // Strict progressive scaffold penalty: heavy hints severely limit mastery credit
+  const table = [0.78, 0.55, 0.25, 0.08, 0.04, 0.02];
   return table[idx] ?? 1;
+}
+
+function explanationQualityFactor(
+  verbalScore: number | undefined,
+  hiddenGapDetected: boolean,
+): { factor: number; invalid: boolean } {
+  if (hiddenGapDetected) return { factor: 0, invalid: true };
+  if (typeof verbalScore !== "number") return { factor: 0.78, invalid: false };
+  if (verbalScore < 45) return { factor: 0, invalid: true };
+  if (verbalScore < 65) return { factor: 0.42, invalid: false };
+  if (verbalScore < 80) return { factor: 0.78, invalid: false };
+  return {
+    factor: 0.92 + ((clamp(verbalScore, 80, 100) - 80) / 20) * 0.18,
+    invalid: false,
+  };
+}
+
+function spacingConsistencyFactor(
+  prevPracticedAt: string | null,
+  attempts: number,
+  nowMs: number,
+): number {
+  if (attempts === 0 || !prevPracticedAt) return 1;
+  const prevMs = Date.parse(prevPracticedAt);
+  if (!Number.isFinite(prevMs)) return 0.85;
+  const elapsedHours = Math.max(0, (nowMs - prevMs) / 3_600_000);
+  // Discourage same-sitting cramming; reward spaced retention across sessions/days
+  if (elapsedHours < 1) return 0.8;
+  if (elapsedHours < 18) return 0.96;
+  return 1.22;
 }
 
 function computeDominantMissClass(
@@ -292,57 +383,224 @@ export function applyStrandReviewUpdate(
     0,
     100,
   );
+  const explanation = explanationQualityFactor(
+    update.verbalScore,
+    update.hiddenGapDetected,
+  );
+  const codeWeak =
+    typeof update.codeScore === "number" && update.codeScore < 65;
+
   const cleanSuccess =
+    !update.choseIdk &&
     update.isCorrect &&
     !update.hiddenGapDetected &&
+    !explanation.invalid &&
+    !codeWeak &&
     (!update.hintRung || update.hintRung === "R0" || update.hintRung === "R1") &&
-    adjustedScore >= 75;
+    adjustedScore >= 70;
 
-  // Exponential moving blend favoring newer performance once attempts grow
-  const blendWeight = prevStrand.attempts === 0 ? 1 : 0.45;
-  let nextMastery = Math.round(
-    clamp(
-      effectivePrev * (1 - blendWeight) + adjustedScore * blendWeight,
-      0,
-      100,
-    ),
-  );
-  if (!cleanSuccess && update.hiddenGapDetected) {
-    nextMastery = Math.min(nextMastery, 68);
+  const confVerdict = classifyConfidenceCalibration({
+    confidence: update.confidence,
+    choseIdk: update.choseIdk,
+    isCorrect: update.isCorrect,
+    hiddenGapDetected: update.hiddenGapDetected,
+    score: update.score,
+  });
+
+  const activeStrandSigCount = profile.errorSignatures.filter(
+    (s) => s.strandId === update.strandId && s.status === "active",
+  ).length;
+  const rawConf =
+    update.choseIdk || typeof update.confidence !== "number"
+      ? null
+      : clamp(update.confidence, 0, 100);
+
+  let nextMastery = effectivePrev;
+  if (cleanSuccess) {
+    // Strict asymptotic gain: 10-20h of multi-session perfectioning, no 1-shot mastery
+    let confidenceGainFactor = 0.68;
+    if (confVerdict === "underconfident") {
+      confidenceGainFactor = 0.46;
+    } else if (rawConf !== null && rawConf >= 65) {
+      const hollowCertainty =
+        (typeof update.verbalScore === "number" && update.verbalScore < 70) ||
+        update.hintRung === "R1" ||
+        update.score < 80;
+      confidenceGainFactor = hollowCertainty
+        ? 0.45
+        : 0.86 + ((rawConf - 65) / 35) * 0.28;
+    }
+
+    const hintGainFactor = hintPenaltyFactor(update.hintRung);
+    const trackFactor = update.track === "pro" ? 1.15 : 0.92;
+    const codeFactor =
+      typeof update.codeScore === "number" && update.codeScore >= 90 ? 1.12 : 1;
+    const twistFactor = update.twistOperator ? 1.24 : 1;
+    const spacingFactor = spacingConsistencyFactor(
+      prevStrand.lastPracticedAt,
+      prevStrand.attempts,
+      nowMs,
+    );
+    const activeSigThrottle = Math.pow(
+      0.72,
+      Math.min(3, activeStrandSigCount),
+    );
+
+    const compositeQuality = clamp(
+      (clamp(update.score, 0, 100) / 100) *
+        confidenceGainFactor *
+        explanation.factor *
+        hintGainFactor *
+        trackFactor *
+        codeFactor *
+        twistFactor *
+        spacingFactor *
+        activeSigThrottle,
+      0.04,
+      1.45,
+    );
+
+    const headroom = Math.max(0, 100 - effectivePrev);
+    const stepRatio = clamp(0.14 * compositeQuality, 0.015, 0.21);
+    const rawDelta = Math.max(1, Math.round(headroom * stepRatio));
+    nextMastery = Math.round(clamp(effectivePrev + rawDelta, 0, 100));
+
+    if (update.hintRung === "R1") {
+      nextMastery = Math.min(nextMastery, Math.max(effectivePrev, 78));
+    }
+  } else {
+    // Asymmetric strict penalty on misses, hollow guesses, heavy hints, or weak complexity
+    const confPenaltyMul = update.choseIdk
+      ? 0.5
+      : rawConf !== null && rawConf >= 90
+        ? 1.65
+        : rawConf !== null && rawConf >= 75
+          ? 1.4
+          : rawConf !== null && rawConf >= 45
+            ? 1.12
+            : 0.95;
+
+    if (update.choseIdk) {
+      const honestDrop = Math.max(4, Math.round(effectivePrev * 0.1));
+      nextMastery = Math.round(clamp(effectivePrev - honestDrop, 0, 100));
+    } else if (
+      update.isCorrect &&
+      (update.hiddenGapDetected || explanation.invalid)
+    ) {
+      // Right option/code but invalid/hollow explanation -> sharp anti-guess penalty
+      const hollowDrop = Math.round(
+        Math.max(10, effectivePrev * 0.24) * (confPenaltyMul > 1.2 ? 1.35 : 1),
+      );
+      nextMastery = Math.round(
+        clamp(Math.min(55, effectivePrev - hollowDrop), 0, 55),
+      );
+    } else if (!update.isCorrect || update.score < 70) {
+      const sevMul =
+        update.missClass === "invariant-break" ||
+        update.missClass === "structural" ||
+        Boolean(update.twistOperator)
+          ? 1.18
+          : 1;
+      const missDrop = Math.round(
+        (14 + (100 - clamp(update.score, 0, 100)) * 0.18 + effectivePrev * 0.14) *
+          confPenaltyMul *
+          sevMul,
+      );
+      nextMastery = Math.round(clamp(effectivePrev - missDrop, 0, 100));
+      if (
+        update.missClass === "invariant-break" ||
+        update.missClass === "structural"
+      ) {
+        nextMastery = Math.min(nextMastery, 58);
+      }
+    } else {
+      // Heavy hint R2+ or weak complexity -> no upward mastery progression + ceiling cap
+      const cap =
+        update.hintRung === "R2"
+          ? 70
+          : update.hintRung
+            ? 55
+            : codeWeak
+              ? 60
+              : 74;
+      nextMastery = Math.round(clamp(Math.min(effectivePrev, cap), 0, 100));
+    }
   }
 
   const nextStreak = cleanSuccess ? prevStrand.streak + 1 : 0;
+  const nextCleanPasses = cleanSuccess
+    ? (prevStrand.cleanPasses ?? prevStrand.streak) + 1
+    : 0;
+
   let nextStability = prevStrand.stabilityDays;
   if (cleanSuccess) {
     const twistBoost = update.twistOperator ? 1.45 : 1.15;
+    const confidenceMul = confVerdict === "underconfident" ? 0.85 : 1;
     nextStability = clamp(
-      prevStrand.stabilityDays * (1.6 + Math.min(nextStreak, 4) * 0.25) * twistBoost,
+      prevStrand.stabilityDays *
+        (1.55 + Math.min(nextStreak, 4) * 0.22) *
+        twistBoost *
+        confidenceMul,
       1,
       365,
     );
   } else {
-    nextStability = clamp(prevStrand.stabilityDays * 0.45, 0.5, 30);
+    const missDampen =
+      confVerdict === "overconfident"
+        ? 0.3
+        : update.choseIdk
+          ? 0.65
+          : 0.42;
+    nextStability = clamp(prevStrand.stabilityDays * missDampen, 0.5, 30);
   }
 
-  let nextStatus = prevStrand.status;
-  if (!cleanSuccess || update.missClass !== null) {
-    nextStatus = "gap";
-  } else if (prevStrand.status === "gap" && update.twistOperator) {
-    nextStatus = nextMastery >= 82 ? "mastered" : "remediated";
-  } else if (nextMastery >= 80 && nextStreak >= 1) {
-    nextStatus = "mastered";
-  } else if (prevStrand.status === "untouched") {
-    nextStatus = nextMastery >= 70 ? "remediated" : "gap";
-  }
-
-  // Calibration bias: positive = overconfident (right selection/code, broken verbal/big-O)
+  // Calibration bias: positive = overconfident; negative = hesitant/underconfident
   let nextCalibration = prevStrand.calibrationBias;
-  if (update.hiddenGapDetected) {
-    nextCalibration = clamp(nextCalibration + 25, -100, 100);
+  if (confVerdict === "overconfident" || update.hiddenGapDetected) {
+    const penalty =
+      typeof update.confidence === "number" && update.confidence >= 80 ? 32 : 25;
+    nextCalibration = clamp(nextCalibration + penalty, -100, 100);
+  } else if (confVerdict === "underconfident") {
+    nextCalibration = clamp(nextCalibration - 15, -100, 100);
   } else if (cleanSuccess) {
-    nextCalibration = Math.round(nextCalibration * 0.65);
+    nextCalibration = Math.round(nextCalibration * 0.6);
+  } else if (confVerdict === "honest_gap") {
+    // Honest "I don't know" gently reduces prior overconfidence rather than penalizing calibration
+    nextCalibration = Math.round(nextCalibration * 0.85);
   } else if (update.score < 50 && !update.hiddenGapDetected) {
     nextCalibration = clamp(nextCalibration - 10, -100, 100);
+  }
+
+  const twistRepairedThisTurn = Boolean(cleanSuccess && update.twistOperator);
+  const unresolvedAfterTurn = twistRepairedThisTurn ? 0 : activeStrandSigCount;
+  const eligibleForMastered =
+    cleanSuccess &&
+    !explanation.invalid &&
+    (!update.hintRung || update.hintRung === "R0") &&
+    nextMastery >= 80 &&
+    nextStreak >= 3 &&
+    nextCleanPasses >= 3 &&
+    Math.abs(nextCalibration) <= 20 &&
+    unresolvedAfterTurn === 0;
+
+  let nextStatus = prevStrand.status;
+  if (
+    !update.isCorrect ||
+    update.hiddenGapDetected ||
+    explanation.invalid ||
+    codeWeak ||
+    update.choseIdk ||
+    update.missClass !== null
+  ) {
+    nextStatus = "gap";
+  } else if (eligibleForMastered) {
+    nextStatus = "mastered";
+  } else if (cleanSuccess) {
+    nextStatus = "remediated";
+  } else if (prevStrand.status === "mastered") {
+    nextStatus = "remediated";
+  } else if (prevStrand.status === "untouched") {
+    nextStatus = "remediated";
   }
 
   const nextReviewMs = nowMs + nextStability * MS_PER_DAY;
@@ -355,6 +613,8 @@ export function applyStrandReviewUpdate(
       stabilityDays: Number(nextStability.toFixed(2)),
       attempts: prevStrand.attempts + 1,
       streak: nextStreak,
+      cleanPasses: nextCleanPasses,
+      lastConfidence: rawConf,
       status: nextStatus,
       calibrationBias: nextCalibration,
       lastMissClass: update.missClass ?? (cleanSuccess ? null : prevStrand.lastMissClass),
@@ -367,14 +627,13 @@ export function applyStrandReviewUpdate(
     },
   };
 
-  // Static DAG root-cause propagation: if this strand failed, bring weak/untouched
-  // direct upstream prerequisites due for review so the scheduler can verify foundations.
+  // Transitive DAG root-cause propagation: if this strand failed, walk upstream
+  // prerequisites across up to 4 hops so weak roots become immediately due.
   if (!cleanSuccess && strandDef) {
-    for (const prereqId of strandDef.prerequisiteStrandIds) {
-      const prereqDef = STRAND_MAP.get(prereqId);
-      if (!prereqDef) continue;
+    const ancestors = ANCESTOR_STRANDS.get(update.strandId) ?? [];
+    for (const prereqId of ancestors.slice(0, 6)) {
       const existingPrereq = nextStrands[prereqId];
-      if (existingPrereq && existingPrereq.mastery < 75) {
+      if (existingPrereq && existingPrereq.mastery < 78) {
         nextStrands[prereqId] = {
           ...existingPrereq,
           nextReviewAt: nowIso,
@@ -474,9 +733,10 @@ export interface RankStrandsOptions {
 }
 
 /**
- * Pure priority scheduler (adapted from LearnHarness Practice §IV):
- * prioritizes weakest, highest-fanout, overdue, and active-gap strands while
- * interleaving away from the just-asked strand.
+ * Pure topological + cognitive priority scheduler (adapted from LearnHarness
+ * Practice §IV): prioritizes active gaps, overdue reviews, blocked/weak
+ * foundations, and transitive downstream leverage while interleaving away
+ * from the just-asked strand.
  */
 export function rankStrandsForPattern(
   patternId: PatternId,
@@ -512,6 +772,10 @@ export function rankStrandsForPattern(
     if (!state || state.attempts === 0) {
       priority += 18;
       reasons.push("untested");
+      if (strandDef.prerequisiteStrandIds.length === 0) {
+        priority += 10;
+        reasons.push("foundation_root");
+      }
     }
     if (state?.status === "gap") {
       priority += 32;
@@ -532,10 +796,29 @@ export function rankStrandsForPattern(
       reasons.push("recurring_misconception");
     }
 
-    // Downstream fanout bonus in static DAG
-    const downstreamCount = DOWNSTREAM_STRANDS.get(strandDef.id)?.length ?? 0;
-    if (downstreamCount > 0 && effective < 75) {
-      priority += downstreamCount * 6;
+    // Topological readiness: avoid jumping to an untouched strand before its
+    // internal same-pattern prerequisites reach passing competency.
+    let unmetInternalPrereqs = 0;
+    for (const prereqId of strandDef.prerequisiteStrandIds) {
+      if (excluded.has(prereqId)) continue;
+      const prereqDef = STRAND_MAP.get(prereqId);
+      if (!prereqDef || prereqDef.patternId !== patternId) continue;
+      const prereqState = profile.strands[prereqId];
+      const prereqMastery = computeEffectiveStrandMastery(prereqState, nowMs);
+      if (prereqMastery < 70 || prereqState?.status === "gap") {
+        unmetInternalPrereqs += 1;
+      }
+    }
+    if (unmetInternalPrereqs > 0 && (!state || state.attempts === 0)) {
+      priority -= unmetInternalPrereqs * 16;
+      reasons.push("prereq_blocked");
+    }
+
+    // Transitive downstream fanout bonus in static DAG
+    const transitiveDownstream =
+      TRANSITIVE_DOWNSTREAM_STRANDS.get(strandDef.id)?.length ?? 0;
+    if (transitiveDownstream > 0 && effective < 75) {
+      priority += Math.min(24, transitiveDownstream * 4);
       reasons.push("blocks_downstream");
     }
 
@@ -553,6 +836,119 @@ export function rankStrandsForPattern(
   }
 
   return ranked.sort((a, b) => b.priority - a.priority);
+}
+
+export type DagReadinessStatus =
+  | "mastered"
+  | "remediated"
+  | "gap"
+  | "due"
+  | "ready"
+  | "blocked";
+
+export interface GlobalDagStrandNode {
+  strandId: string;
+  patternId: PatternId;
+  title: string;
+  effectiveMastery: number;
+  readiness: DagReadinessStatus;
+  blockedBy: string[];
+  downstreamImpact: number;
+}
+
+/**
+ * Projects the user's O(1) cognitive profile onto all 49 strands in topological
+ * DAG order, surfacing ready frontier nodes and unresolved upstream blockers.
+ */
+export function computeGlobalDagFrontier(
+  profile: UserPatternProfile,
+  nowMs: number = Date.now(),
+): {
+  summary: {
+    mastered: number;
+    remediated: number;
+    gap: number;
+    due: number;
+    ready: number;
+    blocked: number;
+  };
+  recommendedNext: GlobalDagStrandNode[];
+  nodes: GlobalDagStrandNode[];
+} {
+  const summary = {
+    mastered: 0,
+    remediated: 0,
+    gap: 0,
+    due: 0,
+    ready: 0,
+    blocked: 0,
+  };
+  const nodes: GlobalDagStrandNode[] = [];
+
+  for (const strandId of TOPOLOGICAL_STRAND_ORDER) {
+    const def = STRAND_MAP.get(strandId);
+    if (!def) continue;
+    const state = profile.strands[strandId];
+    const effective = computeEffectiveStrandMastery(state, nowMs);
+
+    const blockedBy: string[] = [];
+    for (const prereqId of def.prerequisiteStrandIds) {
+      const pState = profile.strands[prereqId];
+      const pEff = computeEffectiveStrandMastery(pState, nowMs);
+      if (pEff < 65 || pState?.status === "gap") {
+        blockedBy.push(prereqId);
+      }
+    }
+
+    let readiness: DagReadinessStatus;
+    if (state?.status === "gap") {
+      readiness = "gap";
+    } else if (isStrandDueForReview(state, nowMs)) {
+      readiness = "due";
+    } else if (state?.status === "mastered" && effective >= 80) {
+      readiness = "mastered";
+    } else if (state && state.attempts > 0 && effective >= 65) {
+      readiness = "remediated";
+    } else if (blockedBy.length > 0) {
+      readiness = "blocked";
+    } else {
+      readiness = "ready";
+    }
+
+    summary[readiness] += 1;
+    nodes.push({
+      strandId,
+      patternId: def.patternId,
+      title: def.title,
+      effectiveMastery: effective,
+      readiness,
+      blockedBy,
+      downstreamImpact:
+        TRANSITIVE_DOWNSTREAM_STRANDS.get(strandId)?.length ?? 0,
+    });
+  }
+
+  const urgencyWeight: Record<DagReadinessStatus, number> = {
+    gap: 500,
+    due: 400,
+    ready: 300,
+    remediated: 150,
+    blocked: 50,
+    mastered: 0,
+  };
+
+  const recommendedNext = [...nodes]
+    .filter((n) => n.readiness !== "mastered")
+    .sort((a, b) => {
+      const scoreA =
+        urgencyWeight[a.readiness] + a.downstreamImpact * 12 + (100 - a.effectiveMastery);
+      const scoreB =
+        urgencyWeight[b.readiness] + b.downstreamImpact * 12 + (100 - b.effectiveMastery);
+      return scoreB - scoreA;
+    })
+    .slice(0, 8);
+
+  return { summary, recommendedNext, nodes };
 }
 
 /**
@@ -629,19 +1025,54 @@ export function computePatternAggregateMetrics(
   let masteredStrands = 0;
   let activeGaps = 0;
   let dueStrands = 0;
+  let sumPosBias = 0;
+  let attemptedStrands = 0;
+
   for (const s of pattern.strands) {
     const st = profile.strands[s.id];
+    if (st && st.attempts > 0) attemptedStrands++;
     const eff = computeEffectiveStrandMastery(st, nowMs);
+    const due = isStrandDueForReview(st, nowMs);
     sum += eff;
-    if (st?.status === "mastered" && eff >= 80) masteredStrands++;
+    if (st?.status === "mastered" && eff >= 80 && !due) masteredStrands++;
     if (st?.status === "gap") activeGaps++;
-    if (isStrandDueForReview(st, nowMs)) dueStrands++;
+    if (due) dueStrands++;
+    if (st && st.calibrationBias > 0) sumPosBias += st.calibrationBias;
   }
+
+  const totalStrands = pattern.strands.length;
+  if (totalStrands === 0 || attemptedStrands === 0) {
+    return {
+      masteryPercent: 0,
+      masteredStrands,
+      totalStrands,
+      activeGaps,
+      dueStrands,
+    };
+  }
+
+  const activePatternSigs = profile.errorSignatures.filter(
+    (sig) => sig.patternId === patternId && sig.status === "active",
+  ).length;
+  const rawAvg = sum / totalStrands;
+  const avgPosBias = sumPosBias / totalStrands;
+  const penalties =
+    activeGaps * 8 +
+    activePatternSigs * 6 +
+    dueStrands * 4 +
+    Math.min(12, Math.round(avgPosBias * 0.25));
+
+  let masteryPercent = Math.round(clamp(rawAvg - penalties, 0, 100));
+  if (activeGaps > 0 || activePatternSigs > 0) {
+    masteryPercent = Math.min(masteryPercent, 75);
+  } else if (masteredStrands < totalStrands) {
+    masteryPercent = Math.min(masteryPercent, 92);
+  }
+
   return {
-    masteryPercent:
-      pattern.strands.length > 0 ? Math.round(sum / pattern.strands.length) : 0,
+    masteryPercent,
     masteredStrands,
-    totalStrands: pattern.strands.length,
+    totalStrands,
     activeGaps,
     dueStrands,
   };
@@ -651,6 +1082,7 @@ export function recordCompletedSessionDigest(
   profile: UserPatternProfile,
   digest: RecentSessionDigest,
   optimizationScore: number | null,
+  strictCompletenessScore?: number,
 ): UserPatternProfile {
   const prevSummary: PatternSummaryRecord = profile.patternSummaries[
     digest.patternId
@@ -663,13 +1095,18 @@ export function recordCompletedSessionDigest(
     lastPracticedAt: null,
   };
 
+  const agg = computePatternAggregateMetrics(digest.patternId, profile);
+  const nextCompleteness =
+    typeof strictCompletenessScore === "number"
+      ? clamp(Math.round(strictCompletenessScore), 0, 100)
+      : agg.masteryPercent > 0
+        ? agg.masteryPercent
+        : digest.overallScore;
+
   const nextSummary: PatternSummaryRecord = {
     patternId: digest.patternId,
     lastTrack: digest.track,
-    completenessScore:
-      digest.track === "intermediate"
-        ? digest.overallScore
-        : Math.max(prevSummary.completenessScore, digest.overallScore),
+    completenessScore: nextCompleteness,
     optimizationScore:
       optimizationScore !== null
         ? optimizationScore

@@ -40,16 +40,27 @@ test("Anti-leakage: stripRubricFromCard removes server-committed rubric", async 
 
 test("Intermediate flow: tailored notes prune mastered prereqs and hidden gap triggers surgical teaching + twisted follow-up", async () => {
   let profile = createEmptyUserPatternProfile("phase2_u2");
-  // Master two-pointers prerequisite first
-  profile = applyStrandReviewUpdate(profile, {
-    patternId: "two-pointers",
-    strandId: "two-pointers:monotonic-elimination",
-    score: 96,
-    isCorrect: true,
-    hiddenGapDetected: false,
-    missClass: null,
-    hintRung: null,
-  });
+  // Master two-pointers prerequisite through sustained spaced perfectioning
+  let tMs = Date.now() - 12 * 24 * 3_600_000;
+  for (let i = 0; i < 10; i++) {
+    tMs += 24 * 3_600_000;
+    profile = applyStrandReviewUpdate(
+      profile,
+      {
+        patternId: "two-pointers",
+        strandId: "two-pointers:monotonic-elimination",
+        score: 96,
+        isCorrect: true,
+        hiddenGapDetected: false,
+        missClass: null,
+        hintRung: null,
+        verbalScore: 94,
+        confidence: 90,
+        track: "pro",
+      },
+      new Date(tMs).toISOString(),
+    );
+  }
 
   const notes = await generateTailoredNotes("sliding-window", profile, {
     aiCaller: offlineCaller,

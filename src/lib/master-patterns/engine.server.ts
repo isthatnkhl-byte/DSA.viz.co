@@ -18,12 +18,47 @@ import {
 } from "./test-drivers";
 import {
   applyStrandReviewUpdate,
+  classifyConfidenceCalibration,
   computeEffectiveStrandMastery,
+  computePatternAggregateMetrics,
   pruneKnownPrereqStrands,
   rankStrandsForPattern,
   recordCompletedSessionDigest,
 } from "./scheduler";
 import {
+  analyzeContextBudget,
+  DEFAULT_CONTEXT_BUDGET_CHARS,
+} from "./context-window";
+import { expandCitationsForModel } from "./citations";
+import { validateAndIngestSubmittedImages } from "./image-intake";
+import { collectPendingSideUpdates } from "./side-chat";
+import {
+  createDeliverEvaluationTool,
+  createDeliverNotesTool,
+  createDeliverQuestionTool,
+  createExecuteCodeSandboxTool,
+  createGenerateVerifiedVisualTool,
+  createLookupStrandDagTool,
+  createSearchPatternProblemsTool,
+  mapLanguageForSandbox,
+  parseDeliveredOrJsonFallback,
+  resolvePatternAgentRole,
+  runPatternRoleAgentLoop,
+  type PatternAgentLoopCallbacks,
+  type PatternAgentTool,
+  type PatternModelStepCaller,
+} from "./agent-tools.server";
+import {
+  buildDeterministicPatternSvg,
+  generateAndVerifyPatternVisual,
+  type VisualModelCaller,
+} from "./visual-agent.server";
+import {
+  scoreVerbalExplanation,
+} from "./matcher";
+import {
+  healEncodedFields,
+  healEvaluationPayload,
   healMissClass,
   stripModelValueDebris,
   validateAndHealQuestionCard,
@@ -35,7 +70,9 @@ import {
   StructuredPatternNotesSchema,
   TWIST_OPERATORS,
   type CodeOptimizationAudit,
+  type GeneratedVisualArtifact,
   type HintRung,
+  type ImageSnapshot,
   type MasteryScorecard,
   type MissClass,
   type PatternCodeLanguage,
@@ -44,6 +81,7 @@ import {
   type PatternQuestionCard,
   type PatternSessionState,
   type PatternStrandDef,
+  type PatternTurnActionInput,
   type ProbeStrandObservation,
   type QuestionHintEntry,
   type StructuredPatternNotes,
@@ -58,7 +96,6 @@ const MAX_QUESTIONS_INTERMEDIATE = 4;
 const MAX_QUESTIONS_PRO = 3; // 2 gauntlet questions + 1 case study code snippet
 const MAX_TWISTS_PER_SESSION = 3;
 const MAX_RETESTS_PER_SESSION = 2;
-const DIGEST_MAX_CHARS = 1200;
 
 const HINT_RUNG_ORDER: Record<HintRung, number> = {
   R0: 1,
@@ -107,8 +144,9 @@ function maxHintRung(a: HintRung | null, b: HintRung | null): HintRung | null {
 }
 
 /**
- * LearnHarness-inspired bounded handoff summary (compaction.ts equivalent):
- * compresses probe observations and recent turns into <= 1200 chars without token bloat.
+ * Priority-tiered bounded handoff summary (`context-window.ts`):
+ * preserves P0 control anchors (RetestQueue, DAG blockers, Probe bounds) & P1 active
+ * error signatures while compacting older turns and recent verbal snippets <= 1200 chars.
  */
 export function buildSessionDigest(
   session?: Pick<
@@ -117,51 +155,46 @@ export function buildSessionDigest(
     | "questionHistory"
     | "retestQueue"
     | "resolvedStrandsInSession"
-  > | null,
+  > &
+    Partial<
+      Pick<
+        PatternSessionState,
+        | "patternId"
+        | "pendingRemediationStrands"
+        | "sideChats"
+        | "sideDeliveryWatermarks"
+      >
+    > | null,
+  profile?: UserPatternProfile,
+  targetStrandId?: string,
+  maxChars: number = DEFAULT_CONTEXT_BUDGET_CHARS,
 ): string {
   if (!session) return "No prior in-session turns.";
-  const parts: string[] = [];
-
-  const observed = session.probeState?.strandsObserved;
-  if (observed && observed.length > 0) {
-    const probeSummary = observed
-      .slice(-4)
-      .map(
-        (o) =>
-          `${o.strandId.split(":")[1] ?? o.strandId}[floor=${o.floor}, ceiling=${o.ceiling}]: ${o.evidence}`,
-      )
-      .join(" | ");
-    parts.push(`Probe: ${probeSummary}`);
-  }
-
-  if (session.questionHistory.length > 0) {
-    const recent = session.questionHistory.slice(-6).map((h, idx) => {
-      const shortStrand = h.strandId.split(":")[1] ?? h.strandId;
-      const missTag = h.missClass ? `, miss=${h.missClass}` : "";
-      const hintTag = h.highestHintRung ? `, hint=${h.highestHintRung}` : "";
-      const verbalTag = h.verbalSummary ? `, note="${h.verbalSummary}"` : "";
-      return `T${idx + 1}(${shortStrand}, ${h.modality}, ${h.score}%${missTag}${hintTag}${verbalTag})`;
-    });
-    parts.push(`RecentTurns: ${recent.join("; ")}`);
-  }
-
-  if (session.retestQueue && session.retestQueue.length > 0) {
-    parts.push(
-      `RetestQueue: ${session.retestQueue.map((s) => s.split(":")[1] ?? s).join(", ")}`,
-    );
-  }
-
-  if (session.resolvedStrandsInSession.length > 0) {
-    parts.push(
-      `Resolved: ${session.resolvedStrandsInSession.map((s) => s.split(":")[1] ?? s).join(", ")}`,
-    );
-  }
-
-  const joined = parts.join("\n").trim();
-  if (!joined) return "No prior in-session turns.";
-  return joined.length <= DIGEST_MAX_CHARS
-    ? joined
-    : `${joined.slice(0, DIGEST_MAX_CHARS - 3)}...`;
+  const normalizedSession = {
+    patternId:
+      session.patternId ?? ("two-pointers" as PatternId),
+    probeState: session.probeState,
+    questionHistory: session.questionHistory,
+    pendingRemediationStrands: session.pendingRemediationStrands ?? [],
+    retestQueue: session.retestQueue,
+    resolvedStrandsInSession: session.resolvedStrandsInSession,
+  };
+  const sideDelta =
+    session.sideChats && session.sideChats.length > 0
+      ? collectPendingSideUpdates({
+          sideChats: session.sideChats,
+          sideDeliveryWatermarks: session.sideDeliveryWatermarks,
+        })
+      : null;
+  return analyzeContextBudget({
+    session: normalizedSession,
+    profile,
+    targetStrandId,
+    sideUpdatesText: sideDelta?.deliveredCount
+      ? sideDelta.updatesPromptText
+      : undefined,
+    maxChars,
+  }).packet;
 }
 
 export type PatternAiCaller = (
@@ -327,7 +360,77 @@ function uid(prefix: string): string {
 
 export interface PatternEngineDeps {
   aiCaller?: PatternAiCaller;
+  stepCaller?: PatternModelStepCaller;
   codeRunner?: typeof runSecureCode;
+  visualModelCaller?: VisualModelCaller;
+  turnCallbacks?: PatternAgentLoopCallbacks;
+  signal?: AbortSignal;
+}
+
+async function callPatternAgentWithFallback(opts: {
+  role: "prober" | "teacher" | "practitioner";
+  systemPrompt: string;
+  userPrompt: string;
+  images?: ImageSnapshot[];
+  session?: PatternSessionState;
+  profile: UserPatternProfile;
+  deps: PatternEngineDeps;
+  deliverableTool?: PatternAgentTool<any>;
+  onVisualGenerated?: (visual: GeneratedVisualArtifact) => void;
+}): Promise<Record<string, unknown> | null> {
+  // Preserve direct JSON mock/offline test determinism when `aiCaller` is injected explicitly
+  if (opts.deps.aiCaller && !opts.deps.stepCaller) {
+    return opts.deps.aiCaller(opts.systemPrompt, opts.userPrompt);
+  }
+
+  const tools: PatternAgentTool<any>[] = [
+    createLookupStrandDagTool(),
+    createSearchPatternProblemsTool(),
+    createGenerateVerifiedVisualTool(),
+  ];
+  if (opts.role === "practitioner") {
+    tools.push(createExecuteCodeSandboxTool());
+  }
+  if (opts.deliverableTool) {
+    tools.push(opts.deliverableTool);
+  }
+
+  const toolHint = opts.deliverableTool
+    ? `\n\nTool Workflow: You may call read-only tools (lookup_strand_dag, search_pattern_problems, generate_verified_visual${opts.role === "practitioner" ? ", execute_code_sandbox" : ""}) up to 2 times if helpful, then MUST call \`${opts.deliverableTool.name}\` to commit your final structured output.`
+    : "";
+
+  const dummySession: PatternSessionState =
+    opts.session ??
+    createNewPatternSession(opts.profile.userId, "two-pointers");
+
+  const loopResult = await runPatternRoleAgentLoop({
+    role: opts.role,
+    systemPrompt: `${opts.systemPrompt}${toolHint}`,
+    userPrompt: opts.userPrompt,
+    images: opts.images,
+    tools,
+    toolCtx: {
+      session: dummySession,
+      profile: opts.profile,
+      codeRunner: opts.deps.codeRunner,
+      visualModelCaller: opts.deps.visualModelCaller,
+      sandboxCallsUsed: 0,
+    },
+    stepCaller: opts.deps.stepCaller,
+    maxSteps: 4,
+    signal: opts.deps.signal,
+    callbacks: opts.deps.turnCallbacks,
+  });
+
+  if (loopResult.generatedVisual) {
+    opts.onVisualGenerated?.(loopResult.generatedVisual);
+  }
+  if (loopResult.aborted) return null;
+
+  return parseDeliveredOrJsonFallback(
+    loopResult,
+    opts.deliverableTool?.name ?? "",
+  );
 }
 
 export interface CalibrationView {
@@ -510,7 +613,6 @@ export async function generateTailoredNotes(
     prunedStrandIds,
     session,
   );
-  const aiCaller = deps.aiCaller ?? defaultPatternAiCaller;
 
   const activeUserSigs = profile.errorSignatures
     .filter((s) => s.patternId === patternId && s.status === "active")
@@ -533,11 +635,20 @@ User's preferred language: ${profile.cognitiveProfile.preferredLanguage}
 User's dominant miss class: ${profile.cognitiveProfile.dominantMissClass ?? "none yet"}
 User's active error signatures on this pattern: ${activeUserSigs.join(" | ") || "none"}
 Session Cognitive Digest (calibration/probe context):
-${buildSessionDigest(session)}
+${buildSessionDigest(session, profile)}
 Confusable twins: ${pattern.confusableTwins.map((c) => `${c.twinPatternId}: ${c.distinguishingCue}`).join("; ")}
 Keep notes crisp, concrete, and high-signal.`;
 
-  const aiJson = await aiCaller(systemPrompt, userPrompt);
+  const rawAiJson = await callPatternAgentWithFallback({
+    role: "teacher",
+    systemPrompt,
+    userPrompt,
+    session,
+    profile,
+    deps,
+    deliverableTool: createDeliverNotesTool(),
+  });
+  const aiJson = healEncodedFields(rawAiJson);
   if (!aiJson) return fallback;
 
   const merged = StructuredPatternNotesSchema.safeParse({
@@ -752,13 +863,12 @@ export async function generateNextPatternQuestion(
       forceCaseStudy: isCaseStudy,
     },
   );
-  const aiCaller = deps.aiCaller ?? defaultPatternAiCaller;
 
   const modalityTarget = isCaseStudy
     ? "code_snippet"
     : preferredModality ?? (qIndex % 2 === 0 ? "mcq" : "verbal_text");
   const questionRole = fallback.questionRole ?? "check";
-  const digest = buildSessionDigest(session);
+  const digest = buildSessionDigest(session, profile, strand.id);
 
   const systemPrompt = `You are a Socratic DSA interviewer generating ONE targeted assessment question (LearnHarness Commitment Rule: generate expectedReasoning & distractorMentalModels BEFORE the learner answers).
 Return STRICT JSON:
@@ -794,7 +904,16 @@ Session Cognitive Digest:
 ${digest}
 ${isCaseStudy ? `Seed Case Study: ${pattern.proCaseStudy.title} — ${pattern.proCaseStudy.prompt} (Optimal: ${pattern.proCaseStudy.optimalTime}, ${pattern.proCaseStudy.optimalSpace})` : ""}`;
 
-  const aiJson = await aiCaller(systemPrompt, userPrompt);
+  const rawAiJson = await callPatternAgentWithFallback({
+    role: track === "pro" ? "practitioner" : "teacher",
+    systemPrompt,
+    userPrompt,
+    session,
+    profile,
+    deps,
+    deliverableTool: createDeliverQuestionTool(),
+  });
+  const aiJson = healEncodedFields(rawAiJson);
   if (!aiJson || typeof aiJson.prompt !== "string") return fallback;
 
   const candidate: Record<string, unknown> = {
@@ -990,30 +1109,6 @@ function heuristicCodeAudit(
   };
 }
 
-function heuristicVerbalQuality(verbal: string, rubricReasoning: string): number {
-  const cleaned = verbal.trim();
-  if (cleaned.length < 12) return 20;
-  const words = cleaned.toLowerCase().split(/[^a-z0-9_]+/).filter((w) => w.length >= 3);
-  const rubricWords = new Set(
-    rubricReasoning
-      .toLowerCase()
-      .split(/[^a-z0-9_]+/)
-      .filter((w) => w.length >= 4),
-  );
-  let overlap = 0;
-  for (const w of words) {
-    if (rubricWords.has(w)) overlap++;
-  }
-  const lengthBonus = Math.min(35, Math.floor(cleaned.length / 4));
-  const overlapBonus = Math.min(55, overlap * 11);
-  return Math.min(95, 20 + lengthBonus + overlapBonus);
-}
-
-function mapLanguageForSandbox(lang?: PatternCodeLanguage): SupportedLanguage | null {
-  if (lang === "cpp" || lang === "python" || lang === "java") return lang;
-  return null;
-}
-
 export async function evaluateSubmissionAndBuildFollowUp(
   session: PatternSessionState,
   profile: UserPatternProfile,
@@ -1052,6 +1147,13 @@ export async function evaluateSubmissionAndBuildFollowUp(
     expectedReasoning: strand.coreInvariant,
     keyInvariantsRequired: [strand.coreInvariant],
   };
+
+  // 1b. Hardened Work-Image Intake (sniff magic bytes + dimensions + SHA-256 deduplicate)
+  const { snapshots: workSnapshots, updatedSnapshotMap } =
+    validateAndIngestSubmittedImages(
+      payload.workImages,
+      session.imageSnapshots ?? {},
+    );
 
   // 2. Optional sandbox execution for Pro code snippet (with automated test harness when matched)
   let sandboxOutcome: CodeOptimizationAudit["sandboxOutcome"] | undefined;
@@ -1097,7 +1199,15 @@ export async function evaluateSubmissionAndBuildFollowUp(
 
   // 3. Deterministic baseline evaluation
   const verbalText = (payload.verbalAnswer ?? "").trim();
+  const verbalForJaccard = verbalText
+    .replace(/\[Pattern quote\]\(pat-citation:\/\/[^)]+\)/g, " ")
+    .trim();
   const choseIdk = payload.choseIdk === true;
+  const submittedConfidence = choseIdk
+    ? null
+    : typeof payload.confidence === "number"
+      ? Math.max(0, Math.min(100, Math.round(payload.confidence)))
+      : undefined;
   let selectionCorrect = true;
   if (card.modality === "mcq" || (card.options && card.options.length > 0)) {
     const expected = new Set(rubric.correctOptionValues ?? []);
@@ -1111,7 +1221,11 @@ export async function evaluateSubmissionAndBuildFollowUp(
     selectionCorrect = false;
   }
 
-  let verbalScore = heuristicVerbalQuality(verbalText, rubric.expectedReasoning);
+  let verbalScore = scoreVerbalExplanation(
+    verbalForJaccard || verbalText,
+    rubric.expectedReasoning,
+    rubric.keyInvariantsRequired,
+  );
   let codeAudit: CodeOptimizationAudit | undefined;
   let codeScore: number | undefined;
 
@@ -1136,12 +1250,12 @@ export async function evaluateSubmissionAndBuildFollowUp(
   const hintsUsed = session.currentQuestionHints ?? [];
   const highestLadderHint: HintRung | null =
     hintsUsed.length > 0 ? hintsUsed[hintsUsed.length - 1]!.rung : null;
-  const sessionDigest = buildSessionDigest(session);
+  const sessionDigest = buildSessionDigest(session, profile, strand.id);
 
-  const aiCaller = deps.aiCaller ?? defaultPatternAiCaller;
   let aiEval: Record<string, unknown> | null = null;
+  let toolGeneratedVisual: GeneratedVisualArtifact | null = null;
   if (!choseIdk) {
-    const systemPrompt = `You are a strict DSA mentor & complexity auditor. Evaluate the learner's response across BOTH their choice/code AND their verbal reasoning.
+    const systemPrompt = `You are a strict DSA mentor & complexity auditor. Evaluate the learner's response across BOTH their choice/code AND their verbal reasoning (plus any attached sketch/work images).
 Return STRICT JSON:
 {
   "isCorrect": boolean,
@@ -1168,21 +1282,39 @@ Return STRICT JSON:
     "optimizationFeedback": string
   } | null
 }
-Crucial rule: If the learner picked the right MCQ or wrote working code, BUT their verbal reasoning has a flawed invariant or suboptimal complexity, set hiddenGapDetected=true and provide surgicalTeaching + twistedFollowUp.`;
+Crucial rules:
+- If the learner picked the right MCQ or wrote working code, BUT their verbal reasoning has a flawed invariant or suboptimal complexity, set hiddenGapDetected=true and provide surgicalTeaching + twistedFollowUp.
+- Read self-reported confidence alongside verdict (LearnHarness 25-confidence doctrine): confidence >= 80 with a miss signals an entrenched misconception requiring premise-breaking repair; confidence <= 35 with a right pick indicates fragile luck worth verifying verbally.`;
 
     const userPrompt = `Pattern: ${pattern.title} | Track: ${session.track} | Strand: ${strand.title}
 Question (${card.modality}${card.questionRole ? `, role=${card.questionRole}` : ""}${card.twistOperator ? `, twist=${card.twistOperator}` : ""}): ${card.prompt}
 Committed Rubric Reasoning: ${rubric.expectedReasoning}
 Key Invariants: ${rubric.keyInvariantsRequired.join(" | ")}
 Hints Requested Before Submitting: ${hintsUsed.map((h) => h.rung).join(", ") || "none"}
+Self-Reported Confidence: ${typeof submittedConfidence === "number" ? `${submittedConfidence}%` : "unspecified"}
+Attached Work Images: ${workSnapshots.length > 0 ? `${workSnapshots.length} verified dry-run sketch(es) attached` : "none"}
 Session Cognitive Digest:
 ${sessionDigest}
 Learner Selected Options: ${JSON.stringify(payload.selectedOptions ?? [])} (selectionCorrect=${selectionCorrect})
-Learner Verbal Approach: "${verbalText || "(empty)"}"
+Learner Verbal Approach: "${verbalText ? expandCitationsForModel(verbalText) : "(empty)"}"
 ${payload.code ? `Learner Code (${payload.language ?? "cpp"}):\n${payload.code}\nClaimed Time: ${payload.claimedTimeComplexity || "?"} | Claimed Space: ${payload.claimedSpaceComplexity || "?"}` : ""}
 ${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandboxOutcome.stderr}` : ""}`;
 
-    aiEval = await aiCaller(systemPrompt, userPrompt);
+    aiEval = healEvaluationPayload(
+      await callPatternAgentWithFallback({
+        role: session.track === "pro" ? "practitioner" : "teacher",
+        systemPrompt,
+        userPrompt,
+        images: workSnapshots,
+        session,
+        profile,
+        deps,
+        deliverableTool: createDeliverEvaluationTool(),
+        onVisualGenerated: (v) => {
+          toolGeneratedVisual = v;
+        },
+      }),
+    );
   }
 
   let isCorrect =
@@ -1322,6 +1454,19 @@ ${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandb
     verdictSummary = `${verdictSummary} (Queued for an unassisted fresh-surface check after ${highestLadderHint} hint.)`;
   }
 
+  const confidenceDiagnostic = classifyConfidenceCalibration({
+    confidence: submittedConfidence,
+    choseIdk,
+    isCorrect,
+    hiddenGapDetected,
+    score,
+  });
+  if (confidenceDiagnostic === "overconfident" && !verdictSummary.includes("Confidence")) {
+    verdictSummary = `${verdictSummary} (Calibration note: high confidence paired with a reasoning flaw triggers premise-breaking repair.)`;
+  } else if (confidenceDiagnostic === "underconfident" && !verdictSummary.includes("Confidence")) {
+    verdictSummary = `${verdictSummary} (Calibration note: your reasoning held up well despite low confidence — lock in why it must hold.)`;
+  }
+
   // 5. Update O(1) bounded UserPatternProfile
   const updatedProfile = applyStrandReviewUpdate(profile, {
     patternId: pattern.id,
@@ -1337,6 +1482,8 @@ ${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandb
     verbalScore,
     codeScore,
     track: session.track ?? "intermediate",
+    confidence: submittedConfidence,
+    choseIdk,
   });
 
   // 6. Decide remediation twist vs advancing vs fresh-surface retesting
@@ -1352,6 +1499,16 @@ ${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandb
     surgicalTeaching = `**Invariant Repair (${strand.title}):**\n1. Ground truth: ${strand.unconditionalTruth}\n2. Exact rule: ${strand.coreInvariant}\n3. Why your step missed: watch out for *${strand.commonTrap}*.`;
   }
 
+  const counterexampleVisual: GeneratedVisualArtifact | null =
+    toolGeneratedVisual ??
+    (needsTwist
+      ? buildDeterministicPatternSvg(
+          pattern.id,
+          strand.id,
+          `Counterexample Trace: ${strand.title}`,
+        )
+      : null);
+
   let twistedFollowUp: PatternQuestionCard | null = null;
   if (needsTwist) {
     const selectedTwist =
@@ -1359,7 +1516,10 @@ ${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandb
       (() => {
         const t = selectBestTwistOperator(pattern, strand.id, updatedProfile);
         return {
-          operator: t.operator,
+          operator:
+            confidenceDiagnostic === "overconfident" && t.operator === "constraint-twist"
+              ? "break-the-premise"
+              : t.operator,
           prompt: t.prompt,
           expectedReasoning: `${t.whatItBreaks}. Repair via: ${strand.coreInvariant}`,
         };
@@ -1376,6 +1536,7 @@ ${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandb
       prompt: selectedTwist.prompt,
       allowIdk: true,
       requireVerbalApproach: true,
+      visualArtifact: counterexampleVisual,
       rubric: {
         expectedReasoning: selectedTwist.expectedReasoning,
         keyInvariantsRequired: [strand.coreInvariant],
@@ -1407,6 +1568,10 @@ ${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandb
       score,
       missClass,
       ...(hintRung ? { highestHintRung: hintRung } : {}),
+      ...(submittedConfidence !== undefined
+        ? { confidence: submittedConfidence }
+        : {}),
+      ...(confidenceDiagnostic ? { confidenceDiagnostic } : {}),
       ...(verbalSummary ? { verbalSummary } : {}),
     },
   ];
@@ -1474,6 +1639,9 @@ ${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandb
     verdictSummary,
     surgicalTeaching,
     committedAnswerReveal: rubric.expectedReasoning,
+    confidenceSubmitted: submittedConfidence ?? null,
+    confidenceDiagnostic,
+    visualArtifact: counterexampleVisual,
     codeAudit,
     twistedFollowUp,
     nextQuestion,
@@ -1497,6 +1665,7 @@ ${sandboxOutcome ? `Sandbox ran: passed=${sandboxOutcome.passed}, stderr=${sandb
     resolvedStrandsInSession: nextResolved,
     processedAttemptIds: [...session.processedAttemptIds, payload.attemptId],
     lastEvaluation: evaluation,
+    imageSnapshots: updatedSnapshotMap,
     updatedAt: new Date().toISOString(),
   };
 
@@ -1534,10 +1703,21 @@ export function buildMasteryScorecard(
       : 0;
 
   const touchedStrands = strandBreakdown.filter((s) => s.status !== "untouched");
-  const completenessScore = Math.round(
-    (touchedStrands.length / Math.max(1, pattern.strands.length)) * 45 +
-      avgSessionScore * 0.55,
+  const agg = computePatternAggregateMetrics(pattern.id, profile, nowMs);
+  const gapsToReinforceCount = profile.errorSignatures.filter(
+    (sig) => sig.patternId === pattern.id && sig.status === "active",
+  ).length;
+  const touchedRatio = touchedStrands.length / Math.max(1, pattern.strands.length);
+  const unpenalizedSessionBlend =
+    agg.masteryPercent * 0.72 + (avgSessionScore * touchedRatio) * 0.28;
+  const rawCompleteness = Math.max(
+    0,
+    Math.min(100, Math.round(unpenalizedSessionBlend - gapsToReinforceCount * 4)),
   );
+  const completenessScore =
+    agg.masteredStrands < agg.totalStrands
+      ? Math.min(rawCompleteness, 88)
+      : rawCompleteness;
 
   const codeAudit = session.lastEvaluation?.codeAudit;
   const optimizationScore =
@@ -1601,6 +1781,7 @@ export function buildMasteryScorecard(
       completedAt,
     },
     optimizationScore,
+    completenessScore,
   );
 
   return { scorecard, updatedProfile };
@@ -1651,11 +1832,15 @@ export async function startCalibrationProbe(
     },
   };
 
-  const aiCaller = deps.aiCaller ?? defaultPatternAiCaller;
-  const aiJson = await aiCaller(
-    `You are a LearnHarness Diagnostic Prober calibrated for DSA. Generate ONE crisp high-signal diagnostic MCQ (with verbal reasoning) to bracket whether the learner belongs in Intermediate or Pro for ${pattern.title}. Return JSON: { "prompt": string, "options": [{"value": string, "label": string}], "correctOptionValues": [string], "expectedReasoning": string }.`,
-    `Pattern: ${pattern.title}\nTarget Strand: ${strand.title}\nCore Invariant: ${strand.coreInvariant}\nCommon Trap: ${strand.commonTrap}`,
-  );
+  const aiJson = await callPatternAgentWithFallback({
+    role: "prober",
+    systemPrompt: `You are a LearnHarness Diagnostic Prober calibrated for DSA. Generate ONE crisp high-signal diagnostic MCQ (with verbal reasoning) to bracket whether the learner belongs in Intermediate or Pro for ${pattern.title}. Return JSON: { "prompt": string, "options": [{"value": string, "label": string}], "correctOptionValues": [string], "expectedReasoning": string }.`,
+    userPrompt: `Pattern: ${pattern.title}\nTarget Strand: ${strand.title}\nCore Invariant: ${strand.coreInvariant}\nCommon Trap: ${strand.commonTrap}`,
+    session,
+    profile,
+    deps,
+    deliverableTool: createDeliverQuestionTool(),
+  });
 
   let probeCard = fallbackProbe;
   if (aiJson && typeof aiJson.prompt === "string") {
@@ -1736,8 +1921,20 @@ export async function evaluateProbeSubmission(
   const highestLadderHint: HintRung | null =
     hintsUsed.length > 0 ? hintsUsed[hintsUsed.length - 1]!.rung : null;
 
-  const verbalText = (payload.verbalAnswer ?? "").trim();
+  const { updatedSnapshotMap } = validateAndIngestSubmittedImages(
+    payload.workImages,
+    session.imageSnapshots ?? {},
+  );
+
+  const verbalText = (payload.verbalAnswer ?? "")
+    .replace(/\[Pattern quote\]\(pat-citation:\/\/[^)]+\)/g, " ")
+    .trim();
   const choseIdk = payload.choseIdk === true;
+  const submittedConfidence = choseIdk
+    ? null
+    : typeof payload.confidence === "number"
+      ? payload.confidence
+      : null;
   const expected = new Set(rubric.correctOptionValues ?? []);
   const chosen = new Set(payload.selectedOptions ?? []);
   const selectionCorrect =
@@ -1748,9 +1945,10 @@ export async function evaluateProbeSubmission(
         [...expected].every((v) => chosen.has(v))
       : !choseIdk;
 
-  const verbalScore = heuristicVerbalQuality(
+  const verbalScore = scoreVerbalExplanation(
     verbalText,
     rubric.expectedReasoning,
+    rubric.keyInvariantsRequired,
   );
   const hiddenGap =
     card.modality === "mcq" && selectionCorrect && verbalScore < 45;
@@ -1765,6 +1963,13 @@ export async function evaluateProbeSubmission(
     choseIdk ? "R2" : null,
     highestLadderHint,
   );
+  const confidenceDiagnostic = classifyConfidenceCalibration({
+    confidence: submittedConfidence,
+    choseIdk,
+    isCorrect,
+    hiddenGapDetected: hiddenGap,
+    score,
+  });
 
   const updatedProfile = applyStrandReviewUpdate(profile, {
     patternId: pattern.id,
@@ -1775,6 +1980,8 @@ export async function evaluateProbeSubmission(
     missClass: isCorrect ? null : choseIdk ? "cue" : "invariant-break",
     hintRung: probeHintRung,
     verbalScore,
+    confidence: submittedConfidence,
+    choseIdk,
   });
 
   const prevProbe = session.probeState ?? {
@@ -1839,6 +2046,8 @@ export async function evaluateProbeSubmission(
         : "Probe 1/2 surfaced uncertainty — checking your baseline foundation next.",
       surgicalTeaching: null,
       committedAnswerReveal: rubric.expectedReasoning,
+      confidenceSubmitted: submittedConfidence,
+      confidenceDiagnostic,
       twistedFollowUp: null,
       nextQuestion: probeQ2,
       readyForScorecard: false,
@@ -1858,6 +2067,7 @@ export async function evaluateProbeSubmission(
         },
         currentQuestion: probeQ2,
         currentQuestionHints: [],
+        imageSnapshots: updatedSnapshotMap,
         processedAttemptIds: [...session.processedAttemptIds, payload.attemptId],
         lastEvaluation: evaluation,
         updatedAt: new Date().toISOString(),
@@ -1889,6 +2099,7 @@ export async function evaluateProbeSubmission(
       recommendationRationale: rationale,
     },
     currentQuestionHints: [],
+    imageSnapshots: updatedSnapshotMap,
     processedAttemptIds: [...session.processedAttemptIds, payload.attemptId],
     updatedAt: new Date().toISOString(),
   };
@@ -1933,6 +2144,8 @@ export async function evaluateProbeSubmission(
     verdictSummary: rationale,
     surgicalTeaching: null,
     committedAnswerReveal: rubric.expectedReasoning,
+    confidenceSubmitted: submittedConfidence,
+    confidenceDiagnostic,
     twistedFollowUp: null,
     nextQuestion,
     readyForScorecard: false,
@@ -2006,9 +2219,17 @@ Core Invariant: ${strand.coreInvariant}
 Common Trap: ${strand.commonTrap}
 Previously Issued Hints: ${existingHints.map((h) => `[${h.rung}] ${h.hintText}`).join(" | ") || "none"}
 Session Cognitive Digest:
-${buildSessionDigest(session)}`;
+${buildSessionDigest(session, _profile, card.strandId)}`;
 
-  const aiJson = await aiCaller(systemPrompt, userPrompt);
+  const rawAiJson = await callPatternAgentWithFallback({
+    role: resolvePatternAgentRole(session, "request_hint"),
+    systemPrompt,
+    userPrompt,
+    session,
+    profile: _profile,
+    deps,
+  });
+  const aiJson = healEncodedFields(rawAiJson);
   const rawText =
     aiJson && typeof aiJson.hintText === "string"
       ? aiJson.hintText.trim()
@@ -2033,5 +2254,222 @@ ${buildSessionDigest(session)}`;
     hint,
     updatedSession,
     alreadyAtMax: nextHints.length >= HINT_LADDER_LEVELS.length,
+  };
+}
+
+// ─── Unified Turn Dispatcher (used by both SSE Turn Runner & Legacy REST) ───
+
+export interface ExecutedTurnOutcome {
+  session: PatternSessionState;
+  profile: UserPatternProfile;
+  evaluation?: SubmissionEvaluation;
+  hint?: QuestionHintEntry;
+  alreadyAtMax?: boolean;
+  scorecard?: MasteryScorecard;
+}
+
+export class TurnConflictError extends Error {
+  statusCode: number;
+  constructor(message: string, statusCode = 409) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+export async function executePatternTurnAction(
+  existing: PatternSessionState,
+  profile: UserPatternProfile,
+  action: PatternTurnActionInput,
+  deps: PatternEngineDeps = {},
+): Promise<ExecutedTurnOutcome> {
+  if (action.kind === "start_probe") {
+    if (existing.stage === "probing" && existing.currentQuestion) {
+      return { session: existing, profile };
+    }
+    if (existing.stage !== "calibration") {
+      throw new TurnConflictError(
+        "Calibration probe is only available from the calibration stage.",
+      );
+    }
+    const probed = await startCalibrationProbe(existing, profile, deps);
+    return { session: probed, profile };
+  }
+
+  if (action.kind === "select_level") {
+    if (existing.track === action.track && existing.stage !== "calibration") {
+      return { session: existing, profile };
+    }
+    if (
+      existing.stage !== "calibration" &&
+      existing.stage !== "probing" &&
+      existing.stage !== "studying_notes"
+    ) {
+      throw new TurnConflictError(
+        "Session track is already locked past calibration.",
+      );
+    }
+
+    let nextSession: PatternSessionState = {
+      ...existing,
+      track: action.track,
+      updatedAt: new Date().toISOString(),
+    };
+    if (action.track === "intermediate") {
+      const notes = await generateTailoredNotes(
+        existing.patternId,
+        profile,
+        deps,
+        existing,
+      );
+      nextSession = {
+        ...nextSession,
+        stage: "studying_notes",
+        notes,
+        currentQuestion: null,
+        currentQuestionHints: [],
+      };
+    } else {
+      const firstQuestion = await generateNextPatternQuestion(
+        nextSession,
+        profile,
+        deps,
+      );
+      nextSession = {
+        ...nextSession,
+        stage: "questioning",
+        notes: null,
+        currentQuestion: firstQuestion,
+        currentQuestionHints: [],
+      };
+    }
+    return { session: nextSession, profile };
+  }
+
+  if (action.kind === "ready_questions") {
+    if (existing.currentQuestion && existing.stage === "questioning") {
+      return { session: existing, profile };
+    }
+    const q = await generateNextPatternQuestion(existing, profile, deps);
+    return {
+      session: {
+        ...existing,
+        stage: "questioning",
+        currentQuestion: q,
+        currentQuestionHints: [],
+        updatedAt: new Date().toISOString(),
+      },
+      profile,
+    };
+  }
+
+  if (action.kind === "request_hint") {
+    if (
+      !existing.currentQuestion ||
+      existing.currentQuestion.id !== action.questionId
+    ) {
+      throw new TurnConflictError("Question is no longer active.");
+    }
+    const res = await requestProgressiveHint(existing, profile, deps);
+    return {
+      session: res.updatedSession,
+      profile,
+      hint: res.hint,
+      alreadyAtMax: res.alreadyAtMax,
+    };
+  }
+
+  if (action.kind === "submit") {
+    const payload = action.payload;
+    if (
+      existing.processedAttemptIds.includes(payload.attemptId) &&
+      existing.lastEvaluation &&
+      existing.lastEvaluation.questionId === payload.questionId
+    ) {
+      return {
+        session: existing,
+        profile,
+        evaluation: existing.lastEvaluation,
+      };
+    }
+    if (
+      !existing.currentQuestion ||
+      existing.currentQuestion.id !== payload.questionId
+    ) {
+      throw new TurnConflictError(
+        "Question is no longer active or already resolved.",
+      );
+    }
+    const result =
+      existing.stage === "probing"
+        ? await evaluateProbeSubmission(existing, profile, payload, deps)
+        : await evaluateSubmissionAndBuildFollowUp(
+            existing,
+            profile,
+            payload,
+            deps,
+          );
+    return {
+      session: result.updatedSession,
+      profile: result.updatedProfile,
+      evaluation: result.evaluation,
+    };
+  }
+
+  if (action.kind === "retry") {
+    if (existing.stage === "probing") {
+      const probed = await startCalibrationProbe(existing, profile, deps);
+      return { session: probed, profile };
+    }
+    if (existing.stage === "studying_notes" || !existing.track) {
+      const notes = await generateTailoredNotes(
+        existing.patternId,
+        profile,
+        deps,
+        existing,
+      );
+      return {
+        session: {
+          ...existing,
+          stage: "studying_notes",
+          notes,
+          updatedAt: new Date().toISOString(),
+        },
+        profile,
+      };
+    }
+    if (existing.stage === "completed") {
+      return { session: existing, profile };
+    }
+    const q = await generateNextPatternQuestion(existing, profile, deps);
+    return {
+      session: {
+        ...existing,
+        currentQuestion: q,
+        currentQuestionHints: [],
+        updatedAt: new Date().toISOString(),
+      },
+      profile,
+    };
+  }
+
+  // action.kind === "finish"
+  if (existing.stage === "completed" && existing.scorecard) {
+    return {
+      session: existing,
+      profile,
+      scorecard: existing.scorecard,
+    };
+  }
+  const { scorecard, updatedProfile } = buildMasteryScorecard(existing, profile);
+  return {
+    session: {
+      ...existing,
+      stage: "completed",
+      currentQuestion: null,
+      scorecard,
+      updatedAt: new Date().toISOString(),
+    },
+    profile: updatedProfile,
+    scorecard,
   };
 }

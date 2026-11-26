@@ -201,10 +201,10 @@ export const PatternCatalogGrid: React.FC<PatternCatalogGridProps> = ({
                 <div className="mt-4 space-y-1.5">
                   <div className="flex items-center justify-between font-mono text-[11px]">
                     <span className="text-muted-foreground">
-                      {p.metrics.masteredStrands}/{p.metrics.totalStrands} strands mastered
+                      {p.metrics.masteredStrands}/{p.metrics.totalStrands} mastered
                     </span>
                     <span className="font-bold text-foreground">
-                      {p.metrics.masteryPercent}%
+                      {p.metrics.masteryPercent}% completed
                     </span>
                   </div>
                   <div className="h-2 w-full bg-muted overflow-hidden border border-border">

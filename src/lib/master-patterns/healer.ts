@@ -1,33 +1,69 @@
+import {
+  resolveStrandTarget,
+  stripModelValueDebris,
+} from "./matcher";
 import type {
   MissClass,
+  PatternId,
   PatternQuestionCard,
   QuizOptionItem,
 } from "./types";
 import { MISS_CLASSES, PatternQuestionCardSchema } from "./types";
 
-/**
- * Ported from LearnHarness (`src/core/value-debris.ts` & `src/core/question-core.ts`):
- * strips model copy-syntax wobble (escaped quotes, wrapping backticks, leading colons)
- * without altering genuine identifiers.
- */
-export function stripModelValueDebris(raw: unknown): string {
-  if (typeof raw !== "string") return "";
-  let s = raw.trim();
-  // Iteratively unwrap multi-layer model syntax debris ("\"`val`\"", trailing slashes, leading colon)
-  for (let i = 0; i < 4; i++) {
-    const prev = s;
-    s = s.replace(/^\\+["']|["']\\+$/g, "").trim();
-    if (
-      (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) ||
-      (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) ||
-      (s.length >= 2 && s.startsWith("`") && s.endsWith("`"))
-    ) {
-      s = s.slice(1, -1).trim();
+export { stripModelValueDebris };
+
+function tryParseJsonString(raw: string): unknown {
+  const trimmed = raw.trim();
+  if (
+    trimmed.startsWith("{") ||
+    trimmed.startsWith("[") ||
+    trimmed === "true" ||
+    trimmed === "false" ||
+    trimmed === "null" ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    /^-?\d+(?:\.\d+)?$/.test(trimmed)
+  ) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return undefined;
     }
-    if (s.startsWith(":")) s = s.slice(1).trim();
-    if (s === prev) break;
   }
-  return s;
+  return undefined;
+}
+
+/**
+ * Ported & generalized from LearnHarness `healEncodedArguments` (`src/core/argument-heal.ts`):
+ * recursively unwraps double-encoded booleans ("true"), numeric strings ("85"),
+ * JSON-stringified arrays/objects ('{"time":"O(n)"}'), and nullable strings ("null").
+ */
+export function healEncodedFields<T = Record<string, unknown>>(
+  raw: unknown,
+  depth = 0,
+): T | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (depth > 3) return raw as T;
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === "string") {
+      const parsed = tryParseJsonString(v);
+      if (parsed !== undefined) {
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          out[k] = healEncodedFields(parsed, depth + 1);
+        } else {
+          out[k] = parsed;
+        }
+        continue;
+      }
+      out[k] = v;
+    } else if (v && typeof v === "object" && !Array.isArray(v)) {
+      out[k] = healEncodedFields(v, depth + 1);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out as T;
 }
 
 /**
@@ -78,7 +114,17 @@ export function validateAndHealQuestionCard(
   candidate: Record<string, unknown>,
   fallback: PatternQuestionCard,
 ): PatternQuestionCard {
-  const healed: Record<string, unknown> = { ...candidate };
+  const preHealed = healEncodedFields(candidate) ?? candidate;
+  const healed: Record<string, unknown> = { ...preHealed };
+
+  if (typeof healed.strandId === "string") {
+    const patternId =
+      typeof healed.patternId === "string"
+        ? (healed.patternId as PatternId)
+        : fallback.patternId;
+    const resolved = resolveStrandTarget(healed.strandId, patternId);
+    if (resolved) healed.strandId = resolved.id;
+  }
 
   if (healed.modality === "mcq") {
     const rawOpts = healStringifiedArray(healed.options);
@@ -151,4 +197,31 @@ export function validateAndHealQuestionCard(
 
   const parsed = PatternQuestionCardSchema.safeParse(healed);
   return parsed.success ? parsed.data : fallback;
+}
+
+/**
+ * Heals double-encoded booleans, numbers, arrays, and nested objects inside
+ * AI evaluation payloads before field consumption.
+ */
+export function healEvaluationPayload(
+  raw: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!raw) return null;
+  const healed = healEncodedFields(raw);
+  if (!healed) return raw;
+  if (typeof healed.hintRung === "string") {
+    healed.hintRung = stripModelValueDebris(healed.hintRung).toUpperCase();
+  }
+  if (typeof healed.errorSignatureKey === "string") {
+    healed.errorSignatureKey = stripModelValueDebris(healed.errorSignatureKey);
+  }
+  if (
+    healed.twistedFollowUp &&
+    typeof healed.twistedFollowUp === "object" &&
+    typeof (healed.twistedFollowUp as Record<string, unknown>).operator === "string"
+  ) {
+    const tw = healed.twistedFollowUp as Record<string, unknown>;
+    tw.operator = stripModelValueDebris(tw.operator);
+  }
+  return healed;
 }

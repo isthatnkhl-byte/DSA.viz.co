@@ -34,6 +34,7 @@ export interface LocalPatternSessionArchive {
   transcript: LocalTranscriptEntry[];
   codeDrafts: Record<string, string>;
   verbalDrafts: Record<string, string>;
+  sideDrafts?: Record<string, string>;
   scorecard: MasteryScorecard | null;
   updatedAt: string;
 }

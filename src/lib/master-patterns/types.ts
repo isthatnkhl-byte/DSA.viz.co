@@ -162,6 +162,10 @@ export const StrandStateSchema = z.object({
   status: StrandStatusSchema,
   /** Positive = overconfident (right option/code, weak verbal reasoning); Negative = hesitant. */
   calibrationBias: z.number().min(-100).max(100),
+  /** Count of clean, calibrated, explanation-validated passes earned toward mastery. */
+  cleanPasses: z.number().int().min(0).optional(),
+  /** Most recent self-confidence rating (0..100, null when suppressed on IDK). */
+  lastConfidence: z.number().min(0).max(100).nullable().optional(),
   lastMissClass: MissClassSchema.nullable(),
   lastHintRung: HintRungSchema.nullable(),
   /** Short bounded diagnostic summary (never an unbounded transcript). */
@@ -294,6 +298,73 @@ export const PreCommittedRubricSchema = z.object({
 });
 export type PreCommittedRubric = z.infer<typeof PreCommittedRubricSchema>;
 
+export const CONFIDENCE_CALIBRATION_VERDICTS = [
+  "well_calibrated",
+  "overconfident",
+  "underconfident",
+  "honest_gap",
+] as const;
+export type ConfidenceCalibrationVerdict =
+  (typeof CONFIDENCE_CALIBRATION_VERDICTS)[number];
+export const ConfidenceCalibrationVerdictSchema = z.enum(
+  CONFIDENCE_CALIBRATION_VERDICTS,
+);
+
+export const SUPPORTED_IMAGE_MIMES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+] as const;
+export type SupportedImageMime = (typeof SUPPORTED_IMAGE_MIMES)[number];
+export const SupportedImageMimeSchema = z.enum(SUPPORTED_IMAGE_MIMES);
+
+export const SubmittedWorkImageInputSchema = z.object({
+  mimeType: SupportedImageMimeSchema,
+  data: z.string().min(8).max(1_400_000),
+  caption: z.string().max(200).optional(),
+});
+export type SubmittedWorkImageInput = z.infer<
+  typeof SubmittedWorkImageInputSchema
+>;
+
+export interface ImageSnapshot {
+  snapshotId: string;
+  mimeType: SupportedImageMime;
+  width: number;
+  height: number;
+  byteLength: number;
+  data: string;
+  caption?: string;
+}
+
+export const GeneratedVisualArtifactSchema = z.object({
+  kind: z.enum(["svg", "excalidraw_params"]),
+  title: z.string().max(160),
+  svg: z.string().max(48_000).optional(),
+  excalidrawSpec: z
+    .object({
+      kind: z.enum([
+        "array_pointers",
+        "sliding_window",
+        "monotonic_stack",
+        "binary_search",
+        "dp_table",
+      ]),
+      arrayValues: z.array(z.number()).min(1).max(24),
+      pointers: z.record(z.string(), z.number().int()).optional(),
+      highlightRange: z.tuple([z.number().int(), z.number().int()]).optional(),
+      note: z.string().max(240).optional(),
+    })
+    .optional(),
+  verifiedByAuditor: z.boolean(),
+  auditNotes: z.array(z.string()).max(12),
+  generatedAt: z.string(),
+});
+export type GeneratedVisualArtifact = z.infer<
+  typeof GeneratedVisualArtifactSchema
+>;
+
 export const PatternQuestionCardSchema = z.object({
   id: z.string(),
   patternId: PatternIdSchema,
@@ -325,6 +396,7 @@ export const PatternQuestionCardSchema = z.object({
       expectedBehavior: z.string().optional(),
     })
     .optional(),
+  visualArtifact: GeneratedVisualArtifactSchema.nullable().optional(),
   /** Server-only commitment; omitted when serialized to the browser before submission. */
   rubric: PreCommittedRubricSchema.optional(),
 });
@@ -336,12 +408,16 @@ export const SubmissionPayloadSchema = z.object({
   attemptId: z.string().min(1),
   selectedOptions: z.array(z.string()).optional(),
   choseIdk: z.boolean().optional(),
+  /** Explicit learner self-assessment (0..100, LearnHarness 25-confidence doctrine). */
+  confidence: z.number().int().min(0).max(100).optional(),
   verbalAnswer: z.string().max(6000).optional(),
   code: z.string().max(15000).optional(),
   language: PatternCodeLanguageSchema.optional(),
   claimedTimeComplexity: z.string().max(120).optional(),
   claimedSpaceComplexity: z.string().max(120).optional(),
   runSandbox: z.boolean().optional(),
+  /** Normalized learner dry-run / whiteboard sketches (verified server-side). */
+  workImages: z.array(SubmittedWorkImageInputSchema).max(2).optional(),
 });
 export type SubmissionPayload = z.infer<typeof SubmissionPayloadSchema>;
 
@@ -382,6 +458,11 @@ export const SubmissionEvaluationSchema = z.object({
   surgicalTeaching: z.string().nullable(),
   /** Revealed committed answer/reasoning after submission. */
   committedAnswerReveal: z.string(),
+  /** Confidence calibration telemetry for LearnHarness 25-confidence fusion. */
+  confidenceSubmitted: z.number().int().min(0).max(100).nullable().optional(),
+  confidenceDiagnostic: ConfidenceCalibrationVerdictSchema.optional(),
+  /** Audited visual diagram or counterexample attached to feedback. */
+  visualArtifact: GeneratedVisualArtifactSchema.nullable().optional(),
   codeAudit: CodeOptimizationAuditSchema.optional(),
   /** Instant twisted indirect question generated when a gap needs repair. */
   twistedFollowUp: PatternQuestionCardSchema.nullable(),
@@ -453,6 +534,145 @@ export interface QuestionHintEntry {
   hintText: string;
 }
 
+export const AGENT_ROLES = ["prober", "teacher", "practitioner"] as const;
+export type AgentRole = (typeof AGENT_ROLES)[number];
+
+export const PATTERN_TURN_ACTION_KINDS = [
+  "start_probe",
+  "select_level",
+  "ready_questions",
+  "request_hint",
+  "submit",
+  "retry",
+  "finish",
+] as const;
+export type PatternTurnActionKind = (typeof PATTERN_TURN_ACTION_KINDS)[number];
+
+export const PatternTurnActionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("start_probe") }),
+  z.object({ kind: z.literal("select_level"), track: TrackModeSchema }),
+  z.object({ kind: z.literal("ready_questions") }),
+  z.object({
+    kind: z.literal("request_hint"),
+    questionId: z.string().min(1).max(128),
+  }),
+  z.object({
+    kind: z.literal("submit"),
+    payload: SubmissionPayloadSchema,
+  }),
+  z.object({ kind: z.literal("retry") }),
+  z.object({ kind: z.literal("finish") }),
+]);
+export type PatternTurnActionInput = z.infer<typeof PatternTurnActionSchema>;
+
+export const SteerTurnBodySchema = z.object({
+  text: z.string().trim().min(1).max(600),
+  steerId: z.string().min(1).max(128).optional(),
+});
+export type SteerTurnBody = z.infer<typeof SteerTurnBodySchema>;
+
+export interface PatternToolCallRecord {
+  callId: string;
+  toolName: string;
+  argsPreview: string;
+  status: "running" | "completed" | "error";
+  healed?: boolean;
+  resultPreview?: string;
+  durationMs?: number;
+}
+
+export interface PatternTurnSteerNote {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface PatternTurnTraceSummary {
+  turnId: string;
+  role: AgentRole;
+  action: PatternTurnActionKind;
+  toolCalls: PatternToolCallRecord[];
+  reasoningSummary?: string;
+  steersApplied?: string[];
+  aborted?: boolean;
+  durationMs: number;
+}
+
+export type PatternTurnStreamEvent =
+  | {
+      type: "turn_started";
+      turnId: string;
+      sessionId: string;
+      role: AgentRole;
+      action: PatternTurnActionKind;
+      timestamp: number;
+    }
+  | {
+      type: "step_started";
+      turnId: string;
+      step: number;
+      role: AgentRole;
+      timestamp: number;
+    }
+  | {
+      type: "reasoning_update";
+      turnId: string;
+      text: string;
+      timestamp: number;
+    }
+  | {
+      type: "message_update";
+      turnId: string;
+      text: string;
+      timestamp: number;
+    }
+  | {
+      type: "tool_call_start";
+      turnId: string;
+      callId: string;
+      toolName: string;
+      argsPreview: string;
+      timestamp: number;
+    }
+  | {
+      type: "tool_call_end";
+      turnId: string;
+      callId: string;
+      toolName: string;
+      isError: boolean;
+      healed: boolean;
+      resultPreview: string;
+      durationMs: number;
+      timestamp: number;
+    }
+  | {
+      type: "steer_applied";
+      turnId: string;
+      steerId: string;
+      text: string;
+      timestamp: number;
+    }
+  | {
+      type: "turn_settled";
+      turnId: string;
+      sessionId: string;
+      aborted?: boolean;
+      session: PatternSessionState;
+      evaluation?: SubmissionEvaluation;
+      hint?: QuestionHintEntry;
+      alreadyAtMax?: boolean;
+      scorecard?: MasteryScorecard;
+      profile?: Record<string, unknown>;
+      timestamp: number;
+    }
+  | {
+      type: "turn_error";
+      turnId: string;
+      error: string;
+      statusCode?: number;
+      timestamp: number;
+    };
+
 export interface PatternSessionState {
   sessionId: string;
   userId: string;
@@ -471,6 +691,8 @@ export interface PatternSessionState {
     score: number;
     missClass: MissClass | null;
     highestHintRung?: HintRung | null;
+    confidence?: number | null;
+    confidenceDiagnostic?: ConfidenceCalibrationVerdict;
     verbalSummary?: string;
   }>;
   pendingRemediationStrands: string[];
@@ -480,6 +702,69 @@ export interface PatternSessionState {
   processedAttemptIds: string[];
   lastEvaluation: SubmissionEvaluation | null;
   scorecard: MasteryScorecard | null;
+  /** Compact O(1) trace of the latest multi-turn agent run. */
+  lastTurnTrace?: PatternTurnTraceSummary | null;
+  /** Server-derived liveness flag populated at public serialization boundaries. */
+  turnInFlight?: boolean;
+  /** Queued learner steers acknowledged for delivery at next model boundary. */
+  pendingSteers?: PatternTurnSteerNote[];
+  /** Last write-ahead turn action for bounded recovery on server restart/retry. */
+  lastAction?: PatternTurnActionInput | null;
+  /** Durable contextual clarification conversations anchored to lesson segments. */
+  sideChats?: SideChatThread[];
+  /** Atomic delivery watermarks for incremental side -> main teacher context folding. */
+  sideDeliveryWatermarks?: SideDeliveryWatermark;
+  /** SHA-256 deduplicated bounded learner work images (<= 6 per session). */
+  imageSnapshots?: Record<string, ImageSnapshot>;
   createdAt: string;
   updatedAt: string;
 }
+
+export const SIDE_SEGMENT_KINDS = ["notes", "question", "remediation"] as const;
+export type SideSegmentKind = (typeof SIDE_SEGMENT_KINDS)[number];
+
+export interface SideChatAnchor {
+  segmentId: string;
+  kind: SideSegmentKind;
+  title?: string;
+  excerpt?: string;
+}
+
+export interface SideChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  quotes?: string[];
+  quoteCitations?: string[];
+  at: string;
+  requestId?: string;
+  stopped?: boolean;
+  error?: string;
+  pending?: boolean;
+}
+
+export interface SideChatThread {
+  id: string;
+  anchor: SideChatAnchor;
+  open: boolean;
+  docked?: boolean;
+  createdAt: string;
+  messages: SideChatMessage[];
+}
+
+export type SideMessageDeliveryStatus =
+  | "pending"
+  | "complete"
+  | "stopped"
+  | "failed";
+
+export type SideDeliveryWatermark = Record<
+  string,
+  Record<
+    string,
+    {
+      textLength: number;
+      status: SideMessageDeliveryStatus;
+    }
+  >
+>;

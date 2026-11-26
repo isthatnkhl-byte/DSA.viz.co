@@ -2,20 +2,34 @@ import React, { useEffect, useState } from "react";
 import {
   Code2,
   Flame,
+  Gauge,
   HelpCircle,
   Lightbulb,
+  MessageCircleQuestion,
   MessageSquare,
   Play,
+  Quote,
   Send,
   Sparkles,
+  Wand2,
+  X,
 } from "lucide-react";
 import { MonacoCodeEditor } from "@/components/editor/MonacoCodeEditor";
+import { VerifiedVisualCanvas } from "@/components/patterns/VerifiedVisualCanvas";
+import { WorkImageUploadBar } from "@/components/patterns/WorkImageUploadBar";
 import type { SupportedLanguage } from "@/lib/codeTemplates";
+import {
+  citationLabel,
+  serializeCitation,
+  type PatternCitation,
+} from "@/lib/master-patterns/citations";
 import type {
   PatternCodeLanguage,
   PatternQuestionCard,
   QuestionHintEntry,
+  SideChatAnchor,
   SubmissionPayload,
+  SubmittedWorkImageInput,
 } from "@/lib/master-patterns/types";
 
 interface AdaptiveQuestionStageProps {
@@ -25,11 +39,25 @@ interface AdaptiveQuestionStageProps {
   hints?: QuestionHintEntry[];
   requestingHint?: boolean;
   onRequestHint?: () => void;
+  onOpenSideQuestion?: (anchor: SideChatAnchor) => void;
+  pendingCitations?: PatternCitation[];
+  onRemoveCitation?: (index: number) => void;
   initialVerbalDraft?: string;
   initialCodeDraft?: string;
   onDraftChange?: (verbal: string, code: string) => void;
+  dictationControl?: React.ReactNode;
+  onFlushDictation?: () => string;
+  generatingVisual?: boolean;
+  onRequestVisualDiagram?: () => Promise<void> | void;
   onSubmit: (payload: SubmissionPayload) => void;
 }
+
+const CONFIDENCE_STOPS = [
+  { value: 25, label: "Guessing", pct: "25%" },
+  { value: 55, label: "Somewhat Sure", pct: "55%" },
+  { value: 80, label: "Confident", pct: "80%" },
+  { value: 95, label: "Certain", pct: "95%" },
+] as const;
 
 const CODE_LANGUAGES: Array<{ value: PatternCodeLanguage; label: string }> = [
   { value: "cpp", label: "C++20" },
@@ -45,13 +73,22 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
   hints = [],
   requestingHint = false,
   onRequestHint,
+  onOpenSideQuestion,
+  pendingCitations = [],
+  onRemoveCitation,
   initialVerbalDraft = "",
   initialCodeDraft,
   onDraftChange,
+  dictationControl,
+  onFlushDictation,
+  generatingVisual = false,
+  onRequestVisualDiagram,
   onSubmit,
 }) => {
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [choseIdk, setChoseIdk] = useState(false);
+  const [confidence, setConfidence] = useState<number | undefined>(undefined);
+  const [workImages, setWorkImages] = useState<SubmittedWorkImageInput[]>([]);
   const [verbalAnswer, setVerbalAnswer] = useState(initialVerbalDraft);
   const [codeLang, setCodeLang] = useState<PatternCodeLanguage>(
     question.codeStarter?.language ?? "cpp",
@@ -63,17 +100,27 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
   const [claimedSpace, setClaimedSpace] = useState("");
   const [runSandbox, setRunSandbox] = useState(false);
 
-  // Reset form cleanly when moving to a new questionId
+  // Reset form cleanly only when switching to a new questionId
   useEffect(() => {
     setSelectedOptions([]);
     setChoseIdk(false);
+    setConfidence(undefined);
+    setWorkImages([]);
     setVerbalAnswer(initialVerbalDraft);
     setCodeLang(question.codeStarter?.language ?? "cpp");
     setCode(initialCodeDraft ?? question.codeStarter?.starter ?? "");
     setClaimedTime("");
     setClaimedSpace("");
     setRunSandbox(false);
-  }, [question.id, initialVerbalDraft, initialCodeDraft, question.codeStarter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question.id]);
+
+  // Sync external verbal updates (e.g., voice dictation append) without wiping form selections
+  useEffect(() => {
+    setVerbalAnswer((prev) =>
+      prev === initialVerbalDraft ? prev : initialVerbalDraft,
+    );
+  }, [initialVerbalDraft]);
 
   useEffect(() => {
     onDraftChange?.(verbalAnswer, code);
@@ -110,19 +157,34 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
     e.preventDefault();
     if (!canSubmit) return;
 
+    const flushedChunk = onFlushDictation?.().trim() ?? "";
     const attemptId = `att_${question.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const citationLinks =
+      pendingCitations.length > 0
+        ? pendingCitations.map((c) => serializeCitation(c)).join(" ")
+        : "";
+    const combinedRawVerbal = [verbalAnswer.trim(), flushedChunk]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const composedVerbal = [citationLinks, combinedRawVerbal]
+      .filter(Boolean)
+      .join("\n");
+
     onSubmit({
       sessionId,
       questionId: question.id,
       attemptId,
       selectedOptions: hasOptions && !choseIdk ? selectedOptions : undefined,
       choseIdk,
-      verbalAnswer: verbalAnswer.trim() || undefined,
+      confidence: choseIdk ? undefined : confidence,
+      verbalAnswer: composedVerbal || undefined,
       code: isCode ? code : undefined,
       language: isCode ? codeLang : undefined,
       claimedTimeComplexity: isCode ? claimedTime.trim() || undefined : undefined,
       claimedSpaceComplexity: isCode ? claimedSpace.trim() || undefined : undefined,
       runSandbox: isCode ? runSandbox : undefined,
+      workImages: workImages.length > 0 ? workImages : undefined,
     });
   };
 
@@ -170,13 +232,48 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
           )}
         </div>
 
-        <span className="font-mono text-[10px] text-muted-foreground uppercase">
-          Strand: {question.strandId.split(":")[1] ?? question.strandId}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] text-muted-foreground uppercase">
+            Strand: {question.strandId.split(":")[1] ?? question.strandId}
+          </span>
+          {onRequestVisualDiagram && (
+            <button
+              type="button"
+              disabled={submitting || generatingVisual}
+              onClick={() => void onRequestVisualDiagram()}
+              className="inline-flex items-center gap-1 border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-foreground hover:border-primary disabled:opacity-40 cursor-pointer"
+            >
+              <Wand2 className="size-3 text-primary" />
+              {generatingVisual ? "Drawing..." : "Trace Diagram"}
+            </button>
+          )}
+          {onOpenSideQuestion && (
+            <button
+              type="button"
+              onClick={() =>
+                onOpenSideQuestion({
+                  segmentId: `q:${question.id}`,
+                  kind: "question",
+                  title: `Check (${question.strandId.split(":")[1] ?? question.strandId})`,
+                  excerpt: question.prompt,
+                })
+              }
+              className="inline-flex items-center gap-1 border border-primary/40 bg-primary/5 px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-primary hover:bg-primary/15 cursor-pointer"
+            >
+              <MessageCircleQuestion className="size-3" />
+              Side Q
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Prompt */}
-      <div className="space-y-2">
+      {/* Prompt (Highlight text to Ask or Cite) */}
+      <div
+        data-side-segment-id={`q:${question.id}`}
+        data-side-segment-kind="question"
+        data-side-segment-title={`Check (${question.strandId.split(":")[1] ?? question.strandId})`}
+        className="space-y-2"
+      >
         <p className="text-sm sm:text-base font-medium text-foreground whitespace-pre-line leading-relaxed">
           {question.prompt}
         </p>
@@ -184,6 +281,9 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
           <div className="border border-border bg-muted/40 px-3 py-2 font-mono text-xs text-muted-foreground">
             {question.contextSnippet}
           </div>
+        )}
+        {question.visualArtifact && (
+          <VerifiedVisualCanvas artifact={question.visualArtifact} />
         )}
       </div>
 
@@ -228,6 +328,7 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
               onClick={() => {
                 setChoseIdk(true);
                 setSelectedOptions([]);
+                setConfidence(undefined);
               }}
               className={`w-full text-left flex items-center gap-2.5 border border-dashed p-3 transition-all cursor-pointer ${
                 choseIdk
@@ -322,22 +423,49 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
       )}
 
       {/* Mandatory/Encouraged Verbal Reasoning Box (LearnHarness Thinking Field) */}
-      <div className="space-y-1.5">
-        <label className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.12em] text-foreground font-semibold">
-          <span className="inline-flex items-center gap-1.5">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-foreground font-semibold">
             <MessageSquare className="size-3.5 text-primary" />
             {isCode
               ? "Verbal Approach & Loop Invariant (Required)"
               : hasOptions
                 ? "Think Out Loud — Explain Your Reasoning"
                 : "Your Verbal / Text Answer"}
-          </span>
-          {hasOptions && (
-            <span className="text-[10px] text-amber-500 font-normal">
-              Verified against option to catch lucky guesses
-            </span>
-          )}
-        </label>
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            {hasOptions && (
+              <span className="font-mono text-[10px] text-amber-500">
+                Verified against option to catch lucky guesses
+              </span>
+            )}
+            {dictationControl}
+          </div>
+        </div>
+        {pendingCitations.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {pendingCitations.map((c, idx) => (
+              <span
+                key={`${c.segmentId}_${c.start}_${idx}`}
+                className="inline-flex items-center gap-1.5 border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] text-amber-500 max-w-full"
+              >
+                <Quote className="size-2.5 shrink-0" />
+                <span className="truncate max-w-[260px]">
+                  {citationLabel(c)}
+                </span>
+                {onRemoveCitation && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveCitation(idx)}
+                    className="hover:text-foreground cursor-pointer"
+                  >
+                    <X className="size-2.5" />
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
         <textarea
           rows={isCode || !hasOptions ? 4 : 2}
           value={verbalAnswer}
@@ -348,6 +476,50 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
               : "Explain in your own words why this invariant holds or what constraint breaks it..."
           }
           className="w-full border border-border bg-background p-3 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary resize-y"
+        />
+
+        {/* Explicit Confidence Calibration Selector (LearnHarness 25-confidence doctrine) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border border-border/80 bg-background/60 px-3 py-2">
+          <div className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            <Gauge className="size-3.5 text-primary" />
+            <span>Self-Confidence</span>
+          </div>
+          {choseIdk ? (
+            <span className="font-mono text-[10px] text-amber-500">
+              Suppressed on &ldquo;I don&apos;t know&rdquo; — honest gap recorded
+            </span>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {CONFIDENCE_STOPS.map((stop) => {
+                const active = confidence === stop.value;
+                return (
+                  <button
+                    key={stop.value}
+                    type="button"
+                    disabled={submitting}
+                    onClick={() =>
+                      setConfidence((prev) =>
+                        prev === stop.value ? undefined : stop.value,
+                      )
+                    }
+                    className={`border px-2 py-1 font-mono text-[10px] transition-colors cursor-pointer ${
+                      active
+                        ? "border-primary bg-primary/15 text-primary font-bold"
+                        : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                    }`}
+                  >
+                    {stop.label} ({stop.pct})
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <WorkImageUploadBar
+          images={workImages}
+          onChange={setWorkImages}
+          disabled={submitting}
         />
       </div>
 
@@ -395,6 +567,7 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
               type="button"
               disabled={submitting}
               onClick={() => {
+                const flushed = onFlushDictation?.().trim() ?? "";
                 const attemptId = `idk_${question.id}_${Date.now()}`;
                 onSubmit({
                   sessionId,
@@ -402,7 +575,9 @@ export const AdaptiveQuestionStage: React.FC<AdaptiveQuestionStageProps> = ({
                   attemptId,
                   choseIdk: true,
                   verbalAnswer:
-                    verbalAnswer.trim() || "I'm unsure where to start.",
+                    [verbalAnswer.trim(), flushed].filter(Boolean).join(" ") ||
+                    "I'm unsure where to start.",
+                  workImages: workImages.length > 0 ? workImages : undefined,
                 });
               }}
               className="inline-flex items-center gap-1.5 border border-border px-3 py-2 font-mono text-[11px] text-muted-foreground hover:text-amber-500 hover:border-amber-500 cursor-pointer"
